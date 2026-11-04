@@ -151,7 +151,12 @@ export function ChatView({
                 message={message}
                 models={models}
                 agents={agents}
-                streaming={Boolean(running && message.id === lastAssistant?.id)}
+                streaming={Boolean(
+                  running &&
+                    lastAssistant &&
+                    message.id === lastAssistant.id &&
+                    messages[messages.length - 1]?.id === lastAssistant.id,
+                )}
               />
             ))
           )}

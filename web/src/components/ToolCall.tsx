@@ -37,7 +37,11 @@ function StatusIcon({ status }: { status: ToolPart["state"]["status"] }) {
 function ContentItem({ content }: { content: ToolContent }) {
   const source = content.uri ?? content.url;
   if (content.type === "file" && source) {
-    if (/^(data:image\/|https?:\/\/)/i.test(source)) {
+    const image =
+      content.mime?.startsWith("image/") ||
+      /^data:image\//i.test(source) ||
+      /\.(png|jpe?g|gif|webp|svg)(\?|$)/i.test(source);
+    if (image) {
       return (
         <a href={source} target="_blank" rel="noreferrer noopener" className="block">
           <img

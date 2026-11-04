@@ -286,6 +286,7 @@ export default function App() {
       event.type === "session.metadata.updated" ||
       event.type === "session.model.selected" ||
       event.type === "session.agent.selected" ||
+      event.type.startsWith("session.execution.") ||
       event.type === "session.idle"
     ) {
       scheduleSessionsRefresh();

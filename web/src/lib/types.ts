@@ -16,6 +16,8 @@ export type ToolContent = {
   text?: string;
   uri?: string;
   url?: string;
+  mime?: string;
+  name?: string;
 };
 
 export type ToolState = {

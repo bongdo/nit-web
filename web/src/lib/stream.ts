@@ -237,7 +237,8 @@ export function applyEvent(messages: Message[], event: StreamEvent): Message[] {
       );
     }
 
-    case "session.tool.failed": {
+    case "session.tool.failed":
+    case "session.tool.error": {
       const toolID = str(data.id);
       if (!toolID) return messages;
       return updateMessage(messages, id, event, (message) =>

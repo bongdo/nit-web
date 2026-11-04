@@ -35,3 +35,15 @@ Why: the primitives are small, accessible enough for this screen, and avoid pull
 Rejected: `shadcn add` with Radix Select and DropdownMenu; a general-purpose UI framework.
 
 Cost: no virtualized select, no portal positioning, and the picker is a native select with the platform's menu behavior.
+
+## 2026-11-04 — Redact service credentials at the proxy boundary
+
+Context: a transcript can contain the OpenCode service password because a tool can read `service.json`. Forwarding upstream JSON or SSE unchanged puts that password in the browser DOM.
+
+Decision: the Go client builds a redactor from the current password. Every pass-through JSON body and every SSE `data` payload is decoded, string values are replaced (`password`, `opencode:<password>`, the base64 Basic auth value), and JSON is re-encoded. SSE is buffered to whole lines before redaction. App-built summaries (models, agents, config) are unchanged.
+
+Why: value-level redaction keeps JSON valid even when the password needs JSON escaping; line buffering prevents a password split across TCP chunks from escaping.
+
+Rejected: byte replacement on the whole body (breaks JSON escaping and chunked SSE); browser-side redaction (the secret would already have left the Go process).
+
+Cost: a transcript page is decoded and re-encoded once; upstream error text is redacted the same way.

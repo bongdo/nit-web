@@ -176,11 +176,7 @@ func (c *Client) Stream(ctx context.Context, path string) (*http.Response, error
 }
 
 func (c *Client) redact(body []byte) []byte {
-	password := c.password()
-	if password == "" {
-		return body
-	}
-	return bytes.ReplaceAll(body, []byte(password), []byte("[redacted]"))
+	return c.Redactor().Bytes(body)
 }
 
 func IsNotFound(err error) bool {

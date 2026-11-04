@@ -2,6 +2,7 @@ package server_test
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -12,12 +13,28 @@ import (
 	"sync/atomic"
 	"testing"
 	"testing/fstest"
+	"time"
 
 	"nitgui/internal/opencode"
 	"nitgui/internal/server"
 )
 
 const testPassword = "test-password-value"
+
+func basicAuthValue() string { return "opencode:" + testPassword }
+
+func encodedBasicAuthValue() string {
+	return base64.StdEncoding.EncodeToString([]byte(basicAuthValue()))
+}
+
+func assertNoSecret(t *testing.T, body, where string) {
+	t.Helper()
+	for _, secret := range []string{testPassword, basicAuthValue(), encodedBasicAuthValue()} {
+		if strings.Contains(body, secret) {
+			t.Fatalf("%s leaked %q: %s", where, secret, body)
+		}
+	}
+}
 
 type staticProvider struct {
 	client *opencode.Client
@@ -224,6 +241,169 @@ func TestEventsProxy(t *testing.T) {
 	}
 }
 
+func TestMessagesRedactSecrets(t *testing.T) {
+	upstream := httptest.NewServer(auth(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprintf(w, `{"data":[{"id":"m1","type":"assistant","time":{"created":1},"content":[{"type":"tool","id":"t1","name":"shell","state":{"status":"completed","content":[{"type":"text","text":"password=%s basic=%s encoded=%s"}]}}]}],"cursor":{"next":null}}`,
+			testPassword, basicAuthValue(), encodedBasicAuthValue())
+	}))
+	defer upstream.Close()
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "http://127.0.0.1:7788/api/sessions/ses_1/messages", nil)
+	newHandler(t, upstream.URL).ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d: %s", rec.Code, rec.Body)
+	}
+	assertNoSecret(t, rec.Body.String(), "messages")
+	if !strings.Contains(rec.Body.String(), "[redacted]") {
+		t.Fatalf("messages were not redacted: %s", rec.Body)
+	}
+	var body struct {
+		Data []struct {
+			ID      string `json:"id"`
+			Content []struct {
+				Name  string `json:"name"`
+				State struct {
+					Content []struct {
+						Text string `json:"text"`
+					} `json:"content"`
+				} `json:"state"`
+			} `json:"content"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatalf("transcript is not valid JSON: %v", err)
+	}
+	if len(body.Data) != 1 || body.Data[0].ID != "m1" || body.Data[0].Content[0].Name != "shell" {
+		t.Fatalf("transcript shape changed: %s", rec.Body)
+	}
+	text := body.Data[0].Content[0].State.Content[0].Text
+	if !strings.Contains(text, "password=[redacted]") || !strings.Contains(text, "basic=[redacted]") {
+		t.Fatalf("tool output text was not redacted: %q", text)
+	}
+}
+
+func TestSessionsRedactSecrets(t *testing.T) {
+	upstream := httptest.NewServer(auth(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprintf(w, `{"data":[{"id":"ses_1","title":"leak %s and %s","location":{"directory":"/home/ubuntu"}}]}`,
+			testPassword, encodedBasicAuthValue())
+	}))
+	defer upstream.Close()
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "http://127.0.0.1:7788/api/sessions?dir=/home/ubuntu", nil)
+	newHandler(t, upstream.URL).ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d: %s", rec.Code, rec.Body)
+	}
+	assertNoSecret(t, rec.Body.String(), "sessions")
+	var body struct {
+		Data []struct {
+			ID    string `json:"id"`
+			Title string `json:"title"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatalf("session list is not valid JSON: %v", err)
+	}
+	if len(body.Data) != 1 || body.Data[0].ID != "ses_1" || !strings.Contains(body.Data[0].Title, "[redacted]") {
+		t.Fatalf("session list shape changed: %s", rec.Body)
+	}
+}
+
+func TestPromptResponseRedactsSecrets(t *testing.T) {
+	upstream := httptest.NewServer(auth(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprintf(w, `{"data":{"id":"inbox_1","text":"%s %s"}}`, basicAuthValue(), encodedBasicAuthValue())
+	}))
+	defer upstream.Close()
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "http://127.0.0.1:7788/api/sessions/ses_1/prompt", strings.NewReader(`{"text":"hello"}`))
+	req.Header.Set("Content-Type", "application/json")
+	newHandler(t, upstream.URL).ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d: %s", rec.Code, rec.Body)
+	}
+	assertNoSecret(t, rec.Body.String(), "prompt response")
+	var body struct {
+		Data struct {
+			ID   string `json:"id"`
+			Text string `json:"text"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatalf("prompt response is not valid JSON: %v", err)
+	}
+	if body.Data.ID != "inbox_1" || !strings.Contains(body.Data.Text, "[redacted]") {
+		t.Fatalf("prompt response shape changed: %s", rec.Body)
+	}
+}
+
+func TestEventsRedactSecrets(t *testing.T) {
+	payload := fmt.Sprintf(`{"type":"session.tool.success","data":{"text":"%s","basic":"%s","encoded":"%s"}}`,
+		testPassword, basicAuthValue(), encodedBasicAuthValue())
+	line := "data: " + payload + "\n\n"
+
+	upstream := httptest.NewServer(auth(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		flusher, ok := w.(http.Flusher)
+		if !ok {
+			t.Error("upstream cannot flush")
+			return
+		}
+		split := strings.Index(line, testPassword) + 10
+		fmt.Fprint(w, line[:split])
+		flusher.Flush()
+		time.Sleep(20 * time.Millisecond)
+		fmt.Fprint(w, line[split:])
+		flusher.Flush()
+	}))
+	defer upstream.Close()
+
+	proxy := httptest.NewServer(newHandler(t, upstream.URL))
+	defer proxy.Close()
+
+	resp, err := http.Get(proxy.URL + "/api/events")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	raw, _ := io.ReadAll(resp.Body)
+	body := string(raw)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d: %s", resp.StatusCode, body)
+	}
+	assertNoSecret(t, body, "events")
+	if !strings.Contains(body, "[redacted]") {
+		t.Fatalf("events were not redacted: %s", body)
+	}
+	lines := strings.Split(strings.TrimSpace(body), "\n")
+	if len(lines) != 1 {
+		t.Fatalf("expected one SSE event, got %q", body)
+	}
+	eventPayload, ok := strings.CutPrefix(lines[0], "data: ")
+	if !ok {
+		t.Fatalf("SSE framing changed: %q", lines[0])
+	}
+	var event struct {
+		Type string `json:"type"`
+		Data struct {
+			Text    string `json:"text"`
+			Basic   string `json:"basic"`
+			Encoded string `json:"encoded"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal([]byte(eventPayload), &event); err != nil {
+		t.Fatalf("SSE data is not valid JSON: %v", err)
+	}
+	if event.Type != "session.tool.success" || event.Data.Basic != "[redacted]" || event.Data.Encoded != "[redacted]" {
+		t.Fatalf("SSE event shape changed: %s", eventPayload)
+	}
+}
+
 func TestRejectsForeignOrigin(t *testing.T) {
 	upstream := httptest.NewServer(auth(func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprint(w, `{}`)
@@ -237,6 +417,24 @@ func TestRejectsForeignOrigin(t *testing.T) {
 
 	if rec.Code != http.StatusForbidden {
 		t.Fatalf("status = %d, want 403", rec.Code)
+	}
+}
+
+func TestAllowsUppercaseLocalhost(t *testing.T) {
+	upstream := httptest.NewServer(auth(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, `{"version":"2.2.5"}`)
+	}))
+	defer upstream.Close()
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "http://LOCALHOST:7788/api/health", nil)
+	newHandler(t, upstream.URL).ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200: %s", rec.Code, rec.Body)
+	}
+	if !strings.Contains(rec.Body.String(), `"ok":true`) {
+		t.Fatalf("unexpected body: %s", rec.Body)
 	}
 }
 

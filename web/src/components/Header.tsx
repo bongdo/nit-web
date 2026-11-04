@@ -62,6 +62,10 @@ export function Header({
   const directory = session?.location?.directory ?? fallbackDirectory;
   const title = session?.title?.trim() || (session ? "New session" : "nit-gui");
   const live = streamStatus === "online" && health?.ok;
+  const variants = model
+    ? (models.find((item) => item.id === model.id && item.providerID === model.providerID)
+        ?.variants ?? [])
+    : [];
 
   return (
     <header className="border-border bg-background/95 supports-[backdrop-filter]:bg-background/80 flex shrink-0 flex-wrap items-center gap-x-3 gap-y-2 border-b px-3 py-2.5 backdrop-blur">
@@ -96,7 +100,11 @@ export function Header({
           onChange={(event) => {
             const [providerID, ...rest] = event.target.value.split("/");
             const id = rest.join("/");
-            if (providerID && id) onModel({ id, providerID });
+            if (!providerID || !id) return;
+            const supported = models
+              .find((item) => item.id === id && item.providerID === providerID)
+              ?.variants.some((item) => item.id === model?.variant);
+            onModel({ id, providerID, variant: supported ? model?.variant : undefined });
           }}
           disabled={models.length === 0}
           title="Model"
@@ -114,6 +122,28 @@ export function Header({
             </optgroup>
           ))}
         </Select>
+
+        {model && variants.length > 0 && (
+          <Select
+            aria-label="Model variant"
+            className="w-[95px] sm:w-[110px]"
+            value={model.variant ?? ""}
+            onChange={(event) =>
+              onModel({ ...model, variant: event.target.value || undefined })
+            }
+            title="Model variant"
+          >
+            <option value="">Default</option>
+            {model.variant && !variants.some((item) => item.id === model.variant) && (
+              <option value={model.variant}>{model.variant}</option>
+            )}
+            {variants.map((item) => (
+              <option key={item.id} value={item.id}>
+                {item.id}
+              </option>
+            ))}
+          </Select>
+        )}
 
         <Select
           aria-label="Agent"

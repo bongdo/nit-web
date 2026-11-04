@@ -5,6 +5,7 @@ import {
   formatCost,
   formatRelative,
   formatTokens,
+  mergeRunningStates,
   modelKey,
   modelLabel,
   sessionRunning,
@@ -44,7 +45,35 @@ describe("format", () => {
     ] as Model[];
     expect(modelKey({ id: "m1", providerID: "p1" })).toBe("p1/m1");
     expect(modelLabel({ id: "m1", providerID: "p1" }, models)).toBe("Model One");
+    expect(modelLabel({ id: "m1", providerID: "p1", variant: "high" }, models)).toBe(
+      "Model One · high",
+    );
     expect(modelLabel({ id: "m2", providerID: "p2" }, models)).toBe("p2/m2");
+  });
+
+  it("refreshes running sessions unless a newer local event arrived", () => {
+    const requestedAt = 5_000;
+    const idle = session({ id: "ses_1", time: { created: 1, updated: 2, busy: 3, idle: 4 } });
+    const busy = session({ id: "ses_2", time: { created: 1, updated: 2, busy: 3 } });
+    const merge = (localEvents: Record<string, number>) =>
+      mergeRunningStates(
+        { ses_1: true, ses_2: false, ses_stale: true },
+        [idle, busy],
+        localEvents,
+        requestedAt,
+      );
+
+    expect(merge({})).toEqual({ ses_1: false, ses_2: true, ses_stale: true });
+    expect(merge({ ses_1: requestedAt + 1, ses_2: requestedAt + 1 })).toEqual({
+      ses_1: true,
+      ses_2: false,
+      ses_stale: true,
+    });
+    expect(merge({ ses_1: requestedAt - 1 })).toEqual({
+      ses_1: false,
+      ses_2: true,
+      ses_stale: true,
+    });
   });
 
   it("detects running sessions", () => {

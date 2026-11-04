@@ -1,4 +1,4 @@
-import type { Model, ModelRef, Session, Tokens } from "./types";
+import type { Model, ModelRef, Session } from "./types";
 
 export function formatRelative(ms: number, now = Date.now()): string {
   if (!ms) return "";
@@ -26,16 +26,6 @@ export function formatTokens(n?: number): string {
   return `${(n / 1_000_000).toFixed(1)}M`;
 }
 
-export function tokenTotal(tokens?: Tokens): number {
-  if (!tokens) return 0;
-  return (
-    (tokens.input ?? 0) +
-    (tokens.output ?? 0) +
-    (tokens.reasoning ?? 0) +
-    (tokens.cache?.read ?? 0)
-  );
-}
-
 export function modelKey(model?: ModelRef | null): string {
   if (!model) return "";
   return `${model.providerID}/${model.id}`;
@@ -44,7 +34,8 @@ export function modelKey(model?: ModelRef | null): string {
 export function modelLabel(model: ModelRef | null | undefined, models: Model[]): string {
   if (!model) return "";
   const found = models.find((m) => m.id === model.id && m.providerID === model.providerID);
-  return found?.name ?? `${model.providerID}/${model.id}`;
+  const name = found?.name ?? `${model.providerID}/${model.id}`;
+  return model.variant ? `${name} · ${model.variant}` : name;
 }
 
 export function basename(path?: string): string {
@@ -70,6 +61,16 @@ export function filterSessions(sessions: Session[], query: string): Session[] {
   );
 }
 
-export function shortId(id: string): string {
-  return id.length > 12 ? `${id.slice(0, 8)}…` : id;
+export function mergeRunningStates(
+  previous: Record<string, boolean>,
+  sessions: Session[],
+  localEvents: Record<string, number>,
+  requestedAt: number,
+): Record<string, boolean> {
+  const next = { ...previous };
+  for (const session of sessions) {
+    if ((localEvents[session.id] ?? 0) > requestedAt) continue;
+    next[session.id] = sessionRunning(session);
+  }
+  return next;
 }

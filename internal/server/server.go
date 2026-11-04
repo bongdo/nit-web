@@ -1,6 +1,8 @@
 package server
 
 import (
+	"bufio"
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -95,7 +97,7 @@ func allowedHost(hostport string) bool {
 		host = h
 	}
 	host = strings.Trim(host, "[]")
-	return host == "localhost" || host == "127.0.0.1" || host == "::1"
+	return strings.EqualFold(host, "localhost") || host == "127.0.0.1" || host == "::1"
 }
 
 func allowedOrigin(r *http.Request) bool {
@@ -161,7 +163,7 @@ func (s *Server) sessions(w http.ResponseWriter, r *http.Request) {
 		s.upstreamError(w, err)
 		return
 	}
-	writeRaw(w, raw)
+	writeRaw(w, raw, c.Redactor())
 }
 
 type createSessionInput struct {
@@ -212,7 +214,7 @@ func (s *Server) createSession(w http.ResponseWriter, r *http.Request) {
 		s.upstreamError(w, err)
 		return
 	}
-	writeRaw(w, raw)
+	writeRaw(w, raw, c.Redactor())
 }
 
 func (s *Server) messages(w http.ResponseWriter, r *http.Request) {
@@ -226,6 +228,7 @@ func (s *Server) messages(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusServiceUnavailable, "opencode service not found")
 		return
 	}
+	redactor := c.Redactor()
 	data := []json.RawMessage{}
 	cursor := ""
 	for page := 0; page < 20; page++ {
@@ -242,6 +245,9 @@ func (s *Server) messages(w http.ResponseWriter, r *http.Request) {
 		if err := c.Do(r.Context(), http.MethodGet, path, nil, &env); err != nil {
 			s.upstreamError(w, err)
 			return
+		}
+		for i, item := range env.Data {
+			env.Data[i] = redactor.JSON(item)
 		}
 		data = append(data, env.Data...)
 		if env.Cursor.Next == nil || *env.Cursor.Next == "" {
@@ -281,7 +287,7 @@ func (s *Server) prompt(w http.ResponseWriter, r *http.Request) {
 		s.upstreamError(w, err)
 		return
 	}
-	writeRaw(w, raw)
+	writeRaw(w, raw, c.Redactor())
 }
 
 func (s *Server) interrupt(w http.ResponseWriter, r *http.Request) {
@@ -300,7 +306,7 @@ func (s *Server) interrupt(w http.ResponseWriter, r *http.Request) {
 		s.upstreamError(w, err)
 		return
 	}
-	writeRaw(w, raw)
+	writeRaw(w, raw, c.Redactor())
 }
 
 func (s *Server) switchModel(w http.ResponseWriter, r *http.Request) {
@@ -330,7 +336,7 @@ func (s *Server) switchModel(w http.ResponseWriter, r *http.Request) {
 		s.upstreamError(w, err)
 		return
 	}
-	writeRaw(w, raw)
+	writeRaw(w, raw, c.Redactor())
 }
 
 func (s *Server) switchAgent(w http.ResponseWriter, r *http.Request) {
@@ -360,7 +366,7 @@ func (s *Server) switchAgent(w http.ResponseWriter, r *http.Request) {
 		s.upstreamError(w, err)
 		return
 	}
-	writeRaw(w, raw)
+	writeRaw(w, raw, c.Redactor())
 }
 
 type modelOut struct {
@@ -513,17 +519,19 @@ func (s *Server) events(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 	flusher.Flush()
 	buf := make([]byte, 32<<10)
-	for {
-		n, err := resp.Body.Read(buf)
-		if n > 0 {
-			if _, werr := w.Write(buf[:n]); werr != nil {
-				return
-			}
-			flusher.Flush()
+	redactor := c.Redactor()
+	scanner := bufio.NewScanner(resp.Body)
+	scanner.Buffer(buf, 64<<20)
+	for scanner.Scan() {
+		line := scanner.Bytes()
+		if payload, ok := bytes.CutPrefix(line, []byte("data:")); ok {
+			payload = bytes.TrimPrefix(payload, []byte(" "))
+			line = append([]byte("data: "), redactor.JSON(payload)...)
 		}
-		if err != nil {
+		if _, werr := w.Write(append(line, '\n')); werr != nil {
 			return
 		}
+		flusher.Flush()
 	}
 }
 
@@ -642,10 +650,11 @@ func writeJSON(w http.ResponseWriter, status int, v any) {
 	_ = json.NewEncoder(w).Encode(v)
 }
 
-func writeRaw(w http.ResponseWriter, raw json.RawMessage) {
+func writeRaw(w http.ResponseWriter, raw json.RawMessage, redactor *opencode.Redactor) {
 	if len(raw) == 0 {
 		raw = json.RawMessage(`{}`)
 	}
+	raw = redactor.JSON(raw)
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write(raw)

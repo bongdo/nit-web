@@ -63,10 +63,10 @@ The browser only talks to these same-origin endpoints:
 | `GET /api/config` | Directory, default model and primary agent. |
 | `GET /api/sessions?dir=` | Newest sessions. |
 | `POST /api/sessions` | Create `{directory, title?, agent?, model?}`. |
-| `GET /api/sessions/{id}/messages` | Full transcript, ascending, paginated upstream. |
+| `GET /api/sessions/{id}/messages` | Full transcript, ascending, paginated upstream, redacted. |
 | `POST /api/sessions/{id}/prompt` | Send `{text}`. |
 | `POST /api/sessions/{id}/interrupt` | Stop the active execution. |
-| `POST /api/sessions/{id}/model` | Switch model `{model}`. |
+| `POST /api/sessions/{id}/model` | Switch model `{model: {id, providerID, variant?}}`. |
 | `POST /api/sessions/{id}/agent` | Switch agent `{agent}`. |
 | `GET /api/models`, `GET /api/agents` | Pickers. |
 | `GET /api/events` | Server-sent events proxied from OpenCode `/api/event`. |
@@ -77,16 +77,22 @@ OpenCode's plural resource paths are singular (`/api/session`, `/api/model`,
 ## Security model
 
 - The listener is hard-coded to `127.0.0.1:7788`; there is no remote mode.
-- The service password stays in the Go process. It is never written to HTML,
-  JSON, SSE events or logs. The browser sees only same-origin `/api` responses.
-- `Host` is restricted to `localhost`, `127.0.0.1` and `::1`. Cross-origin
-  `POST` requests are rejected by checking `Origin` when present.
+- The service password stays in the Go process and is not logged. OpenCode
+  content can contain it because a tool can read `service.json`, so every
+  successful JSON response proxied from OpenCode and every SSE `data` payload is
+  redacted before it is written to the browser. The current password,
+  `opencode:<password>` and the base64 Basic auth value are replaced with
+  `[redacted]`. Redaction walks JSON string values and re-encodes them, so the
+  response stays valid JSON; SSE framing is preserved.
+- `Host` is restricted to `localhost`, `127.0.0.1` and `::1`, case-insensitively.
+  Cross-origin `POST` requests are rejected by checking `Origin` when present.
 - JSON request bodies are capped at 1 MiB. Upstream JSON responses are capped at
   64 MiB. API requests have a 20 second upstream timeout; the event stream is
   exempt and is cancelled when the browser disconnects.
-- Markdown is rendered by `react-markdown` without raw-HTML rehype. Model output
-  never becomes part of the app DOM. An HTML-looking message or a fenced
-  `html` block gets a preview button; the preview runs in
+- Markdown is rendered by `react-markdown` without raw-HTML rehype. Model text,
+  tool output and markdown elements are inserted as DOM text and elements, not as
+  raw HTML. Raw HTML is never injected into the app DOM: an HTML-looking message
+  or a fenced `html` block gets a preview button, and the preview runs in
   `iframe srcdoc` with `sandbox="allow-scripts allow-forms allow-modals"`.
   `allow-same-origin` is absent, so preview scripts run in an opaque origin and
   cannot read the app, cookies or local storage. Preview code can still make
@@ -101,7 +107,13 @@ OpenCode's plural resource paths are singular (`/api/session`, `/api/model`,
 - Composer: Enter sends, Shift+Enter adds a line, stop while streaming, token
   and cost footer when OpenCode reports them.
 - Model and agent pickers in the header; changes are applied to the current
-  session and remembered for the next new session.
+  session and remembered for the next new session. When the selected model
+  exposes variants, a variant picker appears and the chosen `variant` is sent
+  with the model ref; it is kept across model switches that support it.
+- Running dot: driven by `session.execution.*` and `session.idle` events, and
+  re-synced from `time.busy`/`time.idle` on every session-list load or reconnect.
+  A local event newer than the list request wins, so a missed idle event cannot
+  leave the dot stuck.
 - Dark, light and system themes. Theme is stored in `localStorage`.
 - Shortcuts: `mod+k` search, `mod+n` new session, `mod+enter` send (in the
   composer), `esc` stop.

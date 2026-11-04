@@ -12,7 +12,7 @@ import type {
   StreamEvent,
 } from "./lib/types";
 import { applyEvent, normalizeMessages } from "./lib/stream";
-import { modelLabel, sessionRunning } from "./lib/format";
+import { mergeRunningStates, modelLabel, sessionRunning } from "./lib/format";
 import { cn } from "./lib/utils";
 import { useTheme } from "./hooks/useTheme";
 import { useEventStream } from "./hooks/useEventStream";
@@ -57,6 +57,7 @@ export default function App() {
   const searchRef = useRef<HTMLInputElement>(null);
   const refreshTimer = useRef<number | null>(null);
   const firstStreamOpen = useRef(true);
+  const runningEventsAt = useRef<Record<string, number>>({});
 
   const sessionsRef = useRef(sessions);
   sessionsRef.current = sessions;
@@ -86,16 +87,13 @@ export default function App() {
   }, []);
 
   const loadSessions = useCallback(async () => {
+    const requestedAt = Date.now();
     try {
       const list = await api.sessions();
       setSessions(list.data);
-      setRunningIds((previous) => {
-        const next = { ...previous };
-        for (const session of list.data) {
-          if (next[session.id] === undefined) next[session.id] = sessionRunning(session);
-        }
-        return next;
-      });
+      setRunningIds((previous) =>
+        mergeRunningStates(previous, list.data, runningEventsAt.current, requestedAt),
+      );
     } catch (error) {
       setBanner(messageOf(error));
     } finally {
@@ -226,6 +224,7 @@ export default function App() {
 
     if (sessionID) {
       if (event.type === "session.execution.started") {
+        runningEventsAt.current[sessionID] = Date.now();
         setRunningIds((previous) => ({ ...previous, [sessionID]: true }));
       }
       if (
@@ -234,6 +233,7 @@ export default function App() {
         event.type === "session.execution.failed" ||
         event.type === "session.execution.interrupted"
       ) {
+        runningEventsAt.current[sessionID] = Date.now();
         setRunningIds((previous) => ({ ...previous, [sessionID]: false }));
       }
       if (event.type === "session.usage.updated") {
@@ -337,6 +337,7 @@ export default function App() {
         text,
       };
       setMessages((previous) => [...previous, optimistic]);
+      runningEventsAt.current[id] = Date.now();
       setRunningIds((previous) => ({ ...previous, [id]: true }));
       try {
         await api.prompt(id, text);
@@ -357,6 +358,7 @@ export default function App() {
     } catch (error) {
       setBanner(messageOf(error));
     } finally {
+      runningEventsAt.current[id] = Date.now();
       setRunningIds((previous) => ({ ...previous, [id]: false }));
     }
   }, []);

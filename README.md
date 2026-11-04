@@ -79,7 +79,7 @@ OpenCode's plural resource paths are singular (`/api/session`, `/api/model`,
 - The listener is hard-coded to `127.0.0.1:7788`; there is no remote mode.
 - The service password stays in the Go process and is not logged. OpenCode
   content can contain it because a tool can read `service.json`, so every
-  successful JSON response proxied from OpenCode and every SSE `data` payload is
+  pass-through JSON response from OpenCode and every SSE `data` payload is
   redacted before it is written to the browser. The current password,
   `opencode:<password>` and the base64 Basic auth value are replaced with
   `[redacted]`. Redaction walks JSON string values and re-encodes them, so the

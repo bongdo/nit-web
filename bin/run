@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+set -euo pipefail
+cd "$(dirname "$0")/.."
+
+if [ ! -d web/node_modules ]; then
+  npm --prefix web ci --no-audit --no-fund
+fi
+
+if [ ! -f web/dist/index.html ] || [ -n "$(find web/src web/index.html web/package.json web/package-lock.json web/tsconfig.json web/vite.config.ts -newer web/dist/index.html -print -quit 2>/dev/null)" ]; then
+  npm --prefix web run build
+fi
+
+mkdir -p .cache
+go build -o .cache/nit-gui .
+exec .cache/nit-gui

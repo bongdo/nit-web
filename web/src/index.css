@@ -1,0 +1,243 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  --background: oklch(0.985 0.002 250);
+  --foreground: oklch(0.2 0.01 260);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.2 0.01 260);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.2 0.01 260);
+  --primary: oklch(0.28 0.02 260);
+  --primary-foreground: oklch(0.98 0 0);
+  --secondary: oklch(0.955 0.005 250);
+  --secondary-foreground: oklch(0.28 0.02 260);
+  --muted: oklch(0.955 0.005 250);
+  --muted-foreground: oklch(0.52 0.015 260);
+  --accent: oklch(0.945 0.01 250);
+  --accent-foreground: oklch(0.25 0.02 260);
+  --destructive: oklch(0.58 0.2 27);
+  --destructive-foreground: oklch(0.98 0 0);
+  --border: oklch(0.9 0.006 250);
+  --input: oklch(0.9 0.006 250);
+  --ring: oklch(0.55 0.02 260);
+  --radius: 0.625rem;
+}
+
+.dark {
+  --background: oklch(0.165 0.008 260);
+  --foreground: oklch(0.93 0.004 250);
+  --card: oklch(0.195 0.009 260);
+  --card-foreground: oklch(0.93 0.004 250);
+  --popover: oklch(0.205 0.009 260);
+  --popover-foreground: oklch(0.93 0.004 250);
+  --primary: oklch(0.91 0.005 250);
+  --primary-foreground: oklch(0.19 0.01 260);
+  --secondary: oklch(0.245 0.01 260);
+  --secondary-foreground: oklch(0.9 0.004 250);
+  --muted: oklch(0.235 0.008 260);
+  --muted-foreground: oklch(0.66 0.012 255);
+  --accent: oklch(0.26 0.01 260);
+  --accent-foreground: oklch(0.95 0.004 250);
+  --destructive: oklch(0.62 0.19 25);
+  --destructive-foreground: oklch(0.98 0 0);
+  --border: oklch(0.29 0.01 260);
+  --input: oklch(0.3 0.01 260);
+  --ring: oklch(0.65 0.02 255);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: ui-monospace, "SFMono-Regular", "Cascadia Code", "Liberation Mono", monospace;
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+    overflow: hidden;
+  }
+
+  button,
+  select,
+  summary {
+    cursor: pointer;
+  }
+
+  ::selection {
+    @apply bg-primary/20;
+  }
+
+  :focus-visible {
+    @apply outline-ring outline-2 outline-offset-2;
+  }
+}
+
+@layer components {
+  .markdown {
+    @apply text-[0.9375rem] leading-7;
+    overflow-wrap: anywhere;
+  }
+
+  .markdown > :first-child {
+    margin-top: 0;
+  }
+
+  .markdown > :last-child {
+    margin-bottom: 0;
+  }
+
+  .markdown p {
+    @apply my-3;
+  }
+
+  .markdown h1,
+  .markdown h2,
+  .markdown h3,
+  .markdown h4 {
+    @apply mt-6 mb-3 font-semibold tracking-tight text-foreground;
+  }
+
+  .markdown h1 {
+    @apply text-2xl;
+  }
+
+  .markdown h2 {
+    @apply text-xl;
+  }
+
+  .markdown h3 {
+    @apply text-lg;
+  }
+
+  .markdown h4 {
+    @apply text-base;
+  }
+
+  .markdown ul,
+  .markdown ol {
+    @apply my-3 space-y-1 pl-6;
+  }
+
+  .markdown ul {
+    list-style: disc;
+  }
+
+  .markdown ol {
+    list-style: decimal;
+  }
+
+  .markdown li > ul,
+  .markdown li > ol {
+    @apply my-1;
+  }
+
+  .markdown a {
+    @apply text-foreground underline decoration-border underline-offset-4 hover:decoration-foreground;
+  }
+
+  .markdown blockquote {
+    @apply border-border text-muted-foreground my-4 border-l-2 pl-4;
+  }
+
+  .markdown hr {
+    @apply border-border my-6;
+  }
+
+  .markdown table {
+    @apply my-4 w-full border-collapse text-sm;
+  }
+
+  .markdown th,
+  .markdown td {
+    @apply border-border border px-3 py-1.5 text-left align-top;
+  }
+
+  .markdown th {
+    @apply bg-muted/60 font-medium;
+  }
+
+  .markdown img {
+    @apply my-3 max-w-full rounded-md border;
+  }
+
+  .markdown input[type="checkbox"] {
+    @apply mr-1.5 align-middle;
+  }
+
+  .markdown li:has(> input[type="checkbox"]) {
+    list-style: none;
+    margin-left: -1.25rem;
+  }
+
+  .markdown :not(pre) > code {
+    @apply bg-muted text-foreground rounded px-1.5 py-0.5 font-mono text-[0.85em];
+  }
+
+  .stream-caret::after {
+    content: "";
+    display: inline-block;
+    width: 0.5ch;
+    height: 1.1em;
+    margin-left: 2px;
+    vertical-align: -0.15em;
+    background: currentColor;
+    animation: caret-blink 1s steps(1) infinite;
+  }
+
+  @keyframes caret-blink {
+    50% {
+      opacity: 0;
+    }
+  }
+}
+
+@layer utilities {
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) transparent;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background: var(--border);
+    border-radius: 999px;
+  }
+}

@@ -1,0 +1,17 @@
+You are an implementation agent in this repository.
+
+Read the task, then only the files it touches. The task body is the contract.
+`vault/` is the user's declaration: read it, never write it.
+
+Rules:
+- One task at a time. Do not plan the whole backlog.
+- Keep the tree building. `bin/check` is the oracle; run it before you finish.
+- Add a test or a reproducible check for every new branch, parser, money path or
+  security boundary.
+- No comments in code except machine directives and
+  `shortcut: <limit>, <when to fix>`.
+- Save a snapshot after each working milestone with `save "T<id>: <what>"`.
+- Close the task with `tasks done <id> --note "<what was checked>"`.
+- If a human must decide, run `tasks block <id> --note "<question>"`, write the
+  question to `.agent/question`, and stop.
+- Do not run other agents and do not touch other projects.

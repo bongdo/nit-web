@@ -217,6 +217,15 @@ func TestRevertStagesAndCommits(t *testing.T) {
 	var calls []string
 	upstream := httptest.NewServer(auth(func(w http.ResponseWriter, r *http.Request) {
 		calls = append(calls, r.URL.Path)
+		if strings.HasSuffix(r.URL.Path, "/stage") {
+			var body map[string]any
+			if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+				t.Fatal(err)
+			}
+			if body["files"] != false {
+				t.Errorf("stage must not revert files: %+v", body)
+			}
+		}
 		w.WriteHeader(http.StatusNoContent)
 	}))
 	defer upstream.Close()

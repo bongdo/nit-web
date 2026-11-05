@@ -383,7 +383,7 @@ func (s *Server) revert(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	path := "/api/session/" + url.PathEscape(id) + "/revert"
-	if err := c.Do(r.Context(), http.MethodPost, path+"/stage", map[string]any{"messageID": in.MessageID}, nil); err != nil {
+	if err := c.Do(r.Context(), http.MethodPost, path+"/stage", map[string]any{"messageID": in.MessageID, "files": false}, nil); err != nil {
 		s.upstreamError(w, err)
 		return
 	}

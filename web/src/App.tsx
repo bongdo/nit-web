@@ -4,6 +4,7 @@ import { api } from "./lib/api";
 import type {
   Agent,
   Config,
+  FormInfo,
   Health,
   Message,
   Model,
@@ -23,6 +24,8 @@ import { Composer, type Attachment, type ComposerCommand } from "./components/Co
 import { Header } from "./components/Header";
 import { Sidebar } from "./components/Sidebar";
 import { WorkspacePicker } from "./components/WorkspacePicker";
+import { SettingsPanel } from "./components/SettingsPanel";
+import { FormCard } from "./components/FormCard";
 import { BootScreen, OfflineScreen } from "./components/StatusScreens";
 import { Button } from "./components/ui/button";
 
@@ -34,6 +37,7 @@ function messageOf(error: unknown): string {
 const COMMANDS: ComposerCommand[] = [
   { id: "new", label: "/new", description: "Start a new chat in this workspace" },
   { id: "dir", label: "/dir", description: "Switch workspace" },
+  { id: "settings", label: "/settings", description: "Model, agent, theme" },
   { id: "compact", label: "/compact", description: "Compact this session's context" },
   { id: "revert", label: "/revert", description: "Revert the last message and edit it" },
   { id: "fork", label: "/fork", description: "Fork before the last message" },
@@ -44,7 +48,7 @@ const COMMANDS: ComposerCommand[] = [
 ];
 
 export default function App() {
-  const { theme, cycle } = useTheme();
+  const { theme, setTheme, cycle } = useTheme();
   const [health, setHealth] = useState<Health | null>(null);
   const healthRef = useRef<Health | null>(null);
   const [config, setConfig] = useState<Config | null>(null);
@@ -72,6 +76,9 @@ export default function App() {
   const scopeRef = useRef(scope);
   scopeRef.current = scope;
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [collapsed, setCollapsed] = useState(() => localStorage.getItem("nit-gui.collapsed") === "1");
+  const [forms, setForms] = useState<FormInfo[]>([]);
   const [sessions, setSessions] = useState<Session[]>([]);
   const [sessionsLoading, setSessionsLoading] = useState(true);
   const [selectedId, setSelectedIdState] = useState<string | null>(() =>
@@ -179,9 +186,23 @@ export default function App() {
     }
   }, []);
 
+  const loadForms = useCallback(async () => {
+    const id = selectedIdRef.current;
+    if (!id) {
+      setForms([]);
+      return;
+    }
+    try {
+      setForms(await api.forms(id));
+    } catch {
+      setForms([]);
+    }
+  }, []);
+
   useEffect(() => {
     void loadChildren();
-  }, [loadChildren, selectedId]);
+    void loadForms();
+  }, [loadChildren, loadForms, selectedId]);
 
   useEffect(() => {
     const key = `${scope}|${workspace}`;
@@ -331,14 +352,23 @@ export default function App() {
     if (!workspaceRef.current) setPickerOpen(true);
   }, [selectSession]);
 
+  const toggleSidebar = useCallback(() => {
+    setCollapsed((current) => {
+      const next = !current;
+      localStorage.setItem("nit-gui.collapsed", next ? "1" : "0");
+      return next;
+    });
+  }, []);
+
   const scheduleSessionsRefresh = useCallback(() => {
     if (refreshTimer.current !== null) return;
     refreshTimer.current = window.setTimeout(() => {
       refreshTimer.current = null;
       void loadSessions();
       void loadChildren();
+      void loadForms();
     }, 500);
-  }, [loadChildren, loadSessions]);
+  }, [loadChildren, loadForms, loadSessions]);
 
   const reloadSelected = useCallback(() => {
     if (!selectedIdRef.current) return;
@@ -379,6 +409,10 @@ export default function App() {
           ),
         );
       }
+    }
+
+    if (sessionID === selectedIdRef.current && event.type.startsWith("form.")) {
+      void loadForms();
     }
 
     if (sessionID === selectedIdRef.current) {
@@ -427,13 +461,14 @@ export default function App() {
     }
     void loadSessions();
     void loadChildren();
+    void loadForms();
     reloadSelected();
   };
 
   const streamStatus = useEventStream(onEvent, onStreamOpen);
 
   const send = useCallback(
-    async (text: string, attachments: Attachment[] = []) => {
+    async (text: string, attachments: Attachment[] = [], delivery?: "queue" | "steer") => {
       setBanner(null);
       const files = attachments
         .filter((item) => item.path)
@@ -474,12 +509,13 @@ export default function App() {
         type: "user",
         time: { created: Date.now() },
         text,
+        ...(files.length > 0 ? { files } : {}),
       };
       setMessages((previous) => [...previous, optimistic]);
       runningEventsAt.current[sessionId] = Date.now();
       setRunningIds((previous) => ({ ...previous, [sessionId]: true }));
       try {
-        await api.prompt(sessionId, text, files);
+        await api.prompt(sessionId, text, files, delivery);
       } catch (error) {
         setRunningIds((previous) => ({ ...previous, [sessionId]: false }));
         setBanner(messageOf(error));
@@ -639,6 +675,9 @@ export default function App() {
           break;
         case "dir":
           setPickerOpen(true);
+          break;
+        case "settings":
+          setSettingsOpen(true);
           break;
         case "compact":
           void compactSession();

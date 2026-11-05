@@ -10,7 +10,6 @@ import type { Agent, Message, Model, Session } from "../lib/types";
 import { cn } from "../lib/utils";
 import { Button } from "./ui/button";
 import { MessageRow } from "./MessageRow";
-import { SubagentBar } from "./SubagentBar";
 
 function Skeleton() {
   return (
@@ -35,11 +34,7 @@ export function ChatView({
   models,
   agents,
   workspace,
-  subagents,
-  parent,
   onRetry,
-  onOpenSubagent,
-  onBack,
   onRevert,
   onFork,
 }: {
@@ -51,11 +46,7 @@ export function ChatView({
   models: Model[];
   agents: Agent[];
   workspace: string | null;
-  subagents: Session[];
-  parent?: Session | null;
   onRetry: () => void;
-  onOpenSubagent: (session: Session) => void;
-  onBack: () => void;
   onRevert: (message: Message) => void;
   onFork: (message: Message) => void;
 }) {
@@ -120,12 +111,6 @@ export function ChatView({
 
   return (
     <div className="relative flex min-h-0 flex-1 flex-col">
-      <SubagentBar
-        sessions={subagents}
-        parent={parent}
-        onOpen={onOpenSubagent}
-        onBack={onBack}
-      />
       <div
         ref={scrollRef}
         data-transcript

@@ -13,10 +13,12 @@ export function SettingsPanel({
   theme,
   directory,
   dictationMode,
+  motion,
   onModel,
   onAgent,
   onTheme,
   onDictation,
+  onMotion,
   onClose,
 }: {
   models: Model[];
@@ -26,10 +28,12 @@ export function SettingsPanel({
   theme: Theme;
   directory?: string | null;
   dictationMode: "fast" | "accurate";
+  motion: "animated" | "static";
   onModel: (model: ModelRef) => void;
   onAgent: (agent: string) => void;
   onTheme: (theme: Theme) => void;
   onDictation: (mode: "fast" | "accurate") => void;
+  onMotion: (mode: "animated" | "static") => void;
   onClose: () => void;
 }) {
   const providers = Array.from(new Set(models.map((item) => item.providerID)));
@@ -155,6 +159,18 @@ export function SettingsPanel({
             >
               <option value="fast">Fast · live text, small model</option>
               <option value="accurate">Accurate · one pass, large model</option>
+            </Select>
+          </label>
+
+          <label className="block space-y-1">
+            <span className="text-muted-foreground text-[11px]">Background</span>
+            <Select
+              className="w-full"
+              value={motion}
+              onChange={(event) => onMotion(event.target.value as "animated" | "static")}
+            >
+              <option value="animated">Animated</option>
+              <option value="static">Static</option>
             </Select>
           </label>
         </div>

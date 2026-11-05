@@ -8,7 +8,13 @@ const SEGMENTS = 12;
 const SEGMENT_LENGTH = 7;
 const FRAME_MS = 33;
 
-export function Scene({ className }: { className?: string }) {
+export function Scene({
+  motion = "animated",
+  className,
+}: {
+  motion?: "animated" | "static";
+  className?: string;
+}) {
   const ref = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
@@ -16,7 +22,9 @@ export function Scene({ className }: { className?: string }) {
     const context = canvas?.getContext("2d");
     if (!canvas || !context) return;
 
-    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const still = motion === "static";
+    const reduced =
+      still || window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     const mouse = { x: -1e4, y: -1e4 };
     let seeds: Seed[] = [];
     let width = 0;
@@ -116,7 +124,7 @@ export function Scene({ className }: { className?: string }) {
         }
       }
       readPalette();
-      paint((performance.now() - started) / 1000);
+      paint(still ? 6 : (performance.now() - started) / 1000);
     };
 
     const loop = (now: number) => {
@@ -153,6 +161,11 @@ export function Scene({ className }: { className?: string }) {
 
     const observer = new ResizeObserver(resize);
     observer.observe(canvas);
+    const theme = new MutationObserver(() => {
+      readPalette();
+      paint(still ? 6 : (performance.now() - started) / 1000);
+    });
+    theme.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
     window.addEventListener("mousemove", move);
     window.addEventListener("mouseleave", leave);
     document.addEventListener("visibilitychange", visibility);
@@ -163,11 +176,12 @@ export function Scene({ className }: { className?: string }) {
     return () => {
       cancelAnimationFrame(frame);
       observer.disconnect();
+      theme.disconnect();
       window.removeEventListener("mousemove", move);
       window.removeEventListener("mouseleave", leave);
       document.removeEventListener("visibilitychange", visibility);
     };
-  }, []);
+  }, [motion]);
 
   return (
     <canvas

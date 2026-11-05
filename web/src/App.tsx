@@ -121,6 +121,11 @@ export default function App() {
   const [dictationMode, setDictationMode] = useState<"fast" | "accurate">(() =>
     localStorage.getItem("nit-gui.dictation") === "accurate" ? "accurate" : "fast",
   );
+  const [motion, setMotion] = useState<"animated" | "static">(() => {
+    const stored = localStorage.getItem("nit-gui.motion");
+    if (stored === "animated" || stored === "static") return stored;
+    return window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ? "static" : "animated";
+  });
   const [forms, setForms] = useState<FormInfo[]>([]);
   const [hiddenIds, setHiddenIds] = useState<Set<string>>(() => {
     try {
@@ -912,7 +917,14 @@ export default function App() {
   }
 
   if (!workspace) {
-    return <WorkspacePicker projects={projects} recent={recent} onPick={selectWorkspace} />;
+    return (
+      <WorkspacePicker
+        projects={projects}
+        recent={recent}
+        motion={motion}
+        onPick={selectWorkspace}
+      />
+    );
   }
 
   const offlineBanner = health && !health.ok ? "OpenCode service is offline." : null;
@@ -1017,6 +1029,7 @@ export default function App() {
           models={models}
           agents={agents}
           workspace={workspace}
+          motion={motion}
           onRetry={reloadSelected}
           onRevert={(message) => void revertAt(message)}
           onFork={(message) => void forkAt(message)}
@@ -1063,6 +1076,7 @@ export default function App() {
           projects={projects}
           recent={recent}
           current={workspace}
+          motion={motion}
           onPick={selectWorkspace}
           onClose={() => setPickerOpen(false)}
         />
@@ -1077,12 +1091,17 @@ export default function App() {
           theme={theme}
           directory={workspace}
           dictationMode={dictationMode}
+          motion={motion}
           onModel={(model) => void changeModel(model)}
           onAgent={(agent) => void changeAgent(agent)}
           onTheme={setTheme}
           onDictation={(mode) => {
             setDictationMode(mode);
             localStorage.setItem("nit-gui.dictation", mode);
+          }}
+          onMotion={(value) => {
+            setMotion(value);
+            localStorage.setItem("nit-gui.motion", value);
           }}
           onClose={() => setSettingsOpen(false)}
         />

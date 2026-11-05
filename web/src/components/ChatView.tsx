@@ -37,6 +37,7 @@ export function ChatView({
   models,
   agents,
   workspace,
+  motion,
   onRetry,
   onRevert,
   onFork,
@@ -50,6 +51,7 @@ export function ChatView({
   models: Model[];
   agents: Agent[];
   workspace: string | null;
+  motion: "animated" | "static";
   onRetry: () => void;
   onRevert: (message: Message) => void;
   onFork: (message: Message) => void;
@@ -135,7 +137,7 @@ export function ChatView({
   if (!session) {
     return (
       <div className="relative flex min-h-0 flex-1 items-center justify-center overflow-y-auto px-6 py-10">
-        <Scene />
+        <Scene motion={motion} />
         <div className="relative max-w-md text-center">
           <div className="bg-secondary text-secondary-foreground mx-auto mb-4 flex size-12 items-center justify-center rounded-2xl">
             <Sparkles className="text-spark size-6" />

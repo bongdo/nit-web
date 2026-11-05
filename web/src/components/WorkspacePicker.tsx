@@ -11,12 +11,14 @@ export function WorkspacePicker({
   projects,
   recent,
   current,
+  motion = "animated",
   onPick,
   onClose,
 }: {
   projects: Project[];
   recent: string[];
   current?: string | null;
+  motion?: "animated" | "static";
   onPick: (directory: string) => void;
   onClose?: () => void;
 }) {
@@ -130,7 +132,7 @@ export function WorkspacePicker({
 
   return (
     <div className="bg-background relative flex h-full items-center justify-center overflow-hidden p-4">
-      <Scene />
+      <Scene motion={motion} />
       {body}
     </div>
   );

@@ -160,6 +160,9 @@ OpenCode's plural resource paths are singular (`/api/session`, `/api/model`,
   A local event newer than the list request wins, so a missed idle event cannot
   leave the dot stuck.
 - Dark, light and system themes. Theme is stored in `localStorage`.
+- The empty chat and the workspace picker draw a slow canvas flow field with a
+  copper accent (`--spark`). It pauses on a hidden tab, renders one static frame
+  for `prefers-reduced-motion`, and never intercepts pointer events.
 - Shortcuts: `mod+k` search, `alt+n` new chat, `alt+j`/`alt+k` next/previous
   chat in the sidebar order, `enter` send and `shift+enter` newline (in the
   composer), `esc` stop.

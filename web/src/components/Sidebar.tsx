@@ -139,11 +139,18 @@ export function Sidebar({
   health,
   search,
   searchRef,
+  hiddenIds,
+  hiddenCount,
+  showHidden,
   onSearch,
   onScope,
   onWorkspace,
   onSelect,
   onNew,
+  onHide,
+  onUnhide,
+  onDelete,
+  onToggleHidden,
   isRunning,
 }: {
   sessions: Session[];
@@ -154,11 +161,18 @@ export function Sidebar({
   health: Health | null;
   search: string;
   searchRef: RefObject<HTMLInputElement | null>;
+  hiddenIds: Set<string>;
+  hiddenCount: number;
+  showHidden: boolean;
   onSearch: (value: string) => void;
   onScope: (scope: Scope) => void;
   onWorkspace: () => void;
   onSelect: (id: string) => void;
   onNew: () => void;
+  onHide: (id: string) => void;
+  onUnhide: (id: string) => void;
+  onDelete: (id: string) => void;
+  onToggleHidden: () => void;
   isRunning: (id: string) => boolean;
 }) {
   const [now, setNow] = useState(Date.now());
@@ -284,8 +298,12 @@ export function Sidebar({
                 depth={depth}
                 active={session.id === selectedId}
                 running={isRunning(session.id)}
+                hidden={hiddenIds.has(session.id)}
                 now={now}
                 onClick={() => onSelect(session.id)}
+                onHide={() => onHide(session.id)}
+                onUnhide={() => onUnhide(session.id)}
+                onDelete={() => onDelete(session.id)}
               />
             ))}
           </div>
@@ -306,7 +324,20 @@ export function Sidebar({
               ? "Service offline"
               : "Connecting…"}
         </span>
-        <span className="ml-auto font-mono">{sessions.length}</span>
+        {hiddenCount > 0 && (
+          <button
+            type="button"
+            onClick={onToggleHidden}
+            className="hover:text-foreground ml-auto inline-flex items-center gap-1"
+            title={showHidden ? "Hide hidden chats" : "Show hidden chats"}
+          >
+            {showHidden ? <EyeOff className="size-3" /> : <Eye className="size-3" />}
+            {hiddenCount}
+          </button>
+        )}
+        <span className={cn("font-mono", hiddenCount === 0 && "ml-auto")}>
+          {sessions.length}
+        </span>
       </div>
     </div>
   );

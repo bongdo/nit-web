@@ -410,27 +410,42 @@ export default function App() {
     });
   }, []);
 
+  const sessionAndChildren = useCallback((id: string) => {
+    const ids = [id];
+    for (let index = 0; index < ids.length; index += 1) {
+      for (const session of sessionsRef.current) {
+        if (session.parentID === ids[index]) ids.push(session.id);
+      }
+    }
+    return ids;
+  }, []);
+
   const hideSession = useCallback(
     (id: string) => {
+      const ids = sessionAndChildren(id);
       setHiddenIds((current) => {
         const next = new Set(current);
-        next.add(id);
+        for (const item of ids) next.add(item);
         saveHidden(next);
         return next;
       });
-      if (selectedIdRef.current === id) selectSession(null);
+      if (selectedIdRef.current && ids.includes(selectedIdRef.current)) selectSession(null);
     },
-    [selectSession],
+    [selectSession, sessionAndChildren],
   );
 
-  const unhideSession = useCallback((id: string) => {
-    setHiddenIds((current) => {
-      const next = new Set(current);
-      next.delete(id);
-      saveHidden(next);
-      return next;
-    });
-  }, []);
+  const unhideSession = useCallback(
+    (id: string) => {
+      const ids = sessionAndChildren(id);
+      setHiddenIds((current) => {
+        const next = new Set(current);
+        for (const item of ids) next.delete(item);
+        saveHidden(next);
+        return next;
+      });
+    },
+    [sessionAndChildren],
+  );
 
   const deleteSession = useCallback(
     async (id: string) => {

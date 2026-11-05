@@ -4,6 +4,7 @@ import (
 	"context"
 	"embed"
 	"errors"
+	"flag"
 	"io/fs"
 	"log/slog"
 	"net/http"
@@ -20,6 +21,8 @@ import (
 var embedded embed.FS
 
 func main() {
+	addr := flag.String("addr", "127.0.0.1:7788", "listen address")
+	flag.Parse()
 	log := slog.New(slog.NewTextHandler(os.Stderr, nil))
 	dist, err := fs.Sub(embedded, "web/dist")
 	if err != nil {
@@ -30,7 +33,7 @@ func main() {
 	handler := server.New(provider, dist, log)
 
 	srv := &http.Server{
-		Addr:              "127.0.0.1:7788",
+		Addr:              *addr,
 		Handler:           handler,
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       30 * time.Second,
@@ -43,7 +46,7 @@ func main() {
 		} else {
 			log.Warn("opencode service not found; the UI will show offline", "error", err)
 		}
-		log.Info("nit-gui listening", "url", "http://127.0.0.1:7788")
+		log.Info("nit-gui listening", "url", "http://"+*addr)
 		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			log.Error("server stopped", "error", err)
 			os.Exit(1)

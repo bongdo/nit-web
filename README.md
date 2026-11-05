@@ -13,7 +13,6 @@ source of truth for sessions, messages, models and agents.
 Open <http://127.0.0.1:7788>. `bin/run` installs frontend dependencies if
 needed, builds the web bundle when sources are newer, builds the Go binary and
 serves it on loopback.
-
 ```sh
 ./bin/check
 ```
@@ -48,7 +47,7 @@ rewritten to loopback. Credentials in a server URL are discarded.
 | `OPENCODE_SERVER` | Same, OpenCode-native name. |
 | `OPENCODE_URL` | Same, supported for parity with `nit`. |
 | `XDG_CONFIG_HOME` | Used to locate `opencode/service.json`. |
-| `NIT_PORT` | Not supported; the listener is fixed at `127.0.0.1:7788`. |
+| `--addr` | Listener address, default `127.0.0.1:7788`. |
 
 If the service is down, the GUI still starts and shows an offline screen with a
 retry button. Health is polled every 20 seconds.

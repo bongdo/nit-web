@@ -12,6 +12,7 @@ import { cn } from "../lib/utils";
 import { Button } from "./ui/button";
 import { AssistantTurn } from "./AssistantTurn";
 import { MessageRow } from "./MessageRow";
+import { Scene } from "./Scene";
 
 function Skeleton() {
   return (
@@ -122,10 +123,11 @@ export function ChatView({
 
   if (!session) {
     return (
-      <div className="flex min-h-0 flex-1 items-center justify-center overflow-y-auto px-6 py-10">
-        <div className="max-w-md text-center">
+      <div className="relative flex min-h-0 flex-1 items-center justify-center overflow-y-auto px-6 py-10">
+        <Scene />
+        <div className="relative max-w-md text-center">
           <div className="bg-secondary text-secondary-foreground mx-auto mb-4 flex size-12 items-center justify-center rounded-2xl">
-            <Sparkles className="size-6" />
+            <Sparkles className="text-spark size-6" />
           </div>
           <h2 className="text-xl font-semibold tracking-tight">
             {workspace ? "Start a new chat" : "Choose a workspace"}

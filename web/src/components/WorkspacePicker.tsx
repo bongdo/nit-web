@@ -5,6 +5,7 @@ import { basename, formatRelative } from "../lib/format";
 import { cn } from "../lib/utils";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
+import { Scene } from "./Scene";
 
 export function WorkspacePicker({
   projects,
@@ -35,7 +36,7 @@ export function WorkspacePicker({
   };
 
   const body = (
-    <div className="bg-background border-border flex w-full max-w-lg flex-col overflow-hidden rounded-xl border shadow-xl">
+    <div className="bg-background border-border relative flex w-full max-w-lg flex-col overflow-hidden rounded-xl border shadow-xl">
       <div className="border-border flex items-center gap-2 border-b px-4 py-3">
         <Folder className="text-muted-foreground size-4" />
         <div className="min-w-0 flex-1">
@@ -128,6 +129,9 @@ export function WorkspacePicker({
   }
 
   return (
-    <div className="bg-background flex h-full items-center justify-center p-4">{body}</div>
+    <div className="bg-background relative flex h-full items-center justify-center overflow-hidden p-4">
+      <Scene />
+      {body}
+    </div>
   );
 }

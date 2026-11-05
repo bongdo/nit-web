@@ -22,6 +22,7 @@
   --border: oklch(0.9 0.006 250);
   --input: oklch(0.9 0.006 250);
   --ring: oklch(0.55 0.02 260);
+  --spark: oklch(0.62 0.16 45);
   --radius: 0.625rem;
 }
 
@@ -45,6 +46,7 @@
   --border: oklch(0.29 0.01 260);
   --input: oklch(0.3 0.01 260);
   --ring: oklch(0.65 0.02 255);
+  --spark: oklch(0.78 0.14 55);
 }
 
 @theme inline {
@@ -67,6 +69,7 @@
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
+  --color-spark: var(--spark);
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);

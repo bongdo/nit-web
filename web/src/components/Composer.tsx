@@ -540,7 +540,9 @@ export function Composer({
           onDrop={(event) => {
             event.preventDefault();
             setDropActive(false);
-            if (event.dataTransfer.files.length > 0) addFiles(Array.from(event.dataTransfer.files));
+            if (!question && event.dataTransfer.files.length > 0) {
+              addFiles(Array.from(event.dataTransfer.files));
+            }
           }}
         >
           {paletteOpen && (

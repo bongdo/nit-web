@@ -21,6 +21,7 @@ import {
   mergeRunningStates,
   sessionRunning,
 } from "./lib/format";
+import { questionField } from "./lib/forms";
 import { groupSessions, nextSessionId, scopeSessions, type Scope } from "./lib/sessions";
 import { cn } from "./lib/utils";
 import { useTheme } from "./hooks/useTheme";
@@ -1001,6 +1002,11 @@ export default function App() {
     ? sessions
     : sessions.filter((session) => !hiddenIds.has(session.id));
   const hoverSidebar = sidebarMode === "hover";
+  const questionForm = forms[0] && questionField(forms[0]) ? forms[0] : null;
+  const finishForm = () => {
+    setForms((current) => current.slice(1));
+    reloadSelected();
+  };
 
   return (
     <div className="flex h-full min-h-0 overflow-hidden">
@@ -1137,15 +1143,12 @@ export default function App() {
         />
 
         <BottomDock>
-          {forms[0] && selectedSession && (
+          {forms[0] && selectedSession && !questionForm && (
             <div className="pointer-events-auto">
               <FormCard
                 form={forms[0]}
                 sessionID={selectedSession.id}
-                onDone={() => {
-                  setForms((current) => current.slice(1));
-                  reloadSelected();
-                }}
+                onDone={finishForm}
                 onError={(message) => setBanner(message)}
               />
             </div>
@@ -1163,10 +1166,12 @@ export default function App() {
               commands={COMMANDS}
               dictationMode={dictationMode}
               spellcheck={spellcheck}
+              form={questionForm}
               onSend={send}
               onStop={() => void stop()}
               onCommand={runCommand}
               onError={(message) => setBanner(message)}
+              onFormDone={finishForm}
             />
           </div>
         </BottomDock>

@@ -91,8 +91,9 @@ OpenCode's plural resource paths are singular (`/api/session`, `/api/model`,
   exempt and is cancelled when the browser disconnects.
 - Markdown is rendered by `react-markdown` without raw-HTML rehype. Model text,
   tool output and markdown elements are inserted as DOM text and elements, not as
-  raw HTML. Raw HTML is never injected into the app DOM: an HTML-looking message
-  or a fenced `html` block gets a preview button, and the preview runs in
+  raw HTML. Raw HTML is never injected into the app DOM: an HTML-looking message,
+  a fenced `html` block, or an unlabeled fence whose body is pure HTML gets a
+  preview button, and the preview runs in
   `iframe srcdoc` with `sandbox="allow-scripts allow-forms allow-modals"`.
   `allow-same-origin` is absent, so preview scripts run in an opaque origin and
   cannot read the app, cookies or local storage. Preview code can still make

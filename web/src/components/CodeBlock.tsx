@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Check, Copy, Eye, EyeOff } from "lucide-react";
 import { copyText } from "../lib/clipboard";
-import { isHtmlLanguage } from "../lib/html";
+import { previewableHtml } from "../lib/html";
 import { cn } from "../lib/utils";
 import { HtmlPreview } from "./HtmlPreview";
 import { Button } from "./ui/button";
@@ -17,7 +17,7 @@ export function CodeBlock({
 }) {
   const [copied, setCopied] = useState(false);
   const [preview, setPreview] = useState(false);
-  const html = isHtmlLanguage(language);
+  const html = previewableHtml(code, language);
 
   const onCopy = async () => {
     if (await copyText(code)) {

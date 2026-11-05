@@ -126,6 +126,7 @@ export function MessageRow({
             size="xs"
             className="text-muted-foreground shrink-0"
             onClick={onCopyReply}
+            aria-label="Copy assistant reply"
           >
             {copied ? <Check /> : <Copy />}
             {copied ? "Copied" : "Copy"}

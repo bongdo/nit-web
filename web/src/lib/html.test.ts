@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { htmlDocument, isHtmlLanguage, isPureHtml, looksLikeHtml, withoutCode } from "./html";
+import { htmlDocument, isHtmlLanguage, isPureHtml, looksLikeHtml, previewableHtml, withoutCode } from "./html";
 
 describe("looksLikeHtml", () => {
   it("detects a plain html element in a message", () => {
@@ -32,6 +32,29 @@ describe("looksLikeHtml", () => {
   it("strips fenced and inline code", () => {
     expect(withoutCode("a `b` c\n```\nd\n```")).not.toContain("b");
     expect(withoutCode("a `b` c\n```\nd\n```")).not.toContain("d");
+  });
+});
+
+describe("previewableHtml", () => {
+  it("previews labeled html regardless of content", () => {
+    expect(previewableHtml("<div>Hi</div>", "html")).toBe(true);
+    expect(previewableHtml("<div>Hi</div>", "xhtml")).toBe(true);
+  });
+
+  it("previews an unlabeled full document", () => {
+    expect(previewableHtml("<!doctype html><html><body><h1>Hi</h1></body></html>")).toBe(true);
+  });
+
+  it("previews an unlabeled html fragment", () => {
+    expect(previewableHtml("<h1>Hi</h1>\n<p>Text</p>")).toBe(true);
+  });
+
+  it("does not preview labeled non-html", () => {
+    expect(previewableHtml("<!doctype html><html><body>Hi</body></html>", "js")).toBe(false);
+  });
+
+  it("does not preview unlabeled prose", () => {
+    expect(previewableHtml("Just a sentence with `code`.")).toBe(false);
   });
 });
 

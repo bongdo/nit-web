@@ -25,6 +25,11 @@ export function isHtmlLanguage(lang?: string): boolean {
   return value === "html" || value === "htm" || value === "xhtml";
 }
 
+export function previewableHtml(code: string, language?: string): boolean {
+  if (language) return isHtmlLanguage(language);
+  return isPureHtml(code);
+}
+
 export function htmlDocument(source: string): string {
   const trimmed = source.trim();
   if (/^<!doctype/i.test(trimmed) || /<html[\s>]/i.test(trimmed)) {

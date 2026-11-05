@@ -1,9 +1,12 @@
 import type { ReactNode } from "react";
-import { Bot, CircleAlert, Terminal } from "lucide-react";
+import { useState } from "react";
+import { Bot, Check, CircleAlert, Copy, Terminal } from "lucide-react";
 import type { Agent, Message, Model } from "../lib/types";
+import { copyText } from "../lib/clipboard";
 import { isPureHtml, looksLikeHtml } from "../lib/html";
-import { modelLabel } from "../lib/format";
+import { modelLabel, replyText } from "../lib/format";
 import { Badge } from "./ui/badge";
+import { Button } from "./ui/button";
 import { HtmlMessagePreview } from "./HtmlMessagePreview";
 import { Markdown } from "./Markdown";
 import { Reasoning } from "./Reasoning";
@@ -28,6 +31,8 @@ export function MessageRow({
   agents: Agent[];
   streaming: boolean;
 }) {
+  const [copied, setCopied] = useState(false);
+
   if (message.type === "user") {
     return (
       <div className="flex justify-end px-1 py-2">
@@ -98,6 +103,14 @@ export function MessageRow({
   const lastIndex = content.length - 1;
   const agent = agents.find((item) => item.id === message.agent);
   const model = modelLabel(message.model, models);
+  const reply = replyText(message);
+
+  const onCopyReply = async () => {
+    if (await copyText(reply)) {
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1500);
+    }
+  };
 
   return (
     <div className="px-1 py-3">
@@ -107,6 +120,17 @@ export function MessageRow({
         </span>
         <span className="font-medium">{agent?.name ?? message.agent ?? "Assistant"}</span>
         {model && <span className="text-muted-foreground truncate">{model}</span>}
+        {reply.trim() !== "" && (
+          <Button
+            variant="ghost"
+            size="xs"
+            className="text-muted-foreground shrink-0"
+            onClick={onCopyReply}
+          >
+            {copied ? <Check /> : <Copy />}
+            {copied ? "Copied" : "Copy"}
+          </Button>
+        )}
         <span className="text-muted-foreground ml-auto shrink-0 text-[10px]">
           {streaming ? "streaming" : timeLabel(message.time.created)}
         </span>

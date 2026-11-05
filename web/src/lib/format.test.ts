@@ -8,9 +8,10 @@ import {
   mergeRunningStates,
   modelKey,
   modelLabel,
+  replyText,
   sessionRunning,
 } from "./format";
-import type { Model, Session } from "./types";
+import type { Message, Model, Session } from "./types";
 
 const session = (overrides: Partial<Session> = {}): Session => ({
   id: "ses_1",
@@ -49,6 +50,21 @@ describe("format", () => {
       "Model One · high",
     );
     expect(modelLabel({ id: "m2", providerID: "p2" }, models)).toBe("p2/m2");
+  });
+
+  it("joins assistant text parts and ignores reasoning and tool parts", () => {
+    const message: Message = {
+      id: "msg_1",
+      type: "assistant",
+      time: { created: 0 },
+      content: [
+        { type: "text", text: "# Heading\n\nA sentence." },
+        { type: "reasoning", text: "hidden" },
+        { type: "tool", id: "t1", name: "bash", state: { status: "completed" } },
+        { type: "text", text: "```ts\nconst x = 1;\n```" },
+      ],
+    };
+    expect(replyText(message)).toBe("# Heading\n\nA sentence.\n\n```ts\nconst x = 1;\n```");
   });
 
   it("refreshes running sessions unless a newer local event arrived", () => {

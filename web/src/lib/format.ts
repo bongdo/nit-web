@@ -1,4 +1,4 @@
-import type { Model, ModelRef, Session } from "./types";
+import type { Message, Model, ModelRef, Session } from "./types";
 
 export function formatRelative(ms: number, now = Date.now()): string {
   if (!ms) return "";
@@ -24,6 +24,13 @@ export function formatTokens(n?: number): string {
   if (n < 1_000) return String(n);
   if (n < 1_000_000) return `${(n / 1_000).toFixed(1)}k`;
   return `${(n / 1_000_000).toFixed(1)}M`;
+}
+
+export function replyText(message: Message): string {
+  return (message.content ?? [])
+    .filter((part) => part.type === "text")
+    .map((part) => part.text)
+    .join("\n\n");
 }
 
 export function modelKey(model?: ModelRef | null): string {

@@ -964,7 +964,6 @@ export default function App() {
           aria-label="Open chats"
           className="group fixed inset-y-0 left-0 z-20 hidden w-2 md:block"
           onPointerEnter={openHoverSidebar}
-          onPointerLeave={closeHoverSidebar}
           onFocus={openHoverSidebar}
           onClick={openHoverSidebar}
         >
@@ -976,12 +975,12 @@ export default function App() {
         onPointerLeave={hoverSidebar ? closeHoverSidebar : undefined}
         className={cn(
           "border-border bg-background fixed inset-y-0 left-0 z-30 w-[280px] border-r",
-          "ease-[cubic-bezier(0.32,0.72,0,1)] transition-[transform,opacity,box-shadow,width] duration-300 motion-reduce:transition-none",
+          "ease-[cubic-bezier(0.32,0.72,0,1)] transition-[translate,opacity,width] duration-300 motion-reduce:transition-none",
           sidebarOpen ? "translate-x-0 shadow-xl" : "-translate-x-full",
           hoverSidebar
             ? sidebarHovered
               ? "md:z-40 md:translate-x-0 md:opacity-100 md:shadow-2xl"
-              : "md:z-40 md:-translate-x-full md:opacity-0"
+              : "md:z-40 md:-translate-x-full md:opacity-0 md:shadow-2xl"
             : cn(
                 "md:static md:z-auto md:translate-x-0",
                 collapsed ? "md:w-0 md:overflow-hidden md:border-r-0" : "md:w-[280px] lg:w-[300px]",
@@ -992,7 +991,7 @@ export default function App() {
           className={cn(
             "h-full",
             hoverSidebar &&
-              "transition-transform duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] motion-reduce:transition-none",
+              "transition-[translate] duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] motion-reduce:transition-none",
             hoverSidebar && !sidebarHovered && "md:-translate-x-4",
           )}
         >

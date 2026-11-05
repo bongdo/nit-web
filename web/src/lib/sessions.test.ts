@@ -37,11 +37,13 @@ describe("sessions", () => {
     const rows = groupSessions([
       session({ id: "parent", time: { created: 2, updated: 2 } }),
       session({ id: "child", parentID: "parent", time: { created: 1, updated: 1 } }),
+      session({ id: "grandchild", parentID: "child", time: { created: 1, updated: 1 } }),
       session({ id: "orphan", parentID: "missing", time: { created: 0, updated: 0 } }),
     ]);
     expect(rows.map((row) => [row.session.id, row.depth])).toEqual([
       ["parent", 0],
       ["child", 1],
+      ["grandchild", 2],
       ["orphan", 0],
     ]);
   });

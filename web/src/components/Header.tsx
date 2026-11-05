@@ -60,7 +60,7 @@ export function Header({
     primaryAgents.unshift({ id: agent, name: agent });
   }
   const directory = session?.location?.directory ?? fallbackDirectory;
-  const title = session?.title?.trim() || (session ? "New session" : "nit-gui");
+  const title = session?.title?.trim() || (session ? "New chat" : "nit-gui");
   const live = streamStatus === "online" && health?.ok;
   const variants = model
     ? (models.find((item) => item.id === model.id && item.providerID === model.providerID)

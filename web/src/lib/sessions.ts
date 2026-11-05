@@ -35,11 +35,10 @@ export function groupSessions(sessions: Session[]): SessionRow[] {
     }
   }
   const rows: SessionRow[] = [];
-  for (const root of roots) {
-    rows.push({ session: root, depth: 0 });
-    for (const child of children.get(root.id) ?? []) {
-      rows.push({ session: child, depth: 1 });
-    }
-  }
+  const walk = (session: Session, depth: number) => {
+    rows.push({ session, depth });
+    for (const child of children.get(session.id) ?? []) walk(child, depth + 1);
+  };
+  for (const root of roots) walk(root, 0);
   return rows;
 }

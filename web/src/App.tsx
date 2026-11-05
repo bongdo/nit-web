@@ -39,9 +39,10 @@ export default function App() {
   const [models, setModels] = useState<Model[]>([]);
   const [agents, setAgents] = useState<Agent[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
-  const [workspace, setWorkspaceState] = useState<string | null>(() =>
-    localStorage.getItem("nit-gui.workspace"),
-  );
+  const [workspace, setWorkspaceState] = useState<string | null>(() => {
+    const stored = localStorage.getItem("nit-gui.workspace");
+    return stored && stored.startsWith("/") ? stored : null;
+  });
   const workspaceRef = useRef(workspace);
   workspaceRef.current = workspace;
   const [recent, setRecent] = useState<string[]>(() => {
@@ -73,7 +74,6 @@ export default function App() {
   const [runningIds, setRunningIds] = useState<Record<string, boolean>>({});
   const [banner, setBanner] = useState<string | null>(null);
   const [booting, setBooting] = useState(true);
-  const [creating, setCreating] = useState(false);
   const [search, setSearch] = useState("");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [preferredModel, setPreferredModel] = useState<ModelRef | null>(null);
@@ -146,6 +146,11 @@ export default function App() {
     if (healthRef.current?.ok) void loadSessions();
   }, [loadSessions, scope, workspace]);
 
+  useEffect(() => {
+    if (agents.length === 0 || scopeRef.current !== "mine") return;
+    if (healthRef.current?.ok) void loadSessions();
+  }, [agents, loadSessions]);
+
   const loadCatalog = useCallback(async () => {
     const [configResult, modelsResult, agentsResult] = await Promise.allSettled([
       api.config(),
@@ -167,22 +172,22 @@ export default function App() {
     setBanner(null);
     const result = await loadHealth();
     if (result.ok) {
-      await Promise.all([loadCatalog(), loadSessions()]);
+      await Promise.all([loadCatalog(), loadProjects(), loadSessions()]);
     }
     setBooting(false);
-  }, [loadCatalog, loadHealth, loadSessions]);
+  }, [loadCatalog, loadHealth, loadProjects, loadSessions]);
 
   useEffect(() => {
     void (async () => {
       const result = await loadHealth();
       if (result.ok) {
-        await Promise.all([loadCatalog(), loadSessions()]);
+        await Promise.all([loadCatalog(), loadProjects(), loadSessions()]);
       } else {
         setSessionsLoading(false);
       }
       setBooting(false);
     })();
-  }, [loadCatalog, loadHealth, loadSessions]);
+  }, [loadCatalog, loadHealth, loadProjects, loadSessions]);
 
   useEffect(() => {
     const timer = window.setInterval(() => {
@@ -202,6 +207,10 @@ export default function App() {
     if (!selectedId) {
       setMessages([]);
       setTranscriptError(null);
+      return;
+    }
+    if (skipLoadRef.current === selectedId) {
+      skipLoadRef.current = null;
       return;
     }
     let cancelled = false;
@@ -249,6 +258,34 @@ export default function App() {
     else localStorage.removeItem("nit-gui.session");
     setSidebarOpen(false);
   }, []);
+
+  const selectWorkspace = useCallback((directory: string) => {
+    const value = directory.trim().replace(/\/+$/, "") || "/";
+    setWorkspaceState(value);
+    localStorage.setItem("nit-gui.workspace", value);
+    setRecent((previous) => {
+      const next = [value, ...previous.filter((item) => item !== value)].slice(0, 8);
+      localStorage.setItem("nit-gui.recent", JSON.stringify(next));
+      return next;
+    });
+    setScopeState("directory");
+    localStorage.setItem("nit-gui.scope", "directory");
+    setSelectedIdState(null);
+    localStorage.removeItem("nit-gui.session");
+    setMessages([]);
+    setPickerOpen(false);
+  }, []);
+
+  const changeScope = useCallback((next: Scope) => {
+    setScopeState(next);
+    localStorage.setItem("nit-gui.scope", next);
+  }, []);
+
+  const newChat = useCallback(() => {
+    selectSession(null);
+    setSidebarOpen(false);
+    if (!workspaceRef.current) setPickerOpen(true);
+  }, [selectSession]);
 
   const scheduleSessionsRefresh = useCallback(() => {
     if (refreshTimer.current !== null) return;
@@ -349,32 +386,40 @@ export default function App() {
 
   const streamStatus = useEventStream(onEvent, onStreamOpen);
 
-  const createSession = useCallback(async () => {
-    if (creating) return;
-    setCreating(true);
-    setBanner(null);
-    try {
-      const session = await api.createSession({
-        directory: config?.directory,
-        agent: currentAgent ?? undefined,
-        model: currentModel,
-      });
-      setSessions((previous) => [session, ...previous.filter((item) => item.id !== session.id)]);
-      setRunningIds((previous) => ({ ...previous, [session.id]: false }));
-      setMessages([]);
-      selectSession(session.id);
-    } catch (error) {
-      setBanner(messageOf(error));
-    } finally {
-      setCreating(false);
-    }
-  }, [config?.directory, creating, currentAgent, currentModel, selectSession]);
-
   const send = useCallback(
     async (text: string) => {
-      const id = selectedIdRef.current;
-      if (!id) return;
       setBanner(null);
+      let id = selectedIdRef.current;
+      if (!id) {
+        const directory = workspaceRef.current;
+        if (!directory) {
+          setPickerOpen(true);
+          throw new Error("Choose a workspace first.");
+        }
+        try {
+          const session = await api.createSession({
+            directory,
+            agent: currentAgent ?? undefined,
+            model: currentModel,
+          });
+          id = session.id;
+          skipLoadRef.current = session.id;
+          setSessions((previous) => [
+            session,
+            ...previous.filter((item) => item.id !== session.id),
+          ]);
+          setRunningIds((previous) => ({ ...previous, [session.id]: false }));
+          setSelectedIdState(session.id);
+          localStorage.setItem("nit-gui.session", session.id);
+          setMessages([]);
+          setSidebarOpen(false);
+        } catch (error) {
+          setBanner(messageOf(error));
+          throw error;
+        }
+      }
+      if (!id) throw new Error("Session was not created.");
+      const sessionId = id;
       const optimistic: Message = {
         id: `local-${Date.now()}`,
         type: "user",
@@ -382,17 +427,17 @@ export default function App() {
         text,
       };
       setMessages((previous) => [...previous, optimistic]);
-      runningEventsAt.current[id] = Date.now();
-      setRunningIds((previous) => ({ ...previous, [id]: true }));
+      runningEventsAt.current[sessionId] = Date.now();
+      setRunningIds((previous) => ({ ...previous, [sessionId]: true }));
       try {
-        await api.prompt(id, text);
+        await api.prompt(sessionId, text);
       } catch (error) {
-        setRunningIds((previous) => ({ ...previous, [id]: false }));
+        setRunningIds((previous) => ({ ...previous, [sessionId]: false }));
         setBanner(messageOf(error));
         throw error;
       }
     },
-    [],
+    [currentAgent, currentModel],
   );
 
   const stop = useCallback(async () => {
@@ -456,7 +501,7 @@ export default function App() {
       }
       if (mod && key === "n") {
         event.preventDefault();
-        void createSession();
+        newChat();
         return;
       }
       if (event.key === "Escape") {
@@ -468,12 +513,16 @@ export default function App() {
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [createSession, isRunning, stop]);
+  }, [isRunning, newChat, stop]);
 
   if (booting) return <BootScreen />;
 
   if (health && !health.ok && sessions.length === 0) {
     return <OfflineScreen health={health} onRetry={() => void retryConnection()} />;
+  }
+
+  if (!workspace) {
+    return <WorkspacePicker projects={projects} recent={recent} onPick={selectWorkspace} />;
   }
 
   const offlineBanner = health && !health.ok ? "OpenCode service is offline." : null;
@@ -490,15 +539,18 @@ export default function App() {
       >
         <Sidebar
           sessions={sessions}
+          workspace={workspace}
+          scope={scope}
           selectedId={selectedId}
           loading={sessionsLoading}
-          creating={creating}
           health={health}
           search={search}
           searchRef={searchRef}
           onSearch={setSearch}
+          onScope={changeScope}
+          onWorkspace={() => setPickerOpen(true)}
           onSelect={selectSession}
-          onNew={() => void createSession()}
+          onNew={newChat}
           isRunning={isRunning}
         />
       </aside>
@@ -515,7 +567,7 @@ export default function App() {
       <main className="flex min-w-0 flex-1 flex-col">
         <Header
           session={selectedSession}
-          directory={config?.directory}
+          directory={workspace}
           models={models}
           agents={agents}
           model={currentModel}
@@ -555,14 +607,14 @@ export default function App() {
           error={transcriptError}
           models={models}
           agents={agents}
-          directory={config?.directory}
+          workspace={workspace}
           onRetry={reloadSelected}
-          onNew={() => void createSession()}
         />
 
         <Composer
           session={selectedSession}
-          disabled={!health?.ok || creating}
+          workspace={workspace}
+          disabled={!health?.ok}
           running={running}
           modelName={modelLabel(currentModel, models)}
           focusKey={selectedId}
@@ -570,6 +622,16 @@ export default function App() {
           onStop={() => void stop()}
         />
       </main>
+
+      {pickerOpen && (
+        <WorkspacePicker
+          projects={projects}
+          recent={recent}
+          current={workspace}
+          onPick={selectWorkspace}
+          onClose={() => setPickerOpen(false)}
+        />
+      )}
     </div>
   );
 }

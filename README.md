@@ -30,6 +30,24 @@ npm --prefix web run dev
 
 Vite proxies `/api` to the backend.
 
+## Workspaces
+
+Every chat belongs to one directory for its whole lifetime; it cannot be moved
+later. On first start the GUI asks for a workspace and remembers it in
+`localStorage`. The picker lists OpenCode projects, recent workspaces and an
+absolute path field.
+
+The sidebar has three scopes:
+
+| Scope | Shows |
+| --- | --- |
+| `This dir` | chats created in the current workspace. |
+| `Mine` | all top-level chats with a primary agent, across workspaces. |
+| `All` | everything, including subagent sessions and scripted roles. |
+
+`New chat` does not create a session. The session is created in the current
+workspace on the first Send, so an empty draft never appears in the list.
+
 ## Discovery and environment
 
 The backend finds the same service the `nit` TUI uses:
@@ -60,7 +78,8 @@ The browser only talks to these same-origin endpoints:
 | --- | --- |
 | `GET /api/health` | `{ok, server, version}` from OpenCode `/api/info`. |
 | `GET /api/config` | Directory, default model and primary agent. |
-| `GET /api/sessions?dir=` | Newest sessions. |
+| `GET /api/projects` | Known projects from OpenCode `/api/project`, for the workspace picker. |
+| `GET /api/sessions?dir=&children=true` | Newest sessions; `children=true` includes subagent sessions. |
 | `POST /api/sessions` | Create `{directory, title?, agent?, model?}`. |
 | `GET /api/sessions/{id}/messages` | Full transcript, ascending, paginated upstream, redacted. |
 | `POST /api/sessions/{id}/prompt` | Send `{text}`. |

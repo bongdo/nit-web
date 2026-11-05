@@ -1,5 +1,5 @@
 import { useEffect, useState, type RefObject } from "react";
-import { CornerDownRight, Folder, FolderOpen, Loader2, MessageSquare, Plus, Search } from "lucide-react";
+import { CornerDownRight, Folder, FolderOpen, MessageSquare, Plus, Search } from "lucide-react";
 import type { Health, Session } from "../lib/types";
 import { basename, filterSessions, formatRelative } from "../lib/format";
 import { SCOPES, groupSessions, type Scope } from "../lib/sessions";
@@ -28,9 +28,13 @@ function SessionRow({
       type="button"
       data-session-id={session.id}
       onClick={onClick}
+      style={{
+        marginLeft: depth * 12,
+        width: depth > 0 ? `calc(100% - ${depth * 12}px)` : undefined,
+      }}
       className={cn(
         "group flex w-full flex-col gap-1 rounded-lg px-2.5 py-2 text-left transition-colors",
-        depth > 0 && "ml-3 w-[calc(100%-0.75rem)] py-1.5",
+        depth > 0 && "py-1.5",
         active ? "bg-accent text-accent-foreground" : "hover:bg-accent/60",
       )}
     >

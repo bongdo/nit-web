@@ -135,7 +135,7 @@ export function ChatView({
               <div className="bg-secondary text-secondary-foreground mb-4 flex size-11 items-center justify-center rounded-2xl">
                 <MessageSquare className="size-5" />
               </div>
-              <h2 className="text-lg font-semibold">New session</h2>
+              <h2 className="text-lg font-semibold">New chat</h2>
               <p className="text-muted-foreground mt-1 max-w-sm text-sm">
                 Ask a question, paste a stack trace, or ask for a page you can preview.
               </p>

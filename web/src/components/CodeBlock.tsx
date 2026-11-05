@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Check, Copy, Eye, EyeOff } from "lucide-react";
+import { Check, Copy } from "lucide-react";
 import { copyText } from "../lib/clipboard";
 import { previewableHtml } from "../lib/html";
 import { cn } from "../lib/utils";
@@ -16,8 +16,11 @@ export function CodeBlock({
   className?: string;
 }) {
   const [copied, setCopied] = useState(false);
-  const [preview, setPreview] = useState(false);
   const html = previewableHtml(code, language);
+
+  if (html) {
+    return <HtmlPreview source={code} autoHeight className={cn("my-3", className)} />;
+  }
 
   const onCopy = async () => {
     if (await copyText(code)) {
@@ -32,26 +35,14 @@ export function CodeBlock({
         <span className="text-muted-foreground truncate font-mono text-[11px]">
           {language || "text"}
         </span>
-        <div className="flex items-center gap-1">
-          {html && (
-            <Button variant="ghost" size="xs" onClick={() => setPreview((value) => !value)}>
-              {preview ? <EyeOff /> : <Eye />}
-              {preview ? "Source" : "Preview"}
-            </Button>
-          )}
-          <Button variant="ghost" size="xs" onClick={onCopy}>
-            {copied ? <Check /> : <Copy />}
-            {copied ? "Copied" : "Copy"}
-          </Button>
-        </div>
+        <Button variant="ghost" size="xs" onClick={onCopy}>
+          {copied ? <Check /> : <Copy />}
+          {copied ? "Copied" : "Copy"}
+        </Button>
       </div>
-      {preview ? (
-        <HtmlPreview source={code} className="h-80" />
-      ) : (
-        <pre className="scrollbar-thin max-h-[32rem] overflow-auto p-3 font-mono text-[12.5px] leading-5">
-          <code>{code}</code>
-        </pre>
-      )}
+      <pre className="scrollbar-thin max-h-[32rem] overflow-auto p-3 font-mono text-[12.5px] leading-5">
+        <code>{code}</code>
+      </pre>
     </div>
   );
 }

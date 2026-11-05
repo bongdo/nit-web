@@ -8,11 +8,13 @@ import type {
   Message,
   Model,
   ModelRef,
+  Project,
   Session,
   StreamEvent,
 } from "./lib/types";
 import { applyEvent, normalizeMessages } from "./lib/stream";
 import { mergeRunningStates, modelLabel, sessionRunning } from "./lib/format";
+import { scopeSessions, type Scope } from "./lib/sessions";
 import { cn } from "./lib/utils";
 import { useTheme } from "./hooks/useTheme";
 import { useEventStream } from "./hooks/useEventStream";
@@ -20,6 +22,7 @@ import { ChatView } from "./components/ChatView";
 import { Composer } from "./components/Composer";
 import { Header } from "./components/Header";
 import { Sidebar } from "./components/Sidebar";
+import { WorkspacePicker } from "./components/WorkspacePicker";
 import { BootScreen, OfflineScreen } from "./components/StatusScreens";
 import { Button } from "./components/ui/button";
 
@@ -35,6 +38,27 @@ export default function App() {
   const [config, setConfig] = useState<Config | null>(null);
   const [models, setModels] = useState<Model[]>([]);
   const [agents, setAgents] = useState<Agent[]>([]);
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [workspace, setWorkspaceState] = useState<string | null>(() =>
+    localStorage.getItem("nit-gui.workspace"),
+  );
+  const workspaceRef = useRef(workspace);
+  workspaceRef.current = workspace;
+  const [recent, setRecent] = useState<string[]>(() => {
+    try {
+      const value = JSON.parse(localStorage.getItem("nit-gui.recent") ?? "[]");
+      return Array.isArray(value) ? value.filter((item) => typeof item === "string") : [];
+    } catch {
+      return [];
+    }
+  });
+  const [scope, setScopeState] = useState<Scope>(() => {
+    const value = localStorage.getItem("nit-gui.scope");
+    return value === "mine" || value === "all" ? value : "directory";
+  });
+  const scopeRef = useRef(scope);
+  scopeRef.current = scope;
+  const [pickerOpen, setPickerOpen] = useState(false);
   const [sessions, setSessions] = useState<Session[]>([]);
   const [sessionsLoading, setSessionsLoading] = useState(true);
   const [selectedId, setSelectedIdState] = useState<string | null>(() =>
@@ -58,9 +82,13 @@ export default function App() {
   const refreshTimer = useRef<number | null>(null);
   const firstStreamOpen = useRef(true);
   const runningEventsAt = useRef<Record<string, number>>({});
+  const skipLoadRef = useRef<string | null>(null);
+  const lastQueryRef = useRef(`${scope}|${workspace}`);
 
   const sessionsRef = useRef(sessions);
   sessionsRef.current = sessions;
+  const agentsRef = useRef(agents);
+  agentsRef.current = agents;
   const selectedSession = sessions.find((session) => session.id === selectedId) ?? null;
   const currentModel = selectedSession?.model ?? preferredModel ?? config?.model ?? null;
   const currentAgent = selectedSession?.agent ?? preferredAgent ?? config?.agent ?? null;
@@ -88,11 +116,13 @@ export default function App() {
 
   const loadSessions = useCallback(async () => {
     const requestedAt = Date.now();
+    const scopedDirectory = scopeRef.current === "directory" ? workspaceRef.current : null;
     try {
-      const list = await api.sessions();
-      setSessions(list.data);
+      const list = await api.sessions(scopedDirectory ?? undefined, scopeRef.current === "all");
+      const data = scopeSessions(list.data, scopeRef.current, agentsRef.current);
+      setSessions(data);
       setRunningIds((previous) =>
-        mergeRunningStates(previous, list.data, runningEventsAt.current, requestedAt),
+        mergeRunningStates(previous, data, runningEventsAt.current, requestedAt),
       );
     } catch (error) {
       setBanner(messageOf(error));
@@ -100,6 +130,21 @@ export default function App() {
       setSessionsLoading(false);
     }
   }, []);
+
+  const loadProjects = useCallback(async () => {
+    try {
+      setProjects(await api.projects());
+    } catch {
+      setProjects([]);
+    }
+  }, []);
+
+  useEffect(() => {
+    const key = `${scope}|${workspace}`;
+    if (lastQueryRef.current === key) return;
+    lastQueryRef.current = key;
+    if (healthRef.current?.ok) void loadSessions();
+  }, [loadSessions, scope, workspace]);
 
   const loadCatalog = useCallback(async () => {
     const [configResult, modelsResult, agentsResult] = await Promise.allSettled([

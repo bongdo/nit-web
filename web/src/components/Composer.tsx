@@ -8,6 +8,7 @@ import { Textarea } from "./ui/textarea";
 
 export function Composer({
   session,
+  workspace,
   disabled,
   running,
   modelName,
@@ -16,6 +17,7 @@ export function Composer({
   onStop,
 }: {
   session: Session | null;
+  workspace: string | null;
   disabled?: boolean;
   running?: boolean;
   modelName?: string;
@@ -40,7 +42,7 @@ export function Composer({
 
   const submit = async () => {
     const text = value.trim();
-    if (!text || !session || disabled || running || submitting) return;
+    if (!text || !workspace || disabled || running || submitting) return;
     setSubmitting(true);
     setValue("");
     try {
@@ -67,10 +69,14 @@ export function Composer({
             ref={ref}
             rows={1}
             value={value}
-            disabled={disabled || !session}
+            disabled={disabled || !workspace}
             aria-label="Message"
             placeholder={
-              session ? "Ask anything…" : "Select or create a session to start"
+              !workspace
+                ? "Choose a workspace to start"
+                : session
+                  ? "Ask anything…"
+                  : "New chat in this workspace…"
             }
             className="scrollbar-thin max-h-[200px] min-h-[44px] px-4 py-3 text-[15px]"
             onChange={(event) => setValue(event.target.value)}
@@ -95,7 +101,7 @@ export function Composer({
                 <Button
                   size="sm"
                   onClick={() => void submit()}
-                  disabled={!session || disabled || !value.trim() || submitting}
+                  disabled={!workspace || disabled || !value.trim() || submitting}
                   aria-label="Send"
                 >
                   <ArrowUp />

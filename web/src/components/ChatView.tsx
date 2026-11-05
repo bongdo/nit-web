@@ -4,7 +4,6 @@ import {
   CircleAlert,
   Loader2,
   MessageSquare,
-  Plus,
   Sparkles,
 } from "lucide-react";
 import type { Agent, Message, Model, Session } from "../lib/types";
@@ -34,9 +33,8 @@ export function ChatView({
   error,
   models,
   agents,
-  directory,
+  workspace,
   onRetry,
-  onNew,
 }: {
   session: Session | null;
   messages: Message[];
@@ -45,9 +43,8 @@ export function ChatView({
   error: string | null;
   models: Model[];
   agents: Agent[];
-  directory?: string;
+  workspace: string | null;
   onRetry: () => void;
-  onNew: () => void;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const stick = useRef(true);
@@ -81,18 +78,17 @@ export function ChatView({
           <div className="bg-secondary text-secondary-foreground mx-auto mb-4 flex size-12 items-center justify-center rounded-2xl">
             <Sparkles className="size-6" />
           </div>
-          <h2 className="text-xl font-semibold tracking-tight">A quiet place to talk to OpenCode</h2>
+          <h2 className="text-xl font-semibold tracking-tight">
+            {workspace ? "Start a new chat" : "Choose a workspace"}
+          </h2>
           <p className="text-muted-foreground mt-2 text-sm leading-6">
-            Pick a session on the left or start a new one. Markdown, tables, code and HTML previews
-            render here; the terminal stays open for the tools.
+            {workspace
+              ? "Type below and the chat is created in this directory on the first message. The workspace cannot change after that."
+              : "Pick a directory for this chat. Markdown, tables, code and HTML previews render here."}
           </p>
-          {directory && (
-            <p className="text-muted-foreground mt-3 font-mono text-[11px]">{directory}</p>
-          )}
-          <Button className="mt-5" onClick={onNew}>
-            <Plus />
-            New session
-          </Button>
+          <p className="text-muted-foreground mt-3 font-mono text-[11px]">
+            {workspace ?? "no workspace"}
+          </p>
         </div>
       </div>
     );

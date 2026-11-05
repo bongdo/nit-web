@@ -1,6 +1,7 @@
 import type {
   Agent,
   Config,
+  FormInfo,
   Health,
   MessagesResponse,
   Model,
@@ -88,10 +89,19 @@ export const api = {
     (await request<MessagesResponse>(`/api/sessions/${encodeURIComponent(id)}/messages`)).data,
   children: async (id: string) =>
     (await request<SessionList>(`/api/sessions/${encodeURIComponent(id)}/children`)).data,
-  prompt: (id: string, text: string, files?: { uri: string; name?: string }[]) =>
+  prompt: (
+    id: string,
+    text: string,
+    files?: { uri: string; name?: string }[],
+    delivery?: "queue" | "steer",
+  ) =>
     request<unknown>(`/api/sessions/${encodeURIComponent(id)}/prompt`, {
       method: "POST",
-      body: { text, ...(files && files.length > 0 ? { files } : {}) },
+      body: {
+        text,
+        ...(files && files.length > 0 ? { files } : {}),
+        ...(delivery ? { delivery } : {}),
+      },
     }),
   interrupt: (id: string) =>
     request<{ interrupted?: boolean }>(`/api/sessions/${encodeURIComponent(id)}/interrupt`, {
@@ -113,6 +123,21 @@ export const api = {
     request<{ ok: boolean }>(`/api/sessions/${encodeURIComponent(id)}/compact`, {
       method: "POST",
     }),
+  forms: async (id: string) =>
+    (await request<{ data: FormInfo[] }>(`/api/sessions/${encodeURIComponent(id)}/form`)).data,
+  replyForm: (id: string, formID: string, answer: Record<string, unknown>) =>
+    request<{ ok: boolean }>(
+      `/api/sessions/${encodeURIComponent(id)}/form/${encodeURIComponent(formID)}/reply`,
+      { method: "POST", body: { answer } },
+    ),
+  cancelForm: (id: string, formID: string, message?: string) =>
+    request<void>(
+      `/api/sessions/${encodeURIComponent(id)}/form/${encodeURIComponent(formID)}${
+        message ? `?message=${encodeURIComponent(message)}` : ""
+      }`,
+      { method: "DELETE" },
+    ),
+  fileUrl: (uri: string) => `/api/file?path=${encodeURIComponent(uri)}`,
   upload: async (file: File, dir: string) => {
     const query = new URLSearchParams({ name: file.name, dir });
     const response = await fetch(`/api/upload?${query}`, {

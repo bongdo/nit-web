@@ -192,6 +192,40 @@ func (c *Client) WriteFile(ctx context.Context, dir, path string, data []byte) (
 	return out.Data.Path, nil
 }
 
+func (c *Client) ReadFile(ctx context.Context, path string) (*http.Response, error) {
+	relative := strings.TrimPrefix(path, "/")
+	query := url.Values{}
+	query.Set("location[directory]", "/")
+	target := c.BaseURL + "/api/fs/read/" + relative + "?" + query.Encode()
+
+	send := func() (*http.Response, error) {
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, target, nil)
+		if err != nil {
+			return nil, err
+		}
+		req.SetBasicAuth("opencode", c.password())
+		return c.HTTP.Do(req)
+	}
+
+	resp, err := send()
+	if err != nil {
+		return nil, err
+	}
+	if resp.StatusCode == http.StatusUnauthorized && c.refreshPassword() {
+		resp.Body.Close()
+		resp, err = send()
+		if err != nil {
+			return nil, err
+		}
+	}
+	if resp.StatusCode >= 400 {
+		raw, _ := io.ReadAll(io.LimitReader(resp.Body, 64<<10))
+		resp.Body.Close()
+		return nil, &HTTPError{Status: resp.StatusCode, Body: c.redact(raw)}
+	}
+	return resp, nil
+}
+
 func (c *Client) Stream(ctx context.Context, path string) (*http.Response, error) {
 	req, err := c.newRequest(ctx, http.MethodGet, path, nil)
 	if err != nil {

@@ -10,6 +10,7 @@ import (
 	"io"
 	"io/fs"
 	"log/slog"
+	"mime"
 	"net"
 	"net/http"
 	"net/url"
@@ -60,6 +61,10 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("POST /api/sessions/{id}/compact", s.compact)
 	s.mux.HandleFunc("POST /api/stt", s.stt)
 	s.mux.HandleFunc("POST /api/upload", s.upload)
+	s.mux.HandleFunc("GET /api/file", s.file)
+	s.mux.HandleFunc("GET /api/sessions/{id}/form", s.forms)
+	s.mux.HandleFunc("POST /api/sessions/{id}/form/{formID}/reply", s.replyForm)
+	s.mux.HandleFunc("DELETE /api/sessions/{id}/form/{formID}", s.cancelForm)
 	s.mux.HandleFunc("POST /api/sessions/{id}/model", s.switchModel)
 	s.mux.HandleFunc("POST /api/sessions/{id}/agent", s.switchAgent)
 	s.mux.HandleFunc("GET /api/models", s.models)
@@ -299,8 +304,9 @@ type promptFile struct {
 }
 
 type promptInput struct {
-	Text  string       `json:"text"`
-	Files []promptFile `json:"files,omitempty"`
+	Text     string       `json:"text"`
+	Files    []promptFile `json:"files,omitempty"`
+	Delivery string       `json:"delivery,omitempty"`
 }
 
 func (s *Server) prompt(w http.ResponseWriter, r *http.Request) {
@@ -332,6 +338,9 @@ func (s *Server) prompt(w http.ResponseWriter, r *http.Request) {
 	body := map[string]any{"text": in.Text}
 	if len(in.Files) > 0 {
 		body["files"] = in.Files
+	}
+	if in.Delivery == "queue" || in.Delivery == "steer" {
+		body["delivery"] = in.Delivery
 	}
 	var raw json.RawMessage
 	if err := c.Do(r.Context(), http.MethodPost, "/api/session/"+url.PathEscape(id)+"/prompt", body, &raw); err != nil {
@@ -622,6 +631,103 @@ func (s *Server) upload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"path": saved, "name": name, "size": len(data)})
+}
+
+func (s *Server) file(w http.ResponseWriter, r *http.Request) {
+	path := strings.TrimPrefix(strings.TrimSpace(r.URL.Query().Get("path")), "file://")
+	if !strings.HasPrefix(path, "/tmp/nit-gui-") {
+		writeError(w, http.StatusForbidden, "only uploaded files are served")
+		return
+	}
+	c, ok := s.client(r.Context())
+	if !ok {
+		writeError(w, http.StatusServiceUnavailable, "opencode service not found")
+		return
+	}
+	body, err := c.ReadFile(r.Context(), path)
+	if err != nil {
+		s.upstreamError(w, err)
+		return
+	}
+	defer body.Body.Close()
+	contentType := mime.TypeByExtension(filepath.Ext(path))
+	if contentType == "" {
+		contentType = "application/octet-stream"
+	}
+	w.Header().Set("Content-Type", contentType)
+	w.Header().Set("Cache-Control", "private, max-age=3600")
+	if _, err := io.Copy(w, body.Body); err != nil {
+		s.log.Warn("file stream failed", "path", path, "error", err)
+	}
+}
+
+func (s *Server) forms(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	if !validID(id) {
+		writeError(w, http.StatusBadRequest, "invalid session id")
+		return
+	}
+	c, ok := s.client(r.Context())
+	if !ok {
+		writeError(w, http.StatusServiceUnavailable, "opencode service not found")
+		return
+	}
+	var raw json.RawMessage
+	if err := c.Do(r.Context(), http.MethodGet, "/api/session/"+url.PathEscape(id)+"/form", nil, &raw); err != nil {
+		s.upstreamError(w, err)
+		return
+	}
+	writeRaw(w, raw, c.Redactor())
+}
+
+func (s *Server) replyForm(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	formID := r.PathValue("formID")
+	if !validID(id) || formID == "" {
+		writeError(w, http.StatusBadRequest, "invalid form")
+		return
+	}
+	in, err := decodeJSON[struct {
+		Answer map[string]any `json:"answer"`
+	}](w, r)
+	if err != nil {
+		writeDecodeError(w, err)
+		return
+	}
+	c, ok := s.client(r.Context())
+	if !ok {
+		writeError(w, http.StatusServiceUnavailable, "opencode service not found")
+		return
+	}
+	path := "/api/session/" + url.PathEscape(id) + "/form/" + url.PathEscape(formID) + "/reply"
+	if err := c.Do(r.Context(), http.MethodPost, path, map[string]any{"answer": in.Answer}, nil); err != nil {
+		s.upstreamError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
+}
+
+func (s *Server) cancelForm(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	formID := r.PathValue("formID")
+	if !validID(id) || formID == "" {
+		writeError(w, http.StatusBadRequest, "invalid form")
+		return
+	}
+	c, ok := s.client(r.Context())
+	if !ok {
+		writeError(w, http.StatusServiceUnavailable, "opencode service not found")
+		return
+	}
+	path := "/api/session/" + url.PathEscape(id) + "/form/" + url.PathEscape(formID)
+	if message := strings.TrimSpace(r.URL.Query().Get("message")); message != "" {
+		path += "?message=" + url.QueryEscape(message)
+	}
+	if err := c.Do(r.Context(), http.MethodDelete, path, nil, nil); err != nil {
+		s.upstreamError(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func (s *Server) stt(w http.ResponseWriter, r *http.Request) {

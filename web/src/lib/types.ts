@@ -11,6 +11,45 @@ export type Tokens = {
   cache?: { read?: number; write?: number };
 };
 
+export type UserFile = {
+  uri: string;
+  name?: string;
+  description?: string;
+  mime?: string;
+};
+
+export type FormOption = {
+  value: string;
+  label: string;
+  description?: string;
+};
+
+export type FormField = {
+  key: string;
+  type: string;
+  title?: string;
+  description?: string;
+  placeholder?: string;
+  required?: boolean;
+  hidden?: boolean;
+  custom?: boolean;
+  default?: unknown;
+  options?: FormOption[];
+  minimum?: number;
+  maximum?: number;
+  minLength?: number;
+  maxLength?: number;
+  when?: { key: string; op: "eq" | "neq"; value: unknown }[];
+};
+
+export type FormInfo = {
+  id: string;
+  sessionID: string;
+  title: string;
+  metadata?: Record<string, unknown>;
+  fields: FormField[];
+};
+
 export type ToolContent = {
   type: string;
   text?: string;
@@ -61,6 +100,7 @@ export type Message = {
   type: string;
   time: { created: number; streamed?: number; completed?: number };
   text?: string;
+  files?: UserFile[];
   content?: Part[];
   agent?: string;
   model?: ModelRef;

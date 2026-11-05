@@ -41,7 +41,7 @@ export function SubagentMenu({
       <Button
         variant="ghost"
         size="sm"
-        className={cn("h-9 rounded-full", className)}
+        className={cn("h-9", className)}
         onClick={() => setOpen((value) => !value)}
       >
         <GitBranch />

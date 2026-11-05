@@ -380,7 +380,7 @@ export function Composer({
       <div className="mx-auto w-full max-w-3xl px-4 pt-2 pb-3">
         <div
           className={cn(
-            "border-border bg-card focus-within:border-ring focus-within:ring-ring/20 relative rounded-xl border shadow-sm transition-shadow focus-within:ring-[3px]",
+            "border-border bg-card relative rounded-xl border shadow-sm",
             disabled && "opacity-60",
             dropActive && "border-ring ring-ring/30 ring-[3px]",
           )}

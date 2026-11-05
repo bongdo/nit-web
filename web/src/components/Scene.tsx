@@ -58,9 +58,11 @@ export function Scene({
       const dy = y - cursor.y;
       const distance = dx * dx + dy * dy;
       if (distance > CURSOR_RADIUS * CURSOR_RADIUS) return y;
-      const pull = Math.exp(-distance / 9000) * cursor.power;
-      y -= dy * pull * 0.65;
-      y += Math.sin(Math.sqrt(distance) * 0.05 - time * 2.6) * 3 * pull;
+      const t = Math.sqrt(distance) / CURSOR_RADIUS;
+      const falloff = (1 - t * t) * (1 - t * t);
+      const pull = falloff * cursor.power;
+      y -= dy * pull * 0.8;
+      y += Math.sin(t * 9 - time * 2.6) * 4 * pull;
       return y;
     };
 
@@ -84,12 +86,21 @@ export function Scene({
       }
 
       if (cursor.power > 0.01) {
+        const halo = context.createLinearGradient(
+          cursor.x - CURSOR_RADIUS,
+          0,
+          cursor.x + CURSOR_RADIUS,
+          0,
+        );
+        halo.addColorStop(0, "rgba(0,0,0,0)");
+        halo.addColorStop(0.5, accent);
+        halo.addColorStop(1, "rgba(0,0,0,0)");
         for (let index = 0; index < lines; index += 1) {
           const base = (index - 1) * GAP;
-          const near = Math.exp(-((base - cursor.y) ** 2) / 14000) * cursor.power;
+          const near = Math.exp(-((base - cursor.y) ** 2) / 20000) * cursor.power;
           if (near < 0.04) continue;
-          context.strokeStyle = accent;
-          context.globalAlpha = near * 0.5;
+          context.strokeStyle = halo;
+          context.globalAlpha = near * 0.75;
           context.beginPath();
           const from = Math.max(-10, cursor.x - CURSOR_RADIUS);
           const to = Math.min(width + 10, cursor.x + CURSOR_RADIUS);

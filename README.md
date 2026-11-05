@@ -162,15 +162,15 @@ OpenCode's plural resource paths are singular (`/api/session`, `/api/model`,
   A local event newer than the list request wins, so a missed idle event cannot
   leave the dot stuck.
 - Dark, light and system themes. Theme is stored in `localStorage`.
-- The empty chat and the workspace picker draw a slow canvas flow field with a
-  copper accent (`--spark`). It pauses on a hidden tab, renders one static frame
-  for `prefers-reduced-motion`, and never intercepts pointer events.
+- The empty chat and the workspace picker draw slow contour lines with a copper
+  accent (`--spark`). The lines bend toward the pointer and light up near it.
+  The canvas pauses on a hidden tab and never intercepts pointer events.
 - Settings → Chats sidebar switches between the header button and a hover
   reveal at the left screen edge. The reveal slides over the chat with a
   fade/settle animation and is stored in `localStorage`.
 - Settings → Background switches that canvas between `Animated` and `Static`.
-  The default follows `prefers-reduced-motion`; the choice is stored in
-  `localStorage`.
+  `Static` draws one frame and still repaints when the pointer moves. The default
+  follows `prefers-reduced-motion`; the choice is stored in `localStorage`.
 - Shortcuts: `mod+k` search, `alt+n` new chat, `alt+j`/`alt+k` next/previous
   chat in the sidebar order, `enter` send and `shift+enter` newline (in the
   composer), double `esc` stop.

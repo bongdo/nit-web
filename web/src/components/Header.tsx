@@ -75,14 +75,14 @@ export function Header({
   const title = session?.title?.trim() || (session ? "New chat" : "nit-gui");
   const live = streamStatus === "online" && health?.ok;
 
-  const pill = "border-border/60 bg-card/90 rounded-full border shadow-sm backdrop-blur-2xl";
+  const pill = "border-border/60 bg-card/90 rounded-lg border shadow-sm backdrop-blur-2xl";
 
   return (
     <header className="pointer-events-none absolute inset-x-0 top-0 z-10 flex items-center gap-2 px-2.5 py-2">
       <Button
         variant="ghost"
         size="icon-sm"
-        className={cn(pill, "pointer-events-auto size-9 rounded-full md:hidden")}
+        className={cn(pill, "pointer-events-auto size-9 md:hidden")}
         onClick={onMenu}
         aria-label="Open sessions"
       >
@@ -92,7 +92,7 @@ export function Header({
         <Button
           variant="ghost"
           size="icon-sm"
-          className={cn(pill, "pointer-events-auto hidden size-9 rounded-full md:inline-flex")}
+          className={cn(pill, "pointer-events-auto hidden size-9 md:inline-flex")}
           onClick={onToggleSidebar}
           title={collapsed ? "Show chats" : "Hide chats"}
           aria-label={collapsed ? "Show chats" : "Hide chats"}
@@ -132,7 +132,7 @@ export function Header({
           <Button
             variant="ghost"
             size="sm"
-            className={cn(pill, "h-9 rounded-full")}
+            className={cn(pill, "h-9")}
             onClick={onBack}
             title="Back to parent"
           >
@@ -173,7 +173,7 @@ export function Header({
         <Button
           variant="ghost"
           size="icon-sm"
-          className={cn(pill, "size-9 rounded-full")}
+          className={cn(pill, "size-9")}
           onClick={onSettings}
           aria-label="Settings"
         >
@@ -183,7 +183,7 @@ export function Header({
         <Button
           variant="ghost"
           size="icon-sm"
-          className={cn(pill, "size-9 rounded-full")}
+          className={cn(pill, "size-9")}
           onClick={onTheme}
           title={`Theme: ${theme}`}
           aria-label={`Theme: ${theme}`}

@@ -165,6 +165,9 @@ OpenCode's plural resource paths are singular (`/api/session`, `/api/model`,
 - The empty chat and the workspace picker draw a slow canvas flow field with a
   copper accent (`--spark`). It pauses on a hidden tab, renders one static frame
   for `prefers-reduced-motion`, and never intercepts pointer events.
+- Settings → Chats sidebar switches between the header button and a hover
+  reveal at the left screen edge. The reveal slides over the chat with a
+  fade/settle animation and is stored in `localStorage`.
 - Settings → Background switches that canvas between `Animated` and `Static`.
   The default follows `prefers-reduced-motion`; the choice is stored in
   `localStorage`.
@@ -173,8 +176,9 @@ OpenCode's plural resource paths are singular (`/api/session`, `/api/model`,
   composer), double `esc` stop.
   Selecting text in the transcript shows a Quote button that drops it into the
   composer as a markdown quote.
-- Layout: persistent sidebar at 1280px and 900px, collapsible drawer on narrow
-  screens; code blocks and tables scroll inside themselves, not the transcript.
+- Layout: persistent or hover-revealed sidebar at 1280px and 900px,
+  collapsible drawer on narrow screens; code blocks and tables scroll inside
+  themselves, not the transcript.
 
 ## Dependencies
 

@@ -14,11 +14,13 @@ export function SettingsPanel({
   directory,
   dictationMode,
   motion,
+  sidebarMode,
   onModel,
   onAgent,
   onTheme,
   onDictation,
   onMotion,
+  onSidebar,
   onClose,
 }: {
   models: Model[];
@@ -29,11 +31,13 @@ export function SettingsPanel({
   directory?: string | null;
   dictationMode: "fast" | "accurate";
   motion: "animated" | "static";
+  sidebarMode: "button" | "hover";
   onModel: (model: ModelRef) => void;
   onAgent: (agent: string) => void;
   onTheme: (theme: Theme) => void;
   onDictation: (mode: "fast" | "accurate") => void;
   onMotion: (mode: "animated" | "static") => void;
+  onSidebar: (mode: "button" | "hover") => void;
   onClose: () => void;
 }) {
   const providers = Array.from(new Set(models.map((item) => item.providerID)));
@@ -147,6 +151,18 @@ export function SettingsPanel({
               <option value="system">System</option>
               <option value="light">Light</option>
               <option value="dark">Dark</option>
+            </Select>
+          </label>
+
+          <label className="block space-y-1">
+            <span className="text-muted-foreground text-[11px]">Chats sidebar</span>
+            <Select
+              className="w-full"
+              value={sidebarMode}
+              onChange={(event) => onSidebar(event.target.value as "button" | "hover")}
+            >
+              <option value="button">Button</option>
+              <option value="hover">Hover at the left edge</option>
             </Select>
           </label>
 

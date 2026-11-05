@@ -118,6 +118,10 @@ export default function App() {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(() => localStorage.getItem("nit-gui.collapsed") === "1");
+  const [sidebarMode, setSidebarMode] = useState<"button" | "hover">(() =>
+    localStorage.getItem("nit-gui.sidebar-mode") === "hover" ? "hover" : "button",
+  );
+  const [sidebarHovered, setSidebarHovered] = useState(false);
   const [dictationMode, setDictationMode] = useState<"fast" | "accurate">(() =>
     localStorage.getItem("nit-gui.dictation") === "accurate" ? "accurate" : "fast",
   );
@@ -170,6 +174,7 @@ export default function App() {
   );
   const searchRef = useRef<HTMLInputElement>(null);
   const refreshTimer = useRef<number | null>(null);
+  const hoverTimer = useRef<number | null>(null);
   const firstStreamOpen = useRef(true);
   const runningEventsAt = useRef<Record<string, number>>({});
   const lastEscapeAt = useRef(0);
@@ -445,6 +450,20 @@ export default function App() {
       localStorage.setItem("nit-gui.collapsed", next ? "1" : "0");
       return next;
     });
+  }, []);
+
+  const openHoverSidebar = useCallback(() => {
+    if (hoverTimer.current !== null) window.clearTimeout(hoverTimer.current);
+    hoverTimer.current = null;
+    setSidebarHovered(true);
+  }, []);
+
+  const closeHoverSidebar = useCallback(() => {
+    if (hoverTimer.current !== null) window.clearTimeout(hoverTimer.current);
+    hoverTimer.current = window.setTimeout(() => {
+      hoverTimer.current = null;
+      setSidebarHovered(false);
+    }, 240);
   }, []);
 
   const sessionAndChildren = useCallback((id: string) => {
@@ -904,6 +923,7 @@ export default function App() {
           }
         }
         setSidebarOpen(false);
+        setSidebarHovered(false);
       }
     };
     window.addEventListener("keydown", onKeyDown);
@@ -934,39 +954,72 @@ export default function App() {
   const visibleSessions = showHidden
     ? sessions
     : sessions.filter((session) => !hiddenIds.has(session.id));
+  const hoverSidebar = sidebarMode === "hover";
 
   return (
     <div className="flex h-full min-h-0 overflow-hidden">
+      {hoverSidebar && (
+        <button
+          type="button"
+          aria-label="Open chats"
+          className="group fixed inset-y-0 left-0 z-20 hidden w-2 md:block"
+          onPointerEnter={openHoverSidebar}
+          onPointerLeave={closeHoverSidebar}
+          onFocus={openHoverSidebar}
+          onClick={openHoverSidebar}
+        >
+          <span className="bg-border/80 block h-full w-px opacity-0 transition-opacity duration-200 group-hover:opacity-100 group-focus-visible:opacity-100" />
+        </button>
+      )}
       <aside
+        onPointerEnter={hoverSidebar ? openHoverSidebar : undefined}
+        onPointerLeave={hoverSidebar ? closeHoverSidebar : undefined}
         className={cn(
-          "border-border bg-background fixed inset-y-0 left-0 z-30 w-[280px] border-r transition-[transform,width] duration-200 md:static md:z-auto md:translate-x-0",
-          collapsed ? "md:w-0 md:overflow-hidden md:border-r-0" : "md:w-[280px] lg:w-[300px]",
+          "border-border bg-background fixed inset-y-0 left-0 z-30 w-[280px] border-r",
+          "ease-[cubic-bezier(0.32,0.72,0,1)] transition-[transform,opacity,box-shadow,width] duration-300 motion-reduce:transition-none",
           sidebarOpen ? "translate-x-0 shadow-xl" : "-translate-x-full",
+          hoverSidebar
+            ? sidebarHovered
+              ? "md:z-40 md:translate-x-0 md:opacity-100 md:shadow-2xl"
+              : "md:z-40 md:-translate-x-full md:opacity-0"
+            : cn(
+                "md:static md:z-auto md:translate-x-0",
+                collapsed ? "md:w-0 md:overflow-hidden md:border-r-0" : "md:w-[280px] lg:w-[300px]",
+              ),
         )}
       >
-        <Sidebar
-          sessions={visibleSessions}
-          workspace={workspace}
-          scope={scope}
-          selectedId={selectedId}
-          loading={sessionsLoading}
-          health={health}
-          search={search}
-          searchRef={searchRef}
-          hiddenIds={hiddenIds}
-          hiddenCount={hiddenCount}
-          showHidden={showHidden}
-          onSearch={setSearch}
-          onScope={changeScope}
-          onWorkspace={() => setPickerOpen(true)}
-          onSelect={selectSession}
-          onNew={newChat}
-          onHide={hideSession}
-          onUnhide={unhideSession}
-          onDelete={deleteSession}
-          onToggleHidden={() => setShowHidden((value) => !value)}
-          isRunning={isRunning}
-        />
+        <div
+          className={cn(
+            "h-full",
+            hoverSidebar &&
+              "transition-transform duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] motion-reduce:transition-none",
+            hoverSidebar && !sidebarHovered && "md:-translate-x-4",
+          )}
+        >
+          <Sidebar
+            sessions={visibleSessions}
+            workspace={workspace}
+            scope={scope}
+            selectedId={selectedId}
+            loading={sessionsLoading}
+            health={health}
+            search={search}
+            searchRef={searchRef}
+            hiddenIds={hiddenIds}
+            hiddenCount={hiddenCount}
+            showHidden={showHidden}
+            onSearch={setSearch}
+            onScope={changeScope}
+            onWorkspace={() => setPickerOpen(true)}
+            onSelect={selectSession}
+            onNew={newChat}
+            onHide={hideSession}
+            onUnhide={unhideSession}
+            onDelete={deleteSession}
+            onToggleHidden={() => setShowHidden((value) => !value)}
+            isRunning={isRunning}
+          />
+        </div>
       </aside>
 
       {sidebarOpen && (
@@ -992,6 +1045,7 @@ export default function App() {
           streamStatus={streamStatus}
           theme={theme}
           collapsed={collapsed}
+          sidebarMode={sidebarMode}
           subagents={subagents}
           parent={parentSession}
           onOpenSubagent={openSubagent}
@@ -1092,9 +1146,15 @@ export default function App() {
           directory={workspace}
           dictationMode={dictationMode}
           motion={motion}
+          sidebarMode={sidebarMode}
           onModel={(model) => void changeModel(model)}
           onAgent={(agent) => void changeAgent(agent)}
           onTheme={setTheme}
+          onSidebar={(mode) => {
+            setSidebarMode(mode);
+            localStorage.setItem("nit-gui.sidebar-mode", mode);
+            setSidebarHovered(false);
+          }}
           onDictation={(mode) => {
             setDictationMode(mode);
             localStorage.setItem("nit-gui.dictation", mode);

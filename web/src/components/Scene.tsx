@@ -1,12 +1,10 @@
 import { useEffect, useRef } from "react";
 import { cn } from "../lib/utils";
 
-type Seed = { x: number; y: number; accent: boolean };
-
-const STEP = 44;
-const SEGMENTS = 12;
-const SEGMENT_LENGTH = 7;
-const FRAME_MS = 33;
+const GAP = 24;
+const STEP = 5;
+const STILL_TIME = 6;
+const CURSOR_RADIUS = 150;
 
 export function Scene({
   motion = "animated",
@@ -25,14 +23,15 @@ export function Scene({
     const still = motion === "static";
     const reduced =
       still || window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    const mouse = { x: -1e4, y: -1e4 };
-    let seeds: Seed[] = [];
+    const pointer = { x: -9999, y: -9999 };
+    const cursor = { x: 0, y: 0, power: 0 };
     let width = 0;
     let height = 0;
     let frame = 0;
     let started = performance.now();
     let painted = 0;
     let paletteAt = 0;
+    let staticPainted = 0;
     let ink = "";
     let accent = "";
 
@@ -42,61 +41,75 @@ export function Scene({
       accent = style.getPropertyValue("--spark").trim();
     };
 
-    const angle = (x: number, y: number, time: number) => {
+    const wave = (x: number, base: number, index: number, time: number) => {
       const nx = x / width;
-      const ny = y / height;
-      const base =
-        Math.sin(nx * 4.2 + ny * 2.1 + time * 0.22) * 1.5 +
-        Math.cos(ny * 6.4 - nx * 1.6 - time * 0.15) * 1.1 +
-        Math.sin((nx + ny) * 3.0 + time * 0.09) * 0.7;
-      const dx = x - mouse.x;
-      const dy = y - mouse.y;
+      return (
+        base +
+        Math.sin(nx * 5.5 + time * 0.4 + index * 0.25) * 9 +
+        Math.sin(nx * 11 - time * 0.25 + index * 0.1) * 4 +
+        Math.sin(nx * 2.2 - time * 0.18) * 7
+      );
+    };
+
+    const contourY = (x: number, base: number, index: number, time: number) => {
+      let y = wave(x, base, index, time);
+      if (cursor.power < 0.01) return y;
+      const dx = x - cursor.x;
+      const dy = y - cursor.y;
       const distance = dx * dx + dy * dy;
-      if (distance > 32400 || distance < 1) return base;
-      const length = Math.sqrt(distance);
-      return base + (dx / length) * 2.2 * (1 - length / 180);
+      if (distance > CURSOR_RADIUS * CURSOR_RADIUS) return y;
+      const pull = Math.exp(-distance / 9000) * cursor.power;
+      y -= dy * pull * 0.65;
+      y += Math.sin(Math.sqrt(distance) * 0.05 - time * 2.6) * 3 * pull;
+      return y;
     };
 
     const paint = (time: number) => {
       context.clearRect(0, 0, width, height);
       context.lineWidth = 1;
       context.lineCap = "round";
-      const pass = (accented: boolean, color: string, alpha: number) => {
-        context.strokeStyle = color;
-        context.globalAlpha = alpha;
+      const lines = Math.ceil(height / GAP) + 2;
+      for (let index = 0; index < lines; index += 1) {
+        const base = (index - 1) * GAP;
+        const highlight = index % 9 === 0;
+        context.strokeStyle = highlight ? accent : ink;
+        context.globalAlpha = highlight ? 0.45 : 0.13;
         context.beginPath();
-        for (const seed of seeds) {
-          if (seed.accent !== accented) continue;
-          let x = seed.x;
-          let y = seed.y;
-          context.moveTo(x, y);
-          for (let i = 0; i < SEGMENTS; i += 1) {
-            const a = angle(x, y, time);
-            x += Math.cos(a) * SEGMENT_LENGTH;
-            y += Math.sin(a) * SEGMENT_LENGTH;
-            context.lineTo(x, y);
-          }
-          x = seed.x;
-          y = seed.y;
-          for (let i = 0; i < SEGMENTS; i += 1) {
-            const a = angle(x, y, time);
-            x -= Math.cos(a) * SEGMENT_LENGTH;
-            y -= Math.sin(a) * SEGMENT_LENGTH;
-            context.lineTo(x, y);
-          }
+        for (let x = -10; x <= width + 10; x += STEP) {
+          const y = contourY(x, base, index, time);
+          if (x === -10) context.moveTo(x, y);
+          else context.lineTo(x, y);
         }
         context.stroke();
-      };
-      pass(false, ink, 0.09);
-      pass(true, accent, 0.34);
+      }
+
+      if (cursor.power > 0.01) {
+        for (let index = 0; index < lines; index += 1) {
+          const base = (index - 1) * GAP;
+          const near = Math.exp(-((base - cursor.y) ** 2) / 14000) * cursor.power;
+          if (near < 0.04) continue;
+          context.strokeStyle = accent;
+          context.globalAlpha = near * 0.5;
+          context.beginPath();
+          const from = Math.max(-10, cursor.x - CURSOR_RADIUS);
+          const to = Math.min(width + 10, cursor.x + CURSOR_RADIUS);
+          for (let x = from; x <= to; x += STEP) {
+            const y = contourY(x, base, index, time);
+            if (x === from) context.moveTo(x, y);
+            else context.lineTo(x, y);
+          }
+          context.stroke();
+        }
+      }
       context.globalAlpha = 1;
+
       context.globalCompositeOperation = "destination-out";
       context.save();
       context.translate(width / 2, height / 2 - 20);
       context.scale(1, 0.62);
-      const hole = context.createRadialGradient(0, 0, 0, 0, 0, 330);
-      hole.addColorStop(0, "rgba(0,0,0,0.96)");
-      hole.addColorStop(0.45, "rgba(0,0,0,0.7)");
+      const hole = context.createRadialGradient(0, 0, 0, 0, 0, 320);
+      hole.addColorStop(0, "rgba(0,0,0,0.95)");
+      hole.addColorStop(0.5, "rgba(0,0,0,0.6)");
       hole.addColorStop(1, "rgba(0,0,0,0)");
       context.fillStyle = hole;
       context.fillRect(-width, -height, width * 2, height * 2);
@@ -113,24 +126,24 @@ export function Scene({
       canvas.width = Math.round(width * dpr);
       canvas.height = Math.round(height * dpr);
       context.setTransform(dpr, 0, 0, dpr, 0, 0);
-      seeds = [];
-      for (let y = -STEP; y < height + STEP; y += STEP) {
-        for (let x = -STEP; x < width + STEP; x += STEP) {
-          seeds.push({
-            x: x + (Math.random() - 0.5) * STEP,
-            y: y + (Math.random() - 0.5) * STEP,
-            accent: Math.random() < 0.045,
-          });
-        }
-      }
       readPalette();
-      paint(still ? 6 : (performance.now() - started) / 1000);
+      paint(still ? STILL_TIME : (performance.now() - started) / 1000);
     };
 
     const loop = (now: number) => {
       frame = requestAnimationFrame(loop);
-      if (now - painted < FRAME_MS) return;
+      if (now - painted < 33) return;
       painted = now;
+      const target = pointer.x > -999 ? 1 : 0;
+      if (target) {
+        if (cursor.power < 0.02) {
+          cursor.x = pointer.x;
+          cursor.y = pointer.y;
+        }
+        cursor.x += (pointer.x - cursor.x) * 0.16;
+        cursor.y += (pointer.y - cursor.y) * 0.16;
+      }
+      cursor.power += (target - cursor.power) * 0.12;
       if (now - paletteAt > 1000) {
         paletteAt = now;
         readPalette();
@@ -140,13 +153,25 @@ export function Scene({
 
     const move = (event: MouseEvent) => {
       const rect = canvas.getBoundingClientRect();
-      mouse.x = event.clientX - rect.left;
-      mouse.y = event.clientY - rect.top;
+      pointer.x = event.clientX - rect.left;
+      pointer.y = event.clientY - rect.top;
+      if (!still) return;
+      cursor.x = pointer.x;
+      cursor.y = pointer.y;
+      cursor.power = 1;
+      const now = performance.now();
+      if (now - staticPainted > 30) {
+        staticPainted = now;
+        paint(STILL_TIME);
+      }
     };
 
     const leave = () => {
-      mouse.x = -1e4;
-      mouse.y = -1e4;
+      pointer.x = -9999;
+      pointer.y = -9999;
+      if (!still) return;
+      cursor.power = 0;
+      paint(STILL_TIME);
     };
 
     const visibility = () => {
@@ -163,7 +188,7 @@ export function Scene({
     observer.observe(canvas);
     const theme = new MutationObserver(() => {
       readPalette();
-      paint(still ? 6 : (performance.now() - started) / 1000);
+      paint(still ? STILL_TIME : (performance.now() - started) / 1000);
     });
     theme.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
     window.addEventListener("mousemove", move);

@@ -50,7 +50,8 @@ The proxy must never expose the password to the browser. Limit JSON bodies to
 ## Frontend
 
 - Left rail: search, new session, session list with title, directory, relative
-  age, running dot.
+  age, running dot. Settings choose whether the rail is toggled by the header
+  button or revealed by hovering the left screen edge.
 - Main: user/assistant messages; markdown with GFM tables and task lists; code
   blocks with copy; tool calls collapsed; streaming text.
 - Composer: textarea, Enter sends, Shift+Enter newline, stop button while

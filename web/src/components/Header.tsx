@@ -39,6 +39,7 @@ export function Header({
   streamStatus,
   theme,
   collapsed,
+  sidebarMode,
   subagents,
   parent,
   onOpenSubagent,
@@ -60,6 +61,7 @@ export function Header({
   streamStatus: StreamStatus;
   theme: Theme;
   collapsed: boolean;
+  sidebarMode: "button" | "hover";
   subagents: Session[];
   parent?: Session | null;
   onOpenSubagent: (session: Session) => void;
@@ -86,16 +88,18 @@ export function Header({
       >
         <Menu />
       </Button>
-      <Button
-        variant="ghost"
-        size="icon-sm"
-        className={cn(pill, "pointer-events-auto hidden size-9 rounded-full md:inline-flex")}
-        onClick={onToggleSidebar}
-        title={collapsed ? "Show chats" : "Hide chats"}
-        aria-label={collapsed ? "Show chats" : "Hide chats"}
-      >
-        {collapsed ? <PanelLeftOpen /> : <PanelLeftClose />}
-      </Button>
+      {sidebarMode === "button" && (
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          className={cn(pill, "pointer-events-auto hidden size-9 rounded-full md:inline-flex")}
+          onClick={onToggleSidebar}
+          title={collapsed ? "Show chats" : "Hide chats"}
+          aria-label={collapsed ? "Show chats" : "Hide chats"}
+        >
+          {collapsed ? <PanelLeftOpen /> : <PanelLeftClose />}
+        </Button>
+      )}
 
       <div className={cn(pill, "pointer-events-auto min-w-0 max-w-2xl px-3.5 py-1")}>
         <h1 className="truncate text-[13px] font-semibold leading-tight">{title}</h1>

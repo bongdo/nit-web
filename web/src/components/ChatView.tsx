@@ -120,7 +120,7 @@ export function ChatView({
     });
     observer.observe(element);
     return () => observer.disconnect();
-  }, []);
+  }, [session?.id, loading]);
 
   useEffect(() => {
     const element = contentRef.current;
@@ -130,7 +130,7 @@ export function ChatView({
     });
     observer.observe(element);
     return () => observer.disconnect();
-  }, []);
+  }, [session?.id, loading]);
 
   if (!session) {
     return (

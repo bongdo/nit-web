@@ -2,6 +2,14 @@ import { useEffect, useRef, useState } from "react";
 import { htmlDocument } from "../lib/html";
 import { cn } from "../lib/utils";
 
+function readTheme() {
+  const root = document.documentElement;
+  return {
+    dark: root.classList.contains("dark"),
+    background: getComputedStyle(root).getPropertyValue("--background").trim() || "#fff",
+  };
+}
+
 const RESIZE = `<script>
 (() => {
   const send = () => parent.postMessage({ type: "nit-html-height", height: Math.ceil(document.documentElement.scrollHeight) }, "*");
@@ -24,12 +32,10 @@ export function HtmlPreview({
 }) {
   const ref = useRef<HTMLIFrameElement>(null);
   const [height, setHeight] = useState(200);
-  const [dark, setDark] = useState(() => document.documentElement.classList.contains("dark"));
+  const [theme, setTheme] = useState(readTheme);
 
   useEffect(() => {
-    const observer = new MutationObserver(() =>
-      setDark(document.documentElement.classList.contains("dark")),
-    );
+    const observer = new MutationObserver(() => setTheme(readTheme()));
     observer.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
     return () => observer.disconnect();
   }, []);
@@ -48,7 +54,7 @@ export function HtmlPreview({
     return () => window.removeEventListener("message", onMessage);
   }, []);
 
-  const doc = htmlDocument(source, dark);
+  const doc = htmlDocument(source, theme.dark, theme.background);
   const withResize = doc.includes("</body>")
     ? doc.replace("</body>", `${RESIZE}</body>`)
     : `${doc}${RESIZE}`;
@@ -60,8 +66,8 @@ export function HtmlPreview({
       srcDoc={withResize}
       sandbox="allow-scripts allow-forms allow-modals"
       referrerPolicy="no-referrer"
-      style={autoHeight ? { height } : undefined}
-      className={cn("w-full border-0 bg-transparent", className)}
+      style={{ height: autoHeight ? height : undefined, background: theme.background }}
+      className={cn("w-full border-0", className)}
     />
   );
 }

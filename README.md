@@ -151,6 +151,8 @@ OpenCode's plural resource paths are singular (`/api/session`, `/api/model`,
   GFM tables/task lists.
 - Composer: Enter sends, Shift+Enter adds a line, stop while streaming, token
   and cost footer when OpenCode reports them.
+- The composer is a bottom dock overlay: growing it never resizes the transcript
+  or the background canvas, and the transcript scrolls underneath it.
 - Model and agent pickers in the header; changes are applied to the current
   session and remembered for the next new session. When the selected model
   exposes variants, a variant picker appears and the chosen `variant` is sent

@@ -30,7 +30,11 @@ export function previewableHtml(code: string, language?: string): boolean {
   return isPureHtml(code);
 }
 
-export function htmlDocument(source: string, dark = false): string {
+export function htmlDocument(
+  source: string,
+  dark = false,
+  background = dark ? "#0c0e12" : "#fbfbfc",
+): string {
   const trimmed = source.trim();
   if (/^<!doctype/i.test(trimmed) || /<html[\s>]/i.test(trimmed)) {
     return source;
@@ -43,8 +47,9 @@ export function htmlDocument(source: string, dark = false): string {
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <style>
-  html, body { background: transparent; }
+  html, body { background: ${background}; }
   body { margin: 0; padding: 16px; font: 15px/1.6 system-ui, -apple-system, "Segoe UI", sans-serif; color: ${foreground}; }
+  input, button, select, textarea { color: inherit; font: inherit; }
   img { max-width: 100%; }
   table { border-collapse: collapse; }
   th, td { border: 1px solid ${border}; padding: 6px 10px; text-align: left; }

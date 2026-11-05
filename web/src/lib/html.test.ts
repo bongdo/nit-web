@@ -74,10 +74,10 @@ describe("htmlDocument", () => {
     expect(htmlDocument(source)).toBe(source);
   });
 
-  it("leaves the canvas transparent so the app background shows through", () => {
-    const result = htmlDocument("<h1>Hi</h1>");
-    expect(result).toContain("background: transparent");
-    expect(result).not.toContain("#fff");
+  it("paints the app background", () => {
+    expect(htmlDocument("<h1>Hi</h1>")).toContain("background: #fbfbfc");
+    expect(htmlDocument("<h1>Hi</h1>", true)).toContain("background: #0c0e12");
+    expect(htmlDocument("<h1>Hi</h1>", true, "rgb(1, 2, 3)")).toContain("background: rgb(1, 2, 3)");
   });
 
   it("uses the theme foreground", () => {

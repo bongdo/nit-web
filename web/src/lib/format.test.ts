@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   basename,
+  contextPercent,
+  estimateCost,
   filterSessions,
   formatCost,
   formatRelative,
@@ -50,6 +52,17 @@ describe("format", () => {
       "Model One · high",
     );
     expect(modelLabel({ id: "m2", providerID: "p2" }, models)).toBe("p2/m2");
+  });
+
+  it("estimates cost and context from tokens", () => {
+    const model = {
+      cost: [{ input: 0.15, output: 0.6, cache: { read: 0.003, write: 0 } }],
+      limit: { context: 1_000_000 },
+    } as unknown as Model;
+    const tokens = { input: 1_000_000, output: 1_000_000, cache: { read: 1_000_000 } };
+    expect(estimateCost(tokens, model)).toBeCloseTo(0.753, 6);
+    expect(contextPercent(tokens, model)).toBe(100);
+    expect(estimateCost(undefined, model)).toBe(0);
   });
 
   it("joins assistant text parts and ignores reasoning and tool parts", () => {

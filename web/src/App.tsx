@@ -14,7 +14,13 @@ import type {
   StreamEvent,
 } from "./lib/types";
 import { applyEvent, normalizeMessages } from "./lib/stream";
-import { mergeRunningStates, modelLabel, sessionRunning } from "./lib/format";
+import {
+  contextPercent,
+  estimateCost,
+  mergeRunningStates,
+  modelLabel,
+  sessionRunning,
+} from "./lib/format";
 import { scopeSessions, type Scope } from "./lib/sessions";
 import { cn } from "./lib/utils";
 import { useTheme } from "./hooks/useTheme";
@@ -97,8 +103,19 @@ export default function App() {
   const [booting, setBooting] = useState(true);
   const [search, setSearch] = useState("");
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [preferredModel, setPreferredModel] = useState<ModelRef | null>(null);
-  const [preferredAgent, setPreferredAgent] = useState<string | null>(null);
+  const [preferredModel, setPreferredModel] = useState<ModelRef | null>(() => {
+    try {
+      const value = JSON.parse(localStorage.getItem("nit-gui.model") ?? "null");
+      return value && typeof value.id === "string" && typeof value.providerID === "string"
+        ? value
+        : null;
+    } catch {
+      return null;
+    }
+  });
+  const [preferredAgent, setPreferredAgent] = useState<string | null>(() =>
+    localStorage.getItem("nit-gui.agent"),
+  );
   const searchRef = useRef<HTMLInputElement>(null);
   const refreshTimer = useRef<number | null>(null);
   const firstStreamOpen = useRef(true);
@@ -125,6 +142,14 @@ export default function App() {
     [runningIds, sessions],
   );
   const runningNow = selectedId ? isRunning(selectedId) : false;
+  const modelInfo =
+    models.find(
+      (item) => item.id === currentModel?.id && item.providerID === currentModel?.providerID,
+    ) ?? null;
+  const sessionCost = selectedSession?.cost ?? 0;
+  const estimated = estimateCost(selectedSession?.tokens, modelInfo);
+  const shownCost = sessionCost > 0 ? sessionCost : estimated;
+  const shownContext = contextPercent(selectedSession?.tokens, modelInfo);
 
   const loadHealth = useCallback(async () => {
     try {
@@ -746,7 +771,8 @@ export default function App() {
     <div className="flex h-full min-h-0 overflow-hidden">
       <aside
         className={cn(
-          "border-border bg-background fixed inset-y-0 left-0 z-30 w-[280px] border-r transition-transform duration-200 md:static md:z-auto md:w-[280px] md:translate-x-0 lg:w-[300px]",
+          "border-border bg-background fixed inset-y-0 left-0 z-30 w-[280px] border-r transition-[transform,width] duration-200 md:static md:z-auto md:translate-x-0",
+          collapsed ? "md:w-0 md:overflow-hidden md:border-r-0" : "md:w-[280px] lg:w-[300px]",
           sidebarOpen ? "translate-x-0 shadow-xl" : "-translate-x-full",
         )}
       >
@@ -782,14 +808,18 @@ export default function App() {
           session={selectedSession}
           directory={workspace}
           models={models}
-          agents={agents}
           model={currentModel}
           agent={currentAgent}
           health={health}
           streamStatus={streamStatus}
           theme={theme}
-          onModel={(model) => void changeModel(model)}
-          onAgent={(agent) => void changeAgent(agent)}
+          collapsed={collapsed}
+          subagents={subagents}
+          parent={parentSession}
+          onOpenSubagent={openSubagent}
+          onBack={backToParent}
+          onSettings={() => setSettingsOpen(true)}
+          onToggleSidebar={toggleSidebar}
           onTheme={cycle}
           onMenu={() => setSidebarOpen(true)}
         />
@@ -821,14 +851,22 @@ export default function App() {
           models={models}
           agents={agents}
           workspace={workspace}
-          subagents={subagents}
-          parent={parentSession}
           onRetry={reloadSelected}
-          onOpenSubagent={openSubagent}
-          onBack={backToParent}
           onRevert={(message) => void revertAt(message)}
           onFork={(message) => void forkAt(message)}
         />
+
+        {forms[0] && selectedSession && (
+          <FormCard
+            form={forms[0]}
+            sessionID={selectedSession.id}
+            onDone={() => {
+              setForms((current) => current.slice(1));
+              reloadSelected();
+            }}
+            onError={(message) => setBanner(message)}
+          />
+        )}
 
         <Composer
           session={selectedSession}
@@ -839,11 +877,13 @@ export default function App() {
           focusKey={selectedId}
           draft={composerDraft}
           commands={COMMANDS}
-          canUndo={Boolean(lastUser) && !runningNow}
+          contextPercent={shownContext}
+          cost={shownCost}
+          estimatedCost={sessionCost === 0 && estimated > 0}
           onSend={send}
           onStop={() => void stop()}
           onCommand={runCommand}
-          onRevertLast={revertLast}
+          onSettings={() => setSettingsOpen(true)}
           onError={(message) => setBanner(message)}
         />
       </main>
@@ -855,6 +895,21 @@ export default function App() {
           current={workspace}
           onPick={selectWorkspace}
           onClose={() => setPickerOpen(false)}
+        />
+      )}
+
+      {settingsOpen && (
+        <SettingsPanel
+          models={models}
+          agents={agents}
+          model={currentModel}
+          agent={currentAgent}
+          theme={theme}
+          directory={workspace}
+          onModel={(model) => void changeModel(model)}
+          onAgent={(agent) => void changeAgent(agent)}
+          onTheme={setTheme}
+          onClose={() => setSettingsOpen(false)}
         />
       )}
     </div>

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { ArrowUp, FileIcon, Loader2, Mic, Paperclip, Square, Undo2, X } from "lucide-react";
+import { ArrowUp, FileIcon, Loader2, Mic, Paperclip, Square, X } from "lucide-react";
 import type { Session } from "../lib/types";
 import { encodeWav } from "../lib/audio";
 import { api } from "../lib/api";
@@ -39,11 +39,13 @@ export function Composer({
   focusKey,
   draft,
   commands,
-  canUndo,
+  contextPercent,
+  cost,
+  estimatedCost,
   onSend,
   onStop,
   onCommand,
-  onRevertLast,
+  onSettings,
   onError,
 }: {
   session: Session | null;
@@ -54,11 +56,13 @@ export function Composer({
   focusKey?: string | null;
   draft?: { text: string; id: number } | null;
   commands: ComposerCommand[];
-  canUndo?: boolean;
-  onSend: (text: string, attachments: Attachment[]) => Promise<void>;
+  contextPercent?: number | null;
+  cost?: number;
+  estimatedCost?: boolean;
+  onSend: (text: string, attachments: Attachment[], delivery?: "queue" | "steer") => Promise<void>;
   onStop: () => void;
   onCommand: (id: string) => void;
-  onRevertLast: () => void;
+  onSettings: () => void;
   onError: (message: string) => void;
 }) {
   const [value, setValue] = useState("");
@@ -111,7 +115,6 @@ export function Composer({
   useEffect(() => {
     const area = ref.current;
     if (!area) return;
-    area.style.height = "0px";
     area.style.height = `${Math.min(area.scrollHeight, 200)}px`;
   }, [value]);
 
@@ -245,10 +248,10 @@ export function Composer({
 
   const submit = async () => {
     const text = value.trim();
-    if (!text || !workspace || disabled || running || submitting || uploading) return;
+    if (!text || !workspace || disabled || submitting || uploading) return;
     setSubmitting(true);
     try {
-      await onSend(text, readyFiles);
+      await onSend(text, readyFiles, running ? "queue" : undefined);
       setValue("");
       for (const item of attachments) {
         if (item.preview) URL.revokeObjectURL(item.preview);
@@ -282,8 +285,8 @@ export function Composer({
   const tokens = session?.tokens;
 
   return (
-    <div className="border-border bg-background/95 supports-[backdrop-filter]:bg-background/80 shrink-0 border-t backdrop-blur">
-      <div className="mx-auto w-full max-w-3xl px-4 pt-3 pb-2">
+    <div className="shrink-0">
+      <div className="mx-auto w-full max-w-3xl px-4 pt-2 pb-1">
         <div
           className={cn(
             "border-border bg-card focus-within:border-ring focus-within:ring-ring/20 relative rounded-xl border shadow-sm transition-shadow focus-within:ring-[3px]",
@@ -444,47 +447,44 @@ export function Composer({
               Enter to send · Shift+Enter for a new line · / commands
             </span>
             <div className="ml-auto flex items-center gap-1">
-              {canUndo && !running && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={onRevertLast}
-                  title="Revert the last message and edit it"
-                >
-                  <Undo2 />
-                  Undo
-                </Button>
-              )}
-              {running ? (
+              {running && (
                 <Button variant="secondary" size="sm" onClick={onStop} aria-label="Stop">
                   <Square className="fill-current" />
                   Stop
                 </Button>
-              ) : (
-                <Button
-                  size="sm"
-                  onClick={() => void submit()}
-                  disabled={!workspace || disabled || !value.trim() || submitting || uploading}
-                  aria-label="Send"
-                >
-                  {submitting ? <Loader2 className="animate-spin" /> : <ArrowUp />}
-                  Send
-                </Button>
               )}
+              <Button
+                size="sm"
+                onClick={() => void submit()}
+                disabled={!workspace || disabled || !value.trim() || submitting || uploading}
+                aria-label={running ? "Queue message" : "Send"}
+              >
+                {submitting ? <Loader2 className="animate-spin" /> : <ArrowUp />}
+                {running ? "Queue" : "Send"}
+              </Button>
             </div>
           </div>
         </div>
-        {session && (
-          <div className="text-muted-foreground flex flex-wrap items-center gap-x-2 gap-y-1 px-1 pt-2 text-[11px]">
-            {modelName && <span className="truncate">{modelName}</span>}
-            {tokens && (
-              <span className="ml-auto">
-                {formatTokens(tokens.input)} in · {formatTokens(tokens.output)} out
-              </span>
-            )}
-            <span className={tokens ? "" : "ml-auto"}>{formatCost(session.cost)}</span>
-          </div>
-        )}
+        <div className="text-muted-foreground flex h-6 min-w-0 items-center gap-2 px-1 text-[11px]">
+          <button
+            type="button"
+            onClick={onSettings}
+            className="hover:text-foreground min-w-0 truncate text-left"
+            title="Open settings"
+          >
+            {modelName ?? "model"}
+          </button>
+          {contextPercent != null && <span className="shrink-0">ctx {contextPercent}%</span>}
+          {tokens && (
+            <span className="ml-auto shrink-0">
+              {formatTokens(tokens.input)} in · {formatTokens(tokens.output)} out
+            </span>
+          )}
+          <span className={cn("shrink-0", !tokens && "ml-auto")}>
+            {estimatedCost ? "~" : ""}
+            {formatCost(cost ?? session?.cost ?? 0)}
+          </span>
+        </div>
       </div>
     </div>
   );

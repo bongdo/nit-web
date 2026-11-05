@@ -30,6 +30,7 @@ export type FormField = {
   title?: string;
   description?: string;
   placeholder?: string;
+  url?: string;
   required?: boolean;
   hidden?: boolean;
   custom?: boolean;

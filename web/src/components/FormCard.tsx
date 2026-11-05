@@ -174,7 +174,7 @@ export function FormCard({
               />
             ) : field.type === "external" ? (
               <a
-                href={String(field.placeholder ?? "#")}
+                href={field.url ?? "#"}
                 target="_blank"
                 rel="noreferrer noopener"
                 className="text-primary text-[11px] underline"

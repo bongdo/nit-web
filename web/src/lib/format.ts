@@ -1,4 +1,4 @@
-import type { Message, Model, ModelRef, Session } from "./types";
+import type { Message, Model, ModelRef, Session, Tokens } from "./types";
 
 export function formatRelative(ms: number, now = Date.now()): string {
   if (!ms) return "";
@@ -11,6 +11,26 @@ export function formatRelative(ms: number, now = Date.now()): string {
   if (diff < day) return `${Math.floor(diff / hour)}h`;
   if (diff < 7 * day) return `${Math.floor(diff / day)}d`;
   return new Date(ms).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+}
+
+export function estimateCost(tokens?: Tokens, model?: Model | null): number {
+  const price = model?.cost?.[0];
+  if (!tokens || !price) return 0;
+  return (
+    ((tokens.input ?? 0) * price.input +
+      (tokens.output ?? 0) * price.output +
+      (tokens.cache?.read ?? 0) * price.cache.read +
+      (tokens.cache?.write ?? 0) * price.cache.write) /
+    1_000_000
+  );
+}
+
+export function contextPercent(tokens?: Tokens, model?: Model | null): number | null {
+  const limit = model?.limit?.context;
+  if (!tokens || !limit) return null;
+  const used =
+    (tokens.input ?? 0) + (tokens.output ?? 0) + (tokens.cache?.read ?? 0);
+  return Math.min(100, Math.round((used / limit) * 100));
 }
 
 export function formatCost(cost?: number): string {

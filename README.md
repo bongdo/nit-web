@@ -214,6 +214,7 @@ Frontend development and build:
 There is no Radix, no component framework and no syntax highlighter. The
 shadcn/ui primitives are local source files (`Button`, `Input`, `Textarea`,
 `Badge`, `Select`), so they follow shadcn's shape without adding dependencies.
+The dictionary licenses are served from `web/public/licenses`.
 
 ## Known limits
 

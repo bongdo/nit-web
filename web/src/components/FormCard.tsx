@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Check, Loader2, X } from "lucide-react";
+import { Check, ChevronDown, Loader2, X } from "lucide-react";
 import type { FormField, FormInfo } from "../lib/types";
 import { api } from "../lib/api";
 import { cn } from "../lib/utils";
@@ -43,6 +43,7 @@ export function FormCard({
 }) {
   const [values, setValues] = useState<Record<string, unknown>>(() => initialValues(form));
   const [busy, setBusy] = useState(false);
+  const [open, setOpen] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const set = (key: string, value: unknown) =>
@@ -96,18 +97,31 @@ export function FormCard({
 
   return (
     <div className="border-primary/30 bg-card mx-auto my-2 w-full max-w-3xl rounded-xl border p-3 shadow-sm">
-      <div className="mb-2 flex items-start gap-2">
+      <button
+        type="button"
+        aria-expanded={open}
+        onClick={() => setOpen((value) => !value)}
+        className="flex w-full items-start gap-2 text-left"
+      >
         <div className="min-w-0 flex-1">
           <div className="text-[13px] font-semibold">{form.title}</div>
-          {form.metadata?.kind === "question" && (
-            <div className="text-muted-foreground text-[10px]">
-              The agent is waiting for your answer.
-            </div>
-          )}
+          <div className="text-muted-foreground truncate text-[10px]">
+            {open
+              ? form.metadata?.kind === "question"
+                ? "The agent is waiting for your answer."
+                : "The agent needs input."
+              : "Collapsed · click to open"}
+          </div>
         </div>
-      </div>
+        <ChevronDown
+          className={cn(
+            "text-muted-foreground mt-0.5 size-4 shrink-0 transition-transform",
+            !open && "-rotate-90",
+          )}
+        />
+      </button>
 
-      <div className="space-y-3">
+      <div className={cn("mt-2 space-y-3", !open && "hidden")}>
         {form.fields.filter((field) => isVisible(field, values)).map((field) => (
           <div key={field.key} className="space-y-1.5">
             <div className="text-[12px] font-medium">
@@ -238,16 +252,18 @@ export function FormCard({
 
       {error && <p className="text-destructive mt-2 text-[11px]">{error}</p>}
 
-      <div className="mt-3 flex items-center justify-end gap-2">
-        <Button variant="ghost" size="sm" onClick={() => void cancel()} disabled={busy}>
-          <X />
-          Cancel
-        </Button>
-        <Button size="sm" onClick={() => void submit()} disabled={busy}>
-          {busy ? <Loader2 className="animate-spin" /> : <Check />}
-          Answer
-        </Button>
-      </div>
+      {open && (
+        <div className="mt-3 flex items-center justify-end gap-2">
+          <Button variant="ghost" size="sm" onClick={() => void cancel()} disabled={busy}>
+            <X />
+            Cancel
+          </Button>
+          <Button size="sm" onClick={() => void submit()} disabled={busy}>
+            {busy ? <Loader2 className="animate-spin" /> : <Check />}
+            Answer
+          </Button>
+        </div>
+      )}
     </div>
   );
 }

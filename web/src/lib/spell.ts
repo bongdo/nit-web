@@ -179,7 +179,10 @@ export function maskCode(text: string): string {
   return text
     .replace(/```[\s\S]*?```/g, blank)
     .replace(/~~~[\s\S]*?~~~/g, blank)
+    .replace(/```[\s\S]*$/g, blank)
+    .replace(/~~~[\s\S]*$/g, blank)
     .replace(/`[^`\n]*`/g, blank)
+    .replace(/`[^`\n]*$/gm, blank)
     .replace(/<\/?[\p{L}][^>]*>/gu, blank)
     .replace(URL, blank)
     .replace(EMAIL, blank)

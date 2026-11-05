@@ -1,8 +1,20 @@
 import { useEffect, useRef, useState } from "react";
-import { ArrowUp, FileIcon, Loader2, Mic, Paperclip, SpellCheck, Square, X } from "lucide-react";
-import type { Session } from "../lib/types";
+import {
+  ArrowUp,
+  Check,
+  ChevronDown,
+  FileIcon,
+  Loader2,
+  Mic,
+  Paperclip,
+  SpellCheck,
+  Square,
+  X,
+} from "lucide-react";
+import type { FormInfo, Session } from "../lib/types";
 import { encodeWav } from "../lib/audio";
 import { api } from "../lib/api";
+import { questionField } from "../lib/forms";
 import { formatBytes, quoteText } from "../lib/format";
 import { applyIssue, issueKey, type SpellIssue } from "../lib/spell";
 import { useSpellcheck } from "../hooks/useSpellcheck";
@@ -55,10 +67,12 @@ export function Composer({
   commands,
   dictationMode,
   spellcheck,
+  form,
   onSend,
   onStop,
   onCommand,
   onError,
+  onFormDone,
 }: {
   session: Session | null;
   workspace: string | null;
@@ -70,10 +84,12 @@ export function Composer({
   commands: ComposerCommand[];
   dictationMode: "fast" | "accurate";
   spellcheck: boolean;
+  form?: FormInfo | null;
   onSend: (text: string, attachments: Attachment[], delivery?: "queue" | "steer") => Promise<void>;
   onStop: () => void;
   onCommand: (id: string) => void;
   onError: (message: string) => void;
+  onFormDone: () => void;
 }) {
   const [value, setValue] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -87,10 +103,23 @@ export function Composer({
   const [commandDismissed, setCommandDismissed] = useState(false);
   const [spellOpen, setSpellOpen] = useState(false);
   const [ignored, setIgnored] = useState<string[]>(loadIgnoredWords);
+  const [formOpen, setFormOpen] = useState(true);
+  const [formBusy, setFormBusy] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
   const ref = useRef<HTMLTextAreaElement>(null);
   const highlightRef = useRef<HTMLDivElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
-  const { issues, checking } = useSpellcheck(value, spellcheck, ignored);
+  const draftBeforeForm = useRef("");
+  const activeForm = useRef<string | null>(null);
+  const question = form ? questionField(form) : null;
+  const option = question?.options?.find((item) => item.value === value) ?? null;
+  const answerText = option ? "" : value;
+  const customAnswer = !question || (question.options?.length ?? 0) === 0 || question.custom !== false;
+  const { issues, checking } = useSpellcheck(
+    question && !customAnswer ? "" : answerText,
+    spellcheck && !recording && !finishing,
+    ignored,
+  );
   const audio = useRef<{
     context: AudioContext;
     stream: MediaStream;
@@ -111,6 +140,24 @@ export function Composer({
   useEffect(() => {
     if (focusKey) ref.current?.focus();
   }, [focusKey]);
+
+  useEffect(() => {
+    if (form && question) {
+      if (activeForm.current === form.id) return;
+      activeForm.current = form.id;
+      setValue((current) => {
+        draftBeforeForm.current = current;
+        return typeof question.default === "string" ? question.default : "";
+      });
+      setFormOpen(true);
+      setFormError(null);
+      return;
+    }
+    if (!activeForm.current) return;
+    activeForm.current = null;
+    setValue(draftBeforeForm.current);
+    setFormError(null);
+  }, [form, question]);
 
   useEffect(
     () => () => {
@@ -198,7 +245,7 @@ export function Composer({
   };
 
   const applySuggestion = (issue: SpellIssue, replacement: string) => {
-    setValue(applyIssue(value, issue, replacement));
+    setValue(applyIssue(answerText, issue, replacement));
     requestAnimationFrame(() => {
       const area = ref.current;
       if (!area) return;
@@ -419,12 +466,51 @@ export function Composer({
     }
   };
 
-  const query = value.startsWith("/") && !value.includes("\n") ? value.slice(1) : null;
+  const answerForm = async () => {
+    if (!form || !question || !session) return;
+    const answer = value.trim();
+    if (question.required && !answer) {
+      setFormError(`${question.title ?? question.key} is required.`);
+      return;
+    }
+    setFormBusy(true);
+    setFormError(null);
+    try {
+      await api.replyForm(session.id, form.id, answer ? { [question.key]: answer } : {});
+      setValue("");
+      onFormDone();
+    } catch (cause) {
+      const message = cause instanceof Error ? cause.message : "Could not submit the answer.";
+      setFormError(message);
+      onError(message);
+    } finally {
+      setFormBusy(false);
+    }
+  };
+
+  const cancelForm = async () => {
+    if (!form || !session) return;
+    setFormBusy(true);
+    setFormError(null);
+    try {
+      await api.cancelForm(session.id, form.id, "Cancelled in nit-gui");
+      setValue("");
+      onFormDone();
+    } catch (cause) {
+      const message = cause instanceof Error ? cause.message : "Could not cancel the form.";
+      setFormError(message);
+      onError(message);
+    } finally {
+      setFormBusy(false);
+    }
+  };
+
+  const query = answerText.startsWith("/") && !answerText.includes("\n") ? answerText.slice(1) : null;
   const matches =
     query !== null && !query.includes(" ")
       ? commands.filter((item) => item.id.startsWith(query.toLowerCase()))
       : [];
-  const paletteOpen = matches.length > 0 && !commandDismissed && !recording;
+  const paletteOpen = !question && matches.length > 0 && !commandDismissed && !recording;
   const selectedCommand = matches[Math.min(commandIndex, Math.max(0, matches.length - 1))];
 
   const runCommand = (id: string) => {
@@ -481,7 +567,80 @@ export function Composer({
             </div>
           )}
 
-          {attachments.length > 0 && (
+          {form && question && (
+            <div className="border-border border-b">
+              <button
+                type="button"
+                aria-expanded={formOpen}
+                onClick={() => setFormOpen((current) => !current)}
+                className="flex w-full items-start gap-2 px-3 pt-2.5 pb-2 text-left"
+              >
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-[13px] font-semibold">{form.title}</span>
+                  <span className="text-muted-foreground block truncate text-[10px]">
+                    {formOpen
+                      ? "The agent is waiting for your answer."
+                      : (option?.label ?? (answerText.trim() ? "Custom answer" : "Your answer"))}
+                  </span>
+                </span>
+                <ChevronDown
+                  className={cn(
+                    "text-muted-foreground mt-0.5 size-4 shrink-0 transition-transform",
+                    !formOpen && "-rotate-90",
+                  )}
+                />
+              </button>
+
+              {formOpen && (
+                <div className="px-3 pb-2.5">
+                  <div className="text-[12px] font-medium">
+                    {question.title ?? question.key}
+                    {question.required && <span className="text-destructive"> *</span>}
+                  </div>
+                  {question.description && (
+                    <p className="text-muted-foreground mt-0.5 text-[11px] leading-4">
+                      {question.description}
+                    </p>
+                  )}
+                  {(question.options?.length ?? 0) > 0 && (
+                    <div className="scrollbar-thin mt-1.5 max-h-44 space-y-0.5 overflow-y-auto">
+                      {question.options?.map((item) => (
+                        <label
+                          key={item.value}
+                          className={cn(
+                            "hover:bg-accent/50 flex cursor-pointer items-start gap-2 rounded-md px-2 py-1.5 text-[12px]",
+                            value === item.value && "bg-accent/50",
+                          )}
+                        >
+                          <input
+                            type="radio"
+                            name={`${form.id}-${question.key}`}
+                            checked={value === item.value}
+                            onChange={() => setValue(item.value)}
+                            className="accent-primary mt-0.5 size-3.5"
+                          />
+                          <span className="min-w-0">
+                            <span className="block">{item.label}</span>
+                            {item.description && (
+                              <span className="text-muted-foreground block text-[10px]">
+                                {item.description}
+                              </span>
+                            )}
+                          </span>
+                        </label>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {formError && (
+                <p className="text-destructive px-3 pb-2 text-[11px]">{formError}</p>
+              )}
+            </div>
+          )}
+
+          {!question && attachments.length > 0 && (
             <div className="flex flex-wrap gap-1.5 px-3 pt-2">
               {attachments.map((item) => (
                 <span
@@ -621,6 +780,12 @@ export function Composer({
                     setCommandDismissed(true);
                     return;
                   }
+                }
+                if (event.key === "Escape" && spellOpen) {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  setSpellOpen(false);
+                  return;
                 }
                 if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
                   event.preventDefault();

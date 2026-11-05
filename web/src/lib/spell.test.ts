@@ -85,6 +85,8 @@ describe("spell", () => {
     expect(masked).not.toContain("Composer.tsx");
     expect(masked).not.toContain("example.com");
     expect(masked).not.toContain("хочю");
+    expect(maskCode("text ```go\nfmt.Println(\"хочю\")")).not.toContain("хочю");
+    expect(maskCode("use `opencode")).not.toContain("opencode");
   });
 
   it("tokenizes hyphenated words as one word with offsets", () => {

@@ -74,7 +74,20 @@ export async function checkSpelling(text: string, ignore: string[]): Promise<Spe
   if (!worker) return [];
   const id = ++sequence;
   return new Promise<SpellIssue[]>((resolve, reject) => {
-    pending.set(id, { resolve, reject });
+    const timer = setTimeout(() => {
+      pending.delete(id);
+      reject(new Error("spellcheck timed out"));
+    }, 15_000);
+    pending.set(id, {
+      resolve: (issues) => {
+        clearTimeout(timer);
+        resolve(issues);
+      },
+      reject: (error) => {
+        clearTimeout(timer);
+        reject(error);
+      },
+    });
     worker?.postMessage({ id, text, ignore });
   });
 }

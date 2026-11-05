@@ -725,76 +725,84 @@ export function Composer({
             </div>
           )}
 
-          <div className="relative">
-            <Textarea
-              ref={ref}
-              rows={1}
-              value={value}
-              disabled={disabled || !workspace}
-              aria-label="Message"
-              spellCheck={false}
-              placeholder={
-                !workspace
-                  ? "Choose a workspace to start"
-                  : session
-                    ? "Ask anything…  / for commands"
-                    : "New chat in this workspace…"
-              }
-              className={cn(
-                COMPOSER_TEXT,
-                "block scrollbar-none max-h-[200px] min-h-[44px] overflow-y-auto",
-              )}
-              onChange={(event) => setValue(event.target.value)}
-              onScroll={syncScroll}
-              onPaste={(event) => {
-                const files = Array.from(event.clipboardData.files);
-                if (files.length > 0) {
-                  event.preventDefault();
-                  addFiles(files);
+          {customAnswer && (
+            <div className="relative">
+              <Textarea
+                ref={ref}
+                rows={1}
+                value={answerText}
+                disabled={disabled || !workspace || formBusy}
+                aria-label={question ? "Answer" : "Message"}
+                spellCheck={false}
+                placeholder={
+                  question
+                    ? (question.placeholder ??
+                      ((question.options?.length ?? 0) > 0
+                        ? "Or type your own answer…"
+                        : "Type your answer…"))
+                    : !workspace
+                      ? "Choose a workspace to start"
+                      : session
+                        ? "Ask anything…  / for commands"
+                        : "New chat in this workspace…"
                 }
-              }}
-              onKeyDown={(event) => {
-                if ((event.metaKey || event.ctrlKey) && event.key === ".") {
-                  event.preventDefault();
-                  if (issues.length > 0) setSpellOpen((current) => !current);
-                  return;
-                }
-                if (paletteOpen) {
-                  if (event.key === "ArrowDown") {
+                className={cn(
+                  COMPOSER_TEXT,
+                  "block scrollbar-none max-h-[200px] min-h-[44px] overflow-y-auto",
+                )}
+                onChange={(event) => setValue(event.target.value)}
+                onScroll={syncScroll}
+                onPaste={(event) => {
+                  const files = Array.from(event.clipboardData.files);
+                  if (!question && files.length > 0) {
                     event.preventDefault();
-                    setCommandIndex((current) => (current + 1) % matches.length);
+                    addFiles(files);
+                  }
+                }}
+                onKeyDown={(event) => {
+                  if ((event.metaKey || event.ctrlKey) && event.key === ".") {
+                    event.preventDefault();
+                    if (issues.length > 0) setSpellOpen((current) => !current);
                     return;
                   }
-                  if (event.key === "ArrowUp") {
+                  if (paletteOpen) {
+                    if (event.key === "ArrowDown") {
+                      event.preventDefault();
+                      setCommandIndex((current) => (current + 1) % matches.length);
+                      return;
+                    }
+                    if (event.key === "ArrowUp") {
+                      event.preventDefault();
+                      setCommandIndex((current) => (current - 1 + matches.length) % matches.length);
+                      return;
+                    }
+                    if (event.key === "Enter" && !event.shiftKey && selectedCommand) {
+                      event.preventDefault();
+                      runCommand(selectedCommand.id);
+                      return;
+                    }
+                    if (event.key === "Escape") {
+                      event.preventDefault();
+                      setCommandDismissed(true);
+                      return;
+                    }
+                  }
+                  if (event.key === "Escape" && spellOpen) {
                     event.preventDefault();
-                    setCommandIndex((current) => (current - 1 + matches.length) % matches.length);
+                    event.stopPropagation();
+                    setSpellOpen(false);
                     return;
                   }
-                  if (event.key === "Enter" && !event.shiftKey && selectedCommand) {
+                  if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
                     event.preventDefault();
-                    runCommand(selectedCommand.id);
-                    return;
+                    if (question) void answerForm();
+                    else void submit();
                   }
-                  if (event.key === "Escape") {
-                    event.preventDefault();
-                    setCommandDismissed(true);
-                    return;
-                  }
-                }
-                if (event.key === "Escape" && spellOpen) {
-                  event.preventDefault();
-                  event.stopPropagation();
-                  setSpellOpen(false);
-                  return;
-                }
-                if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
-                  event.preventDefault();
-                  void submit();
-                }
-              }}
-            />
-            <ComposerHighlights ref={highlightRef} value={value} issues={issues} />
-          </div>
+                }}
+              />
+              <ComposerHighlights ref={highlightRef} value={answerText} issues={issues} />
+            </div>
+          )}
           <div className="flex items-center gap-1 px-2.5 pb-2">
             <input
               ref={fileRef}
@@ -806,16 +814,18 @@ export function Composer({
                 event.target.value = "";
               }}
             />
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              onClick={() => fileRef.current?.click()}
-              disabled={disabled || !workspace}
-              title="Attach files"
-              aria-label="Attach files"
-            >
-              <Paperclip />
-            </Button>
+            {!question && (
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                onClick={() => fileRef.current?.click()}
+                disabled={disabled || !workspace}
+                title="Attach files"
+                aria-label="Attach files"
+              >
+                <Paperclip />
+              </Button>
+            )}
             {spellcheck && issues.length > 0 && (
               <Button
                 variant={spellOpen ? "secondary" : "ghost"}
@@ -828,29 +838,31 @@ export function Composer({
                 <span className="font-mono text-[11px]">{issues.length}</span>
               </Button>
             )}
-            <Button
-              variant={recording ? "destructive" : "ghost"}
-              size={recording || finishing ? "sm" : "icon-sm"}
-              onClick={toggleDictation}
-              disabled={disabled || !workspace || finishing || submitting}
-              title={recording ? "Stop dictation" : "Dictate"}
-              aria-label={recording ? "Stop dictation" : "Dictate"}
-            >
-              {finishing ? (
-                <Loader2 className="animate-spin" />
-              ) : recording ? (
-                <Square className="fill-current" />
-              ) : (
-                <Mic />
-              )}
-              {recording && (
-                <span className="font-mono text-[11px]">
-                  0:{String(elapsed).padStart(2, "0")}
-                  {pending > 0 ? ` · ${pending}` : ""}
-                </span>
-              )}
-              {finishing && <span className="text-[11px]">Transcribing…</span>}
-            </Button>
+            {!question && (
+              <Button
+                variant={recording ? "destructive" : "ghost"}
+                size={recording || finishing ? "sm" : "icon-sm"}
+                onClick={toggleDictation}
+                disabled={disabled || !workspace || finishing || submitting}
+                title={recording ? "Stop dictation" : "Dictate"}
+                aria-label={recording ? "Stop dictation" : "Dictate"}
+              >
+                {finishing ? (
+                  <Loader2 className="animate-spin" />
+                ) : recording ? (
+                  <Square className="fill-current" />
+                ) : (
+                  <Mic />
+                )}
+                {recording && (
+                  <span className="font-mono text-[11px]">
+                    0:{String(elapsed).padStart(2, "0")}
+                    {pending > 0 ? ` · ${pending}` : ""}
+                  </span>
+                )}
+                {finishing && <span className="text-[11px]">Transcribing…</span>}
+              </Button>
+            )}
             <span
               aria-live="polite"
               className={cn(
@@ -858,34 +870,60 @@ export function Composer({
                 recording ? "text-destructive" : "text-muted-foreground",
               )}
             >
-              {finishing
-                ? "Finishing transcription…"
-                : recording
-                  ? pending > 0
-                    ? `Recording · ${pending} segment${pending === 1 ? "" : "s"} queued`
-                    : dictationMode === "fast"
-                      ? "Recording · text appears as you pause"
-                      : "Recording · transcribing when you stop"
-                  : "Enter to send · Shift+Enter for a new line · / commands"}
+              {question
+                ? customAnswer
+                  ? "Enter to answer · Shift+Enter for a new line"
+                  : "Pick an option above"
+                : finishing
+                  ? "Finishing transcription…"
+                  : recording
+                    ? pending > 0
+                      ? `Recording · ${pending} segment${pending === 1 ? "" : "s"} queued`
+                      : dictationMode === "fast"
+                        ? "Recording · text appears as you pause"
+                        : "Recording · transcribing when you stop"
+                    : "Enter to send · Shift+Enter for a new line · / commands"}
             </span>
             <div className="ml-auto flex items-center gap-1">
-              {running && (
+              {running && !question && (
                 <Button variant="secondary" size="sm" onClick={onStop} aria-label="Stop">
                   <Square className="fill-current" />
                   Stop
                 </Button>
               )}
-              <Button
-                size="sm"
-                onClick={() => void submit()}
-                disabled={
-                  !workspace || disabled || !value.trim() || submitting || uploading || finishing
-                }
-                aria-label={running ? "Queue message" : "Send"}
-              >
-                {submitting ? <Loader2 className="animate-spin" /> : <ArrowUp />}
-                {running ? "Queue" : "Send"}
-              </Button>
+              {question ? (
+                <>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => void cancelForm()}
+                    disabled={formBusy}
+                  >
+                    <X />
+                    Cancel
+                  </Button>
+                  <Button
+                    size="sm"
+                    onClick={() => void answerForm()}
+                    disabled={formBusy || (question.required && !value.trim())}
+                  >
+                    {formBusy ? <Loader2 className="animate-spin" /> : <Check />}
+                    Answer
+                  </Button>
+                </>
+              ) : (
+                <Button
+                  size="sm"
+                  onClick={() => void submit()}
+                  disabled={
+                    !workspace || disabled || !value.trim() || submitting || uploading || finishing
+                  }
+                  aria-label={running ? "Queue message" : "Send"}
+                >
+                  {submitting ? <Loader2 className="animate-spin" /> : <ArrowUp />}
+                  {running ? "Queue" : "Send"}
+                </Button>
+              )}
             </div>
           </div>
         </div>

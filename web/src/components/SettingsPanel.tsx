@@ -1,6 +1,7 @@
 import { X } from "lucide-react";
 import type { Agent, Model, ModelRef } from "../lib/types";
 import type { Theme } from "../hooks/useTheme";
+import type { SceneSetting } from "./Scene";
 import { modelKey } from "../lib/format";
 import { Button } from "./ui/button";
 import { Select } from "./ui/select";
@@ -14,12 +15,14 @@ export function SettingsPanel({
   directory,
   dictationMode,
   motion,
+  background,
   sidebarMode,
   onModel,
   onAgent,
   onTheme,
   onDictation,
   onMotion,
+  onBackground,
   onSidebar,
   onClose,
 }: {
@@ -31,12 +34,14 @@ export function SettingsPanel({
   directory?: string | null;
   dictationMode: "fast" | "accurate";
   motion: "animated" | "static";
+  background: SceneSetting;
   sidebarMode: "button" | "hover";
   onModel: (model: ModelRef) => void;
   onAgent: (agent: string) => void;
   onTheme: (theme: Theme) => void;
   onDictation: (mode: "fast" | "accurate") => void;
   onMotion: (mode: "animated" | "static") => void;
+  onBackground: (mode: SceneSetting) => void;
   onSidebar: (mode: "button" | "hover") => void;
   onClose: () => void;
 }) {
@@ -180,6 +185,21 @@ export function SettingsPanel({
 
           <label className="block space-y-1">
             <span className="text-muted-foreground text-[11px]">Background</span>
+            <Select
+              className="w-full"
+              value={background}
+              onChange={(event) => onBackground(event.target.value as SceneSetting)}
+            >
+              <option value="magnetic">Contours · magnetic</option>
+              <option value="split">Contours · split</option>
+              <option value="ripple">Contours · ripple</option>
+              <option value="diagonal">Contours · diagonal</option>
+              <option value="random">Random per new chat</option>
+            </Select>
+          </label>
+
+          <label className="block space-y-1">
+            <span className="text-muted-foreground text-[11px]">Motion</span>
             <Select
               className="w-full"
               value={motion}

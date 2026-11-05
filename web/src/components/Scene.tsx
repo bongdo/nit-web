@@ -5,11 +5,17 @@ const GAP = 24;
 const STEP = 5;
 const STILL_TIME = 6;
 const CURSOR_RADIUS = 150;
+const VARIANTS = ["magnetic", "split", "ripple", "diagonal"] as const;
+
+export type SceneVariant = (typeof VARIANTS)[number];
+export type SceneSetting = SceneVariant | "random";
 
 export function Scene({
+  variant = "magnetic",
   motion = "animated",
   className,
 }: {
+  variant?: SceneSetting;
   motion?: "animated" | "static";
   className?: string;
 }) {
@@ -20,6 +26,8 @@ export function Scene({
     const context = canvas?.getContext("2d");
     if (!canvas || !context) return;
 
+    const chosen =
+      variant === "random" ? VARIANTS[Math.floor(Math.random() * VARIANTS.length)] : variant;
     const still = motion === "static";
     const reduced =
       still || window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -41,8 +49,8 @@ export function Scene({
       accent = style.getPropertyValue("--spark").trim();
     };
 
-    const wave = (x: number, base: number, index: number, time: number) => {
-      const nx = x / width;
+    const wave = (x: number, base: number, index: number, time: number, span: number) => {
+      const nx = x / span;
       return (
         base +
         Math.sin(nx * 5.5 + time * 0.4 + index * 0.25) * 9 +
@@ -51,34 +59,49 @@ export function Scene({
       );
     };
 
-    const contourY = (x: number, base: number, index: number, time: number) => {
-      let y = wave(x, base, index, time);
-      if (cursor.power < 0.01) return y;
-      const dx = x - cursor.x;
-      const dy = y - cursor.y;
-      const distance = dx * dx + dy * dy;
-      if (distance > CURSOR_RADIUS * CURSOR_RADIUS) return y;
-      const t = Math.sqrt(distance) / CURSOR_RADIUS;
-      const falloff = (1 - t * t) * (1 - t * t);
-      const pull = falloff * cursor.power;
-      y -= dy * pull * 0.8;
-      y += Math.sin(t * 9 - time * 2.6) * 4 * pull;
-      return y;
+    const shapeFor = (kind: SceneVariant, span: number, cx: number, cy: number) => {
+      return (x: number, base: number, index: number, time: number) => {
+        let y = wave(x, base, index, time, span);
+        if (cursor.power < 0.01) return y;
+        const dx = x - cx;
+        const dy = y - cy;
+        if (kind === "ripple") {
+          const distance = Math.sqrt(dx * dx + dy * dy);
+          const falloff = Math.exp(-distance / 230) * cursor.power;
+          return y + Math.sin(distance * 0.075 - time * 3.1) * 15 * falloff;
+        }
+        const space = dx * dx + dy * dy;
+        if (space > CURSOR_RADIUS * CURSOR_RADIUS) return y;
+        const q = Math.sqrt(space) / CURSOR_RADIUS;
+        const strength = (1 - q * q) * (1 - q * q) * cursor.power;
+        if (kind === "split") return y + Math.tanh(dy / 30) * strength * 38;
+        y -= dy * strength * 0.8;
+        y += Math.sin(q * 9 - time * 2.6) * 4 * strength;
+        return y;
+      };
     };
 
-    const paint = (time: number) => {
-      context.clearRect(0, 0, width, height);
-      context.lineWidth = 1;
-      context.lineCap = "round";
-      const lines = Math.ceil(height / GAP) + 2;
+    const drawField = (
+      time: number,
+      extentWidth: number,
+      extentHeight: number,
+      span: number,
+      cx: number,
+      cy: number,
+      kind: SceneVariant,
+      gap = GAP,
+    ) => {
+      const shape = shapeFor(kind, span, cx, cy);
+      const radius = kind === "ripple" ? 240 : CURSOR_RADIUS;
+      const lines = Math.ceil(extentHeight / gap) + 2;
       for (let index = 0; index < lines; index += 1) {
-        const base = (index - 1) * GAP;
+        const base = (index - 1) * gap;
         const highlight = index % 9 === 0;
         context.strokeStyle = highlight ? accent : ink;
         context.globalAlpha = highlight ? 0.45 : 0.13;
         context.beginPath();
-        for (let x = -10; x <= width + 10; x += STEP) {
-          const y = contourY(x, base, index, time);
+        for (let x = -10; x <= extentWidth + 10; x += STEP) {
+          const y = shape(x, base, index, time);
           if (x === -10) context.moveTo(x, y);
           else context.lineTo(x, y);
         }
@@ -86,26 +109,21 @@ export function Scene({
       }
 
       if (cursor.power > 0.01) {
-        const halo = context.createLinearGradient(
-          cursor.x - CURSOR_RADIUS,
-          0,
-          cursor.x + CURSOR_RADIUS,
-          0,
-        );
+        const halo = context.createLinearGradient(cx - radius, 0, cx + radius, 0);
         halo.addColorStop(0, "rgba(0,0,0,0)");
         halo.addColorStop(0.5, accent);
         halo.addColorStop(1, "rgba(0,0,0,0)");
         for (let index = 0; index < lines; index += 1) {
-          const base = (index - 1) * GAP;
-          const near = Math.exp(-((base - cursor.y) ** 2) / 20000) * cursor.power;
+          const base = (index - 1) * gap;
+          const near = Math.exp(-((base - cy) ** 2) / 20000) * cursor.power;
           if (near < 0.04) continue;
           context.strokeStyle = halo;
           context.globalAlpha = near * 0.75;
           context.beginPath();
-          const from = Math.max(-10, cursor.x - CURSOR_RADIUS);
-          const to = Math.min(width + 10, cursor.x + CURSOR_RADIUS);
+          const from = Math.max(-10, cx - radius);
+          const to = Math.min(extentWidth + 10, cx + radius);
           for (let x = from; x <= to; x += STEP) {
-            const y = contourY(x, base, index, time);
+            const y = shape(x, base, index, time);
             if (x === from) context.moveTo(x, y);
             else context.lineTo(x, y);
           }
@@ -113,6 +131,30 @@ export function Scene({
         }
       }
       context.globalAlpha = 1;
+    };
+
+    const paint = (time: number) => {
+      context.clearRect(0, 0, width, height);
+      context.lineWidth = 1;
+      context.lineCap = "round";
+
+      if (chosen === "diagonal") {
+        const size = Math.hypot(width, height);
+        const cos = Math.SQRT1_2;
+        const sin = Math.SQRT1_2;
+        const dx = cursor.x - width / 2;
+        const dy = cursor.y - height / 2;
+        const localX = size / 2 + dx * cos - dy * sin;
+        const localY = size / 2 + dx * sin + dy * cos;
+        context.save();
+        context.translate(width / 2, height / 2);
+        context.rotate(-Math.PI / 4);
+        context.translate(-size / 2, -size / 2);
+        drawField(time, size, size, width, localX, localY, "magnetic", GAP * Math.SQRT1_2);
+        context.restore();
+      } else {
+        drawField(time, width, height, width, cursor.x, cursor.y, chosen);
+      }
 
       context.globalCompositeOperation = "destination-out";
       context.save();
@@ -217,7 +259,7 @@ export function Scene({
       window.removeEventListener("mouseleave", leave);
       document.removeEventListener("visibilitychange", visibility);
     };
-  }, [motion]);
+  }, [motion, variant]);
 
   return (
     <canvas

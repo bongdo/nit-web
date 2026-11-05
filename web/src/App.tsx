@@ -26,6 +26,7 @@ import { cn } from "./lib/utils";
 import { useTheme } from "./hooks/useTheme";
 import { useEventStream } from "./hooks/useEventStream";
 import { ChatView } from "./components/ChatView";
+import type { SceneSetting } from "./components/Scene";
 import { Composer, type Attachment, type ComposerCommand } from "./components/Composer";
 import { Header } from "./components/Header";
 import { Sidebar } from "./components/Sidebar";
@@ -129,6 +130,16 @@ export default function App() {
     const stored = localStorage.getItem("nit-gui.motion");
     if (stored === "animated" || stored === "static") return stored;
     return window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ? "static" : "animated";
+  });
+  const [background, setBackground] = useState<SceneSetting>(() => {
+    const stored = localStorage.getItem("nit-gui.background");
+    return stored === "magnetic" ||
+      stored === "split" ||
+      stored === "ripple" ||
+      stored === "diagonal" ||
+      stored === "random"
+      ? stored
+      : "magnetic";
   });
   const [forms, setForms] = useState<FormInfo[]>([]);
   const [hiddenIds, setHiddenIds] = useState<Set<string>>(() => {
@@ -942,6 +953,7 @@ export default function App() {
         projects={projects}
         recent={recent}
         motion={motion}
+        variant={background}
         onPick={selectWorkspace}
       />
     );
@@ -1083,6 +1095,7 @@ export default function App() {
           agents={agents}
           workspace={workspace}
           motion={motion}
+          background={background}
           onRetry={reloadSelected}
           onRevert={(message) => void revertAt(message)}
           onFork={(message) => void forkAt(message)}
@@ -1130,6 +1143,7 @@ export default function App() {
           recent={recent}
           current={workspace}
           motion={motion}
+          variant={background}
           onPick={selectWorkspace}
           onClose={() => setPickerOpen(false)}
         />
@@ -1145,6 +1159,7 @@ export default function App() {
           directory={workspace}
           dictationMode={dictationMode}
           motion={motion}
+          background={background}
           sidebarMode={sidebarMode}
           onModel={(model) => void changeModel(model)}
           onAgent={(agent) => void changeAgent(agent)}
@@ -1161,6 +1176,10 @@ export default function App() {
           onMotion={(value) => {
             setMotion(value);
             localStorage.setItem("nit-gui.motion", value);
+          }}
+          onBackground={(value) => {
+            setBackground(value);
+            localStorage.setItem("nit-gui.background", value);
           }}
           onClose={() => setSettingsOpen(false)}
         />

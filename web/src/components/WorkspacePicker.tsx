@@ -5,13 +5,14 @@ import { basename, formatRelative } from "../lib/format";
 import { cn } from "../lib/utils";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
-import { Scene } from "./Scene";
+import { Scene, type SceneSetting } from "./Scene";
 
 export function WorkspacePicker({
   projects,
   recent,
   current,
   motion = "animated",
+  variant = "magnetic",
   onPick,
   onClose,
 }: {
@@ -19,6 +20,7 @@ export function WorkspacePicker({
   recent: string[];
   current?: string | null;
   motion?: "animated" | "static";
+  variant?: SceneSetting;
   onPick: (directory: string) => void;
   onClose?: () => void;
 }) {
@@ -132,7 +134,7 @@ export function WorkspacePicker({
 
   return (
     <div className="bg-background relative flex h-full items-center justify-center overflow-hidden p-4">
-      <Scene motion={motion} />
+      <Scene variant={variant} motion={motion} />
       {body}
     </div>
   );

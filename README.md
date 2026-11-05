@@ -164,7 +164,9 @@ OpenCode's plural resource paths are singular (`/api/session`, `/api/model`,
 - Dark, light and system themes. Theme is stored in `localStorage`.
 - The empty chat and the workspace picker draw slow contour lines with a copper
   accent (`--spark`). The lines bend toward the pointer and light up near it.
-  The canvas pauses on a hidden tab and never intercepts pointer events.
+  Settings → Background picks `magnetic`, `split`, `ripple`, `diagonal` or
+  `random` (one variant per new chat). The canvas pauses on a hidden tab and
+  never intercepts pointer events.
 - Settings → Chats sidebar switches between the header button and a hover
   reveal at the left screen edge. The reveal slides over the chat with a
   fade/settle animation and is stored in `localStorage`.

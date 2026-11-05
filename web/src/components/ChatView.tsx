@@ -12,7 +12,7 @@ import { cn } from "../lib/utils";
 import { Button } from "./ui/button";
 import { AssistantTurn } from "./AssistantTurn";
 import { MessageRow } from "./MessageRow";
-import { Scene } from "./Scene";
+import { Scene, type SceneSetting } from "./Scene";
 
 function Skeleton() {
   return (
@@ -38,6 +38,7 @@ export function ChatView({
   agents,
   workspace,
   motion,
+  background,
   onRetry,
   onRevert,
   onFork,
@@ -52,6 +53,7 @@ export function ChatView({
   agents: Agent[];
   workspace: string | null;
   motion: "animated" | "static";
+  background: SceneSetting;
   onRetry: () => void;
   onRevert: (message: Message) => void;
   onFork: (message: Message) => void;
@@ -137,7 +139,7 @@ export function ChatView({
   if (!session) {
     return (
       <div className="relative flex min-h-0 flex-1 items-center justify-center overflow-y-auto px-6 py-10">
-        <Scene motion={motion} />
+        <Scene variant={background} motion={motion} />
         <div className="relative max-w-md text-center">
           <div className="bg-secondary text-secondary-foreground mx-auto mb-4 flex size-12 items-center justify-center rounded-2xl">
             <Sparkles className="text-spark size-6" />

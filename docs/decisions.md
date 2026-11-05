@@ -59,3 +59,15 @@ Why: Alt+N works in every browser and `event.code` keeps both bindings independe
 Rejected: Tab for cycling chats (breaks keyboard focus navigation), Ctrl+Tab (reserved by the browser) and Alt+Arrow (conflicts with word navigation).
 
 Cost: three app-wide shortcuts; Alt+J/K is only discoverable from /help, the New chat hint and the README.
+
+## 2026-11-05 — Composer spelling: local nspell + Hunspell, no model
+
+Context: the composer needs Russian and English correction. A model-backed proofreader and ghost completion were proposed and OpenCode's stateless generate endpoint was tested; the user requires correction without AI.
+
+Decision: ship offline spellchecking with `nspell` and the `dictionary-ru` / `dictionary-en` Hunspell dictionaries. The dictionaries are served as assets and parsed in a worker. No model, no cloud call, no LanguageTool sidecar. Ghost completion is not part of this change.
+
+Why: the dictionaries are about 4 MB, need no runtime or account, and keep the draft in the browser. LanguageTool would add Java and about 1.5 GB for grammar support that was not requested.
+
+Rejected: OpenCode generate (sends the draft to a provider), LanguageTool (heavy), Harper (English only), Chrome Proofreader (trial, English-oriented), Yandex Speller (cloud), a local LLM (extra runtime and model).
+
+Cost: spelling only. Real-word errors (`too` vs `to`), Russian `-тся/-ться` and punctuation are not caught. The first check waits for a worker-side dictionary parse of a few seconds.

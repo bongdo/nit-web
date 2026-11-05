@@ -164,7 +164,7 @@ const ALLOWED = new Set([
 const FILE =
   /\b[\p{L}\p{N}_.-]+\.(?:tsx?|jsx?|json|md|css|html?|go|py|rs|sh|toml|ya?ml|lock|txt|png|jpe?g|gif|svg|wav|mp3|pdf|zip|gz)\b/giu;
 const PATH =
-  /(?:~|\.{1,2})?\/[\p{L}\p{N}_.@+{}:-]+(?:\/[\p{L}\p{N}_.@+{}:-]+)+/gu;
+  /(?:~|\.{1,2})?\/[\p{L}\p{N}_.@+{}:-]+|[\p{L}\p{N}_.@+-]+\/[\p{L}\p{N}_.@+{}:/-]+/gu;
 const EMAIL = /[\w.+-]+@[\w.-]+\.[\p{L}]{2,}/gu;
 const URL = /\b(?:https?:\/\/|www\.)[^\s<>"']+/giu;
 const WORD = /\p{L}[\p{L}\p{M}]*(?:['’\-]\p{L}[\p{L}\p{M}]*)*/gu;

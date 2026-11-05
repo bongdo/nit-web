@@ -1,5 +1,8 @@
 # Prompt assist: RU/EN proofreading and ghost completion
 
+> Decision on 2026-11-05: the offline `nspell` + Hunspell path was chosen. No AI,
+> no LanguageTool. See `docs/decisions.md`.
+
 ## Problem
 
 The composer is the slowest part of working with a coding agent. Prompts are

@@ -61,6 +61,10 @@ workspace on the first Send, so an empty draft never appears in the list.
   `/api/stt`; the transcript is appended to the existing input. It never sends
   and never clears what you typed. Transcription happens when you stop, not as
   a live stream.
+- Spelling is checked locally for Russian and English. Misspelled words get a
+  wavy underline; the `A` button lists suggestions and lets you ignore a word.
+  Nothing leaves the browser. Code blocks, inline code, URLs, paths, file names
+  and known project terms are skipped. Settings → Spelling turns it off.
 - Hover a user message for Copy, Revert and Fork. Revert commits the revert and
   puts the message text back into the composer; Fork opens a new session before
   that message. The composer also has a fast `Undo` button for the last prompt.
@@ -196,6 +200,7 @@ Frontend runtime:
 | `lucide-react` | Icons used by the shadcn-style primitives and chat. |
 | `clsx`, `tailwind-merge` | `cn()` class composition used by the primitives. |
 | `class-variance-authority` | Variants for the local shadcn/ui button and badge. |
+| `nspell`, `dictionary-ru`, `dictionary-en` | Offline Hunspell spelling for the composer; dictionaries are served as assets and parsed in a worker. |
 
 Frontend development and build:
 
@@ -222,6 +227,10 @@ shadcn/ui primitives are local source files (`Button`, `Input`, `Textarea`,
   `~/.local/share/whisper/ggml-large-v3-turbo-q5_0.bin` on the host that runs
   nit-gui; override with `NIT_GUI_WHISPER`, `NIT_GUI_WHISPER_MODEL` and
   `NIT_GUI_STT_LANG`.
+- Spelling is spellcheck only: nspell does not catch real-word errors (`too` vs
+  `to`), Russian `-тся/-ться` or punctuation. It loads about 4 MB of
+  dictionaries in a worker; the first check can take a few seconds after start.
+  Ignored words are kept in `nit-gui.spell-ignore` in `localStorage`.
 - Uploaded files live under `/tmp` on the OpenCode host. Nothing cleans them up.
 - No syntax highlighting in code blocks; copy and HTML preview are implemented.
 - The HTML preview is a fixed-height iframe, not a full-window renderer.

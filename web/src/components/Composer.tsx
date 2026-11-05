@@ -569,65 +569,66 @@ export function Composer({
           <div className="relative">
             <Textarea
               ref={ref}
-            rows={1}
-            value={value}
-            disabled={disabled || !workspace}
-            aria-label="Message"
-            placeholder={
-              !workspace
-                ? "Choose a workspace to start"
-                : session
-                  ? "Ask anything…  / for commands"
-                  : "New chat in this workspace…"
-            }
-            className={cn(
-              COMPOSER_TEXT,
-              "scrollbar-none max-h-[200px] min-h-[44px] overflow-y-auto",
-            )}
-            onChange={(event) => setValue(event.target.value)}
-            onScroll={syncScroll}
-            onPaste={(event) => {
-              const files = Array.from(event.clipboardData.files);
-              if (files.length > 0) {
-                event.preventDefault();
-                addFiles(files);
+              rows={1}
+              value={value}
+              disabled={disabled || !workspace}
+              aria-label="Message"
+              spellCheck={false}
+              placeholder={
+                !workspace
+                  ? "Choose a workspace to start"
+                  : session
+                    ? "Ask anything…  / for commands"
+                    : "New chat in this workspace…"
               }
-            }}
-            onKeyDown={(event) => {
-              if ((event.metaKey || event.ctrlKey) && event.key === ".") {
-                event.preventDefault();
-                if (issues.length > 0) setSpellOpen((current) => !current);
-                return;
-              }
-              if (paletteOpen) {
-                if (event.key === "ArrowDown") {
+              className={cn(
+                COMPOSER_TEXT,
+                "block scrollbar-none max-h-[200px] min-h-[44px] overflow-y-auto",
+              )}
+              onChange={(event) => setValue(event.target.value)}
+              onScroll={syncScroll}
+              onPaste={(event) => {
+                const files = Array.from(event.clipboardData.files);
+                if (files.length > 0) {
                   event.preventDefault();
-                  setCommandIndex((current) => (current + 1) % matches.length);
+                  addFiles(files);
+                }
+              }}
+              onKeyDown={(event) => {
+                if ((event.metaKey || event.ctrlKey) && event.key === ".") {
+                  event.preventDefault();
+                  if (issues.length > 0) setSpellOpen((current) => !current);
                   return;
                 }
-                if (event.key === "ArrowUp") {
-                  event.preventDefault();
-                  setCommandIndex((current) => (current - 1 + matches.length) % matches.length);
-                  return;
+                if (paletteOpen) {
+                  if (event.key === "ArrowDown") {
+                    event.preventDefault();
+                    setCommandIndex((current) => (current + 1) % matches.length);
+                    return;
+                  }
+                  if (event.key === "ArrowUp") {
+                    event.preventDefault();
+                    setCommandIndex((current) => (current - 1 + matches.length) % matches.length);
+                    return;
+                  }
+                  if (event.key === "Enter" && !event.shiftKey && selectedCommand) {
+                    event.preventDefault();
+                    runCommand(selectedCommand.id);
+                    return;
+                  }
+                  if (event.key === "Escape") {
+                    event.preventDefault();
+                    setCommandDismissed(true);
+                    return;
+                  }
                 }
-                if (event.key === "Enter" && !event.shiftKey && selectedCommand) {
+                if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
                   event.preventDefault();
-                  runCommand(selectedCommand.id);
-                  return;
+                  void submit();
                 }
-                if (event.key === "Escape") {
-                  event.preventDefault();
-                  setCommandDismissed(true);
-                  return;
-                }
-              }
-              if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
-                event.preventDefault();
-                void submit();
-              }
-            }}
-          />
-          <ComposerHighlights ref={highlightRef} value={value} issues={issues} />
+              }}
+            />
+            <ComposerHighlights ref={highlightRef} value={value} issues={issues} />
           </div>
           <div className="flex items-center gap-1 px-2.5 pb-2">
             <input

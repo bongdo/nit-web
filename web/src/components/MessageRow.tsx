@@ -1,7 +1,8 @@
 import type { ReactNode } from "react";
 import { useState } from "react";
 import { Bot, Check, CircleAlert, Copy, GitFork, Terminal, Undo2 } from "lucide-react";
-import type { Agent, Message, Model } from "../lib/types";
+import type { Agent, Message, Model, UserFile } from "../lib/types";
+import { api } from "../lib/api";
 import { copyText } from "../lib/clipboard";
 import { isPureHtml, looksLikeHtml } from "../lib/html";
 import { modelLabel, replyText } from "../lib/format";
@@ -14,6 +15,37 @@ import { ToolCall } from "./ToolCall";
 
 function timeLabel(ms: number): string {
   return new Date(ms).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+}
+
+function isImageFile(file: UserFile): boolean {
+  if (file.mime?.startsWith("image/")) return true;
+  return /\.(png|jpe?g|gif|webp|svg|avif)$/i.test(file.name ?? file.uri);
+}
+
+function FilePreview({ file }: { file: UserFile }) {
+  const href = api.fileUrl(file.uri);
+  if (!isImageFile(file)) {
+    return (
+      <a
+        href={href}
+        target="_blank"
+        rel="noreferrer noopener"
+        className="border-border bg-background/60 truncate rounded-md border px-2 py-1 text-[11px]"
+      >
+        {file.name ?? "file"}
+      </a>
+    );
+  }
+  return (
+    <a href={href} target="_blank" rel="noreferrer noopener" className="block">
+      <img
+        src={href}
+        alt={file.name ?? "attachment"}
+        loading="lazy"
+        className="border-border max-h-56 w-full rounded-md border object-cover"
+      />
+    </a>
+  );
 }
 
 function Note({ children }: { children: ReactNode }) {
@@ -44,6 +76,13 @@ export function MessageRow({
       <div className="group flex justify-end px-1 py-2">
         <div className="max-w-[85%]">
           <div className="bg-secondary rounded-2xl rounded-br-sm px-4 py-2.5">
+            {message.files && message.files.length > 0 && (
+              <div className="mb-2 grid grid-cols-2 gap-1.5">
+                {message.files.map((file, index) => (
+                  <FilePreview key={`${file.uri}-${index}`} file={file} />
+                ))}
+              </div>
+            )}
             <Markdown text={message.text ?? ""} />
             <div className="text-muted-foreground mt-1 text-right text-[10px]">
               {timeLabel(message.time.created)}

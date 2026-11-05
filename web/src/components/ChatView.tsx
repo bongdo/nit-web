@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
   ArrowDown,
   CircleAlert,
@@ -9,6 +9,7 @@ import {
 import type { Agent, Message, Model, Session } from "../lib/types";
 import { cn } from "../lib/utils";
 import { Button } from "./ui/button";
+import { AssistantTurn } from "./AssistantTurn";
 import { MessageRow } from "./MessageRow";
 
 function Skeleton() {
@@ -109,12 +110,49 @@ export function ChatView({
   const lastAssistant = [...messages].reverse().find((message) => message.type === "assistant");
   const waiting = running && (!lastAssistant || messages[messages.length - 1]?.type === "user");
 
+  const rows: ReactNode[] = [];
+  for (let index = 0; index < messages.length; index += 1) {
+    const message = messages[index];
+    if (message.type === "assistant") {
+      const group = [message];
+      while (messages[index + 1]?.type === "assistant") {
+        index += 1;
+        group.push(messages[index]);
+      }
+      rows.push(
+        <AssistantTurn
+          key={`turn-${message.id}`}
+          messages={group}
+          models={models}
+          agents={agents}
+          streaming={Boolean(running && index === messages.length - 1)}
+          actionsDisabled={running}
+          onRevert={onRevert}
+          onFork={onFork}
+        />,
+      );
+      continue;
+    }
+    rows.push(
+      <MessageRow
+        key={message.id}
+        message={message}
+        models={models}
+        agents={agents}
+        actionsDisabled={running}
+        onRevert={onRevert}
+        onFork={onFork}
+        streaming={false}
+      />,
+    );
+  }
+
   return (
     <div className="relative flex min-h-0 flex-1 flex-col">
       <div
         ref={scrollRef}
         data-transcript
-        className="scrollbar-thin min-h-0 flex-1 overflow-y-auto overflow-x-hidden"
+        className="scrollbar-thin min-h-0 flex-1 overflow-y-auto overflow-x-hidden [overflow-anchor:none] [scrollbar-gutter:stable]"
         onScroll={(event) => {
           const element = event.currentTarget;
           const nearBottom =
@@ -145,23 +183,7 @@ export function ChatView({
               </p>
             </div>
           ) : (
-            messages.map((message) => (
-              <MessageRow
-                key={message.id}
-                message={message}
-                models={models}
-                agents={agents}
-                actionsDisabled={running}
-                onRevert={onRevert}
-                onFork={onFork}
-                streaming={Boolean(
-                  running &&
-                    lastAssistant &&
-                    message.id === lastAssistant.id &&
-                    messages[messages.length - 1]?.id === lastAssistant.id,
-                )}
-              />
-            ))
+            rows
           )}
 
           {waiting && (

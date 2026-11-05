@@ -114,7 +114,6 @@ export type Message = {
   status?: string;
   exit?: number | string;
   output?: { output: string; truncated?: boolean };
-  files?: { uri?: string; name?: string }[];
   name?: string;
   description?: string;
   summary?: string;

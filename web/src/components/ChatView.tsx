@@ -76,6 +76,16 @@ export function ChatView({
     }
   }, [messages, running]);
 
+  useEffect(() => {
+    const element = scrollRef.current;
+    if (!element || typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(() => {
+      if (stick.current) scrollToBottom();
+    });
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, []);
+
   if (!session) {
     return (
       <div className="flex min-h-0 flex-1 items-center justify-center overflow-y-auto px-6 py-10">

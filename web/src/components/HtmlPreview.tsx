@@ -23,7 +23,7 @@ export function HtmlPreview({
   autoHeight?: boolean;
 }) {
   const ref = useRef<HTMLIFrameElement>(null);
-  const [height, setHeight] = useState(360);
+  const [height, setHeight] = useState(200);
 
   useEffect(() => {
     const onMessage = (event: MessageEvent) => {

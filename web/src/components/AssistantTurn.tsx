@@ -13,7 +13,6 @@ import type { Agent, Message, Model } from "../lib/types";
 import { copyText } from "../lib/clipboard";
 import { isPureHtml, looksLikeHtml } from "../lib/html";
 import { modelLabel, replyText } from "../lib/format";
-import { cn } from "../lib/utils";
 import { Button } from "./ui/button";
 import { HtmlMessagePreview } from "./HtmlMessagePreview";
 import { Markdown } from "./Markdown";
@@ -155,12 +154,12 @@ export function AssistantTurn({
                 {activity.map((part, index) =>
                   part.type === "reasoning" ? (
                     <Reasoning
-                      key={`reasoning-${part.ordinal ?? index}`}
+                      key={`reasoning-${index}`}
                       part={part}
                       streaming={streaming && index === activity.length - 1}
                     />
                   ) : (
-                    <ToolCall key={`tool-${part.id}`} part={part} />
+                    <ToolCall key={`tool-${part.id ?? index}`} part={part} />
                   ),
                 )}
               </div>
@@ -171,7 +170,7 @@ export function AssistantTurn({
         {textParts.map((part, index) => {
           const pureHtml = isPureHtml(part.text);
           return (
-            <div key={`text-${part.ordinal ?? index}`} className="min-w-0">
+            <div key={`text-${index}`} className="min-w-0">
               {pureHtml ? (
                 <HtmlMessagePreview source={part.text} />
               ) : (

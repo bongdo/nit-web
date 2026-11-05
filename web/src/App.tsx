@@ -149,7 +149,10 @@ export default function App() {
   const sessionCost = selectedSession?.cost ?? 0;
   const estimated = estimateCost(selectedSession?.tokens, modelInfo);
   const shownCost = sessionCost > 0 ? sessionCost : estimated;
-  const shownContext = contextPercent(selectedSession?.tokens, modelInfo);
+  const lastAssistantTokens = [...messages]
+    .reverse()
+    .find((message) => message.type === "assistant" && message.tokens)?.tokens;
+  const shownContext = contextPercent(lastAssistantTokens, modelInfo);
 
   const loadHealth = useCallback(async () => {
     try {
@@ -566,6 +569,7 @@ export default function App() {
   const changeModel = useCallback(
     async (model: ModelRef) => {
       setPreferredModel(model);
+      localStorage.setItem("nit-gui.model", JSON.stringify(model));
       const session = selectedSession;
       if (!session) return;
       setSessions((previous) =>
@@ -584,6 +588,7 @@ export default function App() {
   const changeAgent = useCallback(
     async (agent: string) => {
       setPreferredAgent(agent);
+      localStorage.setItem("nit-gui.agent", agent);
       const session = selectedSession;
       if (!session) return;
       setSessions((previous) =>

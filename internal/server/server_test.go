@@ -188,15 +188,17 @@ func TestUploadProxy(t *testing.T) {
 func TestPromptFiles(t *testing.T) {
 	upstream := httptest.NewServer(auth(func(w http.ResponseWriter, r *http.Request) {
 		var body struct {
-			Text  string `json:"text"`
-			Files []struct {
+			Text     string `json:"text"`
+			Delivery string `json:"delivery"`
+			Files    []struct {
 				URI string `json:"uri"`
 			} `json:"files"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 			t.Fatal(err)
 		}
-		if body.Text != "look" || len(body.Files) != 1 || body.Files[0].URI != "file:///tmp/a.png" {
+		if body.Text != "look" || body.Delivery != "queue" ||
+			len(body.Files) != 1 || body.Files[0].URI != "file:///tmp/a.png" {
 			t.Errorf("body = %+v", body)
 		}
 		fmt.Fprint(w, `{"data":{"id":"msg_1"}}`)
@@ -205,7 +207,7 @@ func TestPromptFiles(t *testing.T) {
 
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPost, "http://127.0.0.1:7788/api/sessions/ses_1/prompt",
-		strings.NewReader(`{"text":"look","files":[{"uri":"file:///tmp/a.png","name":"a.png"}]}`))
+		strings.NewReader(`{"text":"look","delivery":"queue","files":[{"uri":"file:///tmp/a.png","name":"a.png"}]}`))
 	req.Header.Set("Content-Type", "application/json")
 	newHandler(t, upstream.URL).ServeHTTP(rec, req)
 	if rec.Code != http.StatusOK {
@@ -241,6 +243,59 @@ func TestRevertStagesAndCommits(t *testing.T) {
 	want := []string{"/api/session/ses_1/revert/stage", "/api/session/ses_1/revert/commit"}
 	if fmt.Sprint(calls) != fmt.Sprint(want) {
 		t.Fatalf("calls = %v", calls)
+	}
+}
+
+func TestFormReply(t *testing.T) {
+	upstream := httptest.NewServer(auth(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/session/ses_1/form/frm_1/reply" {
+			t.Errorf("path = %s", r.URL.Path)
+		}
+		var body struct {
+			Answer map[string]any `json:"answer"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Fatal(err)
+		}
+		if body.Answer["q0"] != "yes" {
+			t.Errorf("answer = %+v", body.Answer)
+		}
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer upstream.Close()
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost,
+		"http://127.0.0.1:7788/api/sessions/ses_1/form/frm_1/reply",
+		strings.NewReader(`{"answer":{"q0":"yes"}}`))
+	req.Header.Set("Content-Type", "application/json")
+	newHandler(t, upstream.URL).ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d: %s", rec.Code, rec.Body)
+	}
+}
+
+func TestFileProxy(t *testing.T) {
+	upstream := httptest.NewServer(auth(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/fs/read/tmp/nit-gui-1-shot.png" {
+			t.Errorf("path = %s", r.URL.Path)
+		}
+		if r.URL.Query().Get("location[directory]") != "/" {
+			t.Errorf("location = %q", r.URL.Query().Get("location[directory]"))
+		}
+		fmt.Fprint(w, "PNG")
+	}))
+	defer upstream.Close()
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet,
+		"http://127.0.0.1:7788/api/file?path=file:///tmp/nit-gui-1-shot.png", nil)
+	newHandler(t, upstream.URL).ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK || rec.Body.String() != "PNG" {
+		t.Fatalf("status = %d: %s", rec.Code, rec.Body)
+	}
+	if rec.Header().Get("Content-Type") != "image/png" {
+		t.Fatalf("content type = %q", rec.Header().Get("Content-Type"))
 	}
 }
 

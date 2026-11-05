@@ -56,6 +56,10 @@ describe("previewableHtml", () => {
   it("does not preview unlabeled prose", () => {
     expect(previewableHtml("Just a sentence with `code`.")).toBe(false);
   });
+
+  it("does not preview unlabeled plain code", () => {
+    expect(previewableHtml("const answer = 42;\nconsole.log(answer);")).toBe(false);
+  });
 });
 
 describe("htmlDocument", () => {

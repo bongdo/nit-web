@@ -96,8 +96,13 @@ export function SubagentBar({
                   {session.agent ?? "subagent"} · {duration(session)}
                 </span>
               </span>
-              <span className="text-muted-foreground shrink-0 text-[10px]">
-                {formatRelative(session.time.updated)}
+              <span
+                className={cn(
+                  "shrink-0 text-[10px]",
+                  sessionRunning(session) ? "text-emerald-500" : "text-muted-foreground",
+                )}
+              >
+                {sessionRunning(session) ? "running" : formatRelative(session.time.updated)}
               </span>
             </button>
           ))}

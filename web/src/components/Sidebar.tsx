@@ -51,8 +51,13 @@ function SessionRow({
           />
         )}
         <span className="min-w-0 flex-1 truncate text-[13px] font-medium">{title}</span>
-        <span className="text-muted-foreground shrink-0 text-[10px]">
-          {formatRelative(session.time.updated, now)}
+        <span
+          className={cn(
+            "shrink-0 text-[10px]",
+            running ? "text-emerald-500" : "text-muted-foreground",
+          )}
+        >
+          {running ? "running" : formatRelative(session.time.updated, now)}
         </span>
       </div>
       {depth === 0 && (

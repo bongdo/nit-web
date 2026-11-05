@@ -1,10 +1,13 @@
-import { useEffect, useRef, useState } from "react";
-import { ArrowUp, FileIcon, Loader2, Mic, Paperclip, Square, X } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { ArrowUp, FileIcon, Loader2, Mic, Paperclip, SpellCheck, Square, X } from "lucide-react";
 import type { Session } from "../lib/types";
 import { encodeWav } from "../lib/audio";
 import { api } from "../lib/api";
 import { formatBytes, quoteText } from "../lib/format";
+import { applyIssue, issueKey, type SpellIssue } from "../lib/spell";
+import { useSpellcheck } from "../hooks/useSpellcheck";
 import { cn } from "../lib/utils";
+import { COMPOSER_TEXT, ComposerHighlights } from "./ComposerHighlights";
 import { Button } from "./ui/button";
 import { Textarea } from "./ui/textarea";
 
@@ -30,6 +33,17 @@ function attachmentId() {
   return `att-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 }
 
+function loadIgnoredWords(): string[] {
+  try {
+    const value = JSON.parse(localStorage.getItem("nit-gui.spell-ignore") ?? "[]");
+    return Array.isArray(value)
+      ? value.filter((item): item is string => typeof item === "string" && item.length > 0)
+      : [];
+  } catch {
+    return [];
+  }
+}
+
 export function Composer({
   session,
   workspace,
@@ -40,6 +54,7 @@ export function Composer({
   insert,
   commands,
   dictationMode,
+  spellcheck,
   onSend,
   onStop,
   onCommand,
@@ -54,6 +69,7 @@ export function Composer({
   insert?: { text: string; id: number } | null;
   commands: ComposerCommand[];
   dictationMode: "fast" | "accurate";
+  spellcheck: boolean;
   onSend: (text: string, attachments: Attachment[], delivery?: "queue" | "steer") => Promise<void>;
   onStop: () => void;
   onCommand: (id: string) => void;
@@ -69,8 +85,12 @@ export function Composer({
   const [elapsed, setElapsed] = useState(0);
   const [commandIndex, setCommandIndex] = useState(0);
   const [commandDismissed, setCommandDismissed] = useState(false);
+  const [spellOpen, setSpellOpen] = useState(false);
+  const [ignored, setIgnored] = useState<string[]>(loadIgnoredWords);
   const ref = useRef<HTMLTextAreaElement>(null);
+  const highlightRef = useRef<HTMLDivElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  const { issues, checking } = useSpellcheck(value, spellcheck, ignored);
   const audio = useRef<{
     context: AudioContext;
     stream: MediaStream;
@@ -137,6 +157,26 @@ export function Composer({
   }, [value]);
 
   useEffect(() => {
+    if (!checking && issues.length === 0) setSpellOpen(false);
+  }, [checking, issues.length]);
+
+  useEffect(() => {
+    const area = ref.current;
+    const layer = highlightRef.current;
+    if (!area || !layer) return;
+    layer.scrollTop = area.scrollTop;
+    layer.scrollLeft = area.scrollLeft;
+  }, [value]);
+
+  const syncScroll = () => {
+    const area = ref.current;
+    const layer = highlightRef.current;
+    if (!area || !layer) return;
+    layer.scrollTop = area.scrollTop;
+    layer.scrollLeft = area.scrollLeft;
+  };
+
+  useEffect(() => {
     setCommandIndex(0);
     setCommandDismissed(false);
   }, [value]);
@@ -154,6 +194,28 @@ export function Composer({
       area.focus();
       area.setSelectionRange(area.value.length, area.value.length);
       area.scrollTop = area.scrollHeight;
+    });
+  };
+
+  const applySuggestion = (issue: SpellIssue, replacement: string) => {
+    setValue(applyIssue(value, issue, replacement));
+    requestAnimationFrame(() => {
+      const area = ref.current;
+      if (!area) return;
+      const position = issue.start + replacement.length;
+      area.focus();
+      area.setSelectionRange(position, position);
+    });
+  };
+
+  const ignoreWord = (word: string) => {
+    const clean = word.trim().toLowerCase();
+    if (!clean) return;
+    setIgnored((current) => {
+      if (current.includes(clean)) return current;
+      const next = [...current, clean];
+      localStorage.setItem("nit-gui.spell-ignore", JSON.stringify(next));
+      return next;
     });
   };
 
@@ -451,8 +513,62 @@ export function Composer({
             </div>
           )}
 
-          <Textarea
-            ref={ref}
+          {spellcheck && spellOpen && issues.length > 0 && (
+            <div className="border-border border-b px-3 py-2">
+              <div className="mb-1 flex items-center justify-between gap-2">
+                <span className="text-[11px] font-medium">Spelling · {issues.length}</span>
+                <button
+                  type="button"
+                  onClick={() => setSpellOpen(false)}
+                  aria-label="Close spelling"
+                  className="text-muted-foreground hover:text-foreground rounded p-0.5"
+                >
+                  <X className="size-3.5" />
+                </button>
+              </div>
+              <ul className="scrollbar-thin max-h-32 space-y-1 overflow-y-auto">
+                {issues.map((issue) => (
+                  <li
+                    key={issueKey(issue)}
+                    className="flex flex-wrap items-baseline gap-1.5 text-[11px]"
+                  >
+                    <span
+                      className="text-destructive max-w-44 truncate font-mono"
+                      title={issue.word}
+                    >
+                      {issue.word}
+                    </span>
+                    {issue.suggestions.length === 0 ? (
+                      <span className="text-muted-foreground">no suggestions</span>
+                    ) : (
+                      issue.suggestions.map((suggestion) => (
+                        <button
+                          key={suggestion}
+                          type="button"
+                          onClick={() => applySuggestion(issue, suggestion)}
+                          aria-label={`Replace ${issue.word} with ${suggestion}`}
+                          className="bg-muted hover:bg-accent rounded px-1.5 py-0.5 font-mono"
+                        >
+                          {suggestion}
+                        </button>
+                      ))
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => ignoreWord(issue.word)}
+                      className="text-muted-foreground hover:text-foreground underline"
+                    >
+                      ignore
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          <div className="relative">
+            <Textarea
+              ref={ref}
             rows={1}
             value={value}
             disabled={disabled || !workspace}
@@ -464,8 +580,12 @@ export function Composer({
                   ? "Ask anything…  / for commands"
                   : "New chat in this workspace…"
             }
-            className="scrollbar-thin max-h-[200px] min-h-[44px] overflow-y-auto px-4 py-3 text-[15px]"
+            className={cn(
+              COMPOSER_TEXT,
+              "scrollbar-none max-h-[200px] min-h-[44px] overflow-y-auto",
+            )}
             onChange={(event) => setValue(event.target.value)}
+            onScroll={syncScroll}
             onPaste={(event) => {
               const files = Array.from(event.clipboardData.files);
               if (files.length > 0) {
@@ -474,6 +594,11 @@ export function Composer({
               }
             }}
             onKeyDown={(event) => {
+              if ((event.metaKey || event.ctrlKey) && event.key === ".") {
+                event.preventDefault();
+                if (issues.length > 0) setSpellOpen((current) => !current);
+                return;
+              }
               if (paletteOpen) {
                 if (event.key === "ArrowDown") {
                   event.preventDefault();
@@ -502,6 +627,8 @@ export function Composer({
               }
             }}
           />
+          <ComposerHighlights ref={highlightRef} value={value} issues={issues} />
+          </div>
           <div className="flex items-center gap-1 px-2.5 pb-2">
             <input
               ref={fileRef}
@@ -523,6 +650,18 @@ export function Composer({
             >
               <Paperclip />
             </Button>
+            {spellcheck && issues.length > 0 && (
+              <Button
+                variant={spellOpen ? "secondary" : "ghost"}
+                size="sm"
+                onClick={() => setSpellOpen((current) => !current)}
+                title={`Spelling · ${issues.length}`}
+                aria-label={`Spelling, ${issues.length} issue${issues.length === 1 ? "" : "s"}`}
+              >
+                <SpellCheck />
+                <span className="font-mono text-[11px]">{issues.length}</span>
+              </Button>
+            )}
             <Button
               variant={recording ? "destructive" : "ghost"}
               size={recording || finishing ? "sm" : "icon-sm"}

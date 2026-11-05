@@ -19,6 +19,7 @@ export function useSpellcheck(text: string, enabled: boolean, ignore: string[]) 
       return;
     }
     let alive = true;
+    setIssues([]);
     setChecking(true);
     const timer = window.setTimeout(() => {
       checkSpelling(text, ignore)

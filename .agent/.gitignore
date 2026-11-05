@@ -1,7 +1,7 @@
-log/
-question
-session
-sessions/
-state
-stop
-attempts/
+*
+!.gitignore
+!project
+!prompt
+!evaluator.md
+!creative.md
+!id

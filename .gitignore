@@ -2,3 +2,16 @@
 /web/node_modules/
 /web/dist/
 .DS_Store
+.env*
+.agent/log/
+.agent/attempts/
+.agent/sessions/
+.agent/digest/
+.agent/question
+.agent/state
+.agent/stop
+.agent/reviews/
+.agent/baselines/
+.agent/check.state
+.agent/digest.log
+.agent/digest.last

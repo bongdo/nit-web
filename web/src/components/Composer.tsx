@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ArrowUp, FileIcon, Loader2, Mic, Paperclip, SpellCheck, Square, X } from "lucide-react";
 import type { Session } from "../lib/types";
 import { encodeWav } from "../lib/audio";

@@ -1,8 +1,4 @@
 import nspell from "nspell";
-import enAffUrl from "dictionary-en-aff?url";
-import enDicUrl from "dictionary-en-dic?url";
-import ruAffUrl from "dictionary-ru-aff?url";
-import ruDicUrl from "dictionary-ru-dic?url";
 import { findIssues, type SpellIssue } from "./spell";
 
 type Request = {
@@ -22,19 +18,17 @@ type WorkerScope = {
 };
 
 const scope = self as unknown as WorkerScope;
+const files = ["/dictionaries/ru.aff", "/dictionaries/ru.dic", "/dictionaries/en.aff", "/dictionaries/en.dic"];
 
 async function load() {
-  const files = await Promise.all(
-    [ruAffUrl, ruDicUrl, enAffUrl, enDicUrl].map(async (url) => {
+  const [ruAff, ruDic, enAff, enDic] = await Promise.all(
+    files.map(async (url) => {
       const response = await fetch(url);
       if (!response.ok) throw new Error(`dictionary ${response.status}`);
       return response.text();
     }),
   );
-  return {
-    ru: nspell(files[0], files[1]),
-    en: nspell(files[2], files[3]),
-  };
+  return { ru: nspell(ruAff, ruDic), en: nspell(enAff, enDic) };
 }
 
 let loaded: Promise<{ ru: ReturnType<typeof nspell>; en: ReturnType<typeof nspell> }> | null = null;
@@ -62,11 +56,10 @@ scope.onmessage = (event) => {
       const wrap = (checker: ReturnType<typeof nspell>) => ({
         correct: (word: string) => checker.correct(word),
         suggest: (word: string) => {
-          const key = word.toLowerCase();
-          let list = suggestions.get(key);
+          let list = suggestions.get(word);
           if (!list) {
             list = checker.suggest(word);
-            suggestions.set(key, list);
+            suggestions.set(word, list);
           }
           return list;
         },

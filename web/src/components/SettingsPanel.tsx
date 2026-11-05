@@ -14,6 +14,7 @@ export function SettingsPanel({
   theme,
   directory,
   dictationMode,
+  spellcheck,
   motion,
   background,
   sidebarMode,
@@ -21,6 +22,7 @@ export function SettingsPanel({
   onAgent,
   onTheme,
   onDictation,
+  onSpellcheck,
   onMotion,
   onBackground,
   onSidebar,
@@ -33,6 +35,7 @@ export function SettingsPanel({
   theme: Theme;
   directory?: string | null;
   dictationMode: "fast" | "accurate";
+  spellcheck: boolean;
   motion: "animated" | "static";
   background: SceneSetting;
   sidebarMode: "button" | "hover";
@@ -40,6 +43,7 @@ export function SettingsPanel({
   onAgent: (agent: string) => void;
   onTheme: (theme: Theme) => void;
   onDictation: (mode: "fast" | "accurate") => void;
+  onSpellcheck: (value: boolean) => void;
   onMotion: (mode: "animated" | "static") => void;
   onBackground: (mode: SceneSetting) => void;
   onSidebar: (mode: "button" | "hover") => void;
@@ -180,6 +184,18 @@ export function SettingsPanel({
             >
               <option value="fast">Fast · live text, small model</option>
               <option value="accurate">Accurate · one pass, large model</option>
+            </Select>
+          </label>
+
+          <label className="block space-y-1">
+            <span className="text-muted-foreground text-[11px]">Spelling</span>
+            <Select
+              className="w-full"
+              value={spellcheck ? "on" : "off"}
+              onChange={(event) => onSpellcheck(event.target.value === "on")}
+            >
+              <option value="on">On · Russian + English, offline</option>
+              <option value="off">Off</option>
             </Select>
           </label>
 

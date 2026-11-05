@@ -11,6 +11,7 @@ import {
   mergeRunningStates,
   modelKey,
   modelLabel,
+  quoteText,
   replyText,
   sessionRunning,
 } from "./format";
@@ -137,5 +138,9 @@ describe("format", () => {
     expect(basename("/home/ubuntu/project/")).toBe("project");
     expect(basename("/")).toBe("/");
     expect(basename(undefined)).toBe("");
+  });
+
+  it("turns a selection into a markdown quote", () => {
+    expect(quoteText("  hello\n\nworld  ")).toBe("> hello\n>\n> world");
   });
 });

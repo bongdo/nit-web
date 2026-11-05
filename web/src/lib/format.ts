@@ -91,6 +91,14 @@ export function sessionRunning(session?: Session | null): boolean {
   return !idle || busy > idle;
 }
 
+export function quoteText(text: string): string {
+  return text
+    .trim()
+    .split("\n")
+    .map((line) => (line.trim() ? `> ${line}` : ">"))
+    .join("\n");
+}
+
 export function filterSessions(sessions: Session[], query: string): Session[] {
   const q = query.trim().toLowerCase();
   if (!q) return sessions;

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CircleAlert, RefreshCw, X } from "lucide-react";
 import { api } from "./lib/api";
 import type {
@@ -17,11 +17,12 @@ import { applyEvent, normalizeMessages } from "./lib/stream";
 import {
   contextPercent,
   estimateCost,
+  filterSessions,
   mergeRunningStates,
   modelLabel,
   sessionRunning,
 } from "./lib/format";
-import { scopeSessions, type Scope } from "./lib/sessions";
+import { groupSessions, nextSessionId, scopeSessions, type Scope } from "./lib/sessions";
 import { cn } from "./lib/utils";
 import { useTheme } from "./hooks/useTheme";
 import { useEventStream } from "./hooks/useEventStream";
@@ -111,6 +112,7 @@ export default function App() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [subagents, setSubagents] = useState<Session[]>([]);
   const [composerDraft, setComposerDraft] = useState<{ text: string; id: number } | null>(null);
+  const [composerInsert, setComposerInsert] = useState<{ text: string; id: number } | null>(null);
   const [messagesLoading, setMessagesLoading] = useState(false);
   const [messageEpoch, setMessageEpoch] = useState(0);
   const [transcriptError, setTranscriptError] = useState<string | null>(null);
@@ -807,12 +809,30 @@ export default function App() {
           cycle();
           break;
         case "help":
-          setBanner("Commands: /new /dir /compact /revert /fork /retry /theme /clear /help");
+          setBanner(
+            "Commands: /new /dir /compact /revert /fork /retry /theme /clear /help · Shortcuts: Alt+N new chat, Alt+J/K next/prev chat, Ctrl/⌘K search",
+          );
           break;
       }
     },
     [compactSession, cycle, forkAt, lastUser, newChat, retryLast, revertLast],
   );
+
+  const cycleSessions = useMemo(
+    () =>
+      groupSessions(
+        filterSessions(
+          showHidden ? sessions : sessions.filter((session) => !hiddenIds.has(session.id)),
+          search,
+        ),
+      ).map((row) => row.session),
+    [hiddenIds, search, sessions, showHidden],
+  );
+
+  const quoteSelection = useCallback((text: string) => {
+    const clean = text.trim();
+    if (clean) setComposerInsert({ text: clean, id: Date.now() });
+  }, []);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -824,9 +844,17 @@ export default function App() {
         window.setTimeout(() => searchRef.current?.focus(), 0);
         return;
       }
-      if (mod && key === "n") {
+      if ((event.altKey && event.code === "KeyN") || (mod && key === "n")) {
         event.preventDefault();
         newChat();
+        return;
+      }
+      if (event.altKey && (event.code === "KeyJ" || event.code === "KeyK")) {
+        if (cycleSessions.length === 0) return;
+        event.preventDefault();
+        const step = event.code === "KeyJ" ? 1 : -1;
+        const nextId = nextSessionId(cycleSessions, selectedIdRef.current, step);
+        if (nextId) selectSession(nextId);
         return;
       }
       if (event.key === "Escape") {
@@ -838,7 +866,7 @@ export default function App() {
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [isRunning, newChat, stop]);
+  }, [cycleSessions, isRunning, newChat, selectSession, stop]);
 
   if (booting) return <BootScreen />;
 
@@ -952,6 +980,7 @@ export default function App() {
           onRetry={reloadSelected}
           onRevert={(message) => void revertAt(message)}
           onFork={(message) => void forkAt(message)}
+          onQuote={quoteSelection}
         />
 
         {forms[0] && selectedSession && (
@@ -974,6 +1003,7 @@ export default function App() {
           modelName={modelLabel(currentModel, models)}
           focusKey={selectedId}
           draft={composerDraft}
+          insert={composerInsert}
           commands={COMMANDS}
           contextPercent={shownContext}
           cost={shownCost}

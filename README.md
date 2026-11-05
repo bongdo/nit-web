@@ -160,8 +160,11 @@ OpenCode's plural resource paths are singular (`/api/session`, `/api/model`,
   A local event newer than the list request wins, so a missed idle event cannot
   leave the dot stuck.
 - Dark, light and system themes. Theme is stored in `localStorage`.
-- Shortcuts: `mod+k` search, `mod+n` new session, `mod+enter` send (in the
+- Shortcuts: `mod+k` search, `alt+n` new chat, `alt+j`/`alt+k` next/previous
+  chat in the sidebar order, `enter` send and `shift+enter` newline (in the
   composer), `esc` stop.
+  Selecting text in the transcript shows a Quote button that drops it into the
+  composer as a markdown quote.
 - Layout: persistent sidebar at 1280px and 900px, collapsible drawer on narrow
   screens; code blocks and tables scroll inside themselves, not the transcript.
 

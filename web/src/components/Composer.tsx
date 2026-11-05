@@ -3,7 +3,7 @@ import { ArrowUp, FileIcon, Loader2, Mic, Paperclip, Square, X } from "lucide-re
 import type { Session } from "../lib/types";
 import { encodeWav } from "../lib/audio";
 import { api } from "../lib/api";
-import { formatBytes, formatCost, formatTokens } from "../lib/format";
+import { formatBytes, formatCost, formatTokens, quoteText } from "../lib/format";
 import { cn } from "../lib/utils";
 import { Button } from "./ui/button";
 import { Textarea } from "./ui/textarea";
@@ -38,6 +38,7 @@ export function Composer({
   modelName,
   focusKey,
   draft,
+  insert,
   commands,
   contextPercent,
   cost,
@@ -56,6 +57,7 @@ export function Composer({
   modelName?: string;
   focusKey?: string | null;
   draft?: { text: string; id: number } | null;
+  insert?: { text: string; id: number } | null;
   commands: ComposerCommand[];
   contextPercent?: number | null;
   cost?: number;
@@ -121,6 +123,21 @@ export function Composer({
       area.setSelectionRange(area.value.length, area.value.length);
     });
   }, [draft]);
+
+  useEffect(() => {
+    if (!insert) return;
+    const quoted = quoteText(insert.text);
+    setValue((current) =>
+      current.trim() ? `${current.replace(/\s+$/, "")}\n\n${quoted}\n\n` : `${quoted}\n\n`,
+    );
+    requestAnimationFrame(() => {
+      const area = ref.current;
+      if (!area) return;
+      area.focus();
+      area.setSelectionRange(area.value.length, area.value.length);
+      area.scrollTop = area.scrollHeight;
+    });
+  }, [insert]);
 
   useEffect(() => {
     const area = ref.current;

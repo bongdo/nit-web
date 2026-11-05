@@ -4,6 +4,7 @@ import {
   CircleAlert,
   Loader2,
   MessageSquare,
+  Quote,
   Sparkles,
 } from "lucide-react";
 import type { Agent, Message, Model, Session } from "../lib/types";
@@ -38,6 +39,7 @@ export function ChatView({
   onRetry,
   onRevert,
   onFork,
+  onQuote,
 }: {
   session: Session | null;
   messages: Message[];
@@ -50,10 +52,42 @@ export function ChatView({
   onRetry: () => void;
   onRevert: (message: Message) => void;
   onFork: (message: Message) => void;
+  onQuote: (text: string) => void;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const stick = useRef(true);
   const [showJump, setShowJump] = useState(false);
+  const [quote, setQuote] = useState<{ text: string; x: number; y: number } | null>(null);
+
+  useEffect(() => {
+    const update = () => {
+      const selection = window.getSelection();
+      const text = selection?.toString().trim() ?? "";
+      const element = scrollRef.current;
+      if (
+        !text ||
+        !element ||
+        !selection?.anchorNode ||
+        !element.contains(selection.anchorNode) ||
+        selection.rangeCount === 0
+      ) {
+        setQuote(null);
+        return;
+      }
+      const rect = selection.getRangeAt(0).getBoundingClientRect();
+      if (rect.width === 0 && rect.height === 0) {
+        setQuote(null);
+        return;
+      }
+      const x = rect.left + rect.width / 2;
+      const y = rect.top;
+      setQuote((current) =>
+        current?.text === text && current.x === x && current.y === y ? current : { text, x, y },
+      );
+    };
+    document.addEventListener("selectionchange", update);
+    return () => document.removeEventListener("selectionchange", update);
+  }, []);
 
   const scrollToBottom = () => {
     const element = scrollRef.current;
@@ -169,6 +203,7 @@ export function ChatView({
             element.scrollHeight - element.scrollTop - element.clientHeight < 140;
           stick.current = nearBottom;
           setShowJump(!nearBottom);
+          setQuote(null);
         }}
       >
         <div className="mx-auto w-full max-w-3xl px-4 py-6">
@@ -217,6 +252,26 @@ export function ChatView({
             Latest
           </Button>
         </div>
+      )}
+
+      {quote && (
+        <Button
+          variant="secondary"
+          size="xs"
+          className="fixed z-50 shadow-md"
+          style={{ left: quote.x, top: quote.y - 8, transform: "translate(-50%, -100%)" }}
+          onMouseDown={(event) => event.preventDefault()}
+          onClick={() => {
+            onQuote(quote.text);
+            window.getSelection()?.removeAllRanges();
+            setQuote(null);
+          }}
+          aria-label="Quote selection"
+          title="Quote in the composer"
+        >
+          <Quote />
+          Quote
+        </Button>
       )}
     </div>
   );

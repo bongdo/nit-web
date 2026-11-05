@@ -24,6 +24,15 @@ export function HtmlPreview({
 }) {
   const ref = useRef<HTMLIFrameElement>(null);
   const [height, setHeight] = useState(200);
+  const [dark, setDark] = useState(() => document.documentElement.classList.contains("dark"));
+
+  useEffect(() => {
+    const observer = new MutationObserver(() =>
+      setDark(document.documentElement.classList.contains("dark")),
+    );
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
+    return () => observer.disconnect();
+  }, []);
 
   useEffect(() => {
     const onMessage = (event: MessageEvent) => {
@@ -39,10 +48,10 @@ export function HtmlPreview({
     return () => window.removeEventListener("message", onMessage);
   }, []);
 
-  const document = htmlDocument(source);
-  const withResize = document.includes("</body>")
-    ? document.replace("</body>", `${RESIZE}</body>`)
-    : `${document}${RESIZE}`;
+  const doc = htmlDocument(source, dark);
+  const withResize = doc.includes("</body>")
+    ? doc.replace("</body>", `${RESIZE}</body>`)
+    : `${doc}${RESIZE}`;
 
   return (
     <iframe
@@ -52,7 +61,7 @@ export function HtmlPreview({
       sandbox="allow-scripts allow-forms allow-modals"
       referrerPolicy="no-referrer"
       style={autoHeight ? { height } : undefined}
-      className={cn("w-full border-0 bg-white", className)}
+      className={cn("w-full border-0 bg-transparent", className)}
     />
   );
 }

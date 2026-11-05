@@ -267,6 +267,9 @@ export function Sidebar({
         >
           <Plus />
           New chat
+          <kbd className="border-border text-muted-foreground ml-auto rounded border px-1 font-mono text-[9px] font-normal">
+            Alt N
+          </kbd>
         </Button>
       </div>
 

@@ -30,22 +30,24 @@ export function previewableHtml(code: string, language?: string): boolean {
   return isPureHtml(code);
 }
 
-export function htmlDocument(source: string): string {
+export function htmlDocument(source: string, dark = false): string {
   const trimmed = source.trim();
   if (/^<!doctype/i.test(trimmed) || /<html[\s>]/i.test(trimmed)) {
     return source;
   }
+  const foreground = dark ? "#e4e4e7" : "#18181b";
+  const border = dark ? "#3f3f46" : "#d4d4d8";
   return `<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <style>
-  :root { color-scheme: light; }
-  body { margin: 0; padding: 16px; font: 15px/1.6 system-ui, -apple-system, "Segoe UI", sans-serif; color: #18181b; background: #fff; }
+  html, body { background: transparent; }
+  body { margin: 0; padding: 16px; font: 15px/1.6 system-ui, -apple-system, "Segoe UI", sans-serif; color: ${foreground}; }
   img { max-width: 100%; }
   table { border-collapse: collapse; }
-  th, td { border: 1px solid #d4d4d8; padding: 6px 10px; text-align: left; }
+  th, td { border: 1px solid ${border}; padding: 6px 10px; text-align: left; }
 </style>
 </head>
 <body>${source}</body>

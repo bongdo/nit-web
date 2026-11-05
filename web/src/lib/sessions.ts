@@ -21,6 +21,17 @@ export function scopeSessions(sessions: Session[], scope: Scope, agents: Agent[]
 
 export type SessionRow = { session: Session; depth: number };
 
+export function nextSessionId(
+  sessions: Session[],
+  currentId: string | null,
+  step: 1 | -1,
+): string | null {
+  if (sessions.length === 0) return null;
+  const index = sessions.findIndex((session) => session.id === currentId);
+  const start = index === -1 ? (step === 1 ? -1 : 0) : index;
+  return sessions[(start + step + sessions.length) % sessions.length]?.id ?? null;
+}
+
 export function groupSessions(sessions: Session[]): SessionRow[] {
   const ids = new Set(sessions.map((session) => session.id));
   const children = new Map<string, Session[]>();

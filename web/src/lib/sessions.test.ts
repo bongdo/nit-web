@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { groupSessions, isTechnical, scopeSessions } from "./sessions";
+import { groupSessions, isTechnical, nextSessionId, scopeSessions } from "./sessions";
 import type { Agent, Session } from "./types";
 
 const session = (overrides: Partial<Session> = {}): Session => ({
@@ -46,5 +46,15 @@ describe("sessions", () => {
       ["grandchild", 2],
       ["orphan", 0],
     ]);
+  });
+
+  it("cycles through sessions and wraps at both ends", () => {
+    const list = [session({ id: "a" }), session({ id: "b" }), session({ id: "c" })];
+    expect(nextSessionId(list, "a", 1)).toBe("b");
+    expect(nextSessionId(list, "c", 1)).toBe("a");
+    expect(nextSessionId(list, "a", -1)).toBe("c");
+    expect(nextSessionId(list, null, 1)).toBe("a");
+    expect(nextSessionId(list, null, -1)).toBe("c");
+    expect(nextSessionId([], "a", 1)).toBeNull();
   });
 });

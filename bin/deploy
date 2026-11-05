@@ -1,0 +1,61 @@
+#!/usr/bin/env bash
+set -euo pipefail
+cd "$(dirname "$0")/.."
+
+host="${NIT_GUI_DEPLOY_HOST:-nixos}"
+port="${NIT_GUI_DEPLOY_PORT:-7791}"
+remote_dir="${NIT_GUI_DEPLOY_DIR:-Projects/nit-gui}"
+
+npm --prefix web run build
+
+case "$(ssh "$host" uname -m)" in
+  x86_64) arch=amd64 ;;
+  aarch64 | arm64) arch=arm64 ;;
+  *)
+    echo "deploy: unsupported remote architecture" >&2
+    exit 1
+    ;;
+esac
+
+tmp="$(mktemp -d)"
+trap 'rm -rf "$tmp"' EXIT
+CGO_ENABLED=0 GOOS=linux GOARCH="$arch" go build -trimpath -o "$tmp/nit-gui" .
+scp -q "$tmp/nit-gui" "$host:$remote_dir/nit-gui.new"
+
+ssh "$host" bash -s -- "$remote_dir" "$port" <<'REMOTE'
+set -euo pipefail
+dir="$HOME/$1"
+port="$2"
+cd "$dir"
+
+mv -f nit-gui.new nit-gui
+chmod +x nit-gui
+
+pids="$(pgrep -f "^$dir/nit-gui --addr 127.0.0.1:$port$" || true)"
+if [ -n "$pids" ]; then
+  kill $pids 2>/dev/null || true
+  for _ in $(seq 1 20); do
+    alive=0
+    for pid in $pids; do
+      if kill -0 "$pid" 2>/dev/null; then alive=1; fi
+    done
+    [ "$alive" = 0 ] && break
+    sleep 0.1
+  done
+fi
+
+setsid ./run --addr "127.0.0.1:$port" >nit-gui.log 2>&1 < /dev/null &
+
+for _ in $(seq 1 40); do
+  if curl -fsS "http://127.0.0.1:$port/api/health" >/dev/null 2>&1; then
+    exit 0
+  fi
+  sleep 0.2
+done
+
+echo "deploy: health check failed" >&2
+tail -20 nit-gui.log >&2 || true
+exit 1
+REMOTE
+
+echo "deploy: http://127.0.0.1:$port/"

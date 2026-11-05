@@ -20,19 +20,19 @@ function duration(session: Session): string {
 }
 
 export function SubagentBar({
-  children,
+  sessions,
   parent,
   onOpen,
   onBack,
 }: {
-  children: Session[];
+  sessions: Session[];
   parent?: Session | null;
   onOpen: (session: Session) => void;
   onBack?: () => void;
 }) {
   const [open, setOpen] = useState(false);
-  const active = children.filter((session) => sessionRunning(session)).length;
-  const sorted = [...children].sort((a, b) => {
+  const active = sessions.filter((session) => sessionRunning(session)).length;
+  const sorted = [...sessions].sort((a, b) => {
     const running = Number(sessionRunning(b)) - Number(sessionRunning(a));
     return running || b.time.updated - a.time.updated;
   });
@@ -51,7 +51,7 @@ export function SubagentBar({
     );
   }
 
-  if (children.length === 0) return null;
+  if (sessions.length === 0) return null;
 
   return (
     <div className="border-border bg-card/40 relative flex items-center gap-2 border-b px-4 py-1.5 text-[11px]">
@@ -62,7 +62,7 @@ export function SubagentBar({
         aria-expanded={open}
       >
         <GitBranch className="text-muted-foreground size-3.5" />
-        <span className="font-medium">{children.length} subagents</span>
+        <span className="font-medium">{sessions.length} subagents</span>
         {active > 0 && (
           <span className="inline-flex items-center gap-1 text-emerald-500">
             <Loader2 className="size-3 animate-spin" />

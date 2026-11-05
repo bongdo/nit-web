@@ -31,7 +31,7 @@ cd "$dir"
 mv -f nit-gui.new nit-gui
 chmod +x nit-gui
 
-pids="$(pgrep -f "^$dir/nit-gui --addr 127.0.0.1:$port$" || true)"
+pids="$(pgrep -f "nit-gui --addr 127.0.0.1:$port$" || true)"
 if [ -n "$pids" ]; then
   kill $pids 2>/dev/null || true
   for _ in $(seq 1 20); do

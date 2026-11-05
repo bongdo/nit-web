@@ -48,6 +48,25 @@ The sidebar has three scopes:
 `New chat` does not create a session. The session is created in the current
 workspace on the first Send, so an empty draft never appears in the list.
 
+## Composer and message actions
+
+- The textarea grows to 200 px and then scrolls inside itself.
+- `/` opens the command palette: `/new`, `/dir`, `/compact`, `/revert`, `/fork`,
+  `/retry`, `/theme`, `/clear`, `/help`. Commands run in the client; they are
+  never sent to the model.
+- Attach files with the paperclip, clipboard paste or drag and drop. The file is
+  written to the OpenCode host through `/api/experimental/fs/write` and attached
+  as `files: [{uri, name}]` on the next prompt. Images get a local thumbnail.
+- The microphone records 16 kHz mono WAV in the browser and sends it to
+  `/api/stt`; the transcript is appended to the existing input. It never sends
+  and never clears what you typed. Transcription happens when you stop, not as
+  a live stream.
+- Hover a user message for Copy, Revert and Fork. Revert commits the revert and
+  puts the message text back into the composer; Fork opens a new session before
+  that message. The composer also has a fast `Undo` button for the last prompt.
+- The chat header shows `N subagents` with active and finished children; click
+  one to open its transcript and `Back to parent` to return.
+
 ## Discovery and environment
 
 The backend finds the same service the `nit` TUI uses:
@@ -82,8 +101,14 @@ The browser only talks to these same-origin endpoints:
 | `GET /api/sessions?dir=&children=true` | Newest sessions; `children=true` includes subagent sessions. |
 | `POST /api/sessions` | Create `{directory, title?, agent?, model?}`. |
 | `GET /api/sessions/{id}/messages` | Full transcript, ascending, paginated upstream, redacted. |
-| `POST /api/sessions/{id}/prompt` | Send `{text}`. |
+| `GET /api/sessions/{id}/children` | Subagent sessions with this parent. |
+| `POST /api/sessions/{id}/prompt` | Send `{text, files?}`. |
 | `POST /api/sessions/{id}/interrupt` | Stop the active execution. |
+| `POST /api/sessions/{id}/revert` | Stage and commit a revert at `{messageID}`. |
+| `POST /api/sessions/{id}/fork` | Fork before `{before?}`. |
+| `POST /api/sessions/{id}/compact` | Compact the context. |
+| `POST /api/upload?dir=&name=` | Raw file body, written through OpenCode `/api/experimental/fs/write`. |
+| `POST /api/stt` | Raw 16 kHz mono WAV, transcribed by `whisper-cli`. |
 | `POST /api/sessions/{id}/model` | Switch model `{model: {id, providerID, variant?}}`. |
 | `POST /api/sessions/{id}/agent` | Switch agent `{agent}`. |
 | `GET /api/models`, `GET /api/agents` | Pickers. |
@@ -104,9 +129,10 @@ OpenCode's plural resource paths are singular (`/api/session`, `/api/model`,
   response stays valid JSON; SSE framing is preserved.
 - `Host` is restricted to `localhost`, `127.0.0.1` and `::1`, case-insensitively.
   Cross-origin `POST` requests are rejected by checking `Origin` when present.
-- JSON request bodies are capped at 1 MiB. Upstream JSON responses are capped at
-  64 MiB. API requests have a 20 second upstream timeout; the event stream is
-  exempt and is cancelled when the browser disconnects.
+- JSON request bodies are capped at 1 MiB, uploads at 25 MiB and audio at 30 MiB.
+  Upstream JSON responses are capped at 64 MiB. API requests have a 20 second
+  upstream timeout; the event stream is exempt and is cancelled when the browser
+  disconnects.
 - Markdown is rendered by `react-markdown` without raw-HTML rehype. Model text,
   tool output and markdown elements are inserted as DOM text and elements, not as
   raw HTML. Raw HTML is never injected into the app DOM: an HTML-looking message,
@@ -173,8 +199,13 @@ shadcn/ui primitives are local source files (`Button`, `Input`, `Textarea`,
   client-side.
 - A transcript is assembled from at most 20 upstream pages (100 messages each).
   Longer sessions are truncated at 2000 messages.
-- No file attachments, permission prompt UI, session deletion, forking, shell
-  panel, PTY or VCS panel. The brief puts those out of scope.
+- No permission prompt UI, form/question UI, session deletion, shell panel, PTY
+  or VCS panel yet.
+- Dictation is transcribe-on-stop, not a live stream. It needs `whisper-cli` and
+  `~/.local/share/whisper/ggml-large-v3-turbo-q5_0.bin` on the host that runs
+  nit-gui; override with `NIT_GUI_WHISPER`, `NIT_GUI_WHISPER_MODEL` and
+  `NIT_GUI_STT_LANG`.
+- Uploaded files live under `/tmp` on the OpenCode host. Nothing cleans them up.
 - No syntax highlighting in code blocks; copy and HTML preview are implemented.
 - The HTML preview is a fixed-height iframe, not a full-window renderer.
 - One browser origin only; there is no authentication in front of the GUI

@@ -86,6 +86,17 @@ export function Composer({
     if (focusKey) ref.current?.focus();
   }, [focusKey]);
 
+  useEffect(
+    () => () => {
+      const state = audio.current;
+      if (!state) return;
+      window.clearInterval(state.timer);
+      for (const track of state.stream.getTracks()) track.stop();
+      void state.context.close().catch(() => undefined);
+    },
+    [],
+  );
+
   useEffect(() => {
     if (!draft) return;
     setValue(draft.text);

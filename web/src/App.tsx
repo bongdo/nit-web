@@ -139,7 +139,15 @@ export default function App() {
     try {
       const list = await api.sessions(scopedDirectory ?? undefined, scopeRef.current === "all");
       const data = scopeSessions(list.data, scopeRef.current, agentsRef.current);
-      setSessions(data);
+      setSessions((previous) => {
+        const keep = previous.find(
+          (item) =>
+            item.id === selectedIdRef.current &&
+            item.parentID &&
+            !data.some((session) => session.id === item.id),
+        );
+        return keep ? [keep, ...data] : data;
+      });
       setRunningIds((previous) =>
         mergeRunningStates(previous, data, runningEventsAt.current, requestedAt),
       );
@@ -774,7 +782,13 @@ export default function App() {
           models={models}
           agents={agents}
           workspace={workspace}
+          subagents={subagents}
+          parent={parentSession}
           onRetry={reloadSelected}
+          onOpenSubagent={openSubagent}
+          onBack={backToParent}
+          onRevert={(message) => void revertAt(message)}
+          onFork={(message) => void forkAt(message)}
         />
 
         <Composer
@@ -784,8 +798,14 @@ export default function App() {
           running={running}
           modelName={modelLabel(currentModel, models)}
           focusKey={selectedId}
+          draft={composerDraft}
+          commands={COMMANDS}
+          canUndo={Boolean(lastUser) && !runningNow}
           onSend={send}
           onStop={() => void stop()}
+          onCommand={runCommand}
+          onRevertLast={revertLast}
+          onError={(message) => setBanner(message)}
         />
       </main>
 

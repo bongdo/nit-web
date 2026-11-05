@@ -9,6 +9,8 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -134,6 +136,118 @@ func TestSessionsChildren(t *testing.T) {
 	}
 	if !strings.Contains(rec.Body.String(), `"parentID":"ses_1"`) {
 		t.Fatalf("unexpected body: %s", rec.Body)
+	}
+}
+
+func TestChildrenProxy(t *testing.T) {
+	upstream := httptest.NewServer(auth(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Query().Get("parentID") != "ses_parent" {
+			t.Errorf("parentID = %q", r.URL.Query().Get("parentID"))
+		}
+		fmt.Fprint(w, `{"data":[{"id":"ses_child","parentID":"ses_parent"}]}`)
+	}))
+	defer upstream.Close()
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "http://127.0.0.1:7788/api/sessions/ses_parent/children", nil)
+	newHandler(t, upstream.URL).ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), "ses_child") {
+		t.Fatalf("status = %d: %s", rec.Code, rec.Body)
+	}
+}
+
+func TestUploadProxy(t *testing.T) {
+	upstream := httptest.NewServer(auth(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/experimental/fs/write" {
+			t.Errorf("path = %s", r.URL.Path)
+		}
+		if r.URL.Query().Get("location[directory]") != "/home/ubuntu" {
+			t.Errorf("directory = %q", r.URL.Query().Get("location[directory]"))
+		}
+		if !strings.Contains(r.URL.Query().Get("path"), "shot.png") {
+			t.Errorf("path = %q", r.URL.Query().Get("path"))
+		}
+		body, _ := io.ReadAll(r.Body)
+		if string(body) != "hello" {
+			t.Errorf("body = %q", body)
+		}
+		fmt.Fprint(w, `{"data":{"path":"/tmp/saved-shot.png"}}`)
+	}))
+	defer upstream.Close()
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost,
+		"http://127.0.0.1:7788/api/upload?dir=/home/ubuntu&name=shot.png",
+		strings.NewReader("hello"))
+	newHandler(t, upstream.URL).ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), "/tmp/saved-shot.png") {
+		t.Fatalf("status = %d: %s", rec.Code, rec.Body)
+	}
+}
+
+func TestPromptFiles(t *testing.T) {
+	upstream := httptest.NewServer(auth(func(w http.ResponseWriter, r *http.Request) {
+		var body struct {
+			Text  string `json:"text"`
+			Files []struct {
+				URI string `json:"uri"`
+			} `json:"files"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Fatal(err)
+		}
+		if body.Text != "look" || len(body.Files) != 1 || body.Files[0].URI != "file:///tmp/a.png" {
+			t.Errorf("body = %+v", body)
+		}
+		fmt.Fprint(w, `{"data":{"id":"msg_1"}}`)
+	}))
+	defer upstream.Close()
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "http://127.0.0.1:7788/api/sessions/ses_1/prompt",
+		strings.NewReader(`{"text":"look","files":[{"uri":"file:///tmp/a.png","name":"a.png"}]}`))
+	req.Header.Set("Content-Type", "application/json")
+	newHandler(t, upstream.URL).ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d: %s", rec.Code, rec.Body)
+	}
+}
+
+func TestRevertStagesAndCommits(t *testing.T) {
+	var calls []string
+	upstream := httptest.NewServer(auth(func(w http.ResponseWriter, r *http.Request) {
+		calls = append(calls, r.URL.Path)
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer upstream.Close()
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "http://127.0.0.1:7788/api/sessions/ses_1/revert",
+		strings.NewReader(`{"messageID":"msg_1"}`))
+	req.Header.Set("Content-Type", "application/json")
+	newHandler(t, upstream.URL).ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d: %s", rec.Code, rec.Body)
+	}
+	want := []string{"/api/session/ses_1/revert/stage", "/api/session/ses_1/revert/commit"}
+	if fmt.Sprint(calls) != fmt.Sprint(want) {
+		t.Fatalf("calls = %v", calls)
+	}
+}
+
+func TestSTT(t *testing.T) {
+	script := filepath.Join(t.TempDir(), "whisper")
+	if err := os.WriteFile(script, []byte("#!/bin/sh\necho hello world\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("NIT_GUI_WHISPER", script)
+	t.Setenv("NIT_GUI_WHISPER_MODEL", script)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "http://127.0.0.1:7788/api/stt", strings.NewReader("RIFF"))
+	newHandler(t, "http://127.0.0.1:1").ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), "hello world") {
+		t.Fatalf("status = %d: %s", rec.Code, rec.Body)
 	}
 }
 

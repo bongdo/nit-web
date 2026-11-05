@@ -121,7 +121,7 @@ export function ChatView({
   return (
     <div className="relative flex min-h-0 flex-1 flex-col">
       <SubagentBar
-        children={subagents}
+        sessions={subagents}
         parent={parent}
         onOpen={onOpenSubagent}
         onBack={onBack}

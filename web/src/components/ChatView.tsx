@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import {
   ArrowDown,
   CircleAlert,
@@ -62,8 +62,32 @@ export function ChatView({
   const scrollRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const stick = useRef(true);
+  const scrollFrame = useRef<number | null>(null);
   const [showJump, setShowJump] = useState(false);
   const [quote, setQuote] = useState<{ text: string; x: number; y: number } | null>(null);
+
+  const scrollToBottom = useCallback(() => {
+    const element = scrollRef.current;
+    if (!element) return;
+    element.scrollTop = element.scrollHeight;
+    stick.current = true;
+    setShowJump(false);
+  }, []);
+
+  const scheduleScroll = useCallback(() => {
+    if (scrollFrame.current !== null) return;
+    scrollFrame.current = requestAnimationFrame(() => {
+      scrollFrame.current = null;
+      scrollToBottom();
+    });
+  }, [scrollToBottom]);
+
+  useEffect(
+    () => () => {
+      if (scrollFrame.current !== null) cancelAnimationFrame(scrollFrame.current);
+    },
+    [],
+  );
 
   useEffect(() => {
     const update = () => {
@@ -95,32 +119,20 @@ export function ChatView({
     return () => document.removeEventListener("selectionchange", update);
   }, []);
 
-  const scrollToBottom = () => {
-    const element = scrollRef.current;
-    if (!element) return;
-    element.scrollTop = element.scrollHeight;
-    stick.current = true;
-    setShowJump(false);
-  };
-
   useEffect(() => {
     stick.current = true;
-    const frame = requestAnimationFrame(scrollToBottom);
-    return () => cancelAnimationFrame(frame);
+    scheduleScroll();
   }, [session?.id]);
 
   useEffect(() => {
-    if (stick.current) {
-      const frame = requestAnimationFrame(scrollToBottom);
-      return () => cancelAnimationFrame(frame);
-    }
+    if (stick.current) scheduleScroll();
   }, [messages, running]);
 
   useEffect(() => {
     const element = scrollRef.current;
     if (!element || typeof ResizeObserver === "undefined") return;
     const observer = new ResizeObserver(() => {
-      if (stick.current) scrollToBottom();
+      if (stick.current) scheduleScroll();
     });
     observer.observe(element);
     return () => observer.disconnect();
@@ -130,7 +142,7 @@ export function ChatView({
     const element = contentRef.current;
     if (!element || typeof ResizeObserver === "undefined") return;
     const observer = new ResizeObserver(() => {
-      if (stick.current) scrollToBottom();
+      if (stick.current) scheduleScroll();
     });
     observer.observe(element);
     return () => observer.disconnect();

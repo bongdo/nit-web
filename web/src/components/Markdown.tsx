@@ -1,3 +1,4 @@
+import { memo } from "react";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { CodeBlock } from "./CodeBlock";
@@ -40,7 +41,13 @@ const components: Components = {
   },
 };
 
-export function Markdown({ text, className }: { text: string; className?: string }) {
+export const Markdown = memo(function Markdown({
+  text,
+  className,
+}: {
+  text: string;
+  className?: string;
+}) {
   return (
     <div className={cn("markdown", className)}>
       <ReactMarkdown remarkPlugins={[remarkGfm]} components={components}>
@@ -48,4 +55,4 @@ export function Markdown({ text, className }: { text: string; className?: string
       </ReactMarkdown>
     </div>
   );
-}
+});

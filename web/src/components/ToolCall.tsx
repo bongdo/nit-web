@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { memo, useState } from "react";
 import {
   AlertCircle,
   Check,
@@ -67,7 +67,7 @@ function ContentItem({ content }: { content: ToolContent }) {
   return <span className="whitespace-pre-wrap">{content.text ?? source ?? ""}</span>;
 }
 
-export function ToolCall({ part }: { part: ToolPart }) {
+export const ToolCall = memo(function ToolCall({ part }: { part: ToolPart }) {
   const [open, setOpen] = useState(false);
   const summary = summarize(part.state.input);
   const status = part.state.status;
@@ -117,4 +117,4 @@ export function ToolCall({ part }: { part: ToolPart }) {
       </div>
     </details>
   );
-}
+});

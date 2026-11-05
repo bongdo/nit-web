@@ -47,6 +47,17 @@ function saveHidden(ids: Set<string>) {
   localStorage.setItem("nit-gui.hidden", JSON.stringify([...ids]));
 }
 
+function isMessageStreamEvent(type: string): boolean {
+  return (
+    type.startsWith("session.text.") ||
+    type.startsWith("session.reasoning.") ||
+    type.startsWith("session.tool.") ||
+    type === "session.step.started" ||
+    type === "session.step.ended" ||
+    type === "session.step.failed"
+  );
+}
+
 function BottomDock({ children }: { children: ReactNode }) {
   const ref = useRef<HTMLDivElement>(null);
 
@@ -191,6 +202,8 @@ export default function App() {
   const lastEscapeAt = useRef(0);
   const skipLoadRef = useRef<string | null>(null);
   const lastQueryRef = useRef(`${scope}|${workspace}`);
+  const streamQueue = useRef<StreamEvent[]>([]);
+  const streamFrame = useRef<number | null>(null);
 
   const sessionsRef = useRef(sessions);
   sessionsRef.current = sessions;
@@ -222,6 +235,23 @@ export default function App() {
     .reverse()
     .find((message) => message.type === "assistant" && message.tokens)?.tokens;
   const shownContext = contextPercent(lastAssistantTokens, modelInfo);
+
+  const flushStream = useCallback(() => {
+    if (streamFrame.current !== null) {
+      cancelAnimationFrame(streamFrame.current);
+      streamFrame.current = null;
+    }
+    const events = streamQueue.current;
+    streamQueue.current = [];
+    if (events.length === 0) return;
+    const current = selectedIdRef.current;
+    setMessages((previous) =>
+      events.reduce(
+        (next, event) => (str(event.data?.sessionID) === current ? applyEvent(next, event) : next),
+        previous,
+      ),
+    );
+  }, []);
 
   const loadHealth = useCallback(async () => {
     try {

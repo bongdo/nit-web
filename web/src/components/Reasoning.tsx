@@ -1,7 +1,14 @@
+import { memo } from "react";
 import { Brain, ChevronRight } from "lucide-react";
 import type { ReasoningPart } from "../lib/types";
 
-export function Reasoning({ part, streaming }: { part: ReasoningPart; streaming?: boolean }) {
+export const Reasoning = memo(function Reasoning({
+  part,
+  streaming,
+}: {
+  part: ReasoningPart;
+  streaming?: boolean;
+}) {
   return (
     <details className="group my-2">
       <summary className="text-muted-foreground hover:text-foreground inline-flex cursor-pointer list-none items-center gap-1.5 text-xs transition-colors [&::-webkit-details-marker]:hidden">
@@ -14,4 +21,4 @@ export function Reasoning({ part, streaming }: { part: ReasoningPart; streaming?
       </div>
     </details>
   );
-}
+});

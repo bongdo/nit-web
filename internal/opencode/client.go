@@ -142,6 +142,55 @@ func (c *Client) Do(ctx context.Context, method, path string, body, out any) err
 	return json.Unmarshal(raw, out)
 }
 
+func (c *Client) WriteFile(ctx context.Context, dir, path string, data []byte) (string, error) {
+	q := url.Values{}
+	q.Set("path", path)
+	if dir != "" {
+		q.Set("location[directory]", dir)
+	}
+	target := c.BaseURL + "/api/experimental/fs/write?" + q.Encode()
+
+	send := func() (*http.Response, error) {
+		req, err := http.NewRequestWithContext(ctx, http.MethodPost, target, bytes.NewReader(data))
+		if err != nil {
+			return nil, err
+		}
+		req.SetBasicAuth("opencode", c.password())
+		req.Header.Set("Content-Type", "application/octet-stream")
+		req.Header.Set("Accept", "application/json")
+		return c.HTTP.Do(req)
+	}
+
+	resp, err := send()
+	if err != nil {
+		return "", err
+	}
+	if resp.StatusCode == http.StatusUnauthorized && c.refreshPassword() {
+		resp.Body.Close()
+		resp, err = send()
+		if err != nil {
+			return "", err
+		}
+	}
+	defer resp.Body.Close()
+	raw, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	if err != nil {
+		return "", err
+	}
+	if resp.StatusCode >= 400 {
+		return "", &HTTPError{Status: resp.StatusCode, Body: c.redact(raw)}
+	}
+	var out struct {
+		Data struct {
+			Path string `json:"path"`
+		} `json:"data"`
+	}
+	if json.Unmarshal(raw, &out) != nil || out.Data.Path == "" {
+		return path, nil
+	}
+	return out.Data.Path, nil
+}
+
 func (c *Client) Stream(ctx context.Context, path string) (*http.Response, error) {
 	req, err := c.newRequest(ctx, http.MethodGet, path, nil)
 	if err != nil {

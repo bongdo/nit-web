@@ -13,6 +13,8 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
@@ -50,8 +52,14 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("GET /api/sessions", s.sessions)
 	s.mux.HandleFunc("POST /api/sessions", s.createSession)
 	s.mux.HandleFunc("GET /api/sessions/{id}/messages", s.messages)
+	s.mux.HandleFunc("GET /api/sessions/{id}/children", s.children)
 	s.mux.HandleFunc("POST /api/sessions/{id}/prompt", s.prompt)
 	s.mux.HandleFunc("POST /api/sessions/{id}/interrupt", s.interrupt)
+	s.mux.HandleFunc("POST /api/sessions/{id}/revert", s.revert)
+	s.mux.HandleFunc("POST /api/sessions/{id}/fork", s.fork)
+	s.mux.HandleFunc("POST /api/sessions/{id}/compact", s.compact)
+	s.mux.HandleFunc("POST /api/stt", s.stt)
+	s.mux.HandleFunc("POST /api/upload", s.upload)
 	s.mux.HandleFunc("POST /api/sessions/{id}/model", s.switchModel)
 	s.mux.HandleFunc("POST /api/sessions/{id}/agent", s.switchAgent)
 	s.mux.HandleFunc("GET /api/models", s.models)
@@ -261,8 +269,38 @@ func (s *Server) messages(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"data": data})
 }
 
+func (s *Server) children(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	if !validID(id) {
+		writeError(w, http.StatusBadRequest, "invalid session id")
+		return
+	}
+	c, ok := s.client(r.Context())
+	if !ok {
+		writeError(w, http.StatusServiceUnavailable, "opencode service not found")
+		return
+	}
+	q := url.Values{}
+	q.Set("limit", "100")
+	q.Set("order", "desc")
+	q.Set("archived", "false")
+	q.Set("parentID", id)
+	var raw json.RawMessage
+	if err := c.Do(r.Context(), http.MethodGet, "/api/session?"+q.Encode(), nil, &raw); err != nil {
+		s.upstreamError(w, err)
+		return
+	}
+	writeRaw(w, raw, c.Redactor())
+}
+
+type promptFile struct {
+	URI  string `json:"uri"`
+	Name string `json:"name,omitempty"`
+}
+
 type promptInput struct {
-	Text string `json:"text"`
+	Text  string       `json:"text"`
+	Files []promptFile `json:"files,omitempty"`
 }
 
 func (s *Server) prompt(w http.ResponseWriter, r *http.Request) {
@@ -280,13 +318,23 @@ func (s *Server) prompt(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "text is required")
 		return
 	}
+	for _, file := range in.Files {
+		if !strings.HasPrefix(file.URI, "file://") {
+			writeError(w, http.StatusBadRequest, "only file:// attachments are supported")
+			return
+		}
+	}
 	c, ok := s.client(r.Context())
 	if !ok {
 		writeError(w, http.StatusServiceUnavailable, "opencode service not found")
 		return
 	}
+	body := map[string]any{"text": in.Text}
+	if len(in.Files) > 0 {
+		body["files"] = in.Files
+	}
 	var raw json.RawMessage
-	if err := c.Do(r.Context(), http.MethodPost, "/api/session/"+url.PathEscape(id)+"/prompt", map[string]string{"text": in.Text}, &raw); err != nil {
+	if err := c.Do(r.Context(), http.MethodPost, "/api/session/"+url.PathEscape(id)+"/prompt", body, &raw); err != nil {
 		s.upstreamError(w, err)
 		return
 	}
@@ -310,6 +358,88 @@ func (s *Server) interrupt(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeRaw(w, raw, c.Redactor())
+}
+
+func (s *Server) revert(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	if !validID(id) {
+		writeError(w, http.StatusBadRequest, "invalid session id")
+		return
+	}
+	in, err := decodeJSON[struct {
+		MessageID string `json:"messageID"`
+	}](w, r)
+	if err != nil {
+		writeDecodeError(w, err)
+		return
+	}
+	if in.MessageID == "" {
+		writeError(w, http.StatusBadRequest, "messageID is required")
+		return
+	}
+	c, ok := s.client(r.Context())
+	if !ok {
+		writeError(w, http.StatusServiceUnavailable, "opencode service not found")
+		return
+	}
+	path := "/api/session/" + url.PathEscape(id) + "/revert"
+	if err := c.Do(r.Context(), http.MethodPost, path+"/stage", map[string]any{"messageID": in.MessageID}, nil); err != nil {
+		s.upstreamError(w, err)
+		return
+	}
+	if err := c.Do(r.Context(), http.MethodPost, path+"/commit", map[string]any{}, nil); err != nil {
+		s.upstreamError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
+}
+
+func (s *Server) fork(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	if !validID(id) {
+		writeError(w, http.StatusBadRequest, "invalid session id")
+		return
+	}
+	in, err := decodeJSON[struct {
+		Before string `json:"before"`
+	}](w, r)
+	if err != nil {
+		writeDecodeError(w, err)
+		return
+	}
+	c, ok := s.client(r.Context())
+	if !ok {
+		writeError(w, http.StatusServiceUnavailable, "opencode service not found")
+		return
+	}
+	body := map[string]any{}
+	if in.Before != "" {
+		body["before"] = in.Before
+	}
+	var raw json.RawMessage
+	if err := c.Do(r.Context(), http.MethodPost, "/api/session/"+url.PathEscape(id)+"/fork", body, &raw); err != nil {
+		s.upstreamError(w, err)
+		return
+	}
+	writeRaw(w, raw, c.Redactor())
+}
+
+func (s *Server) compact(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	if !validID(id) {
+		writeError(w, http.StatusBadRequest, "invalid session id")
+		return
+	}
+	c, ok := s.client(r.Context())
+	if !ok {
+		writeError(w, http.StatusServiceUnavailable, "opencode service not found")
+		return
+	}
+	if err := c.Do(r.Context(), http.MethodPost, "/api/session/"+url.PathEscape(id)+"/compact", map[string]any{}, nil); err != nil {
+		s.upstreamError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 }
 
 func (s *Server) switchModel(w http.ResponseWriter, r *http.Request) {
@@ -450,6 +580,135 @@ func (s *Server) agents(w http.ResponseWriter, r *http.Request) {
 		env.Data = []agentOut{}
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"data": env.Data})
+}
+
+const (
+	maxUploadBody = 25 << 20
+	maxSTTBody    = 30 << 20
+)
+
+func (s *Server) upload(w http.ResponseWriter, r *http.Request) {
+	dir := strings.TrimSpace(r.URL.Query().Get("dir"))
+	if dir != "" && !filepath.IsAbs(dir) {
+		writeError(w, http.StatusBadRequest, "dir must be absolute")
+		return
+	}
+	name := filepath.Base(strings.TrimSpace(r.URL.Query().Get("name")))
+	if name == "" || name == "." || name == "/" {
+		name = "file"
+	}
+	data, err := io.ReadAll(io.LimitReader(r.Body, maxUploadBody+1))
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "could not read upload")
+		return
+	}
+	if len(data) == 0 {
+		writeError(w, http.StatusBadRequest, "upload is empty")
+		return
+	}
+	if len(data) > maxUploadBody {
+		writeError(w, http.StatusRequestEntityTooLarge, "upload is too large")
+		return
+	}
+	c, ok := s.client(r.Context())
+	if !ok {
+		writeError(w, http.StatusServiceUnavailable, "opencode service not found")
+		return
+	}
+	path := filepath.Join(os.TempDir(), fmt.Sprintf("nit-gui-%d-%s", time.Now().UnixNano(), name))
+	saved, err := c.WriteFile(r.Context(), dir, path, data)
+	if err != nil {
+		s.upstreamError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"path": saved, "name": name, "size": len(data)})
+}
+
+func (s *Server) stt(w http.ResponseWriter, r *http.Request) {
+	data, err := io.ReadAll(io.LimitReader(r.Body, maxSTTBody+1))
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "could not read audio")
+		return
+	}
+	if len(data) == 0 {
+		writeError(w, http.StatusBadRequest, "audio is empty")
+		return
+	}
+	if len(data) > maxSTTBody {
+		writeError(w, http.StatusRequestEntityTooLarge, "audio is too large")
+		return
+	}
+	text, err := transcribe(r.Context(), data)
+	if err != nil {
+		writeError(w, http.StatusServiceUnavailable, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"text": text})
+}
+
+func transcribe(ctx context.Context, data []byte) (string, error) {
+	file, err := os.CreateTemp("", "nit-gui-stt-*.wav")
+	if err != nil {
+		return "", err
+	}
+	path := file.Name()
+	defer os.Remove(path)
+	if _, err := file.Write(data); err != nil {
+		file.Close()
+		return "", err
+	}
+	if err := file.Close(); err != nil {
+		return "", err
+	}
+	bin := strings.TrimSpace(os.Getenv("NIT_GUI_WHISPER"))
+	if bin == "" {
+		bin, err = exec.LookPath("whisper-cli")
+		if err != nil {
+			return "", fmt.Errorf("whisper-cli not found on the nit-gui host")
+		}
+	}
+	model := strings.TrimSpace(os.Getenv("NIT_GUI_WHISPER_MODEL"))
+	if model == "" {
+		home, _ := os.UserHomeDir()
+		model = filepath.Join(home, ".local/share/whisper/ggml-large-v3-turbo-q5_0.bin")
+	}
+	if _, err := os.Stat(model); err != nil {
+		return "", fmt.Errorf("whisper model not found: %s", model)
+	}
+	lang := strings.TrimSpace(os.Getenv("NIT_GUI_STT_LANG"))
+	if lang == "" {
+		lang = "ru"
+	}
+	runCtx, cancel := context.WithTimeout(ctx, 3*time.Minute)
+	defer cancel()
+	cmd := exec.CommandContext(runCtx, bin, "-m", model, "-l", lang, "-nt", "-f", path)
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+	if err := cmd.Run(); err != nil {
+		message := strings.TrimSpace(stderr.String())
+		if message == "" {
+			message = err.Error()
+		}
+		return "", fmt.Errorf("whisper: %s", message)
+	}
+	return parseTranscription(stdout.String()), nil
+}
+
+func parseTranscription(out string) string {
+	lines := make([]string, 0, 8)
+	for _, line := range strings.Split(out, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "[") || strings.HasPrefix(line, "(") {
+			continue
+		}
+		if strings.HasPrefix(line, "whisper_") || strings.HasPrefix(line, "system_info") ||
+			strings.HasPrefix(line, "main:") || strings.HasPrefix(line, "ggml_") {
+			continue
+		}
+		lines = append(lines, line)
+	}
+	return strings.TrimSpace(strings.Join(lines, " "))
 }
 
 func (s *Server) config(w http.ResponseWriter, r *http.Request) {

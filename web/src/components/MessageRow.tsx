@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { useState } from "react";
-import { Bot, Check, CircleAlert, Copy, Terminal } from "lucide-react";
+import { Bot, Check, CircleAlert, Copy, GitFork, Terminal, Undo2 } from "lucide-react";
 import type { Agent, Message, Model } from "../lib/types";
 import { copyText } from "../lib/clipboard";
 import { isPureHtml, looksLikeHtml } from "../lib/html";
@@ -25,21 +25,60 @@ export function MessageRow({
   models,
   agents,
   streaming,
+  actionsDisabled,
+  onRevert,
+  onFork,
 }: {
   message: Message;
   models: Model[];
   agents: Agent[];
   streaming: boolean;
+  actionsDisabled?: boolean;
+  onRevert: (message: Message) => void;
+  onFork: (message: Message) => void;
 }) {
   const [copied, setCopied] = useState(false);
 
   if (message.type === "user") {
     return (
-      <div className="flex justify-end px-1 py-2">
-        <div className="bg-secondary max-w-[85%] rounded-2xl rounded-br-sm px-4 py-2.5">
-          <Markdown text={message.text ?? ""} />
-          <div className="text-muted-foreground mt-1 text-right text-[10px]">
-            {timeLabel(message.time.created)}
+      <div className="group flex justify-end px-1 py-2">
+        <div className="max-w-[85%]">
+          <div className="bg-secondary rounded-2xl rounded-br-sm px-4 py-2.5">
+            <Markdown text={message.text ?? ""} />
+            <div className="text-muted-foreground mt-1 text-right text-[10px]">
+              {timeLabel(message.time.created)}
+            </div>
+          </div>
+          <div className="mt-1 flex justify-end gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
+            <Button
+              variant="ghost"
+              size="icon-xs"
+              title="Copy message"
+              aria-label="Copy message"
+              onClick={() => void copyText(message.text ?? "")}
+            >
+              <Copy />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon-xs"
+              title="Revert and edit this message"
+              aria-label="Revert and edit this message"
+              disabled={actionsDisabled}
+              onClick={() => onRevert(message)}
+            >
+              <Undo2 />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon-xs"
+              title="Fork before this message"
+              aria-label="Fork before this message"
+              disabled={actionsDisabled}
+              onClick={() => onFork(message)}
+            >
+              <GitFork />
+            </Button>
           </div>
         </div>
       </div>
@@ -132,6 +171,28 @@ export function MessageRow({
             {copied ? "Copied" : "Copy"}
           </Button>
         )}
+        <Button
+          variant="ghost"
+          size="icon-xs"
+          className="text-muted-foreground shrink-0"
+          onClick={() => onRevert(message)}
+          disabled={actionsDisabled}
+          title="Revert to the prompt that produced this reply"
+          aria-label="Revert to the prompt"
+        >
+          <Undo2 />
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon-xs"
+          className="text-muted-foreground shrink-0"
+          onClick={() => onFork(message)}
+          disabled={actionsDisabled}
+          title="Fork before this reply"
+          aria-label="Fork before this reply"
+        >
+          <GitFork />
+        </Button>
         <span className="text-muted-foreground ml-auto shrink-0 text-[10px]">
           {streaming ? "streaming" : timeLabel(message.time.created)}
         </span>

@@ -109,14 +109,6 @@ export function Composer({
     setCommandDismissed(false);
   }, [value]);
 
-  useEffect(() => {
-    return () => {
-      for (const item of attachments) {
-        if (item.preview) URL.revokeObjectURL(item.preview);
-      }
-    };
-  }, [attachments]);
-
   const appendText = (text: string) => {
     const clean = text.trim();
     if (!clean) return;
@@ -264,6 +256,7 @@ export function Composer({
       ? commands.filter((item) => item.id.startsWith(query.toLowerCase()))
       : [];
   const paletteOpen = matches.length > 0 && !commandDismissed && !recording;
+  const selectedCommand = matches[Math.min(commandIndex, Math.max(0, matches.length - 1))];
 
   const runCommand = (id: string) => {
     if (id === "clear") {
@@ -387,9 +380,9 @@ export function Composer({
                   setCommandIndex((current) => (current - 1 + matches.length) % matches.length);
                   return;
                 }
-                if (event.key === "Enter" && !event.shiftKey) {
+                if (event.key === "Enter" && !event.shiftKey && selectedCommand) {
                   event.preventDefault();
-                  runCommand(matches[commandIndex].id);
+                  runCommand(selectedCommand.id);
                   return;
                 }
                 if (event.key === "Escape") {

@@ -46,6 +46,7 @@ func New(provider ClientProvider, static fs.FS, log *slog.Logger) http.Handler {
 func (s *Server) routes() {
 	s.mux.HandleFunc("GET /api/health", s.health)
 	s.mux.HandleFunc("GET /api/config", s.config)
+	s.mux.HandleFunc("GET /api/projects", s.projects)
 	s.mux.HandleFunc("GET /api/sessions", s.sessions)
 	s.mux.HandleFunc("POST /api/sessions", s.createSession)
 	s.mux.HandleFunc("GET /api/sessions/{id}/messages", s.messages)
@@ -146,8 +147,10 @@ func (s *Server) sessions(w http.ResponseWriter, r *http.Request) {
 	q := url.Values{}
 	q.Set("limit", "100")
 	q.Set("order", "desc")
-	q.Set("parentID", "null")
 	q.Set("archived", "false")
+	if r.URL.Query().Get("children") != "true" {
+		q.Set("parentID", "null")
+	}
 	if dir := strings.TrimSpace(r.URL.Query().Get("dir")); dir != "" {
 		if !filepath.IsAbs(dir) {
 			writeError(w, http.StatusBadRequest, "dir must be absolute")
@@ -492,6 +495,20 @@ func (s *Server) config(w http.ResponseWriter, r *http.Request) {
 		"model":     model,
 		"agent":     agent,
 	})
+}
+
+func (s *Server) projects(w http.ResponseWriter, r *http.Request) {
+	c, ok := s.client(r.Context())
+	if !ok {
+		writeError(w, http.StatusServiceUnavailable, "opencode service not found")
+		return
+	}
+	var raw json.RawMessage
+	if err := c.Do(r.Context(), http.MethodGet, "/api/project", nil, &raw); err != nil {
+		s.upstreamError(w, err)
+		return
+	}
+	writeRaw(w, raw, c.Redactor())
 }
 
 func (s *Server) events(w http.ResponseWriter, r *http.Request) {

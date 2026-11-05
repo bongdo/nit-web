@@ -80,8 +80,17 @@ export type Message = {
   reason?: string;
 };
 
+export type Project = {
+  id: string;
+  canonical: string;
+  vcs?: string;
+  time: { created: number; updated: number; active: number };
+};
+
 export type Session = {
   id: string;
+  parentID?: string;
+  projectID?: string;
   title?: string;
   agent?: string;
   model?: ModelRef;

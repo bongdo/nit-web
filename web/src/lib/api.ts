@@ -5,6 +5,7 @@ import type {
   MessagesResponse,
   Model,
   ModelRef,
+  Project,
   Session,
   SessionList,
 } from "./types";
@@ -53,8 +54,14 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
 export const api = {
   health: () => request<Health>("/api/health"),
   config: () => request<Config>("/api/config"),
-  sessions: (dir?: string) =>
-    request<SessionList>(`/api/sessions${dir ? `?dir=${encodeURIComponent(dir)}` : ""}`),
+  projects: () => request<Project[]>("/api/projects"),
+  sessions: (dir?: string, children?: boolean) => {
+    const query = new URLSearchParams();
+    if (dir) query.set("dir", dir);
+    if (children) query.set("children", "true");
+    const suffix = query.toString();
+    return request<SessionList>(`/api/sessions${suffix ? `?${suffix}` : ""}`);
+  },
   createSession: async (input: {
     directory?: string;
     title?: string;

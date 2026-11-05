@@ -116,6 +116,48 @@ func TestSessionsProxy(t *testing.T) {
 	}
 }
 
+func TestSessionsChildren(t *testing.T) {
+	upstream := httptest.NewServer(auth(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Query().Has("parentID") {
+			t.Errorf("children request must not filter parentID: %s", r.URL.RawQuery)
+		}
+		fmt.Fprint(w, `{"data":[{"id":"ses_child","parentID":"ses_1"}]}`)
+	}))
+	defer upstream.Close()
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "http://127.0.0.1:7788/api/sessions?children=true", nil)
+	newHandler(t, upstream.URL).ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d: %s", rec.Code, rec.Body)
+	}
+	if !strings.Contains(rec.Body.String(), `"parentID":"ses_1"`) {
+		t.Fatalf("unexpected body: %s", rec.Body)
+	}
+}
+
+func TestProjectsProxy(t *testing.T) {
+	upstream := httptest.NewServer(auth(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/project" {
+			t.Errorf("unexpected path %s", r.URL.Path)
+		}
+		fmt.Fprint(w, `[{"id":"p1","canonical":"/home/ubuntu/Projects/nit-gui","vcs":"git"}]`)
+	}))
+	defer upstream.Close()
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "http://127.0.0.1:7788/api/projects", nil)
+	newHandler(t, upstream.URL).ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d: %s", rec.Code, rec.Body)
+	}
+	if !strings.Contains(rec.Body.String(), `"canonical":"/home/ubuntu/Projects/nit-gui"`) {
+		t.Fatalf("unexpected body: %s", rec.Body)
+	}
+}
+
 func TestMessagesPaginate(t *testing.T) {
 	upstream := httptest.NewServer(auth(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Query().Get("cursor") {

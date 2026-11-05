@@ -47,3 +47,15 @@ Why: value-level redaction keeps JSON valid even when the password needs JSON es
 Rejected: byte replacement on the whole body (breaks JSON escaping and chunked SSE); browser-side redaction (the secret would already have left the Go process).
 
 Cost: a transcript page is decoded and re-encoded once; upstream error text is redacted the same way.
+
+## 2026-11-05 — Chat shortcuts: Alt+N, Alt+J/K, quote selection
+
+Context: new chats were bound to mod+n, but browsers reserve Ctrl/Cmd+N, so the binding never reached the page. The chat list had no keyboard cycling, and quoting a reply meant copying text by hand.
+
+Decision: new chat on Alt+N, next/previous chat on Alt+J/K in the sidebar order, and a Quote button that appears on text selected in the transcript and inserts a markdown quote into the composer.
+
+Why: Alt+N works in every browser and `event.code` keeps both bindings independent of the keyboard layout. Alt+J/K follows the vim-like next/previous convention and avoids Option+Arrow, which moves the cursor by word in the composer on macOS.
+
+Rejected: Tab for cycling chats (breaks keyboard focus navigation), Ctrl+Tab (reserved by the browser) and Alt+Arrow (conflicts with word navigation).
+
+Cost: three app-wide shortcuts; Alt+J/K is only discoverable from /help, the New chat hint and the README.

@@ -247,7 +247,8 @@ export default function App() {
     const current = selectedIdRef.current;
     setMessages((previous) =>
       events.reduce(
-        (next, event) => (str(event.data?.sessionID) === current ? applyEvent(next, event) : next),
+        (next, event) =>
+          (event.data ?? {}).sessionID === current ? applyEvent(next, event) : next,
         previous,
       ),
     );
@@ -396,6 +397,11 @@ export default function App() {
   }, [loadCatalog, loadHealth, loadSessions]);
 
   useEffect(() => {
+    if (streamFrame.current !== null) {
+      cancelAnimationFrame(streamFrame.current);
+      streamFrame.current = null;
+    }
+    streamQueue.current = [];
     if (!selectedId) {
       setMessages([]);
       setTranscriptError(null);
@@ -623,15 +629,11 @@ export default function App() {
     }
 
     if (sessionID === selectedIdRef.current) {
-      if (
-        event.type.startsWith("session.text.") ||
-        event.type.startsWith("session.reasoning.") ||
-        event.type.startsWith("session.tool.") ||
-        event.type === "session.step.started" ||
-        event.type === "session.step.ended" ||
-        event.type === "session.step.failed"
-      ) {
-        setMessages((previous) => applyEvent(previous, event));
+      if (isMessageStreamEvent(event.type)) {
+        streamQueue.current.push(event);
+        if (streamFrame.current === null) {
+          streamFrame.current = requestAnimationFrame(flushStream);
+        }
       }
       if (
         event.type === "session.idle" ||
@@ -639,6 +641,7 @@ export default function App() {
         event.type === "session.execution.failed" ||
         event.type === "session.execution.interrupted"
       ) {
+        flushStream();
         reloadSelected();
       }
     }

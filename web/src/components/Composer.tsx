@@ -3,7 +3,7 @@ import { ArrowUp, FileIcon, Loader2, Mic, Paperclip, Square, X } from "lucide-re
 import type { Session } from "../lib/types";
 import { encodeWav } from "../lib/audio";
 import { api } from "../lib/api";
-import { formatBytes, formatCost, formatTokens, quoteText } from "../lib/format";
+import { formatBytes, quoteText } from "../lib/format";
 import { cn } from "../lib/utils";
 import { Button } from "./ui/button";
 import { Textarea } from "./ui/textarea";
@@ -35,38 +35,28 @@ export function Composer({
   workspace,
   disabled,
   running,
-  modelName,
   focusKey,
   draft,
   insert,
   commands,
-  contextPercent,
-  cost,
-  estimatedCost,
   dictationMode,
   onSend,
   onStop,
   onCommand,
-  onSettings,
   onError,
 }: {
   session: Session | null;
   workspace: string | null;
   disabled?: boolean;
   running?: boolean;
-  modelName?: string;
   focusKey?: string | null;
   draft?: { text: string; id: number } | null;
   insert?: { text: string; id: number } | null;
   commands: ComposerCommand[];
-  contextPercent?: number | null;
-  cost?: number;
-  estimatedCost?: boolean;
   dictationMode: "fast" | "accurate";
   onSend: (text: string, attachments: Attachment[], delivery?: "queue" | "steer") => Promise<void>;
   onStop: () => void;
   onCommand: (id: string) => void;
-  onSettings: () => void;
   onError: (message: string) => void;
 }) {
   const [value, setValue] = useState("");
@@ -385,11 +375,9 @@ export function Composer({
     onCommand(id);
   };
 
-  const tokens = session?.tokens;
-
   return (
     <div className="shrink-0">
-      <div className="mx-auto w-full max-w-3xl px-4 pt-2 pb-1">
+      <div className="mx-auto w-full max-w-3xl px-4 pt-2 pb-3">
         <div
           className={cn(
             "border-border bg-card focus-within:border-ring focus-within:ring-ring/20 relative rounded-xl border shadow-sm transition-shadow focus-within:ring-[3px]",
@@ -595,26 +583,6 @@ export function Composer({
               </Button>
             </div>
           </div>
-        </div>
-        <div className="text-muted-foreground flex h-6 min-w-0 items-center gap-2 px-1 text-[11px]">
-          <button
-            type="button"
-            onClick={onSettings}
-            className="hover:text-foreground min-w-0 truncate text-left"
-            title="Open settings"
-          >
-            {modelName ?? "model"}
-          </button>
-          {contextPercent != null && <span className="shrink-0">ctx {contextPercent}%</span>}
-          {tokens && (
-            <span className="ml-auto shrink-0">
-              {formatTokens(tokens.input)} in · {formatTokens(tokens.output)} out
-            </span>
-          )}
-          <span className={cn("shrink-0", !tokens && "ml-auto")}>
-            {estimatedCost ? "~" : ""}
-            {formatCost(cost ?? session?.cost ?? 0)}
-          </span>
         </div>
       </div>
     </div>

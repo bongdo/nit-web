@@ -15,7 +15,7 @@ import {
 import type { Health, Model, ModelRef, Session } from "../lib/types";
 import type { Theme } from "../hooks/useTheme";
 import type { StreamStatus } from "../hooks/useEventStream";
-import { basename, modelLabel } from "../lib/format";
+import { basename, formatCost, modelLabel } from "../lib/format";
 import { cn } from "../lib/utils";
 import { Button } from "./ui/button";
 import { SubagentMenu } from "./SubagentMenu";
@@ -32,6 +32,9 @@ export function Header({
   models,
   model,
   agent,
+  contextPercent,
+  cost,
+  estimatedCost,
   health,
   streamStatus,
   theme,
@@ -50,6 +53,9 @@ export function Header({
   models: Model[];
   model: ModelRef | null;
   agent: string | null;
+  contextPercent?: number | null;
+  cost?: number;
+  estimatedCost?: boolean;
   health: Health | null;
   streamStatus: StreamStatus;
   theme: Theme;
@@ -99,6 +105,17 @@ export function Header({
           {(agent || model) && (
             <span className="truncate">
               · {agent ?? "agent"} · {modelLabel(model, models) || "model"}
+            </span>
+          )}
+          {contextPercent != null && (
+            <span className="shrink-0" title="Context used">
+              · ctx {contextPercent}%
+            </span>
+          )}
+          {(cost ?? 0) > 0 && (
+            <span className="shrink-0" title={estimatedCost ? "Estimated cost" : "Session cost"}>
+              · {estimatedCost ? "~" : ""}
+              {formatCost(cost)}
             </span>
           )}
         </div>

@@ -134,7 +134,7 @@ export function ChatView({
           </h2>
           <p className="text-muted-foreground mt-2 text-sm leading-6">
             {workspace
-              ? "Type below and the chat is created in this directory on the first message. The workspace cannot change after that."
+              ? "Ask anything, attach files or dictate. Code, tables and HTML previews render inline."
               : "Pick a directory for this chat. Markdown, tables, code and HTML previews render here."}
           </p>
           <p className="text-muted-foreground mt-3 font-mono text-[11px]">

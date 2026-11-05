@@ -19,7 +19,6 @@ import {
   estimateCost,
   filterSessions,
   mergeRunningStates,
-  modelLabel,
   sessionRunning,
 } from "./lib/format";
 import { groupSessions, nextSessionId, scopeSessions, type Scope } from "./lib/sessions";
@@ -936,6 +935,9 @@ export default function App() {
           models={models}
           model={currentModel}
           agent={currentAgent}
+          contextPercent={shownContext}
+          cost={shownCost}
+          estimatedCost={sessionCost === 0 && estimated > 0}
           health={health}
           streamStatus={streamStatus}
           theme={theme}
@@ -1000,19 +1002,14 @@ export default function App() {
           workspace={workspace}
           disabled={!health?.ok}
           running={running}
-          modelName={modelLabel(currentModel, models)}
           focusKey={selectedId}
           draft={composerDraft}
           insert={composerInsert}
           commands={COMMANDS}
-          contextPercent={shownContext}
-          cost={shownCost}
-          estimatedCost={sessionCost === 0 && estimated > 0}
           dictationMode={dictationMode}
           onSend={send}
           onStop={() => void stop()}
           onCommand={runCommand}
-          onSettings={() => setSettingsOpen(true)}
           onError={(message) => setBanner(message)}
         />
       </main>

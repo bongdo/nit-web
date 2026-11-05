@@ -22,9 +22,11 @@ function duration(session: Session): string {
 export function SubagentMenu({
   sessions,
   onOpen,
+  className,
 }: {
   sessions: Session[];
   onOpen: (session: Session) => void;
+  className?: string;
 }) {
   const [open, setOpen] = useState(false);
   const active = sessions.filter((session) => sessionRunning(session)).length;
@@ -36,7 +38,12 @@ export function SubagentMenu({
 
   return (
     <div className="relative">
-      <Button variant="ghost" size="sm" onClick={() => setOpen((value) => !value)}>
+      <Button
+        variant="ghost"
+        size="sm"
+        className={cn("h-9 rounded-full", className)}
+        onClick={() => setOpen((value) => !value)}
+      >
         <GitBranch />
         <span>{sessions.length}</span>
         {active > 0 && (

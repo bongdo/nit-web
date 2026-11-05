@@ -73,12 +73,14 @@ export function Header({
   const title = session?.title?.trim() || (session ? "New chat" : "nit-gui");
   const live = streamStatus === "online" && health?.ok;
 
+  const pill = "border-border/60 bg-card/80 rounded-full border shadow-sm backdrop-blur-xl";
+
   return (
-    <header className="border-border bg-background flex h-12 shrink-0 items-center gap-2 border-b px-2.5">
+    <header className="pointer-events-none absolute inset-x-0 top-0 z-10 flex items-center gap-2 px-2.5 py-2">
       <Button
         variant="ghost"
         size="icon-sm"
-        className="md:hidden"
+        className={cn(pill, "pointer-events-auto size-9 rounded-full md:hidden")}
         onClick={onMenu}
         aria-label="Open sessions"
       >
@@ -87,7 +89,7 @@ export function Header({
       <Button
         variant="ghost"
         size="icon-sm"
-        className="hidden md:inline-flex"
+        className={cn(pill, "pointer-events-auto hidden size-9 rounded-full md:inline-flex")}
         onClick={onToggleSidebar}
         title={collapsed ? "Show chats" : "Hide chats"}
         aria-label={collapsed ? "Show chats" : "Hide chats"}
@@ -95,7 +97,7 @@ export function Header({
         {collapsed ? <PanelLeftOpen /> : <PanelLeftClose />}
       </Button>
 
-      <div className="min-w-0 flex-1">
+      <div className={cn(pill, "pointer-events-auto min-w-0 max-w-2xl px-3.5 py-1")}>
         <h1 className="truncate text-[13px] font-semibold leading-tight">{title}</h1>
         <div className="text-muted-foreground flex min-w-0 items-center gap-1 text-[10px] leading-tight">
           <Folder className="size-3 shrink-0" />
@@ -121,19 +123,26 @@ export function Header({
         </div>
       </div>
 
-      <div className="flex shrink-0 items-center gap-1">
+      <div className="pointer-events-auto ml-auto flex shrink-0 items-center gap-2">
         {parent ? (
-          <Button variant="ghost" size="sm" onClick={onBack} title="Back to parent">
+          <Button
+            variant="ghost"
+            size="sm"
+            className={cn(pill, "h-9 rounded-full")}
+            onClick={onBack}
+            title="Back to parent"
+          >
             <ArrowLeft />
             Parent
           </Button>
         ) : (
-          <SubagentMenu sessions={subagents} onOpen={onOpenSubagent} />
+          <SubagentMenu sessions={subagents} onOpen={onOpenSubagent} className={pill} />
         )}
 
         <span
           className={cn(
-            "inline-flex size-8 items-center justify-center",
+            pill,
+            "inline-flex size-9 items-center justify-center",
             live
               ? "text-emerald-500"
               : streamStatus === "connecting"
@@ -157,13 +166,20 @@ export function Header({
           )}
         </span>
 
-        <Button variant="ghost" size="icon-sm" onClick={onSettings} aria-label="Settings">
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          className={cn(pill, "size-9 rounded-full")}
+          onClick={onSettings}
+          aria-label="Settings"
+        >
           <Settings />
         </Button>
 
         <Button
           variant="ghost"
           size="icon-sm"
+          className={cn(pill, "size-9 rounded-full")}
           onClick={onTheme}
           title={`Theme: ${theme}`}
           aria-label={`Theme: ${theme}`}

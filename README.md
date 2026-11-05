@@ -165,7 +165,7 @@ OpenCode's plural resource paths are singular (`/api/session`, `/api/model`,
   for `prefers-reduced-motion`, and never intercepts pointer events.
 - Shortcuts: `mod+k` search, `alt+n` new chat, `alt+j`/`alt+k` next/previous
   chat in the sidebar order, `enter` send and `shift+enter` newline (in the
-  composer), `esc` stop.
+  composer), double `esc` stop.
   Selecting text in the transcript shows a Quote button that drops it into the
   composer as a markdown quote.
 - Layout: persistent sidebar at 1280px and 900px, collapsible drawer on narrow

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { CircleAlert, RefreshCw, X } from "lucide-react";
 import { api } from "./lib/api";
 import type {
@@ -35,6 +35,8 @@ import { FormCard } from "./components/FormCard";
 import { BootScreen, OfflineScreen } from "./components/StatusScreens";
 import { Button } from "./components/ui/button";
 
+const DOUBLE_ESCAPE_MS = 500;
+
 function messageOf(error: unknown): string {
   if (error instanceof Error && error.message) return error.message;
   return "Something went wrong";
@@ -42,6 +44,34 @@ function messageOf(error: unknown): string {
 
 function saveHidden(ids: Set<string>) {
   localStorage.setItem("nit-gui.hidden", JSON.stringify([...ids]));
+}
+
+function BottomDock({ children }: { children: ReactNode }) {
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const element = ref.current;
+    if (!element) return;
+    const apply = () => {
+      document.documentElement.style.setProperty("--dock", `${element.offsetHeight}px`);
+    };
+    const observer = new ResizeObserver(apply);
+    observer.observe(element);
+    apply();
+    return () => {
+      observer.disconnect();
+      document.documentElement.style.removeProperty("--dock");
+    };
+  }, []);
+
+  return (
+    <div
+      ref={ref}
+      className="pointer-events-none absolute inset-x-0 bottom-0 z-20 bg-linear-to-t from-background via-background/90 to-transparent pt-8"
+    >
+      {children}
+    </div>
+  );
 }
 
 const COMMANDS: ComposerCommand[] = [
@@ -137,6 +167,7 @@ export default function App() {
   const refreshTimer = useRef<number | null>(null);
   const firstStreamOpen = useRef(true);
   const runningEventsAt = useRef<Record<string, number>>({});
+  const lastEscapeAt = useRef(0);
   const skipLoadRef = useRef<string | null>(null);
   const lastQueryRef = useRef(`${scope}|${workspace}`);
 
@@ -857,8 +888,15 @@ export default function App() {
         return;
       }
       if (event.key === "Escape") {
-        if (selectedIdRef.current && isRunning(selectedIdRef.current)) {
-          void stop();
+        const id = selectedIdRef.current;
+        if (!event.repeat && id && isRunning(id)) {
+          const now = Date.now();
+          if (now - lastEscapeAt.current < DOUBLE_ESCAPE_MS) {
+            lastEscapeAt.current = 0;
+            void stop();
+          } else {
+            lastEscapeAt.current = now;
+          }
         }
         setSidebarOpen(false);
       }
@@ -928,7 +966,7 @@ export default function App() {
         />
       )}
 
-      <main className="flex min-w-0 flex-1 flex-col">
+      <main className="relative flex min-w-0 flex-1 flex-col">
         <Header
           session={selectedSession}
           directory={workspace}
@@ -953,7 +991,7 @@ export default function App() {
         />
 
         {activeError && (
-          <div className="border-destructive/30 bg-destructive/10 text-destructive flex shrink-0 items-center gap-2 border-b px-4 py-2 text-xs">
+          <div className="border-destructive/30 bg-destructive/10 text-destructive absolute inset-x-2.5 top-16 z-10 flex items-center gap-2 rounded-xl border px-3 py-1.5 text-xs shadow-sm backdrop-blur-xl">
             <CircleAlert className="size-3.5 shrink-0" />
             <span className="min-w-0 flex-1">{activeError}</span>
             <Button
@@ -985,33 +1023,39 @@ export default function App() {
           onQuote={quoteSelection}
         />
 
-        {forms[0] && selectedSession && (
-          <FormCard
-            form={forms[0]}
-            sessionID={selectedSession.id}
-            onDone={() => {
-              setForms((current) => current.slice(1));
-              reloadSelected();
-            }}
-            onError={(message) => setBanner(message)}
-          />
-        )}
+        <BottomDock>
+          {forms[0] && selectedSession && (
+            <div className="pointer-events-auto">
+              <FormCard
+                form={forms[0]}
+                sessionID={selectedSession.id}
+                onDone={() => {
+                  setForms((current) => current.slice(1));
+                  reloadSelected();
+                }}
+                onError={(message) => setBanner(message)}
+              />
+            </div>
+          )}
 
-        <Composer
-          session={selectedSession}
-          workspace={workspace}
-          disabled={!health?.ok}
-          running={running}
-          focusKey={selectedId}
-          draft={composerDraft}
-          insert={composerInsert}
-          commands={COMMANDS}
-          dictationMode={dictationMode}
-          onSend={send}
-          onStop={() => void stop()}
-          onCommand={runCommand}
-          onError={(message) => setBanner(message)}
-        />
+          <div className="pointer-events-auto">
+            <Composer
+              session={selectedSession}
+              workspace={workspace}
+              disabled={!health?.ok}
+              running={running}
+              focusKey={selectedId}
+              draft={composerDraft}
+              insert={composerInsert}
+              commands={COMMANDS}
+              dictationMode={dictationMode}
+              onSend={send}
+              onStop={() => void stop()}
+              onCommand={runCommand}
+              onError={(message) => setBanner(message)}
+            />
+          </div>
+        </BottomDock>
       </main>
 
       {pickerOpen && (

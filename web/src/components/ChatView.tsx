@@ -16,7 +16,7 @@ import { Scene } from "./Scene";
 
 function Skeleton() {
   return (
-    <div className="mx-auto w-full max-w-3xl space-y-6 px-4 py-8">
+    <div className="mx-auto w-full max-w-3xl space-y-6 px-4 pt-16 pb-8">
       {[0, 1].map((item) => (
         <div key={item} className="space-y-2">
           <div className="bg-muted h-3 w-24 animate-pulse rounded" />
@@ -56,6 +56,7 @@ export function ChatView({
   onQuote: (text: string) => void;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
   const stick = useRef(true);
   const [showJump, setShowJump] = useState(false);
   const [quote, setQuote] = useState<{ text: string; x: number; y: number } | null>(null);
@@ -113,6 +114,16 @@ export function ChatView({
 
   useEffect(() => {
     const element = scrollRef.current;
+    if (!element || typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(() => {
+      if (stick.current) scrollToBottom();
+    });
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
+    const element = contentRef.current;
     if (!element || typeof ResizeObserver === "undefined") return;
     const observer = new ResizeObserver(() => {
       if (stick.current) scrollToBottom();
@@ -208,7 +219,7 @@ export function ChatView({
           setQuote(null);
         }}
       >
-        <div className="mx-auto w-full max-w-3xl px-4 py-6">
+        <div ref={contentRef} className="mx-auto w-full max-w-3xl px-4 pt-16 pb-6">
           {error && (
             <div className="text-destructive border-destructive/30 bg-destructive/5 mb-4 flex items-start gap-2 rounded-lg border px-3 py-2 text-xs">
               <CircleAlert className="mt-0.5 size-4 shrink-0" />
@@ -239,11 +250,13 @@ export function ChatView({
               Working…
             </div>
           )}
+
+          <div aria-hidden style={{ height: "var(--dock, 0px)" }} />
         </div>
       </div>
 
       {showJump && (
-        <div className="pointer-events-none absolute inset-x-0 bottom-3 flex justify-center">
+        <div className="pointer-events-none absolute inset-x-0 bottom-[calc(var(--dock,0px)+0.75rem)] flex justify-center">
           <Button
             variant="secondary"
             size="sm"

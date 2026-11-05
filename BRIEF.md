@@ -61,7 +61,7 @@ The proxy must never expose the password to the browser. Limit JSON bodies to
   HTML document in an assistant message gets the same toggle. Never inject raw
   HTML into the app DOM.
 - Dark and light themes, system default; compact density; keyboard: `mod+k`
-  search, `mod+n` new session, `mod+enter` send, `esc` stop.
+  search, `mod+n` new session, `mod+enter` send, double `esc` stop.
 - Empty, loading, offline and error states are real screens, not blank space.
 - Use shadcn/ui primitives and lucide icons; no giant UI framework.
 

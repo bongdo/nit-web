@@ -19,7 +19,7 @@ import { cn } from "./lib/utils";
 import { useTheme } from "./hooks/useTheme";
 import { useEventStream } from "./hooks/useEventStream";
 import { ChatView } from "./components/ChatView";
-import { Composer } from "./components/Composer";
+import { Composer, type Attachment, type ComposerCommand } from "./components/Composer";
 import { Header } from "./components/Header";
 import { Sidebar } from "./components/Sidebar";
 import { WorkspacePicker } from "./components/WorkspacePicker";
@@ -30,6 +30,18 @@ function messageOf(error: unknown): string {
   if (error instanceof Error && error.message) return error.message;
   return "Something went wrong";
 }
+
+const COMMANDS: ComposerCommand[] = [
+  { id: "new", label: "/new", description: "Start a new chat in this workspace" },
+  { id: "dir", label: "/dir", description: "Switch workspace" },
+  { id: "compact", label: "/compact", description: "Compact this session's context" },
+  { id: "revert", label: "/revert", description: "Revert the last message and edit it" },
+  { id: "fork", label: "/fork", description: "Fork before the last message" },
+  { id: "retry", label: "/retry", description: "Repeat the last prompt" },
+  { id: "theme", label: "/theme", description: "Cycle light, dark and system" },
+  { id: "clear", label: "/clear", description: "Clear the input" },
+  { id: "help", label: "/help", description: "Show command help" },
+];
 
 export default function App() {
   const { theme, cycle } = useTheme();
@@ -68,6 +80,8 @@ export default function App() {
   const selectedIdRef = useRef(selectedId);
   selectedIdRef.current = selectedId;
   const [messages, setMessages] = useState<Message[]>([]);
+  const [subagents, setSubagents] = useState<Session[]>([]);
+  const [composerDraft, setComposerDraft] = useState<{ text: string; id: number } | null>(null);
   const [messagesLoading, setMessagesLoading] = useState(false);
   const [messageEpoch, setMessageEpoch] = useState(0);
   const [transcriptError, setTranscriptError] = useState<string | null>(null);
@@ -90,6 +104,10 @@ export default function App() {
   const agentsRef = useRef(agents);
   agentsRef.current = agents;
   const selectedSession = sessions.find((session) => session.id === selectedId) ?? null;
+  const parentSession = selectedSession?.parentID
+    ? (sessions.find((session) => session.id === selectedSession.parentID) ?? null)
+    : null;
+  const lastUser = [...messages].reverse().find((message) => message.type === "user") ?? null;
   const currentModel = selectedSession?.model ?? preferredModel ?? config?.model ?? null;
   const currentAgent = selectedSession?.agent ?? preferredAgent ?? config?.agent ?? null;
 
@@ -99,6 +117,7 @@ export default function App() {
       sessionRunning(sessions.find((session) => session.id === id)),
     [runningIds, sessions],
   );
+  const runningNow = selectedId ? isRunning(selectedId) : false;
 
   const loadHealth = useCallback(async () => {
     try {
@@ -138,6 +157,23 @@ export default function App() {
       setProjects([]);
     }
   }, []);
+
+  const loadChildren = useCallback(async () => {
+    const id = selectedIdRef.current;
+    if (!id) {
+      setSubagents([]);
+      return;
+    }
+    try {
+      setSubagents(await api.children(id));
+    } catch {
+      setSubagents([]);
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadChildren();
+  }, [loadChildren, selectedId]);
 
   useEffect(() => {
     const key = `${scope}|${workspace}`;
@@ -292,8 +328,9 @@ export default function App() {
     refreshTimer.current = window.setTimeout(() => {
       refreshTimer.current = null;
       void loadSessions();
+      void loadChildren();
     }, 500);
-  }, [loadSessions]);
+  }, [loadChildren, loadSessions]);
 
   const reloadSelected = useCallback(() => {
     if (!selectedIdRef.current) return;
@@ -381,14 +418,18 @@ export default function App() {
       return;
     }
     void loadSessions();
+    void loadChildren();
     reloadSelected();
   };
 
   const streamStatus = useEventStream(onEvent, onStreamOpen);
 
   const send = useCallback(
-    async (text: string) => {
+    async (text: string, attachments: Attachment[] = []) => {
       setBanner(null);
+      const files = attachments
+        .filter((item) => item.path)
+        .map((item) => ({ uri: `file://${item.path}`, name: item.name }));
       let id = selectedIdRef.current;
       if (!id) {
         const directory = workspaceRef.current;
@@ -430,7 +471,7 @@ export default function App() {
       runningEventsAt.current[sessionId] = Date.now();
       setRunningIds((previous) => ({ ...previous, [sessionId]: true }));
       try {
-        await api.prompt(sessionId, text);
+        await api.prompt(sessionId, text, files);
       } catch (error) {
         setRunningIds((previous) => ({ ...previous, [sessionId]: false }));
         setBanner(messageOf(error));
@@ -487,6 +528,131 @@ export default function App() {
       }
     },
     [loadSessions, selectedSession],
+  );
+
+  const previousUser = useCallback(
+    (message: Message): Message | null => {
+      if (message.type === "user") return message;
+      const index = messages.findIndex((item) => item.id === message.id);
+      for (let cursor = index; cursor >= 0; cursor -= 1) {
+        if (messages[cursor]?.type === "user") return messages[cursor];
+      }
+      return null;
+    },
+    [messages],
+  );
+
+  const revertAt = useCallback(
+    async (message: Message) => {
+      const session = selectedSession;
+      const target = previousUser(message);
+      if (!session || !target || runningNow) return;
+      setBanner(null);
+      try {
+        await api.revert(session.id, target.id);
+        setComposerDraft({ text: target.text ?? "", id: Date.now() });
+        reloadSelected();
+        void loadSessions();
+        void loadChildren();
+      } catch (error) {
+        setBanner(messageOf(error));
+      }
+    },
+    [loadChildren, loadSessions, previousUser, reloadSelected, runningNow, selectedSession],
+  );
+
+  const forkAt = useCallback(
+    async (message: Message) => {
+      const session = selectedSession;
+      const target = previousUser(message);
+      if (!session || runningNow) return;
+      setBanner(null);
+      try {
+        const forked = await api.fork(session.id, target?.id);
+        setSessions((previous) => [forked, ...previous.filter((item) => item.id !== forked.id)]);
+        selectSession(forked.id);
+      } catch (error) {
+        setBanner(messageOf(error));
+      }
+    },
+    [previousUser, runningNow, selectSession, selectedSession],
+  );
+
+  const compactSession = useCallback(async () => {
+    const id = selectedIdRef.current;
+    if (!id) return;
+    setBanner(null);
+    try {
+      await api.compact(id);
+      reloadSelected();
+      void loadSessions();
+    } catch (error) {
+      setBanner(messageOf(error));
+    }
+  }, [loadSessions, reloadSelected]);
+
+  const retryLast = useCallback(async () => {
+    const id = selectedIdRef.current;
+    if (!id || !lastUser || runningNow) return;
+    setBanner(null);
+    runningEventsAt.current[id] = Date.now();
+    setRunningIds((previous) => ({ ...previous, [id]: true }));
+    try {
+      await api.prompt(id, lastUser.text ?? "");
+    } catch (error) {
+      setRunningIds((previous) => ({ ...previous, [id]: false }));
+      setBanner(messageOf(error));
+    }
+  }, [lastUser, runningNow]);
+
+  const revertLast = useCallback(() => {
+    if (lastUser) void revertAt(lastUser);
+  }, [lastUser, revertAt]);
+
+  const openSubagent = useCallback(
+    (session: Session) => {
+      setSessions((previous) =>
+        previous.some((item) => item.id === session.id) ? previous : [session, ...previous],
+      );
+      selectSession(session.id);
+    },
+    [selectSession],
+  );
+
+  const backToParent = useCallback(() => {
+    if (parentSession) selectSession(parentSession.id);
+  }, [parentSession, selectSession]);
+
+  const runCommand = useCallback(
+    (id: string) => {
+      switch (id) {
+        case "new":
+          newChat();
+          break;
+        case "dir":
+          setPickerOpen(true);
+          break;
+        case "compact":
+          void compactSession();
+          break;
+        case "revert":
+          revertLast();
+          break;
+        case "fork":
+          if (lastUser) void forkAt(lastUser);
+          break;
+        case "retry":
+          void retryLast();
+          break;
+        case "theme":
+          cycle();
+          break;
+        case "help":
+          setBanner("Commands: /new /dir /compact /revert /fork /retry /theme /clear /help");
+          break;
+      }
+    },
+    [compactSession, cycle, forkAt, lastUser, newChat, retryLast, revertLast],
   );
 
   useEffect(() => {

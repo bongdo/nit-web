@@ -10,6 +10,7 @@ import type { Agent, Message, Model, Session } from "../lib/types";
 import { cn } from "../lib/utils";
 import { Button } from "./ui/button";
 import { MessageRow } from "./MessageRow";
+import { SubagentBar } from "./SubagentBar";
 
 function Skeleton() {
   return (
@@ -34,7 +35,13 @@ export function ChatView({
   models,
   agents,
   workspace,
+  subagents,
+  parent,
   onRetry,
+  onOpenSubagent,
+  onBack,
+  onRevert,
+  onFork,
 }: {
   session: Session | null;
   messages: Message[];
@@ -44,7 +51,13 @@ export function ChatView({
   models: Model[];
   agents: Agent[];
   workspace: string | null;
+  subagents: Session[];
+  parent?: Session | null;
   onRetry: () => void;
+  onOpenSubagent: (session: Session) => void;
+  onBack: () => void;
+  onRevert: (message: Message) => void;
+  onFork: (message: Message) => void;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const stick = useRef(true);
@@ -106,11 +119,17 @@ export function ChatView({
   const waiting = running && (!lastAssistant || messages[messages.length - 1]?.type === "user");
 
   return (
-    <div className="relative min-h-0 flex-1">
+    <div className="relative flex min-h-0 flex-1 flex-col">
+      <SubagentBar
+        children={subagents}
+        parent={parent}
+        onOpen={onOpenSubagent}
+        onBack={onBack}
+      />
       <div
         ref={scrollRef}
         data-transcript
-        className="scrollbar-thin h-full overflow-y-auto overflow-x-hidden"
+        className="scrollbar-thin min-h-0 flex-1 overflow-y-auto overflow-x-hidden"
         onScroll={(event) => {
           const element = event.currentTarget;
           const nearBottom =
@@ -147,6 +166,9 @@ export function ChatView({
                 message={message}
                 models={models}
                 agents={agents}
+                actionsDisabled={running}
+                onRevert={onRevert}
+                onFork={onFork}
                 streaming={Boolean(
                   running &&
                     lastAssistant &&

@@ -35,13 +35,14 @@ type Server struct {
 	static   fs.FS
 	log      *slog.Logger
 	mux      *http.ServeMux
+	fast     *fastSTT
 }
 
 func New(provider ClientProvider, static fs.FS, log *slog.Logger) http.Handler {
 	if log == nil {
 		log = slog.Default()
 	}
-	s := &Server{provider: provider, static: static, log: log, mux: http.NewServeMux()}
+	s := &Server{provider: provider, static: static, log: log, mux: http.NewServeMux(), fast: newFastSTT(log)}
 	s.routes()
 	return s.middleware(s.mux)
 }
@@ -744,7 +745,13 @@ func (s *Server) stt(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusRequestEntityTooLarge, "audio is too large")
 		return
 	}
-	text, err := transcribe(r.Context(), data)
+	var text string
+	var err error
+	if r.URL.Query().Get("mode") == "fast" {
+		text, err = s.fast.transcribe(r.Context(), data)
+	} else {
+		text, err = transcribe(r.Context(), data)
+	}
 	if err != nil {
 		writeError(w, http.StatusServiceUnavailable, err.Error())
 		return
@@ -787,7 +794,8 @@ func transcribe(ctx context.Context, data []byte) (string, error) {
 	}
 	runCtx, cancel := context.WithTimeout(ctx, 3*time.Minute)
 	defer cancel()
-	cmd := exec.CommandContext(runCtx, bin, "-m", model, "-l", lang, "-nt", "-f", path)
+	cmd := exec.CommandContext(runCtx, bin, "-m", model, "-l", lang, "-nt", "-t", "12",
+		"-sns", "--prompt", fastSTTPrompt, "-f", path)
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
@@ -810,6 +818,17 @@ func parseTranscription(out string) string {
 		}
 		if strings.HasPrefix(line, "whisper_") || strings.HasPrefix(line, "system_info") ||
 			strings.HasPrefix(line, "main:") || strings.HasPrefix(line, "ggml_") {
+			continue
+		}
+		low := strings.ToLower(strings.Trim(line, " .,!…"))
+		if strings.HasPrefix(low, "продолжение следует") ||
+			strings.HasPrefix(low, "редактор субтитров") ||
+			strings.HasPrefix(low, "субтитры сделал") ||
+			strings.HasPrefix(low, "субтитры делал") ||
+			strings.HasPrefix(low, "корректор ") ||
+			strings.HasPrefix(low, "добро пожаловать на наш канал") ||
+			strings.HasPrefix(low, "спасибо за просмотр") ||
+			strings.HasPrefix(low, "thank you for watching") {
 			continue
 		}
 		lines = append(lines, line)

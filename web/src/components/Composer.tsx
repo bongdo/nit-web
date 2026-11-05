@@ -42,6 +42,7 @@ export function Composer({
   contextPercent,
   cost,
   estimatedCost,
+  dictationMode,
   onSend,
   onStop,
   onCommand,
@@ -59,6 +60,7 @@ export function Composer({
   contextPercent?: number | null;
   cost?: number;
   estimatedCost?: boolean;
+  dictationMode: "fast" | "accurate";
   onSend: (text: string, attachments: Attachment[], delivery?: "queue" | "steer") => Promise<void>;
   onStop: () => void;
   onCommand: (id: string) => void;
@@ -70,6 +72,8 @@ export function Composer({
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [dropActive, setDropActive] = useState(false);
   const [recording, setRecording] = useState(false);
+  const [finishing, setFinishing] = useState(false);
+  const [pending, setPending] = useState(0);
   const [elapsed, setElapsed] = useState(0);
   const [commandIndex, setCommandIndex] = useState(0);
   const [commandDismissed, setCommandDismissed] = useState(false);
@@ -82,9 +86,15 @@ export function Composer({
     processor: ScriptProcessorNode;
     gain: GainNode;
     chunks: Float32Array[];
+    segment: Float32Array[];
+    preroll: Float32Array[];
+    hasSpeech: boolean;
+    silence: number;
     timer: number;
     started: number;
   } | null>(null);
+  const queue = useRef<Promise<void>>(Promise.resolve());
+  const pendingRef = useRef(0);
 
   useEffect(() => {
     if (focusKey) ref.current?.focus();
@@ -182,6 +192,35 @@ export function Composer({
     });
   };
 
+  const enqueueSegment = (chunks: Float32Array[], rate: number) => {
+    if (chunks.length === 0) return;
+    const blob = encodeWav(chunks, rate);
+    pendingRef.current += 1;
+    setPending(pendingRef.current);
+    queue.current = queue.current
+      .then(async () => {
+        const { text } = await api.stt(blob, "fast");
+        appendText(text);
+      })
+      .catch((error) => {
+        onError(error instanceof Error ? error.message : "Transcription failed");
+      })
+      .finally(() => {
+        pendingRef.current = Math.max(0, pendingRef.current - 1);
+        setPending(pendingRef.current);
+      });
+  };
+
+  const flushSegment = (state: NonNullable<typeof audio.current>) => {
+    const chunks = state.segment;
+    state.segment = [];
+    state.hasSpeech = false;
+    state.silence = 0;
+    const seconds = chunks.reduce((total, chunk) => total + chunk.length, 0) / state.context.sampleRate;
+    if (seconds < 0.3) return;
+    enqueueSegment(chunks, state.context.sampleRate);
+  };
+
   const stopDictation = async () => {
     const state = audio.current;
     if (!state) return;
@@ -194,12 +233,20 @@ export function Composer({
     state.gain.disconnect();
     const rate = state.context.sampleRate;
     await state.context.close().catch(() => undefined);
+    setFinishing(true);
     try {
-      const blob = encodeWav(state.chunks, rate);
-      const { text } = await api.stt(blob);
-      appendText(text);
+      if (dictationMode === "fast") {
+        flushSegment(state);
+        await queue.current;
+      } else {
+        const { text } = await api.stt(encodeWav(state.chunks, rate));
+        appendText(text);
+      }
     } catch (error) {
       onError(error instanceof Error ? error.message : "Transcription failed");
+    } finally {
+      setFinishing(false);
+      setPending(0);
     }
   };
 
@@ -218,19 +265,57 @@ export function Composer({
       const gain = context.createGain();
       gain.gain.value = 0;
       const chunks: Float32Array[] = [];
+      const state: NonNullable<typeof audio.current> = {
+        context,
+        stream,
+        source,
+        processor,
+        gain,
+        chunks,
+        segment: [],
+        preroll: [],
+        hasSpeech: false,
+        silence: 0,
+        timer: 0,
+        started: Date.now(),
+      };
       processor.onaudioprocess = (event) => {
-        chunks.push(new Float32Array(event.inputBuffer.getChannelData(0)));
+        const block = new Float32Array(event.inputBuffer.getChannelData(0));
+        chunks.push(block);
+        if (dictationMode !== "fast") return;
+        let sum = 0;
+        for (let index = 0; index < block.length; index += 1) sum += block[index] * block[index];
+        const rms = Math.sqrt(sum / block.length);
+        const speech = rms > 0.012;
+        if (!state.hasSpeech) {
+          state.preroll.push(block);
+          if (state.preroll.length > 3) state.preroll.shift();
+          if (speech) {
+            state.hasSpeech = true;
+            state.segment.push(...state.preroll);
+            state.preroll = [];
+            state.silence = 0;
+          }
+          return;
+        }
+        state.segment.push(block);
+        if (speech) state.silence = 0;
+        else state.silence += block.length / context.sampleRate;
+        const seconds =
+          state.segment.reduce((total, chunk) => total + chunk.length, 0) / context.sampleRate;
+        if ((state.silence >= 0.6 && seconds >= 0.4) || seconds >= 10) {
+          flushSegment(state);
+        }
       };
       source.connect(processor);
       processor.connect(gain);
       gain.connect(context.destination);
-      const started = Date.now();
-      const timer = window.setInterval(() => {
-        const seconds = Math.floor((Date.now() - started) / 1000);
+      state.timer = window.setInterval(() => {
+        const seconds = Math.floor((Date.now() - state.started) / 1000);
         setElapsed(seconds);
         if (seconds >= MAX_RECORDING) void stopDictation();
       }, 500);
-      audio.current = { context, stream, source, processor, gain, chunks, timer, started };
+      audio.current = state;
       setElapsed(0);
       setRecording(true);
     } catch (error) {
@@ -240,7 +325,7 @@ export function Composer({
 
   const toggleDictation = () => {
     if (recording) void stopDictation();
-    else void startDictation();
+    else if (!finishing) void startDictation();
   };
 
   const uploading = attachments.some((item) => !item.path && !item.error);

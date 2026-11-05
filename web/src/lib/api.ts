@@ -149,8 +149,8 @@ export const api = {
     if (!response.ok) throw new ApiError(await errorText(response), response.status);
     return (await response.json()) as { path: string; name: string; size: number };
   },
-  stt: async (audio: Blob) => {
-    const response = await fetch("/api/stt", {
+  stt: async (audio: Blob, mode?: "fast") => {
+    const response = await fetch(`/api/stt${mode ? `?mode=${mode}` : ""}`, {
       method: "POST",
       headers: { "Content-Type": "audio/wav" },
       body: audio,

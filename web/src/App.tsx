@@ -40,6 +40,10 @@ function messageOf(error: unknown): string {
   return "Something went wrong";
 }
 
+function saveHidden(ids: Set<string>) {
+  localStorage.setItem("nit-gui.hidden", JSON.stringify([...ids]));
+}
+
 const COMMANDS: ComposerCommand[] = [
   { id: "new", label: "/new", description: "Start a new chat in this workspace" },
   { id: "dir", label: "/dir", description: "Switch workspace" },
@@ -88,6 +92,15 @@ export default function App() {
     localStorage.getItem("nit-gui.dictation") === "accurate" ? "accurate" : "fast",
   );
   const [forms, setForms] = useState<FormInfo[]>([]);
+  const [hiddenIds, setHiddenIds] = useState<Set<string>>(() => {
+    try {
+      const value = JSON.parse(localStorage.getItem("nit-gui.hidden") ?? "[]");
+      return new Set(Array.isArray(value) ? value.filter((item) => typeof item === "string") : []);
+    } catch {
+      return new Set();
+    }
+  });
+  const [showHidden, setShowHidden] = useState(false);
   const [sessions, setSessions] = useState<Session[]>([]);
   const [sessionsLoading, setSessionsLoading] = useState(true);
   const [selectedId, setSelectedIdState] = useState<string | null>(() =>
@@ -344,6 +357,12 @@ export default function App() {
     }
   }, [sessions, sessionsLoading, selectedId]);
 
+  useEffect(() => {
+    if (!selectedId || showHidden || !hiddenIds.has(selectedId)) return;
+    setSelectedIdState(null);
+    localStorage.removeItem("nit-gui.session");
+  }, [hiddenIds, selectedId, showHidden]);
+
   const selectSession = useCallback((id: string | null) => {
     if (id !== selectedIdRef.current) {
       setMessages([]);
@@ -390,6 +409,51 @@ export default function App() {
       return next;
     });
   }, []);
+
+  const hideSession = useCallback(
+    (id: string) => {
+      setHiddenIds((current) => {
+        const next = new Set(current);
+        next.add(id);
+        saveHidden(next);
+        return next;
+      });
+      if (selectedIdRef.current === id) selectSession(null);
+    },
+    [selectSession],
+  );
+
+  const unhideSession = useCallback((id: string) => {
+    setHiddenIds((current) => {
+      const next = new Set(current);
+      next.delete(id);
+      saveHidden(next);
+      return next;
+    });
+  }, []);
+
+  const deleteSession = useCallback(
+    async (id: string) => {
+      if (!window.confirm("Delete this chat? This cannot be undone.")) return;
+      setBanner(null);
+      try {
+        await api.deleteSession(id);
+        setSessions((current) => current.filter((item) => item.id !== id));
+        setHiddenIds((current) => {
+          if (!current.has(id)) return current;
+          const next = new Set(current);
+          next.delete(id);
+          saveHidden(next);
+          return next;
+        });
+        if (selectedIdRef.current === id) selectSession(null);
+        void loadSessions();
+      } catch (error) {
+        setBanner(messageOf(error));
+      }
+    },
+    [loadSessions, selectSession],
+  );
 
   const scheduleSessionsRefresh = useCallback(() => {
     if (refreshTimer.current !== null) return;
@@ -774,6 +838,10 @@ export default function App() {
   const offlineBanner = health && !health.ok ? "OpenCode service is offline." : null;
   const activeError = banner ?? offlineBanner;
   const running = selectedId ? isRunning(selectedId) : false;
+  const hiddenCount = sessions.filter((session) => hiddenIds.has(session.id)).length;
+  const visibleSessions = showHidden
+    ? sessions
+    : sessions.filter((session) => !hiddenIds.has(session.id));
 
   return (
     <div className="flex h-full min-h-0 overflow-hidden">
@@ -785,7 +853,7 @@ export default function App() {
         )}
       >
         <Sidebar
-          sessions={sessions}
+          sessions={visibleSessions}
           workspace={workspace}
           scope={scope}
           selectedId={selectedId}
@@ -793,11 +861,18 @@ export default function App() {
           health={health}
           search={search}
           searchRef={searchRef}
+          hiddenIds={hiddenIds}
+          hiddenCount={hiddenCount}
+          showHidden={showHidden}
           onSearch={setSearch}
           onScope={changeScope}
           onWorkspace={() => setPickerOpen(true)}
           onSelect={selectSession}
           onNew={newChat}
+          onHide={hideSession}
+          onUnhide={unhideSession}
+          onDelete={deleteSession}
+          onToggleHidden={() => setShowHidden((value) => !value)}
           isRunning={isRunning}
         />
       </aside>

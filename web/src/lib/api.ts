@@ -73,6 +73,8 @@ export const api = {
     const suffix = query.toString();
     return request<SessionList>(`/api/sessions${suffix ? `?${suffix}` : ""}`);
   },
+  deleteSession: (id: string) =>
+    request<void>(`/api/sessions/${encodeURIComponent(id)}`, { method: "DELETE" }),
   createSession: async (input: {
     directory?: string;
     title?: string;

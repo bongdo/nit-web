@@ -1,5 +1,15 @@
 import { useEffect, useState, type RefObject } from "react";
-import { CornerDownRight, Folder, FolderOpen, MessageSquare, Plus, Search } from "lucide-react";
+import {
+  CornerDownRight,
+  Eye,
+  EyeOff,
+  Folder,
+  FolderOpen,
+  MessageSquare,
+  Plus,
+  Search,
+  Trash2,
+} from "lucide-react";
 import type { Health, Session } from "../lib/types";
 import { basename, filterSessions, formatRelative } from "../lib/format";
 import { SCOPES, groupSessions, type Scope } from "../lib/sessions";
@@ -12,63 +22,111 @@ function SessionRow({
   depth,
   active,
   running,
+  hidden,
   now,
   onClick,
+  onHide,
+  onUnhide,
+  onDelete,
 }: {
   session: Session;
   depth: number;
   active: boolean;
   running: boolean;
+  hidden: boolean;
   now: number;
   onClick: () => void;
+  onHide: () => void;
+  onUnhide: () => void;
+  onDelete: () => void;
 }) {
   const title = session.title?.trim() || (session.parentID ? "Subagent" : "New chat");
   return (
-    <button
-      type="button"
-      data-session-id={session.id}
-      onClick={onClick}
+    <div
+      className="group relative"
       style={{
         marginLeft: depth * 12,
         width: depth > 0 ? `calc(100% - ${depth * 12}px)` : undefined,
       }}
-      className={cn(
-        "group flex w-full flex-col gap-1 rounded-lg px-2.5 py-2 text-left transition-colors",
-        depth > 0 && "py-1.5",
-        active ? "bg-accent text-accent-foreground" : "hover:bg-accent/60",
-      )}
     >
-      <div className="flex min-w-0 items-center gap-2">
-        {depth > 0 ? (
-          <CornerDownRight className="text-muted-foreground size-3 shrink-0" />
-        ) : (
+      <button
+        type="button"
+        data-session-id={session.id}
+        onClick={onClick}
+        className={cn(
+          "flex w-full flex-col gap-1 rounded-lg px-2.5 py-2 text-left transition-colors",
+          depth > 0 && "py-1.5",
+          hidden && "opacity-60",
+          active ? "bg-accent text-accent-foreground" : "hover:bg-accent/60",
+        )}
+      >
+        <div className="flex min-w-0 items-center gap-2">
+          {depth > 0 ? (
+            <CornerDownRight className="text-muted-foreground size-3 shrink-0" />
+          ) : (
+            <span
+              className={cn(
+                "size-1.5 shrink-0 rounded-full",
+                running ? "animate-pulse bg-emerald-500" : "bg-border",
+              )}
+              aria-label={running ? "running" : "idle"}
+            />
+          )}
+          <span className="min-w-0 flex-1 truncate text-[13px] font-medium">{title}</span>
           <span
             className={cn(
-              "size-1.5 shrink-0 rounded-full",
-              running ? "animate-pulse bg-emerald-500" : "bg-border",
+              "shrink-0 text-[10px] transition-opacity group-hover:opacity-0",
+              running ? "text-emerald-500" : "text-muted-foreground",
             )}
-            aria-label={running ? "running" : "idle"}
-          />
-        )}
-        <span className="min-w-0 flex-1 truncate text-[13px] font-medium">{title}</span>
-        <span
-          className={cn(
-            "shrink-0 text-[10px]",
-            running ? "text-emerald-500" : "text-muted-foreground",
-          )}
-        >
-          {running ? "running" : formatRelative(session.time.updated, now)}
-        </span>
-      </div>
-      {depth === 0 && (
-        <div className="text-muted-foreground flex min-w-0 items-center gap-1 pl-3.5 text-[10px]">
-          <Folder className="size-3 shrink-0" />
-          <span className="truncate" title={session.location?.directory}>
-            {basename(session.location?.directory) || "unknown"}
+          >
+            {running ? "running" : formatRelative(session.time.updated, now)}
           </span>
         </div>
-      )}
-    </button>
+        {depth === 0 && (
+          <div className="text-muted-foreground flex min-w-0 items-center gap-1 pl-3.5 text-[10px]">
+            <Folder className="size-3 shrink-0" />
+            <span className="truncate" title={session.location?.directory}>
+              {basename(session.location?.directory) || "unknown"}
+            </span>
+          </div>
+        )}
+      </button>
+      <div className="absolute top-1 right-1 hidden items-center gap-0.5 group-hover:flex">
+        {hidden ? (
+          <Button
+            variant="ghost"
+            size="icon-xs"
+            className="text-emerald-500 hover:bg-emerald-500/10"
+            onClick={onUnhide}
+            title="Unhide chat"
+            aria-label="Unhide chat"
+          >
+            <Eye />
+          </Button>
+        ) : (
+          <Button
+            variant="ghost"
+            size="icon-xs"
+            className="text-destructive hover:bg-destructive/10"
+            onClick={onHide}
+            title="Hide chat"
+            aria-label="Hide chat"
+          >
+            <EyeOff />
+          </Button>
+        )}
+        <Button
+          variant="ghost"
+          size="icon-xs"
+          className="text-destructive hover:bg-destructive/10"
+          onClick={onDelete}
+          title="Delete chat"
+          aria-label="Delete chat"
+        >
+          <Trash2 />
+        </Button>
+      </div>
+    </div>
   );
 }
 

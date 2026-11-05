@@ -53,6 +53,7 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("GET /api/projects", s.projects)
 	s.mux.HandleFunc("GET /api/sessions", s.sessions)
 	s.mux.HandleFunc("POST /api/sessions", s.createSession)
+	s.mux.HandleFunc("DELETE /api/sessions/{id}", s.deleteSession)
 	s.mux.HandleFunc("GET /api/sessions/{id}/messages", s.messages)
 	s.mux.HandleFunc("GET /api/sessions/{id}/children", s.children)
 	s.mux.HandleFunc("POST /api/sessions/{id}/prompt", s.prompt)
@@ -232,6 +233,24 @@ func (s *Server) createSession(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeRaw(w, raw, c.Redactor())
+}
+
+func (s *Server) deleteSession(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	if !validID(id) {
+		writeError(w, http.StatusBadRequest, "invalid session id")
+		return
+	}
+	c, ok := s.client(r.Context())
+	if !ok {
+		writeError(w, http.StatusServiceUnavailable, "opencode service not found")
+		return
+	}
+	if err := c.Do(r.Context(), http.MethodDelete, "/api/session/"+url.PathEscape(id), nil, nil); err != nil {
+		s.upstreamError(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func (s *Server) messages(w http.ResponseWriter, r *http.Request) {

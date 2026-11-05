@@ -1,20 +1,24 @@
 import {
+  ArrowLeft,
   Folder,
   Loader2,
   Menu,
   Monitor,
   Moon,
+  PanelLeftClose,
+  PanelLeftOpen,
+  Settings,
   Sun,
   Wifi,
   WifiOff,
 } from "lucide-react";
-import type { Agent, Health, Model, ModelRef, Session } from "../lib/types";
+import type { Health, Model, ModelRef, Session } from "../lib/types";
 import type { Theme } from "../hooks/useTheme";
 import type { StreamStatus } from "../hooks/useEventStream";
-import { basename, modelKey } from "../lib/format";
+import { basename, modelLabel } from "../lib/format";
 import { cn } from "../lib/utils";
 import { Button } from "./ui/button";
-import { Select } from "./ui/select";
+import { SubagentMenu } from "./SubagentMenu";
 
 function ThemeIcon({ theme }: { theme: Theme }) {
   if (theme === "light") return <Sun />;
@@ -26,49 +30,45 @@ export function Header({
   session,
   directory: fallbackDirectory,
   models,
-  agents,
   model,
   agent,
   health,
   streamStatus,
   theme,
-  onModel,
-  onAgent,
+  collapsed,
+  subagents,
+  parent,
+  onOpenSubagent,
+  onBack,
+  onSettings,
+  onToggleSidebar,
   onTheme,
   onMenu,
 }: {
   session: Session | null;
-  directory?: string;
+  directory?: string | null;
   models: Model[];
-  agents: Agent[];
   model: ModelRef | null;
   agent: string | null;
   health: Health | null;
   streamStatus: StreamStatus;
   theme: Theme;
-  onModel: (model: ModelRef) => void;
-  onAgent: (agent: string) => void;
+  collapsed: boolean;
+  subagents: Session[];
+  parent?: Session | null;
+  onOpenSubagent: (session: Session) => void;
+  onBack: () => void;
+  onSettings: () => void;
+  onToggleSidebar: () => void;
   onTheme: () => void;
   onMenu: () => void;
 }) {
-  const providers = Array.from(new Set(models.map((item) => item.providerID)));
-  const primaryAgents = agents
-    .filter((item) => !item.hidden && (item.mode === "primary" || item.mode === "all"))
-    .sort((a, b) => (a.id === "build" ? -1 : b.id === "build" ? 1 : a.name.localeCompare(b.name)))
-    .map((item) => ({ id: item.id, name: item.name }));
-  if (agent && !primaryAgents.some((item) => item.id === agent)) {
-    primaryAgents.unshift({ id: agent, name: agent });
-  }
   const directory = session?.location?.directory ?? fallbackDirectory;
   const title = session?.title?.trim() || (session ? "New chat" : "nit-gui");
   const live = streamStatus === "online" && health?.ok;
-  const variants = model
-    ? (models.find((item) => item.id === model.id && item.providerID === model.providerID)
-        ?.variants ?? [])
-    : [];
 
   return (
-    <header className="border-border bg-background/95 supports-[backdrop-filter]:bg-background/80 flex shrink-0 flex-wrap items-center gap-x-3 gap-y-2 border-b px-3 py-2.5 backdrop-blur">
+    <header className="border-border bg-background flex h-12 shrink-0 items-center gap-2 border-b px-2.5">
       <Button
         variant="ghost"
         size="icon-sm"
@@ -78,100 +78,57 @@ export function Header({
       >
         <Menu />
       </Button>
+      <Button
+        variant="ghost"
+        size="icon-sm"
+        className="hidden md:inline-flex"
+        onClick={onToggleSidebar}
+        title={collapsed ? "Show chats" : "Hide chats"}
+        aria-label={collapsed ? "Show chats" : "Hide chats"}
+      >
+        {collapsed ? <PanelLeftOpen /> : <PanelLeftClose />}
+      </Button>
 
-      <div className="flex min-w-0 flex-1 items-center gap-2">
-        <div className="min-w-0">
-          <h1 className="truncate text-[13px] font-semibold leading-tight">{title}</h1>
-          <div className="text-muted-foreground flex min-w-0 items-center gap-1 text-[10px] leading-tight">
-            <Folder className="size-3 shrink-0" />
-            <span className="truncate" title={directory}>
-              {directory ? basename(directory) : "no directory"}
+      <div className="min-w-0 flex-1">
+        <h1 className="truncate text-[13px] font-semibold leading-tight">{title}</h1>
+        <div className="text-muted-foreground flex min-w-0 items-center gap-1 text-[10px] leading-tight">
+          <Folder className="size-3 shrink-0" />
+          <span className="truncate" title={directory ?? undefined}>
+            {directory ? basename(directory) : "no directory"}
+          </span>
+          {(agent || model) && (
+            <span className="truncate">
+              · {agent ?? "agent"} · {modelLabel(model, models) || "model"}
             </span>
-            {session?.agent && <span className="hidden sm:inline">· {session.agent}</span>}
-          </div>
+          )}
         </div>
       </div>
 
-      <div className="flex flex-wrap items-center justify-end gap-1.5">
-        <Select
-          aria-label="Model"
-          className="w-[150px] sm:w-[190px]"
-          value={model ? modelKey(model) : ""}
-          onChange={(event) => {
-            const [providerID, ...rest] = event.target.value.split("/");
-            const id = rest.join("/");
-            if (!providerID || !id) return;
-            const supported = models
-              .find((item) => item.id === id && item.providerID === providerID)
-              ?.variants.some((item) => item.id === model?.variant);
-            onModel({ id, providerID, variant: supported ? model?.variant : undefined });
-          }}
-          disabled={models.length === 0}
-          title="Model"
-        >
-          {!model && <option value="">Default model</option>}
-          {providers.map((providerID) => (
-            <optgroup key={providerID} label={providerID}>
-              {models
-                .filter((item) => item.providerID === providerID && item.enabled)
-                .map((item) => (
-                  <option key={modelKey(item)} value={modelKey(item)}>
-                    {item.name}
-                  </option>
-                ))}
-            </optgroup>
-          ))}
-        </Select>
-
-        {model && variants.length > 0 && (
-          <Select
-            aria-label="Model variant"
-            className="w-[95px] sm:w-[110px]"
-            value={model.variant ?? ""}
-            onChange={(event) =>
-              onModel({ ...model, variant: event.target.value || undefined })
-            }
-            title="Model variant"
-          >
-            <option value="">Default</option>
-            {model.variant && !variants.some((item) => item.id === model.variant) && (
-              <option value={model.variant}>{model.variant}</option>
-            )}
-            {variants.map((item) => (
-              <option key={item.id} value={item.id}>
-                {item.id}
-              </option>
-            ))}
-          </Select>
+      <div className="flex shrink-0 items-center gap-1">
+        {parent ? (
+          <Button variant="ghost" size="sm" onClick={onBack} title="Back to parent">
+            <ArrowLeft />
+            Parent
+          </Button>
+        ) : (
+          <SubagentMenu sessions={subagents} onOpen={onOpenSubagent} />
         )}
-
-        <Select
-          aria-label="Agent"
-          className="w-[105px] sm:w-[130px]"
-          value={agent ?? ""}
-          onChange={(event) => onAgent(event.target.value)}
-          disabled={primaryAgents.length === 0}
-          title="Agent"
-        >
-          {!agent && <option value="">Agent</option>}
-          {primaryAgents.map((item) => (
-            <option key={item.id} value={item.id}>
-              {item.name}
-            </option>
-          ))}
-        </Select>
 
         <span
           className={cn(
             "inline-flex size-8 items-center justify-center",
-            live ? "text-emerald-500" : streamStatus === "connecting" ? "text-amber-500" : "text-destructive",
+            live
+              ? "text-emerald-500"
+              : streamStatus === "connecting"
+                ? "text-amber-500"
+                : "text-destructive",
           )}
           title={
             live
               ? `Live · ${health?.server ?? ""}`
               : streamStatus === "connecting"
                 ? "Connecting to event stream"
-                : health?.error ?? "Service offline"
+                : (health?.error ?? "Service offline")
           }
         >
           {streamStatus === "connecting" ? (
@@ -182,6 +139,10 @@ export function Header({
             <WifiOff className="size-3.5" />
           )}
         </span>
+
+        <Button variant="ghost" size="icon-sm" onClick={onSettings} aria-label="Settings">
+          <Settings />
+        </Button>
 
         <Button
           variant="ghost"

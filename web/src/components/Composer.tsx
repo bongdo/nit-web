@@ -304,7 +304,7 @@ export function Composer({
         else state.silence += block.length / context.sampleRate;
         const seconds =
           state.segment.reduce((total, chunk) => total + chunk.length, 0) / context.sampleRate;
-        if ((state.silence >= 0.6 && seconds >= 0.4) || seconds >= 10) {
+        if ((state.silence >= 0.6 && seconds >= 0.4) || seconds >= 6) {
           flushSegment(state);
         }
       };

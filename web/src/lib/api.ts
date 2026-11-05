@@ -26,6 +26,16 @@ type RequestOptions = {
   signal?: AbortSignal;
 };
 
+async function errorText(response: Response): Promise<string> {
+  try {
+    const data = (await response.json()) as { error?: string; message?: string };
+    return data.error || data.message || `Request failed (${response.status})`;
+  } catch {
+    const text = await response.text().catch(() => "");
+    return text.trim().slice(0, 500) || `Request failed (${response.status})`;
+  }
+}
+
 async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const headers: Record<string, string> = { Accept: "application/json" };
   if (options.body !== undefined) headers["Content-Type"] = "application/json";
@@ -76,15 +86,54 @@ export const api = {
   },
   messages: async (id: string) =>
     (await request<MessagesResponse>(`/api/sessions/${encodeURIComponent(id)}/messages`)).data,
-  prompt: (id: string, text: string) =>
+  children: async (id: string) =>
+    (await request<SessionList>(`/api/sessions/${encodeURIComponent(id)}/children`)).data,
+  prompt: (id: string, text: string, files?: { uri: string; name?: string }[]) =>
     request<unknown>(`/api/sessions/${encodeURIComponent(id)}/prompt`, {
       method: "POST",
-      body: { text },
+      body: { text, ...(files && files.length > 0 ? { files } : {}) },
     }),
   interrupt: (id: string) =>
     request<{ interrupted?: boolean }>(`/api/sessions/${encodeURIComponent(id)}/interrupt`, {
       method: "POST",
     }),
+  revert: (id: string, messageID: string) =>
+    request<{ ok: boolean }>(`/api/sessions/${encodeURIComponent(id)}/revert`, {
+      method: "POST",
+      body: { messageID },
+    }),
+  fork: async (id: string, before?: string) =>
+    (
+      await request<{ data: Session }>(`/api/sessions/${encodeURIComponent(id)}/fork`, {
+        method: "POST",
+        body: { ...(before ? { before } : {}) },
+      })
+    ).data,
+  compact: (id: string) =>
+    request<{ ok: boolean }>(`/api/sessions/${encodeURIComponent(id)}/compact`, {
+      method: "POST",
+    }),
+  upload: async (file: File, dir: string) => {
+    const query = new URLSearchParams({ name: file.name, dir });
+    const response = await fetch(`/api/upload?${query}`, {
+      method: "POST",
+      headers: { "Content-Type": file.type || "application/octet-stream" },
+      body: file,
+      signal: AbortSignal.timeout(120_000),
+    });
+    if (!response.ok) throw new ApiError(await errorText(response), response.status);
+    return (await response.json()) as { path: string; name: string; size: number };
+  },
+  stt: async (audio: Blob) => {
+    const response = await fetch("/api/stt", {
+      method: "POST",
+      headers: { "Content-Type": "audio/wav" },
+      body: audio,
+      signal: AbortSignal.timeout(180_000),
+    });
+    if (!response.ok) throw new ApiError(await errorText(response), response.status);
+    return (await response.json()) as { text: string };
+  },
   switchModel: (id: string, model: ModelRef) =>
     request<unknown>(`/api/sessions/${encodeURIComponent(id)}/model`, {
       method: "POST",

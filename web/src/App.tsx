@@ -84,6 +84,9 @@ export default function App() {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(() => localStorage.getItem("nit-gui.collapsed") === "1");
+  const [dictationMode, setDictationMode] = useState<"fast" | "accurate">(() =>
+    localStorage.getItem("nit-gui.dictation") === "accurate" ? "accurate" : "fast",
+  );
   const [forms, setForms] = useState<FormInfo[]>([]);
   const [sessions, setSessions] = useState<Session[]>([]);
   const [sessionsLoading, setSessionsLoading] = useState(true);
@@ -885,6 +888,7 @@ export default function App() {
           contextPercent={shownContext}
           cost={shownCost}
           estimatedCost={sessionCost === 0 && estimated > 0}
+          dictationMode={dictationMode}
           onSend={send}
           onStop={() => void stop()}
           onCommand={runCommand}
@@ -911,9 +915,14 @@ export default function App() {
           agent={currentAgent}
           theme={theme}
           directory={workspace}
+          dictationMode={dictationMode}
           onModel={(model) => void changeModel(model)}
           onAgent={(agent) => void changeAgent(agent)}
           onTheme={setTheme}
+          onDictation={(mode) => {
+            setDictationMode(mode);
+            localStorage.setItem("nit-gui.dictation", mode);
+          }}
           onClose={() => setSettingsOpen(false)}
         />
       )}

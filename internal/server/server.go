@@ -746,7 +746,6 @@ func (s *Server) stt(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var text string
-	var err error
 	if r.URL.Query().Get("mode") == "fast" {
 		text, err = s.fast.transcribe(r.Context(), data)
 	} else {

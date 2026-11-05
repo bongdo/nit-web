@@ -125,6 +125,7 @@ export function Composer({
   useEffect(() => {
     const area = ref.current;
     if (!area) return;
+    area.style.height = "auto";
     area.style.height = `${Math.min(area.scrollHeight, 200)}px`;
   }, [value]);
 
@@ -333,7 +334,7 @@ export function Composer({
 
   const submit = async () => {
     const text = value.trim();
-    if (!text || !workspace || disabled || submitting || uploading) return;
+    if (!text || !workspace || disabled || submitting || uploading || finishing) return;
     setSubmitting(true);
     try {
       await onSend(text, readyFiles, running ? "queue" : undefined);
@@ -519,17 +520,43 @@ export function Composer({
             </Button>
             <Button
               variant={recording ? "destructive" : "ghost"}
-              size={recording ? "sm" : "icon-sm"}
+              size={recording || finishing ? "sm" : "icon-sm"}
               onClick={toggleDictation}
-              disabled={disabled || !workspace}
+              disabled={disabled || !workspace || finishing || submitting}
               title={recording ? "Stop dictation" : "Dictate"}
               aria-label={recording ? "Stop dictation" : "Dictate"}
             >
-              {recording ? <Square className="fill-current" /> : <Mic />}
-              {recording && <span className="font-mono text-[11px]">0:{String(elapsed).padStart(2, "0")}</span>}
+              {finishing ? (
+                <Loader2 className="animate-spin" />
+              ) : recording ? (
+                <Square className="fill-current" />
+              ) : (
+                <Mic />
+              )}
+              {recording && (
+                <span className="font-mono text-[11px]">
+                  0:{String(elapsed).padStart(2, "0")}
+                  {pending > 0 ? ` · ${pending}` : ""}
+                </span>
+              )}
+              {finishing && <span className="text-[11px]">Transcribing…</span>}
             </Button>
-            <span className="text-muted-foreground hidden text-[11px] sm:inline">
-              Enter to send · Shift+Enter for a new line · / commands
+            <span
+              aria-live="polite"
+              className={cn(
+                "hidden text-[11px] sm:inline",
+                recording ? "text-destructive" : "text-muted-foreground",
+              )}
+            >
+              {finishing
+                ? "Finishing transcription…"
+                : recording
+                  ? pending > 0
+                    ? `Recording · ${pending} segment${pending === 1 ? "" : "s"} queued`
+                    : dictationMode === "fast"
+                      ? "Recording · text appears as you pause"
+                      : "Recording · transcribing when you stop"
+                  : "Enter to send · Shift+Enter for a new line · / commands"}
             </span>
             <div className="ml-auto flex items-center gap-1">
               {running && (
@@ -541,7 +568,9 @@ export function Composer({
               <Button
                 size="sm"
                 onClick={() => void submit()}
-                disabled={!workspace || disabled || !value.trim() || submitting || uploading}
+                disabled={
+                  !workspace || disabled || !value.trim() || submitting || uploading || finishing
+                }
                 aria-label={running ? "Queue message" : "Send"}
               >
                 {submitting ? <Loader2 className="animate-spin" /> : <ArrowUp />}

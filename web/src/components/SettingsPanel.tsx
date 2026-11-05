@@ -12,9 +12,11 @@ export function SettingsPanel({
   agent,
   theme,
   directory,
+  dictationMode,
   onModel,
   onAgent,
   onTheme,
+  onDictation,
   onClose,
 }: {
   models: Model[];
@@ -23,9 +25,11 @@ export function SettingsPanel({
   agent: string | null;
   theme: Theme;
   directory?: string | null;
+  dictationMode: "fast" | "accurate";
   onModel: (model: ModelRef) => void;
   onAgent: (agent: string) => void;
   onTheme: (theme: Theme) => void;
+  onDictation: (mode: "fast" | "accurate") => void;
   onClose: () => void;
 }) {
   const providers = Array.from(new Set(models.map((item) => item.providerID)));
@@ -139,6 +143,18 @@ export function SettingsPanel({
               <option value="system">System</option>
               <option value="light">Light</option>
               <option value="dark">Dark</option>
+            </Select>
+          </label>
+
+          <label className="block space-y-1">
+            <span className="text-muted-foreground text-[11px]">Dictation</span>
+            <Select
+              className="w-full"
+              value={dictationMode}
+              onChange={(event) => onDictation(event.target.value as "fast" | "accurate")}
+            >
+              <option value="fast">Fast · live text, small model</option>
+              <option value="accurate">Accurate · one pass, large model</option>
             </Select>
           </label>
         </div>

@@ -1,4 +1,4 @@
-import type { Message, Model, ModelRef, Session, Tokens } from "./types";
+import type { Message, Model, ModelRef, Session, Tokens, UserFile } from "./types";
 
 export function formatRelative(ms: number, now = Date.now()): string {
   if (!ms) return "";
@@ -70,6 +70,10 @@ export function modelLabel(model: ModelRef | null | undefined, models: Model[]):
   const found = models.find((m) => m.id === model.id && m.providerID === model.providerID);
   const name = found?.name ?? `${model.providerID}/${model.id}`;
   return model.variant ? `${name} · ${model.variant}` : name;
+}
+
+export function fileUri(file: UserFile): string | undefined {
+  return file.uri ?? file.source?.uri;
 }
 
 export function basename(path?: string): string {

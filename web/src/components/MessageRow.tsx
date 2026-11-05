@@ -5,7 +5,7 @@ import type { Agent, Message, Model, UserFile } from "../lib/types";
 import { api } from "../lib/api";
 import { copyText } from "../lib/clipboard";
 import { isPureHtml, looksLikeHtml } from "../lib/html";
-import { modelLabel, replyText } from "../lib/format";
+import { fileUri, modelLabel, replyText } from "../lib/format";
 import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
 import { HtmlMessagePreview } from "./HtmlMessagePreview";
@@ -19,11 +19,19 @@ function timeLabel(ms: number): string {
 
 function isImageFile(file: UserFile): boolean {
   if (file.mime?.startsWith("image/")) return true;
-  return /\.(png|jpe?g|gif|webp|svg|avif)$/i.test(file.name ?? file.uri);
+  return /\.(png|jpe?g|gif|webp|svg|avif)$/i.test(file.name ?? fileUri(file) ?? "");
 }
 
 function FilePreview({ file }: { file: UserFile }) {
-  const href = api.fileUrl(file.uri);
+  const uri = fileUri(file);
+  if (!uri) {
+    return (
+      <span className="border-border bg-background/60 truncate rounded-md border px-2 py-1 text-[11px]">
+        {file.name ?? "file"}
+      </span>
+    );
+  }
+  const href = api.fileUrl(uri);
   if (!isImageFile(file)) {
     return (
       <a

@@ -12,7 +12,8 @@ export type Tokens = {
 };
 
 export type UserFile = {
-  uri: string;
+  uri?: string;
+  source?: { uri?: string };
   name?: string;
   description?: string;
   mime?: string;

@@ -19,7 +19,7 @@ import (
 )
 
 const (
-	fastSTTAddr  = "127.0.0.1:8178"
+	fastSTTAddr   = "127.0.0.1:8178"
 	fastSTTPrompt = "nit-gui, OpenCode, workspace, subagent, revert, fork, HTML, MCP, jj, save, диктовка, распознавание речи"
 )
 

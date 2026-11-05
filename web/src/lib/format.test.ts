@@ -3,6 +3,7 @@ import {
   basename,
   contextPercent,
   estimateCost,
+  fileUri,
   filterSessions,
   formatCost,
   formatRelative,
@@ -25,6 +26,14 @@ const session = (overrides: Partial<Session> = {}): Session => ({
 });
 
 describe("format", () => {
+  it("reads a file uri from the flat and the v2 source shape", () => {
+    expect(fileUri({ uri: "file:///tmp/a.png" })).toBe("file:///tmp/a.png");
+    expect(fileUri({ source: { uri: "file:///tmp/b.png" }, name: "b.png" })).toBe(
+      "file:///tmp/b.png",
+    );
+    expect(fileUri({ name: "c.png" })).toBeUndefined();
+  });
+
   it("formats relative time", () => {
     const now = 10 * 60_000;
     expect(formatRelative(now, now)).toBe("now");

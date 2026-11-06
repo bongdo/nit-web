@@ -1,34 +1,19 @@
 import { memo, useEffect, useRef, useState } from "react";
 import {
   ArrowLeft,
-  Bell,
-  BellOff,
   Folder,
   Loader2,
-  Monitor,
-  Moon,
-  Palette,
   PanelLeftClose,
   PanelLeftOpen,
-  Settings,
-  Sun,
   Wifi,
   WifiOff,
 } from "lucide-react";
 import type { Health, Model, ModelRef, Session } from "../lib/types";
-import { themeLabel, type Theme } from "../lib/themes";
 import type { StreamStatus } from "../hooks/useEventStream";
 import { basename, formatCost, modelLabel } from "../lib/format";
 import { cn } from "../lib/utils";
 import { Button } from "./ui/button";
 import { SubagentMenu } from "./SubagentMenu";
-
-export function ThemeIcon({ theme }: { theme: Theme }) {
-  if (theme === "light") return <Sun />;
-  if (theme === "dark") return <Moon />;
-  if (theme === "system") return <Monitor />;
-  return <Palette />;
-}
 
 function ContextMeter({ value, session }: { value: number; session?: string }) {
   const previous = useRef<number | null>(null);
@@ -166,18 +151,13 @@ export const Header = memo(function Header({
   estimatedCost,
   health,
   streamStatus,
-  theme,
   collapsed,
   sidebarMode,
   subagents,
   parent,
-  notify,
   onOpenSubagent,
   onBack,
-  onSettings,
   onToggleSidebar,
-  onTheme,
-  onNotify,
 }: {
   session: Session | null;
   directory?: string | null;
@@ -189,23 +169,21 @@ export const Header = memo(function Header({
   estimatedCost?: boolean;
   health: Health | null;
   streamStatus: StreamStatus;
-  theme: Theme;
   collapsed: boolean;
   sidebarMode: "button" | "hover" | "swipe";
   subagents: Session[];
   parent?: Session | null;
-  notify: boolean;
   onOpenSubagent: (session: Session) => void;
   onBack: () => void;
-  onSettings: () => void;
   onToggleSidebar: () => void;
-  onTheme: () => void;
-  onNotify: () => void;
 }) {
   const live = streamStatus === "online" && health?.ok;
   const wasLive = useRef(Boolean(live));
   const booted = useRef(false);
   const [reconnected, setReconnected] = useState(0);
+  const liveTitle = ["Live", health?.version && `OpenCode ${health.version}`, health?.server]
+    .filter(Boolean)
+    .join(" · ");
 
   useEffect(() => {
     if (!booted.current) {
@@ -279,7 +257,7 @@ export const Header = memo(function Header({
             )}
             title={
               live
-                ? `Live · ${health?.server ?? ""}`
+                ? liveTitle
                 : streamStatus === "connecting"
                   ? "Connecting to event stream"
                   : (health?.error ?? "Service offline")
@@ -296,38 +274,6 @@ export const Header = memo(function Header({
               <span key={reconnected} aria-hidden className="chrome-sheen-health-sweep" />
             )}
           </span>
-
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            className={cn(pill, "size-9", notify && "text-emerald-500")}
-            onClick={onNotify}
-            title={notify ? "Desktop notifications on" : "Desktop notifications off"}
-            aria-label="Desktop notifications"
-          >
-            {notify ? <Bell /> : <BellOff />}
-          </Button>
-
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            className={cn(pill, "size-9")}
-            onClick={onSettings}
-            aria-label="Settings"
-          >
-            <Settings />
-          </Button>
-
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            className={cn(pill, "size-9")}
-            onClick={onTheme}
-            title={`Theme: ${themeLabel(theme)}`}
-            aria-label={`Theme: ${themeLabel(theme)}`}
-          >
-            <ThemeIcon theme={theme} />
-          </Button>
         </div>
       </div>
     </header>

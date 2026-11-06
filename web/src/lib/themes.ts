@@ -7,7 +7,11 @@ export const THEMES = [
   { id: "gruvbox", label: "Gruvbox", hint: "dark" },
   { id: "dracula", label: "Dracula", hint: "dark" },
   { id: "paper", label: "Paper", hint: "light" },
+  { id: "paper-dark", label: "Paper Dark", hint: "dark" },
   { id: "ember", label: "Ember", hint: "dark" },
+  { id: "kiln", label: "Kiln", hint: "dark" },
+  { id: "mist", label: "Mist", hint: "light" },
+  { id: "ash", label: "Ash", hint: "light" },
 ] as const;
 
 export type Theme = (typeof THEMES)[number]["id"];

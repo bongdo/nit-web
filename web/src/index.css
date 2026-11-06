@@ -203,6 +203,106 @@
   --success: #7fbf7a;
 }
 
+[data-theme="paper-dark"] {
+  --background: #221f1b;
+  --foreground: #ece4d8;
+  --card: #2b2723;
+  --card-foreground: #ece4d8;
+  --popover: #302b26;
+  --popover-foreground: #ece4d8;
+  --primary: #d6b184;
+  --primary-foreground: #241f1a;
+  --secondary: #332d27;
+  --secondary-foreground: #ece4d8;
+  --muted: #2c2722;
+  --muted-foreground: #b3a696;
+  --accent: #3a332c;
+  --accent-foreground: #f4ece0;
+  --destructive: #e06a55;
+  --destructive-foreground: #fff4ec;
+  --border: #3d352d;
+  --input: #3d352d;
+  --ring: #d6b184;
+  --spark: #e0a46a;
+  --attention: #e8c06a;
+  --success: #8fbc85;
+}
+
+[data-theme="kiln"] {
+  --background: #1a1310;
+  --foreground: #f3e6db;
+  --card: #241a15;
+  --card-foreground: #f3e6db;
+  --popover: #2a1f19;
+  --popover-foreground: #f3e6db;
+  --primary: #ff8a3d;
+  --primary-foreground: #1a1310;
+  --secondary: #33231a;
+  --secondary-foreground: #f3e6db;
+  --muted: #2a1d17;
+  --muted-foreground: #bda898;
+  --accent: #3a271d;
+  --accent-foreground: #ffe9d8;
+  --destructive: #ff5c47;
+  --destructive-foreground: #fff0e8;
+  --border: #422c20;
+  --input: #422c20;
+  --ring: #ff8a3d;
+  --spark: #ffb066;
+  --attention: #ffc861;
+  --success: #9bc47a;
+}
+
+[data-theme="mist"] {
+  --background: #f6f6f3;
+  --foreground: #2b3238;
+  --card: #ffffff;
+  --card-foreground: #2b3238;
+  --popover: #ffffff;
+  --popover-foreground: #2b3238;
+  --primary: #3f739c;
+  --primary-foreground: #ffffff;
+  --secondary: #ececea;
+  --secondary-foreground: #2b3238;
+  --muted: #ececea;
+  --muted-foreground: #626a70;
+  --accent: #e2edf4;
+  --accent-foreground: #234055;
+  --destructive: #b4483a;
+  --destructive-foreground: #ffffff;
+  --border: #dcdcd8;
+  --input: #dcdcd8;
+  --ring: #6d9cc0;
+  --spark: #5a8fb8;
+  --attention: #b98515;
+  --success: #4f7a4a;
+}
+
+[data-theme="ash"] {
+  --background: #e9e9e7;
+  --foreground: #26292b;
+  --card: #f2f2f0;
+  --card-foreground: #26292b;
+  --popover: #f2f2f0;
+  --popover-foreground: #26292b;
+  --primary: #3f739c;
+  --primary-foreground: #ffffff;
+  --secondary: #dededb;
+  --secondary-foreground: #26292b;
+  --muted: #dededb;
+  --muted-foreground: #5f6568;
+  --accent: #d5e4ee;
+  --accent-foreground: #1f3c50;
+  --destructive: #b4483a;
+  --destructive-foreground: #ffffff;
+  --border: #cfcfcb;
+  --input: #cfcfcb;
+  --ring: #6d9cc0;
+  --spark: #5a8fb8;
+  --attention: #9a7412;
+  --success: #4a7045;
+}
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);

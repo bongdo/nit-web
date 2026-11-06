@@ -8,6 +8,8 @@ import {
   type RefObject,
 } from "react";
 import {
+  Bell,
+  BellOff,
   ChevronRight,
   CornerDownRight,
   Eye,
@@ -21,7 +23,7 @@ import {
   Settings,
   Trash2,
 } from "lucide-react";
-import type { Health, Session } from "../lib/types";
+import type { Session } from "../lib/types";
 import { basename, filterSessions, formatRelative } from "../lib/format";
 import { SCOPES, groupSessions, type Scope } from "../lib/sessions";
 import { cn } from "../lib/utils";
@@ -260,7 +262,6 @@ export const Sidebar = memo(function Sidebar({
   scope,
   selectedId,
   loading,
-  health,
   search,
   searchRef,
   hiddenIds,
@@ -276,6 +277,8 @@ export const Sidebar = memo(function Sidebar({
   onDelete,
   onToggleHidden,
   onSettings,
+  notify,
+  onNotify,
   isRunning,
   waitingIds,
   failedIds,
@@ -288,7 +291,6 @@ export const Sidebar = memo(function Sidebar({
   scope: Scope;
   selectedId: string | null;
   loading: boolean;
-  health: Health | null;
   search: string;
   searchRef: RefObject<HTMLInputElement | null>;
   hiddenIds: Set<string>;
@@ -304,6 +306,8 @@ export const Sidebar = memo(function Sidebar({
   onDelete: (id: string) => void;
   onToggleHidden: () => void;
   onSettings: () => void;
+  notify: boolean;
+  onNotify: () => void;
   isRunning: (id: string) => boolean;
   waitingIds: Set<string>;
   failedIds: Set<string>;
@@ -641,20 +645,26 @@ export const Sidebar = memo(function Sidebar({
         )}
       </div>
 
-      <div className="border-border text-muted-foreground flex items-center gap-2 border-t px-3 py-2 text-[10px]">
-        <span
-          className={cn(
-            "size-1.5 rounded-full",
-            health?.ok ? "bg-emerald-500" : health ? "bg-destructive" : "bg-muted-foreground",
-          )}
-        />
-        <span className="truncate">
-          {health?.ok
-            ? `OpenCode ${health.version ?? ""}`.trim()
-            : health
-              ? "Service offline"
-              : "Connecting…"}
-        </span>
+      <div className="border-border text-muted-foreground flex items-center gap-1 border-t px-2 py-1.5 text-[10px]">
+        <Button
+          variant="ghost"
+          size="icon-xs"
+          className={cn(notify && "text-emerald-500")}
+          onClick={onNotify}
+          title={notify ? "Desktop notifications on" : "Desktop notifications off"}
+          aria-label="Desktop notifications"
+        >
+          {notify ? <Bell /> : <BellOff />}
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon-xs"
+          onClick={onSettings}
+          title="Settings"
+          aria-label="Settings"
+        >
+          <Settings />
+        </Button>
         {hiddenCount > 0 && (
           <button
             type="button"
@@ -666,21 +676,12 @@ export const Sidebar = memo(function Sidebar({
             {hiddenCount}
           </button>
         )}
-        <span className={cn("font-mono", hiddenCount === 0 && "ml-auto")}>
+        <span
+          className={cn("font-mono", hiddenCount === 0 && "ml-auto")}
+          title={`${sessions.length} chats`}
+        >
           {sessions.length}
         </span>
-      </div>
-
-      <div className="border-border border-t p-1.5 md:hidden">
-        <Button
-          variant="ghost"
-          size="sm"
-          className="w-full justify-start"
-          onClick={onSettings}
-        >
-          <Settings />
-          Settings
-        </Button>
       </div>
     </div>
   );

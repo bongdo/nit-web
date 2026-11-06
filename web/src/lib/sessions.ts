@@ -93,6 +93,7 @@ export function nextSessionId(
 export function groupSessions(
   sessions: Session[],
   waiting: ReadonlySet<string> = new Set(),
+  rank?: (session: Session) => number,
 ): SessionRow[] {
   const ids = new Set(sessions.map((session) => session.id));
   const children = new Map<string, Session[]>();
@@ -106,13 +107,16 @@ export function groupSessions(
       roots.push(session);
     }
   }
-  const waitingFirst = (list: Session[]) =>
-    [...list].sort((a, b) => Number(waiting.has(b.id)) - Number(waiting.has(a.id)));
+  const sort = (list: Session[]) =>
+    [...list].sort((a, b) => {
+      if (rank) return rank(a) - rank(b) || b.time.updated - a.time.updated;
+      return Number(waiting.has(b.id)) - Number(waiting.has(a.id));
+    });
   const rows: SessionRow[] = [];
   const walk = (session: Session, depth: number) => {
     rows.push({ session, depth });
-    for (const child of waitingFirst(children.get(session.id) ?? [])) walk(child, depth + 1);
+    for (const child of sort(children.get(session.id) ?? [])) walk(child, depth + 1);
   };
-  for (const root of waitingFirst(roots)) walk(root, 0);
+  for (const root of sort(roots)) walk(root, 0);
   return rows;
 }

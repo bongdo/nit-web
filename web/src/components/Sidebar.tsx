@@ -1,4 +1,12 @@
-import { Fragment, memo, useEffect, useRef, useState, type RefObject } from "react";
+import {
+  Fragment,
+  memo,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type RefObject,
+} from "react";
 import {
   ChevronRight,
   CornerDownRight,
@@ -65,27 +73,20 @@ function SessionRow({
     ? "session-waiting"
     : failed
       ? "session-failed"
-      : running
-        ? "session-running"
-        : done
-          ? "session-done"
-          : null;
+      : done
+        ? "session-done"
+        : null;
   const hasSubagents = depth === 0 && subagentCount > 0;
   return (
-    <div
-      className="group relative"
-      style={{
-        marginLeft: depth * 12,
-        width: depth > 0 ? `calc(100% - ${depth * 12}px)` : undefined,
-      }}
-    >
+    <div data-session-row={session.id} className="group relative mx-1.5">
       <button
         type="button"
         data-session-id={session.id}
         onClick={onClick}
+        onDoubleClick={hasSubagents ? onToggle : undefined}
         className={cn(
           "flex w-full flex-col gap-1 rounded-lg px-2.5 py-2 text-left transition-colors",
-          depth > 0 && "py-1.5",
+          depth > 0 && "py-1.5 pl-6",
           hidden && "opacity-60",
           state && cn("session-state", state, animated && "session-state-live"),
           active ? "bg-accent text-accent-foreground" : "hover:bg-accent/60",
@@ -297,10 +298,24 @@ export const Sidebar = memo(function Sidebar({
     }
   }, [selectedId, subagents]);
 
-  const visible = groupSessions(filterSessions(sessions, search), waitingIds);
+  const runningParents = new Set<string>();
+  for (const child of subagents) {
+    if (child.parentID && isRunning(child.id)) runningParents.add(child.parentID);
+  }
+
+  const rank = (session: Session) => {
+    if (waitingIds.has(session.id) || failedIds.has(session.id)) return 0;
+    if (isRunning(session.id) || runningParents.has(session.id)) return 2;
+    if (doneIds.has(session.id)) return 0;
+    return 1;
+  };
+
+  const visible = groupSessions(filterSessions(sessions, search), waitingIds, rank);
   const waitingCount = sessions.filter((session) => waitingIds.has(session.id)).length;
   const runningCount = sessions.filter(
-    (session) => isRunning(session.id) && !waitingIds.has(session.id),
+    (session) =>
+      (isRunning(session.id) || runningParents.has(session.id)) &&
+      !waitingIds.has(session.id),
   ).length;
   const childrenByParent = new Map<string, Session[]>();
   for (const session of subagents) {
@@ -310,12 +325,64 @@ export const Sidebar = memo(function Sidebar({
     childrenByParent.set(session.parentID, list);
   }
   for (const list of childrenByParent.values()) {
-    list.sort(
-      (a, b) =>
-        Number(isRunning(b.id)) - Number(isRunning(a.id)) || b.time.updated - a.time.updated,
-    );
+    list.sort((a, b) => rank(a) - rank(b) || b.time.updated - a.time.updated);
   }
   const animated = motion === "animated";
+  const runningGroupCount = visible.filter(({ session }) => rank(session) === 2).length;
+  const runningStart = visible.findIndex(({ session }) => rank(session) === 2);
+  const orderSignature = visible
+    .map(({ session }) => {
+      const kids = expanded.has(session.id)
+        ? (childrenByParent.get(session.id) ?? [])
+            .map((child) => child.id)
+            .join(",")
+        : "";
+      return `${session.id}[${kids}]`;
+    })
+    .join("|");
+  const listRef = useRef<HTMLDivElement>(null);
+  const positions = useRef(new Map<string, number>());
+  const lastOrder = useRef("");
+  const selectedSession = selectedId
+    ? ([...sessions, ...subagents].find((session) => session.id === selectedId) ?? null)
+    : null;
+  const selectedRank = selectedSession ? rank(selectedSession) : null;
+
+  useLayoutEffect(() => {
+    const container = listRef.current;
+    if (!container || orderSignature === lastOrder.current) return;
+    const rows = Array.from(container.querySelectorAll<HTMLElement>("[data-session-row]"));
+    const next = new Map<string, number>();
+    for (const row of rows) {
+      const id = row.dataset.sessionRow;
+      if (id) next.set(id, row.offsetTop);
+    }
+    if (lastOrder.current && animated) {
+      for (const row of rows) {
+        const id = row.dataset.sessionRow;
+        if (!id) continue;
+        const before = positions.current.get(id);
+        const after = next.get(id);
+        if (before === undefined || after === undefined) continue;
+        const delta = before - after;
+        if (Math.abs(delta) < 1) continue;
+        row.animate(
+          [{ transform: `translateY(${delta}px)` }, { transform: "translateY(0)" }],
+          { duration: 320, easing: "cubic-bezier(0.22, 0.7, 0.2, 1)" },
+        );
+      }
+    }
+    positions.current = next;
+    lastOrder.current = orderSignature;
+  }, [animated, orderSignature]);
+
+  useEffect(() => {
+    if (!selectedId || selectedRank === null) return;
+    const row = listRef.current?.querySelector<HTMLElement>(
+      `[data-session-row="${selectedId}"]`,
+    );
+    row?.scrollIntoView({ block: "nearest" });
+  }, [selectedId, selectedRank]);
 
   return (
     <div className="bg-card/40 flex h-full min-h-0 flex-col">
@@ -440,13 +507,23 @@ export const Sidebar = memo(function Sidebar({
                 : "No chats yet."}
           </div>
         ) : (
-          <div className="space-y-0.5">
-            {visible.map(({ session, depth }) => {
+          <div ref={listRef} className="relative space-y-0.5">
+            {visible.map(({ session, depth }, index) => {
               const children = childrenByParent.get(session.id) ?? [];
               const runningChildren = children.filter((child) => isRunning(child.id)).length;
               const open = expanded.has(session.id);
               return (
                 <Fragment key={session.id}>
+                  {index === runningStart && (
+                    <div className="text-muted-foreground flex items-center gap-2 px-2 pt-3 pb-1 font-mono text-[9px] tracking-[0.12em] uppercase">
+                      <span className="bg-success size-1.5 rounded-full" />
+                      <span>Running</span>
+                      <span className="text-muted-foreground/70 tabular-nums">
+                        {runningGroupCount}
+                      </span>
+                      <span className="bg-border h-px flex-1 opacity-60" />
+                    </div>
+                  )}
                   <SessionRow
                     session={session}
                     depth={depth}

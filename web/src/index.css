@@ -381,12 +381,6 @@
     --glint: 5.6s;
   }
 
-  .session-running {
-    --sweep: var(--success);
-    --pulse: 3.6s;
-    --glint: 4.2s;
-  }
-
   .session-done {
     --sweep: var(--success);
     --pulse: 5s;

@@ -145,6 +145,35 @@ describe("sessions", () => {
     ]);
   });
 
+  it("orders roots and children by supplied rank, then by recency", () => {
+    const rows = groupSessions(
+      [
+        session({ id: "idle-old", time: { created: 0, updated: 10 } }),
+        session({ id: "running-new", time: { created: 0, updated: 40 } }),
+        session({ id: "done-new", time: { created: 0, updated: 50 } }),
+        session({ id: "done-old", time: { created: 0, updated: 20 } }),
+        session({ id: "parent", time: { created: 0, updated: 15 } }),
+        session({ id: "child-idle", parentID: "parent", time: { created: 0, updated: 6 } }),
+        session({ id: "child-running", parentID: "parent", time: { created: 0, updated: 7 } }),
+      ],
+      new Set(),
+      (item) => {
+        if (item.id === "done-new" || item.id === "done-old") return 0;
+        if (item.id === "running-new" || item.id === "child-running") return 2;
+        return 1;
+      },
+    );
+    expect(rows.map((row) => row.session.id)).toEqual([
+      "done-new",
+      "done-old",
+      "parent",
+      "child-idle",
+      "child-running",
+      "idle-old",
+      "running-new",
+    ]);
+  });
+
   it("merges background waiting ids without leaking them into the selected forms queue", () => {
     expect([
       ...mergeWaitingSessionIds(

@@ -7,7 +7,7 @@ const STILL_TIME = 6;
 const CURSOR_RADIUS = 150;
 const SPOTLIGHT_RADIUS = 290;
 const SPOTLIGHT_GAP = 26;
-const SPOTLIGHT_SPAN = 1280;
+const WAVE_SPAN = 1280;
 const VARIANTS = ["spotlight", "magnetic", "split", "ripple", "diagonal"] as const;
 
 export type SceneVariant = (typeof VARIANTS)[number];
@@ -69,9 +69,15 @@ export function Scene({
       );
     };
 
-    const shapeFor = (kind: SceneVariant, span: number, cx: number, cy: number) => {
+    const shapeFor = (
+      kind: SceneVariant,
+      span: number,
+      cx: number,
+      cy: number,
+      shift: number,
+    ) => {
       return (x: number, base: number, index: number, time: number) => {
-        let y = wave(x, base, index, time, span);
+        let y = wave(x + shift, base, index, time, span);
         if (cursor.power < 0.01) return y;
         const dx = x - cx;
         const dy = y - cy;
@@ -100,8 +106,9 @@ export function Scene({
       cy: number,
       kind: SceneVariant,
       gap = GAP,
+      shift = 0,
     ) => {
-      const shape = shapeFor(kind, span, cx, cy);
+      const shape = shapeFor(kind, span, cx, cy, shift);
       const radius = kind === "ripple" ? 240 : CURSOR_RADIUS;
       const lines = Math.ceil(extentHeight / gap) + 2;
       for (let index = 0; index < lines; index += 1) {
@@ -202,7 +209,7 @@ export function Scene({
         const base = (index - 1) * SPOTLIGHT_GAP;
         context.beginPath();
         for (let x = from; x <= to; x += STEP) {
-          const y = wave(x + originX, base, index, time, SPOTLIGHT_SPAN);
+          const y = wave(x + originX, base, index, time, WAVE_SPAN);
           if (x === from) context.moveTo(x, y);
           else context.lineTo(x, y);
         }
@@ -236,7 +243,7 @@ export function Scene({
         drawField(time, size, size, width, localX, localY, "magnetic", GAP * Math.SQRT1_2);
         context.restore();
       } else {
-        drawField(time, width, height, width, cursor.x, cursor.y, chosen);
+        drawField(time, width, height, WAVE_SPAN, cursor.x, cursor.y, chosen, GAP, originX);
       }
 
       context.globalCompositeOperation = "destination-out";

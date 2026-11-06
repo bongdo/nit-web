@@ -278,7 +278,7 @@ export function Scene({
         pointer.x < width + 40 &&
         pointer.y > -40 &&
         pointer.y < height + 40;
-      const target = chosen === "spotlight" ? (inScene ? 1 : 0) : pointer.x > -999 ? 1 : 0;
+      const target = (chosen === "spotlight" ? inScene : pointer.x > -999) ? 1 : 0;
       if (target) {
         if (cursor.power < 0.02) {
           cursor.x = pointer.x;

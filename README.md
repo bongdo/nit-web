@@ -271,7 +271,8 @@ nspell worker. It is not implemented yet.
   `[redacted]`. Redaction walks JSON string values and re-encodes them, so the
   response stays valid JSON; SSE framing is preserved.
 - `Host` is restricted to `localhost`, `127.0.0.1` and `::1`, case-insensitively.
-  Cross-origin `POST` requests are rejected by checking `Origin` when present.
+  Cross-origin `POST` requests are rejected unless `Origin` matches `Host`,
+  `X-Forwarded-Host` or `NIT_GUI_PUBLIC_HOST`.
 - Responses set `X-Content-Type-Options`, `X-Frame-Options: DENY`,
   `Referrer-Policy: no-referrer`, `Permissions-Policy: microphone=(self)`,
   COOP/CORP, and HSTS on the public host. Caddy repeats the safe subset.

@@ -5,7 +5,6 @@ import {
   BellOff,
   Folder,
   Loader2,
-  Menu,
   Monitor,
   Moon,
   PanelLeftClose,
@@ -23,7 +22,7 @@ import { cn } from "../lib/utils";
 import { Button } from "./ui/button";
 import { SubagentMenu } from "./SubagentMenu";
 
-function ThemeIcon({ theme }: { theme: Theme }) {
+export function ThemeIcon({ theme }: { theme: Theme }) {
   if (theme === "light") return <Sun />;
   if (theme === "dark") return <Moon />;
   return <Monitor />;
@@ -125,7 +124,6 @@ export const Header = memo(function Header({
   onToggleSidebar,
   onTheme,
   onNotify,
-  onMenu,
 }: {
   session: Session | null;
   directory?: string | null;
@@ -149,7 +147,6 @@ export const Header = memo(function Header({
   onToggleSidebar: () => void;
   onTheme: () => void;
   onNotify: () => void;
-  onMenu: () => void;
 }) {
   const directory = session?.location?.directory ?? fallbackDirectory;
   const title = session?.title?.trim() || (session ? "New chat" : "nit-gui");
@@ -166,15 +163,6 @@ export const Header = memo(function Header({
 
   return (
     <header className="pointer-events-none absolute inset-x-0 top-0 z-10 flex items-center gap-2 px-2.5 py-2">
-      <Button
-        variant="ghost"
-        size="icon-sm"
-        className={cn(pill, "pointer-events-auto size-9 md:hidden")}
-        onClick={onMenu}
-        aria-label="Open sessions"
-      >
-        <Menu />
-      </Button>
       {sidebarMode !== "hover" && (
         <Button
           variant="ghost"
@@ -214,7 +202,7 @@ export const Header = memo(function Header({
       </div>
 
       <div className="pointer-events-auto ml-auto flex shrink-0 items-center gap-2">
-        {parent ? (
+        {parent && (
           <Button
             variant="ghost"
             size="sm"
@@ -225,11 +213,17 @@ export const Header = memo(function Header({
             <ArrowLeft />
             Parent
           </Button>
-        ) : (
-          <SubagentMenu sessions={subagents} onOpen={onOpenSubagent} className={pill} />
+        )}
+        {!parent && (
+          <SubagentMenu
+            sessions={subagents}
+            onOpen={onOpenSubagent}
+            className={cn(pill, "hidden md:inline-flex")}
+          />
         )}
 
-        <span
+        <div className="hidden items-center gap-2 md:flex">
+          <span
           className={cn(
             pill,
             "chrome-sheen-health inline-flex size-9 items-center justify-center",
@@ -260,37 +254,38 @@ export const Header = memo(function Header({
           )}
         </span>
 
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          className={cn(pill, "size-9", notify && "text-emerald-500")}
-          onClick={onNotify}
-          title={notify ? "Desktop notifications on" : "Desktop notifications off"}
-          aria-label="Desktop notifications"
-        >
-          {notify ? <Bell /> : <BellOff />}
-        </Button>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            className={cn(pill, "size-9", notify && "text-emerald-500")}
+            onClick={onNotify}
+            title={notify ? "Desktop notifications on" : "Desktop notifications off"}
+            aria-label="Desktop notifications"
+          >
+            {notify ? <Bell /> : <BellOff />}
+          </Button>
 
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          className={cn(pill, "size-9")}
-          onClick={onSettings}
-          aria-label="Settings"
-        >
-          <Settings />
-        </Button>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            className={cn(pill, "size-9")}
+            onClick={onSettings}
+            aria-label="Settings"
+          >
+            <Settings />
+          </Button>
 
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          className={cn(pill, "size-9")}
-          onClick={onTheme}
-          title={`Theme: ${theme}`}
-          aria-label={`Theme: ${theme}`}
-        >
-          <ThemeIcon theme={theme} />
-        </Button>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            className={cn(pill, "size-9")}
+            onClick={onTheme}
+            title={`Theme: ${theme}`}
+            aria-label={`Theme: ${theme}`}
+          >
+            <ThemeIcon theme={theme} />
+          </Button>
+        </div>
       </div>
     </header>
   );

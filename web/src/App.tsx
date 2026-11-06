@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { CircleAlert, RefreshCw, X } from "lucide-react";
+import { CircleAlert, Menu, Plus, RefreshCw, Settings, X } from "lucide-react";
 import { api } from "./lib/api";
 import type {
   Agent,
@@ -54,7 +54,8 @@ import { useSidebarSwipe } from "./hooks/useSidebarSwipe";
 import { ChatView } from "./components/ChatView";
 import { VARIANTS, type SceneSetting } from "./components/Scene";
 import { Composer, type Attachment, type ComposerCommand } from "./components/Composer";
-import { Header } from "./components/Header";
+import { Header, ThemeIcon } from "./components/Header";
+import { SubagentMenu } from "./components/SubagentMenu";
 import { Sidebar } from "./components/Sidebar";
 import { WorkspacePicker } from "./components/WorkspacePicker";
 import { SettingsPanel } from "./components/SettingsPanel";
@@ -1620,16 +1621,13 @@ export default function App() {
         ref={swipe.ref}
         onPointerEnter={hoverSidebar ? openHoverSidebar : undefined}
         onPointerLeave={hoverSidebar ? closeHoverSidebar : undefined}
+        aria-label="Chats"
         className={cn(
-          "border-border bg-background fixed inset-y-0 left-0 z-30 w-[280px] border-r",
+          "border-border bg-background fixed z-30 border-r",
+          "max-md:inset-x-0 max-md:top-auto max-md:bottom-0 max-md:z-50 max-md:h-[min(82dvh,42rem)] max-md:w-full max-md:overscroll-contain max-md:rounded-t-2xl max-md:border-t max-md:border-r-0 max-md:shadow-2xl",
+          "md:inset-y-0 md:left-0 md:w-[280px]",
           "ease-[cubic-bezier(0.32,0.72,0,1)] transition-[translate,opacity,width] duration-300 motion-reduce:transition-none",
-          swipeMode
-            ? sidebarOpen
-              ? "max-md:translate-x-0 max-md:shadow-xl"
-              : "max-md:-translate-x-full"
-            : sidebarOpen
-              ? "translate-x-0 shadow-xl"
-              : "-translate-x-full",
+          sidebarOpen ? "max-md:translate-y-0" : "max-md:translate-y-full",
           hoverSidebar
             ? sidebarHovered
               ? "md:z-40 md:translate-x-0 md:opacity-100 md:shadow-2xl"
@@ -1642,15 +1640,19 @@ export default function App() {
                 ),
         )}
       >
-        <div
-          className={cn(
-            "h-full",
-            hoverSidebar &&
-              "transition-[translate] duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] motion-reduce:transition-none",
-            hoverSidebar && !sidebarHovered && "md:-translate-x-4",
-          )}
-        >
-          <Sidebar
+        <div className="flex h-full min-h-0 flex-col">
+          <div className="flex shrink-0 justify-center pt-2 md:hidden">
+            <span aria-hidden className="bg-border h-1 w-10 rounded-full" />
+          </div>
+          <div
+            className={cn(
+              "min-h-0 flex-1",
+              hoverSidebar &&
+                "transition-[translate] duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] motion-reduce:transition-none",
+              hoverSidebar && !sidebarHovered && "md:-translate-x-4",
+            )}
+          >
+            <Sidebar
             sessions={visibleSessions}
             subagents={visibleSubagents}
             workspace={workspace}
@@ -1678,6 +1680,7 @@ export default function App() {
             doneIds={doneIds}
             motion={motion}
           />
+          </div>
         </div>
       </aside>
 
@@ -1685,7 +1688,7 @@ export default function App() {
         <button
           type="button"
           aria-label="Close sessions"
-          className="fixed inset-0 z-20 bg-black/40 md:hidden"
+          className="fixed inset-0 z-40 bg-black/40 md:hidden"
           onClick={() => setSidebarOpen(false)}
         />
       )}
@@ -1714,7 +1717,6 @@ export default function App() {
           onToggleSidebar={toggleSidebar}
           onTheme={cycle}
           onNotify={() => void toggleNotify()}
-          onMenu={openSidebar}
         />
 
         {activeError && (
@@ -1802,6 +1804,59 @@ export default function App() {
               onInsertApplied={clearComposerInsert}
             />
           </div>
+
+          <nav
+            aria-label="Mobile navigation"
+            className="border-border bg-background/95 pointer-events-auto flex items-center justify-around border-t px-1 pb-[env(safe-area-inset-bottom)] md:hidden"
+          >
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              className="size-11"
+              onClick={openSidebar}
+              aria-label="Chats"
+              title="Chats"
+            >
+              <Menu />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              className="size-11"
+              onClick={newChat}
+              disabled={!health?.ok}
+              aria-label="New chat"
+              title="New chat"
+            >
+              <Plus />
+            </Button>
+            <SubagentMenu
+              sessions={subagents}
+              onOpen={openSubagent}
+              placement="up"
+              className="size-11"
+            />
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              className="size-11"
+              onClick={openSettings}
+              aria-label="Settings"
+              title="Settings"
+            >
+              <Settings />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              className="size-11"
+              onClick={cycle}
+              aria-label={`Theme: ${theme}`}
+              title={`Theme: ${theme}`}
+            >
+              <ThemeIcon theme={theme} />
+            </Button>
+          </nav>
         </BottomDock>
       </main>
 

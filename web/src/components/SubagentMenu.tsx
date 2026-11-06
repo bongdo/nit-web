@@ -22,10 +22,12 @@ function duration(session: Session): string {
 export function SubagentMenu({
   sessions,
   onOpen,
+  placement = "down",
   className,
 }: {
   sessions: Session[];
   onOpen: (session: Session) => void;
+  placement?: "down" | "up";
   className?: string;
 }) {
   const [open, setOpen] = useState(false);
@@ -63,6 +65,8 @@ export function SubagentMenu({
         onClick={() => setOpen((value) => !value)}
         aria-haspopup="menu"
         aria-expanded={open}
+        aria-label={`Subagents (${sessions.length})`}
+        title={`Subagents (${sessions.length})`}
       >
         <GitBranch />
         <span>{sessions.length}</span>
@@ -77,7 +81,12 @@ export function SubagentMenu({
       {open && (
         <div
           role="menu"
-          className="border-border bg-popover absolute top-full right-0 z-40 mt-1 w-80 rounded-lg border p-1 shadow-lg"
+          className={cn(
+            "border-border bg-popover absolute z-40 w-80 max-w-[calc(100vw-1rem)] rounded-lg border p-1 shadow-lg",
+            placement === "up"
+              ? "bottom-full left-1/2 mb-1 max-h-[55dvh] -translate-x-1/2 overflow-y-auto"
+              : "top-full right-0 mt-1",
+          )}
         >
           {sorted.map((session) => (
             <button

@@ -647,8 +647,11 @@ export function Scene({
       paint(still ? STILL_TIME : (performance.now() - started) / 1000);
     });
     theme.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
-    window.addEventListener("mousemove", move);
-    window.addEventListener("mouseleave", leave);
+    const finePointer = window.matchMedia("(pointer: fine)");
+    if (finePointer.matches) {
+      window.addEventListener("mousemove", move);
+      window.addEventListener("mouseleave", leave);
+    }
     document.addEventListener("visibilitychange", visibility);
     resize();
     if (!reduced) frame = requestAnimationFrame(loop);
@@ -658,8 +661,10 @@ export function Scene({
       cancelAnimationFrame(frame);
       observer.disconnect();
       theme.disconnect();
-      window.removeEventListener("mousemove", move);
-      window.removeEventListener("mouseleave", leave);
+      if (finePointer.matches) {
+        window.removeEventListener("mousemove", move);
+        window.removeEventListener("mouseleave", leave);
+      }
       document.removeEventListener("visibilitychange", visibility);
     };
   }, [motion, variant]);

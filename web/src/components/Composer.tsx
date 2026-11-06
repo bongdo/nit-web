@@ -16,6 +16,7 @@ import type { FormInfo, Model, Session } from "../lib/types";
 import { encodeWav } from "../lib/audio";
 import { api } from "../lib/api";
 import { attachmentWarning } from "../lib/attachments";
+import { loadDraft, saveDraft } from "../lib/drafts";
 import { questionField } from "../lib/forms";
 import { formatBytes, quoteText } from "../lib/format";
 import { shouldCaptureKey } from "../lib/keys";
@@ -77,6 +78,7 @@ export function Composer({
   focusKey,
   typingBlocked,
   drawerOpen,
+  draftKey,
   draft,
   insert,
   commands,
@@ -98,6 +100,7 @@ export function Composer({
   focusKey?: string | null;
   typingBlocked?: boolean;
   drawerOpen?: boolean;
+  draftKey: string;
   draft?: { text: string; id: number } | null;
   insert?: { text: string; id: number } | null;
   commands: ComposerCommand[];
@@ -111,7 +114,9 @@ export function Composer({
   onError: (message: string) => void;
   onFormDone: () => void;
 }) {
-  const [value, setValue] = useState("");
+  const [value, setText] = useState(() => loadDraft(draftKey));
+  const valueRef = useRef(value);
+  valueRef.current = value;
   const [submitting, setSubmitting] = useState(false);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [dropActive, setDropActive] = useState(false);

@@ -80,21 +80,27 @@ export const AssistantTurn = memo(function AssistantTurn({
   const errorCount = activity.filter(
     (part) => part.type === "tool" && part.state.status === "error",
   ).length;
-  const markerSteps =
-    activity.length === 0
-      ? messages.reduce((total, message) => total + (message.steps ?? 0), 0)
-      : 0;
-  const markerTools =
-    activity.length === 0
-      ? messages.reduce((total, message) => total + (message.tools ?? 0), 0)
-      : 0;
-  const markerErrors =
-    activity.length === 0
-      ? messages.reduce((total, message) => total + (message.errors ?? 0), 0)
-      : 0;
-  const shownSteps = activity.length > 0 ? activity.length : markerSteps;
-  const shownTools = activity.length > 0 ? toolCount : markerTools;
-  const shownErrors = activity.length > 0 ? errorCount : markerErrors;
+  const loadedSteps = (message: Message) =>
+    (message.content ?? []).some(
+      (part) =>
+        part.type === "reasoning" ||
+        (part.type === "tool" && part.name !== "question"),
+    );
+  const markerSteps = messages.reduce(
+    (total, message) => total + (loadedSteps(message) ? 0 : (message.steps ?? 0)),
+    0,
+  );
+  const markerTools = messages.reduce(
+    (total, message) => total + (loadedSteps(message) ? 0 : (message.tools ?? 0)),
+    0,
+  );
+  const markerErrors = messages.reduce(
+    (total, message) => total + (loadedSteps(message) ? 0 : (message.errors ?? 0)),
+    0,
+  );
+  const shownSteps = activity.length + markerSteps;
+  const shownTools = toolCount + markerTools;
+  const shownErrors = errorCount + markerErrors;
   const hasSteps = shownSteps > 0;
   const reply = messages.map(replyText).filter(Boolean).join("\n\n");
   const agent = agents.find((item) => item.id === last?.agent);

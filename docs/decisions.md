@@ -307,7 +307,7 @@ Context: the cache kept tool and reasoning stubs, while opening a chat still loa
 
 Decision: light mode now returns only the visible transcript: user messages, assistant text, question tools and compaction. Dropped reasoning and non-question tools become per-message `steps`, `tools` and `errors` counters. The cache stores only this visible form; tools and reasoning are never cached. Opening a chat fetches the full visible transcript with no `limit`, so all visible content is present without scrolling. Prefetch warms the same full visible transcript for other chats. The steps panel loads full messages on open and the cache strips them again on save.
 
-Why: visible content should not depend on scroll timing, and a visible-only transcript is about half the payload of the old light stubs.
+Why: visible content should not depend on scroll timing, and a visible-only transcript is smaller (5.1 MiB vs 7.5 MiB for all 73 current chats).
 
 Rejected: keeping tool/reasoning stubs in the cache, and tail-first loading with earlier pages fetched on scroll.
 

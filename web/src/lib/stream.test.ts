@@ -195,6 +195,18 @@ describe("light transcripts", () => {
     expect(light[0].errors).toBeUndefined();
   });
 
+  it("keeps step markers that came from the server", () => {
+    const message = {
+      id: "m1",
+      type: "assistant",
+      time: { created: 1 },
+      steps: 2,
+      tools: 1,
+      content: [{ type: "text", text: "answer" }],
+    } as Message;
+    expect(lightMessages([message])[0]).toBe(message);
+  });
+
   it("drops tool events from the visible cache", () => {
     expect(
       lightenEvent(

@@ -339,51 +339,6 @@
     animation: sidebar-sheen-sweep 780ms cubic-bezier(0.22, 0.7, 0.2, 1) both;
   }
 
-  .sidebar-sheen-tab-glow,
-  .sidebar-sheen-tab-line {
-    position: absolute;
-    left: 0;
-    z-index: -1;
-    width: var(--sidebar-sheen-tab-w, 0px);
-    transform: translateX(var(--sidebar-sheen-tab-x, 2px));
-    pointer-events: none;
-  }
-
-  .sidebar-sheen-tab-glow {
-    top: 2px;
-    bottom: 2px;
-    border-radius: 4px;
-    background: linear-gradient(
-      180deg,
-      color-mix(in oklab, white 16%, var(--background)),
-      color-mix(in oklab, var(--background) 92%, transparent)
-    );
-    box-shadow:
-      inset 0 0 0 1px color-mix(in oklab, var(--border) 55%, transparent),
-      0 1px 2px color-mix(in oklab, black 8%, transparent);
-  }
-
-  .sidebar-sheen-tab-line {
-    bottom: 1px;
-    height: 1px;
-    opacity: 0.85;
-    background: linear-gradient(
-      90deg,
-      transparent,
-      color-mix(in oklab, var(--spark) 55%, var(--foreground)) 30%,
-      color-mix(in oklab, white 50%, var(--spark)) 50%,
-      color-mix(in oklab, var(--spark) 55%, var(--foreground)) 70%,
-      transparent
-    );
-  }
-
-  .sidebar-sheen-tabs .sidebar-sheen-tab-glow,
-  .sidebar-sheen-tabs .sidebar-sheen-tab-line {
-    transition:
-      transform 300ms cubic-bezier(0.22, 0.7, 0.2, 1),
-      width 300ms cubic-bezier(0.22, 0.7, 0.2, 1);
-  }
-
   .sidebar-sheen-search::after {
     content: "";
     position: absolute;
@@ -768,8 +723,6 @@
 
   @media (prefers-reduced-motion: reduce) {
     .sidebar-sheen-active-line-live,
-    .sidebar-sheen-tabs .sidebar-sheen-tab-glow,
-    .sidebar-sheen-tabs .sidebar-sheen-tab-line,
     .sidebar-sheen-search-live::after {
       transition: none;
     }
@@ -818,20 +771,6 @@
 }
 
 @layer components {
-  .row-sheen-turn-line {
-    display: block;
-    width: 100%;
-    height: 1px;
-    background: linear-gradient(
-      90deg,
-      transparent,
-      color-mix(in oklab, white 45%, var(--spark)) 50%,
-      transparent
-    );
-    transform-origin: center;
-    animation: row-sheen-turn 320ms cubic-bezier(0.22, 0.7, 0.2, 1) both;
-  }
-
   .row-sheen-copy {
     --sweep: var(--success);
     position: relative;
@@ -1033,17 +972,6 @@
 }
 
 @layer utilities {
-  @keyframes row-sheen-turn {
-    from {
-      opacity: 0;
-      transform: scaleX(0);
-    }
-    to {
-      opacity: 1;
-      transform: scaleX(1);
-    }
-  }
-
   @keyframes row-sheen-glint {
     0%,
     10% {
@@ -1192,7 +1120,6 @@
   }
 
   @media (prefers-reduced-motion: reduce) {
-    .row-sheen-turn-line,
     .row-sheen-copy-on::after,
     .row-sheen-copy-on > svg,
     .row-sheen-copy-on > span,
@@ -1208,11 +1135,6 @@
     .row-sheen-preview-ready .row-sheen-preview-trace::before,
     .row-sheen-preview-ready .row-sheen-preview-trace::after {
       animation: none;
-    }
-
-    .row-sheen-turn-line {
-      opacity: 1;
-      transform: none;
     }
 
     .row-sheen-copy-on::after,

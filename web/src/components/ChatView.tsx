@@ -125,8 +125,6 @@ export function ChatView({
     session: string;
   } | null>(null);
   const [showJump, setShowJump] = useState(false);
-  const [unseen, setUnseen] = useState(0);
-  const bottomCount = useRef(messages.length);
   const [quote, setQuote] = useState<{ text: string; x: number; y: number } | null>(null);
 
   const scrollToBottom = useCallback(() => {
@@ -134,8 +132,6 @@ export function ChatView({
     if (!element) return;
     element.scrollTop = element.scrollHeight;
     stick.current = true;
-    bottomCount.current = messagesRef.current.length;
-    setUnseen(0);
     setShowJump(false);
   }, []);
 
@@ -198,18 +194,11 @@ export function ChatView({
 
   useEffect(() => {
     stick.current = true;
-    bottomCount.current = messagesRef.current.length;
     scheduleScroll();
   }, [session?.id]);
 
   useEffect(() => {
-    if (stick.current) {
-      bottomCount.current = messages.length;
-      setUnseen(0);
-      scheduleScroll();
-      return;
-    }
-    setUnseen(Math.max(0, messages.length - bottomCount.current));
+    if (stick.current) scheduleScroll();
   }, [messages, running, scheduleScroll]);
 
   useEffect(() => {
@@ -395,7 +384,6 @@ export function ChatView({
           const nearBottom =
             element.scrollHeight - element.scrollTop - element.clientHeight < 140;
           stick.current = nearBottom;
-          if (nearBottom) bottomCount.current = messagesRef.current.length;
           setShowJump(!nearBottom);
           setQuote(null);
           if (earlierAnchor.current) earlierAnchor.current.top = element.scrollTop;
@@ -444,15 +432,10 @@ export function ChatView({
               motion === "animated" && "chrome-sheen-latest",
             )}
             onClick={scrollToBottom}
-            aria-label={unseen > 0 ? `Jump to latest, ${unseen} new messages` : "Jump to latest"}
+            aria-label="Jump to latest"
           >
             <ArrowDown />
             Latest
-            {unseen > 0 && (
-              <span className="bg-spark/15 text-spark ml-0.5 rounded-full px-1.5 py-0.5 text-[10px] tabular-nums">
-                {unseen > 99 ? "99+" : unseen}
-              </span>
-            )}
           </Button>
         </div>
       )}

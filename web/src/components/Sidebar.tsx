@@ -1,7 +1,6 @@
 import {
   Fragment,
   memo,
-  useCallback,
   useEffect,
   useLayoutEffect,
   useRef,
@@ -382,8 +381,6 @@ export const Sidebar = memo(function Sidebar({
     })
     .join("|");
   const listRef = useRef<HTMLDivElement | null>(null);
-  const tabsRef = useRef<HTMLDivElement | null>(null);
-  const tabRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const [activeLine, setActiveLine] = useState<number | null>(null);
   const positions = useRef(new Map<string, number>());
   const lastOrder = useRef("");
@@ -391,26 +388,6 @@ export const Sidebar = memo(function Sidebar({
     ? ([...sessions, ...subagents].find((session) => session.id === selectedId) ?? null)
     : null;
   const selectedRank = selectedSession ? rank(selectedSession) : null;
-
-  const syncTab = useCallback(() => {
-    const container = tabsRef.current;
-    const tab = tabRefs.current[SCOPES.findIndex((item) => item.id === scope)];
-    if (!container || !tab) return;
-    container.style.setProperty("--sidebar-sheen-tab-x", `${tab.offsetLeft}px`);
-    container.style.setProperty("--sidebar-sheen-tab-w", `${tab.offsetWidth}px`);
-  }, [scope]);
-
-  useLayoutEffect(() => {
-    syncTab();
-  }, [syncTab, workspace]);
-
-  useEffect(() => {
-    const container = tabsRef.current;
-    if (!container || typeof ResizeObserver === "undefined") return;
-    const observer = new ResizeObserver(syncTab);
-    observer.observe(container);
-    return () => observer.disconnect();
-  }, [syncTab]);
 
   const lineTop = useRef<number | null>(null);
   useLayoutEffect(() => {
@@ -566,31 +543,18 @@ export const Sidebar = memo(function Sidebar({
         </div>
       </div>
 
-      <div
-        ref={tabsRef}
-        className={cn(
-          "bg-muted/50 relative isolate mx-3 mb-2 flex rounded-md p-0.5",
-          animated && "sidebar-sheen-tabs",
-        )}
-        role="group"
-        aria-label="Chat scope"
-      >
-        <span aria-hidden className="sidebar-sheen-tab-glow" />
-        <span aria-hidden className="sidebar-sheen-tab-line" />
-        {SCOPES.map((item, index) => (
+      <div className="mx-3 mb-2 flex items-center gap-1" role="group" aria-label="Chat scope">
+        {SCOPES.map((item) => (
           <button
             key={item.id}
-            ref={(node) => {
-              tabRefs.current[index] = node;
-            }}
             type="button"
             aria-pressed={scope === item.id}
             onClick={() => onScope(item.id)}
             className={cn(
-              "min-w-0 flex-1 truncate rounded px-1.5 py-1 text-[10px] font-medium transition-colors",
+              "min-w-0 flex-1 truncate rounded px-2 py-1 text-[10px] font-medium transition-colors",
               scope === item.id
-                ? "text-foreground"
-                : "text-muted-foreground hover:text-foreground",
+                ? "bg-accent/60 text-foreground"
+                : "text-muted-foreground hover:bg-accent/30 hover:text-foreground",
             )}
             title={
               item.id === "directory"

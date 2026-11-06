@@ -226,7 +226,7 @@ The browser only talks to these same-origin endpoints:
 | `GET /api/sessions?dir=&children=true` | Newest sessions; `children=true` includes subagent sessions. |
 | `POST /api/sessions` | Create `{directory, title?, agent?, model?}`. |
 | `GET /api/sessions/{id}` | One session, used to restore a selected subagent after reload. |
-| `GET /api/sessions/{id}/messages` | Full transcript, ascending, paginated upstream, redacted. `light=1` strips tool input/output/metadata and reasoning text, except `question` tools, which stay full; `limit=N` returns the newest N; `before=` loads the previous page. |
+| `GET /api/sessions/{id}/messages` | Full transcript, ascending, paginated upstream, redacted. `light=1` returns only the visible transcript: user messages, assistant text, `question` tools and compaction, with `steps`/`tools`/`errors` counters instead of tool and reasoning parts. `limit=N` returns the newest N; `before=` loads the previous page. |
 | `GET /api/sessions/{id}/messages/{messageID}` | One full message, used to load tool output or reasoning on demand. |
 | `GET /api/sessions/{id}/children` | Subagent sessions with this parent. |
 | `POST /api/sessions/{id}/prompt` | Send `{text, files?}`. |
@@ -396,9 +396,10 @@ own startup warmup.
 
 - Sessions are listed up to OpenCode's newest 100. Search filters that window
   client-side.
-- The UI opens the newest 50 messages and loads older pages on demand. The full
-  endpoint is assembled from at most 20 upstream pages (100 messages each);
-  longer sessions are truncated at 2000 messages.
+- The UI opens the full visible transcript; tool and reasoning payloads load
+  when a steps block is opened. The full endpoint is assembled from at most 100
+  upstream pages (100 messages each); longer sessions are truncated at 10,000
+  messages.
 - No permission prompt UI, shell panel, PTY or VCS panel yet.
 - There is one production instance on Frankfurt. Every visitor shares the same
   OpenCode service, sessions and workspace namespace; there are no per-user

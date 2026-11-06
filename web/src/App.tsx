@@ -34,6 +34,7 @@ import {
 import { cn } from "./lib/utils";
 import { useTheme } from "./hooks/useTheme";
 import { useEventStream } from "./hooks/useEventStream";
+import { useSidebarSwipe } from "./hooks/useSidebarSwipe";
 import { ChatView } from "./components/ChatView";
 import type { SceneSetting } from "./components/Scene";
 import { Composer, type Attachment, type ComposerCommand } from "./components/Composer";
@@ -139,10 +140,12 @@ export default function App() {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(() => localStorage.getItem("nit-gui.collapsed") === "1");
-  const [sidebarMode, setSidebarMode] = useState<"button" | "hover">(() =>
-    localStorage.getItem("nit-gui.sidebar-mode") === "hover" ? "hover" : "button",
-  );
+  const [sidebarMode, setSidebarMode] = useState<"button" | "hover" | "swipe">(() => {
+    const stored = localStorage.getItem("nit-gui.sidebar-mode");
+    return stored === "hover" || stored === "swipe" ? stored : "button";
+  });
   const [sidebarHovered, setSidebarHovered] = useState(false);
+  const swipe = useSidebarSwipe(sidebarMode === "swipe");
   const [dictationMode, setDictationMode] = useState<"fast" | "accurate">(() =>
     localStorage.getItem("nit-gui.dictation") === "accurate" ? "accurate" : "fast",
   );
@@ -559,7 +562,8 @@ export default function App() {
     if (id) localStorage.setItem("nit-gui.session", id);
     else localStorage.removeItem("nit-gui.session");
     setSidebarOpen(false);
-  }, []);
+    swipe.close();
+  }, [swipe.close]);
 
   const selectWorkspace = useCallback((directory: string) => {
     const value = directory.trim().replace(/\/+$/, "") || "/";

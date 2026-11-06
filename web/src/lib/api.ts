@@ -140,7 +140,6 @@ export const api = {
       }`,
       { method: "DELETE" },
     ),
-  fileUrl: (uri: string) => `/api/file?path=${encodeURIComponent(uri)}`,
   upload: async (file: File, dir: string) => {
     const query = new URLSearchParams({ name: file.name, dir });
     const response = await fetch(`/api/upload?${query}`, {

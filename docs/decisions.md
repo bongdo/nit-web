@@ -120,3 +120,15 @@ Why: it removes the obvious, unambiguous typos while leaving ambiguous ones on t
 Rejected: auto-applying the first nspell suggestion (too many false positives), auto-fixing capitalized words and names, a whole-text undo (would throw away typing after the fix).
 
 Cost: conservative coverage; `хочю` and many English typos with two close candidates still need a click. The undo entry expires after ten seconds.
+
+## 2026-11-06 — Attachments: upload once, let OpenCode read
+
+Context: the composer accepted any file but a prompt required text, PDFs were only links, and model input capabilities were not visible. OpenCode already sniffs uploaded files and forwards plain text, images and PDFs to the model; other MIME types reach the model as nothing.
+
+Decision: upload files to a sanitized `/tmp/nit-gui-*` name, cap uploads at OpenCode's 20 MiB, allow a prompt with files and no text, expose `capabilities.input` from `/api/models`, warn when the selected model cannot read an image or PDF, and render images/PDFs/other files in the transcript. `/api/file` only serves the upload prefix and cleans `..` before the prefix check.
+
+Why: the GUI should not duplicate OpenCode's MIME handling or convert documents in the browser. A warning is honest about model limits; text extraction or PDF rendering would add a runtime dependency.
+
+Rejected: converting PDFs to text locally, blocking every file the model cannot read, serving arbitrary file paths through `/api/file`.
+
+Cost: other binary files are uploaded but not sent to the model; PDFs need a PDF-capable model; the PDF preview depends on the browser's built-in viewer and a `SAMEORIGIN` frame header on `/api/file`.

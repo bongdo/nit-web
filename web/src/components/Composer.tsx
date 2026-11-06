@@ -50,7 +50,7 @@ type AutoFix = {
   at: number;
 };
 
-const MAX_UPLOAD = 25 << 20;
+const MAX_UPLOAD = 20 << 20;
 const MAX_RECORDING = 120;
 
 function attachmentId() {

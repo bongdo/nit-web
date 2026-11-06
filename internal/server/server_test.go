@@ -862,6 +862,21 @@ func TestConfigDefaults(t *testing.T) {
 	}
 }
 
+func TestModelsExposeInputCapabilities(t *testing.T) {
+	upstream := httptest.NewServer(auth(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, `{"data":[{"id":"m1","providerID":"p1","capabilities":{"input":["text","image","pdf"]}}]}`)
+	}))
+	defer upstream.Close()
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "http://127.0.0.1:7788/api/models", nil)
+	newHandler(t, upstream.URL).ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), `"pdf"`) {
+		t.Fatalf("status = %d: %s", rec.Code, rec.Body)
+	}
+}
+
 func TestStaticFallback(t *testing.T) {
 	upstream := httptest.NewServer(auth(func(w http.ResponseWriter, r *http.Request) {}))
 	defer upstream.Close()

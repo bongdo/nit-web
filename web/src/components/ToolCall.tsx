@@ -8,6 +8,7 @@ import {
   Wrench,
 } from "lucide-react";
 import type { ToolContent, ToolPart } from "../lib/types";
+import { attachmentHref, attachmentKind } from "../lib/attachments";
 import { cn } from "../lib/utils";
 
 function summarize(input: unknown): string {
@@ -36,16 +37,16 @@ function StatusIcon({ status }: { status: ToolPart["state"]["status"] }) {
 
 function ContentItem({ content }: { content: ToolContent }) {
   const source = content.uri ?? content.url;
-  if (content.type === "file" && source) {
-    const image =
-      content.mime?.startsWith("image/") ||
-      /^data:image\//i.test(source) ||
-      /\.(png|jpe?g|gif|webp|svg)(\?|$)/i.test(source);
-    if (image) {
+  const href = source
+    ? attachmentHref({ uri: source, mime: content.mime, name: content.name })
+    : undefined;
+  const name = content.name ?? source ?? "";
+  if (content.type === "file" && href) {
+    if (attachmentKind({ name, mime: content.mime }) === "image") {
       return (
-        <a href={source} target="_blank" rel="noreferrer noopener" className="block">
+        <a href={href} target="_blank" rel="noreferrer noopener" className="block">
           <img
-            src={source}
+            src={href}
             alt="Tool output"
             loading="lazy"
             className="border-border max-h-72 max-w-full rounded-md border object-contain"
@@ -55,12 +56,12 @@ function ContentItem({ content }: { content: ToolContent }) {
     }
     return (
       <a
-        href={source}
+        href={href}
         target="_blank"
         rel="noreferrer noopener"
         className="text-foreground underline underline-offset-4"
       >
-        {source}
+        {name}
       </a>
     );
   }

@@ -84,7 +84,15 @@ workspace on the first Send, so an empty draft never appears in the list.
   never sent to the model.
 - Attach files with the paperclip, clipboard paste or drag and drop. The file is
   written to the OpenCode host through `/api/experimental/fs/write` and attached
-  as `files: [{uri, name}]` on the next prompt. Images get a local thumbnail.
+  as `files: [{uri, name}]` on the next prompt. The limit is 20 MiB, matching
+  OpenCode. You can send files without any text.
+- The transcript shows images inline, PDFs as a card with a browser PDF preview,
+  and every other file as a download link. Text, images and PDFs are the types
+  OpenCode forwards to the model; other files are uploaded but the model never
+  receives them, so the composer marks them with a warning.
+- The selected model must accept the input type. The composer warns when the
+  current model cannot read an image or PDF; pick a model whose capabilities
+  include `image` or `pdf` (for example Gemini or Claude for PDFs).
 - The microphone records 16 kHz mono WAV in the browser and sends it to
   `/api/stt`; the transcript is appended to the existing input. It never sends
   and never clears what you typed. Transcription happens when you stop, not as
@@ -161,7 +169,7 @@ The browser only talks to these same-origin endpoints:
 | `POST /api/sessions/{id}/revert` | Stage and commit a revert at `{messageID}`. |
 | `POST /api/sessions/{id}/fork` | Fork before `{before?}`. |
 | `POST /api/sessions/{id}/compact` | Compact the context. |
-| `POST /api/upload?dir=&name=` | Raw file body, written through OpenCode `/api/experimental/fs/write`. |
+| `POST /api/upload?dir=&name=` | Raw file body up to 20 MiB, written through OpenCode `/api/experimental/fs/write`. |
 | `POST /api/stt` | Raw 16 kHz mono WAV, transcribed by `whisper-cli`. |
 | `POST /api/grammar` | `{text}`; optional LanguageTool grammar/punctuation check. |
 | `POST /api/sessions/{id}/model` | Switch model `{model: {id, providerID, variant?}}`. |
@@ -186,7 +194,7 @@ OpenCode's plural resource paths are singular (`/api/session`, `/api/model`,
   response stays valid JSON; SSE framing is preserved.
 - `Host` is restricted to `localhost`, `127.0.0.1` and `::1`, case-insensitively.
   Cross-origin `POST` requests are rejected by checking `Origin` when present.
-- JSON request bodies are capped at 1 MiB, uploads at 25 MiB and audio at 30 MiB.
+- JSON request bodies are capped at 1 MiB, uploads at 20 MiB and audio at 30 MiB.
   Upstream JSON responses are capped at 64 MiB. API requests have a 20 second
   upstream timeout; the event stream is exempt and is cancelled when the browser
   disconnects.
@@ -317,7 +325,11 @@ own startup warmup.
   (3–4 s), then Russian checks take about 250 ms and English about 30–40 ms.
   Capitalization and spelling rules are disabled so the composer does not
   duplicate nspell; some Russian commas are still missed.
-- Uploaded files live under `/tmp` on the OpenCode host. Nothing cleans them up.
+- Uploaded files live under `/tmp/nit-gui-*` on the OpenCode host. Nothing
+  cleans them up. Only those paths can be served back through `/api/file`.
+- PDF support depends on the model. The default DeepSeek model reads images but
+  not PDFs; Gemini and Claude models advertise PDF input. The composer warns
+  before sending a file the current model cannot read.
 - No syntax highlighting in code blocks; copy and HTML preview are implemented.
 - The HTML preview is a fixed-height iframe, not a full-window renderer.
 - The Go app has no authentication of its own. `bin/frankfurt` puts basic auth

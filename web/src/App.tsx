@@ -571,6 +571,12 @@ export default function App() {
   }, [selectedId, messageEpoch]);
 
   useEffect(() => {
+    if (!freshCompaction) return;
+    const timer = window.setTimeout(() => setFreshCompaction(null), 10_000);
+    return () => window.clearTimeout(timer);
+  }, [freshCompaction]);
+
+  useEffect(() => {
     if (!selectedId || sessionsLoading) return;
     if (!sessions.some((session) => session.id === selectedId)) {
       transcriptCache.delete(selectedId);
@@ -787,6 +793,26 @@ export default function App() {
       ) {
         runningEventsAt.current[sessionID] = Date.now();
         setRunningIds((previous) => ({ ...previous, [sessionID]: false }));
+        clearCompacting(sessionID);
+      }
+      if (event.type === "session.compaction.started") {
+        markCompacting(sessionID);
+      }
+      if (event.type === "session.compaction.ended") {
+        clearCompacting(sessionID);
+        setFreshCompaction(sessionID);
+        if (sessionID === selectedIdRef.current) reloadSelected();
+      }
+      if (event.type === "session.compaction.failed") {
+        clearCompacting(sessionID);
+        if (sessionID === selectedIdRef.current) {
+          const reason = typeof data.reason === "string" ? data.reason : "";
+          const failure = data.error as { message?: unknown } | undefined;
+          if (reason === "manual" && typeof failure?.message === "string") {
+            setBanner(failure.message);
+          }
+          reloadSelected();
+        }
       }
       if (event.type === "session.usage.updated") {
         setSessions((previous) =>
@@ -1042,12 +1068,11 @@ export default function App() {
     setBanner(null);
     try {
       await api.compact(id);
-      reloadSelected();
       void loadSessions();
     } catch (error) {
       setBanner(messageOf(error));
     }
-  }, [loadSessions, reloadSelected]);
+  }, [loadSessions]);
 
   const retryLast = useCallback(async () => {
     const id = selectedIdRef.current;
@@ -1351,6 +1376,8 @@ export default function App() {
           messages={messages}
           loading={messagesLoading}
           running={running}
+          compacting={compactingSessions.has(selectedSession?.id ?? "")}
+          freshCompaction={freshCompaction === selectedSession?.id}
           error={transcriptError}
           models={models}
           agents={agents}

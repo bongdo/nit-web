@@ -5,7 +5,9 @@ const GAP = 24;
 const STEP = 5;
 const STILL_TIME = 6;
 const CURSOR_RADIUS = 150;
-const VARIANTS = ["magnetic", "split", "ripple", "diagonal"] as const;
+const SPOTLIGHT_RADIUS = 290;
+const SPOTLIGHT_GAP = 26;
+const VARIANTS = ["spotlight", "magnetic", "split", "ripple", "diagonal"] as const;
 
 export type SceneVariant = (typeof VARIANTS)[number];
 export type SceneSetting = SceneVariant | "random";
@@ -42,6 +44,8 @@ export function Scene({
     let staticPainted = 0;
     let ink = "";
     let accent = "";
+    let blank = true;
+    let lastBox: { x: number; y: number; w: number; h: number } | null = null;
 
     const readPalette = () => {
       const style = getComputedStyle(canvas);
@@ -133,7 +137,80 @@ export function Scene({
       context.globalAlpha = 1;
     };
 
+    const paintSpotlight = (time: number) => {
+      if (cursor.power < 0.02) {
+        if (!blank) {
+          if (lastBox) context.clearRect(lastBox.x, lastBox.y, lastBox.w, lastBox.h);
+          else context.clearRect(0, 0, width, height);
+          lastBox = null;
+          blank = true;
+        }
+        return;
+      }
+
+      if (lastBox) context.clearRect(lastBox.x, lastBox.y, lastBox.w, lastBox.h);
+      else if (!blank) context.clearRect(0, 0, width, height);
+      blank = false;
+
+      const pad = 30;
+      const left = Math.max(0, cursor.x - SPOTLIGHT_RADIUS - pad);
+      const top = Math.max(0, cursor.y - SPOTLIGHT_RADIUS - pad);
+      const right = Math.min(width, cursor.x + SPOTLIGHT_RADIUS + pad);
+      const bottom = Math.min(height, cursor.y + SPOTLIGHT_RADIUS + pad);
+      if (right <= left || bottom <= top) {
+        lastBox = null;
+        blank = true;
+        return;
+      }
+      lastBox = { x: left, y: top, w: right - left, h: bottom - top };
+
+      const lines = Math.ceil(height / SPOTLIGHT_GAP) + 2;
+      const first = Math.max(
+        0,
+        Math.floor((cursor.y - SPOTLIGHT_RADIUS) / SPOTLIGHT_GAP) - 2,
+      );
+      const last = Math.min(
+        lines - 1,
+        Math.ceil((cursor.y + SPOTLIGHT_RADIUS) / SPOTLIGHT_GAP) + 2,
+      );
+      const from = Math.max(-10, cursor.x - SPOTLIGHT_RADIUS - 20);
+      const to = Math.min(width + 10, cursor.x + SPOTLIGHT_RADIUS + 20);
+
+      const shade = context.createRadialGradient(
+        cursor.x,
+        cursor.y,
+        0,
+        cursor.x,
+        cursor.y,
+        SPOTLIGHT_RADIUS,
+      );
+      shade.addColorStop(0, accent);
+      shade.addColorStop(0.55, accent);
+      shade.addColorStop(1, "transparent");
+
+      context.strokeStyle = shade;
+      context.lineWidth = 1.1;
+      context.lineCap = "round";
+      context.globalAlpha = 0.6 * cursor.power;
+      context.beginPath();
+      for (let index = first; index <= last; index += 1) {
+        const base = (index - 1) * SPOTLIGHT_GAP;
+        for (let x = from; x <= to; x += STEP) {
+          const y = wave(x, base, index, time, width);
+          if (x === from) context.moveTo(x, y);
+          else context.lineTo(x, y);
+        }
+      }
+      context.stroke();
+      context.globalAlpha = 1;
+    };
+
     const paint = (time: number) => {
+      if (chosen === "spotlight") {
+        paintSpotlight(time);
+        return;
+      }
+
       context.clearRect(0, 0, width, height);
       context.lineWidth = 1;
       context.lineCap = "round";

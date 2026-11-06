@@ -210,6 +210,51 @@
     @apply bg-muted text-foreground rounded px-1.5 py-0.5 font-mono text-[0.85em];
   }
 
+  .compaction-summary.markdown {
+    @apply text-[13px] leading-6;
+  }
+
+  .compaction-summary.markdown > :first-child {
+    margin-top: 0;
+  }
+
+  .compaction-summary.markdown > :last-child {
+    margin-bottom: 0;
+  }
+
+  .compaction-summary.markdown p {
+    @apply my-2;
+  }
+
+  .compaction-summary.markdown h1,
+  .compaction-summary.markdown h2,
+  .compaction-summary.markdown h3,
+  .compaction-summary.markdown h4 {
+    @apply mt-4 mb-2 text-[13px] font-semibold;
+  }
+
+  .compaction-summary.markdown ul,
+  .compaction-summary.markdown ol {
+    @apply my-2 space-y-0.5 pl-5;
+  }
+
+  .compaction-summary.markdown blockquote {
+    @apply my-2 pl-3;
+  }
+
+  .compaction-summary.markdown hr {
+    @apply my-3;
+  }
+
+  .compaction-summary.markdown table {
+    @apply my-2 text-xs;
+  }
+
+  .compaction-summary.markdown th,
+  .compaction-summary.markdown td {
+    @apply px-2 py-1;
+  }
+
   .stream-caret::after {
     content: "";
     display: inline-block;
@@ -291,9 +336,115 @@
     }
   }
 
+  .compaction-enter .compaction-line {
+    transform-origin: center;
+    animation: compaction-line 520ms cubic-bezier(0.22, 0.7, 0.2, 1) both;
+  }
+
+  .compaction-enter .compaction-pill {
+    animation: compaction-pill 420ms cubic-bezier(0.22, 0.7, 0.2, 1) 140ms both;
+  }
+
+  .compaction-enter .compaction-pill::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: linear-gradient(
+      100deg,
+      transparent 25%,
+      color-mix(in oklab, var(--spark) 24%, transparent) 50%,
+      transparent 75%
+    );
+    pointer-events: none;
+    transform: translateX(-120%);
+    animation: compaction-sweep 950ms ease-out 600ms both;
+  }
+
+  .compaction-busy.compaction-pill::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: linear-gradient(
+      100deg,
+      transparent 20%,
+      color-mix(in oklab, var(--spark) 20%, transparent) 50%,
+      transparent 80%
+    );
+    pointer-events: none;
+    transform: translateX(-120%);
+    animation: compaction-sweep 1.5s ease-in-out infinite;
+  }
+
+  .compaction-busy .compaction-tile {
+    animation: compaction-breathe 1.6s ease-in-out infinite;
+  }
+
+  .compaction-dot {
+    animation: compaction-blink 1.2s ease-in-out infinite;
+  }
+
+  @keyframes compaction-line {
+    from {
+      opacity: 0;
+      transform: scaleX(0);
+    }
+    to {
+      opacity: 1;
+      transform: scaleX(1);
+    }
+  }
+
+  @keyframes compaction-pill {
+    from {
+      opacity: 0;
+      transform: translateY(5px) scale(0.96);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  @keyframes compaction-sweep {
+    from {
+      transform: translateX(-120%);
+    }
+    to {
+      transform: translateX(120%);
+    }
+  }
+
+  @keyframes compaction-breathe {
+    0%,
+    100% {
+      box-shadow: 0 0 0 0 transparent;
+    }
+    50% {
+      box-shadow: 0 0 0 4px color-mix(in oklab, var(--spark) 14%, transparent);
+    }
+  }
+
+  @keyframes compaction-blink {
+    0%,
+    100% {
+      opacity: 0.35;
+    }
+    50% {
+      opacity: 1;
+    }
+  }
+
   @media (prefers-reduced-motion: reduce) {
     .waiting-glow::after,
-    .waiting-dot {
+    .waiting-dot,
+    .compaction-enter .compaction-line,
+    .compaction-enter .compaction-pill,
+    .compaction-enter .compaction-pill::after,
+    .compaction-busy.compaction-pill::after,
+    .compaction-busy .compaction-tile,
+    .compaction-dot {
       animation: none;
     }
   }

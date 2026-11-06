@@ -63,6 +63,7 @@ var loginTemplate = template.Must(template.New("login").Parse(`<!doctype html>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex,nofollow">
 <meta name="referrer" content="no-referrer">
+<link rel="icon" href="data:,">
 <title>nit-gui — sign in</title>
 <style>
 :root { color-scheme: dark; --bg:#0c0c0d; --panel:#151517; --line:#2a2a2e; --text:#f1f0ee; --muted:#a3a09b; --copper:#c4794f; --danger:#e07a6a; }
@@ -118,7 +119,7 @@ func newAuthGate(log *slog.Logger) *authGate {
 		enabled:    hash != "",
 		hash:       hash,
 		base:       strings.TrimRight(os.Getenv("NIT_GUI_BASE_PATH"), "/"),
-		publicHost: strings.ToLower(strings.TrimSpace(os.Getenv("NIT_GUI_PUBLIC_HOST"))),
+		publicHost: strings.TrimSuffix(strings.ToLower(strings.TrimSpace(os.Getenv("NIT_GUI_PUBLIC_HOST"))), "."),
 		log:        log,
 		sessions:   map[string]time.Time{},
 		attempts:   map[string]*authAttempt{},
@@ -226,7 +227,7 @@ func (a *authGate) handleLogout(w http.ResponseWriter, r *http.Request) {
 func (a *authGate) renderLogin(w http.ResponseWriter, r *http.Request, status int, next, message string, blocked bool) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-store")
-	w.Header().Set("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'")
+	w.Header().Set("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'; img-src data:; form-action 'self'; base-uri 'none'; frame-ancestors 'none'")
 	w.WriteHeader(status)
 	_ = loginTemplate.Execute(w, loginPageData{
 		Action:  a.authPath(),
@@ -437,7 +438,7 @@ func hostOnly(hostport string) string {
 	if h, _, err := net.SplitHostPort(hostport); err == nil {
 		host = h
 	}
-	return strings.Trim(host, "[]")
+	return strings.TrimSuffix(strings.Trim(host, "[]"), ".")
 }
 
 func clientIP(r *http.Request) string {

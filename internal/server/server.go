@@ -58,7 +58,7 @@ func New(provider ClientProvider, static fs.FS, log *slog.Logger) http.Handler {
 		grammar:      newGrammarChecker(log),
 		auth:         newAuthGate(log),
 		basePath:     strings.TrimRight(os.Getenv("NIT_GUI_BASE_PATH"), "/"),
-		publicHost:   strings.ToLower(strings.TrimSpace(os.Getenv("NIT_GUI_PUBLIC_HOST"))),
+		publicHost:   strings.TrimSuffix(strings.ToLower(strings.TrimSpace(os.Getenv("NIT_GUI_PUBLIC_HOST"))), "."),
 		allowedHosts: map[string]struct{}{},
 	}
 	for _, host := range strings.Split(os.Getenv("NIT_GUI_ALLOWED_HOSTS"), ",") {
@@ -151,10 +151,12 @@ func (s *Server) middleware(next http.Handler) http.Handler {
 			w.Header().Set("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
 		}
 		if !s.allowedHost(forwardedHost(r)) {
+			s.log.Warn("host rejected", "host", r.Host, "forwarded_host", r.Header.Get("X-Forwarded-Host"))
 			writeError(w, http.StatusForbidden, "host not allowed")
 			return
 		}
 		if r.Method != http.MethodGet && r.Method != http.MethodHead && !s.allowedOrigin(r) {
+			s.log.Warn("origin rejected", "host", r.Host, "forwarded_host", r.Header.Get("X-Forwarded-Host"), "origin", r.Header.Get("Origin"), "public_host", s.publicHost)
 			writeError(w, http.StatusForbidden, "origin not allowed")
 			return
 		}
@@ -179,7 +181,7 @@ func (s *Server) allowedHost(hostport string) bool {
 	if h, _, err := net.SplitHostPort(hostport); err == nil {
 		host = h
 	}
-	host = strings.Trim(host, "[]")
+	host = strings.TrimSuffix(strings.Trim(host, "[]"), ".")
 	if strings.EqualFold(host, "localhost") || host == "127.0.0.1" || host == "::1" {
 		return true
 	}
@@ -196,10 +198,11 @@ func (s *Server) allowedOrigin(r *http.Request) bool {
 	if err != nil || (u.Scheme != "http" && u.Scheme != "https") {
 		return false
 	}
-	if strings.EqualFold(u.Host, forwardedHost(r)) {
+	originHost := hostOnly(u.Host)
+	if strings.EqualFold(originHost, hostOnly(forwardedHost(r))) {
 		return true
 	}
-	return s.publicHost != "" && strings.EqualFold(hostOnly(u.Host), s.publicHost)
+	return s.publicHost != "" && strings.EqualFold(originHost, s.publicHost)
 }
 
 func forwardedHost(r *http.Request) string {

@@ -45,7 +45,7 @@ import { useTheme } from "./hooks/useTheme";
 import { useEventStream } from "./hooks/useEventStream";
 import { useSidebarSwipe } from "./hooks/useSidebarSwipe";
 import { ChatView } from "./components/ChatView";
-import type { SceneSetting } from "./components/Scene";
+import { VARIANTS, type SceneSetting } from "./components/Scene";
 import { Composer, type Attachment, type ComposerCommand } from "./components/Composer";
 import { Header } from "./components/Header";
 import { Sidebar } from "./components/Sidebar";
@@ -184,14 +184,9 @@ export default function App() {
   });
   const [background, setBackground] = useState<SceneSetting>(() => {
     const stored = localStorage.getItem("nit-gui.background");
-    return stored === "spotlight" ||
-      stored === "magnetic" ||
-      stored === "split" ||
-      stored === "ripple" ||
-      stored === "diagonal" ||
-      stored === "random"
-      ? stored
-      : "spotlight";
+    return stored === "random" || (VARIANTS as readonly string[]).includes(stored ?? "")
+      ? (stored as SceneSetting)
+      : "ripple";
   });
   const [forms, setForms] = useState<FormInfo[]>([]);
   const [backgroundWaitingIds, setBackgroundWaitingIds] = useState<Set<string>>(new Set());

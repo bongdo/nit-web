@@ -14,7 +14,7 @@ const CURSOR_RADIUS = 150;
 const SPOTLIGHT_RADIUS = 290;
 const SPOTLIGHT_GAP = 26;
 const WAVE_SPAN = 1280;
-const VARIANTS = [
+export const VARIANTS = [
   "spotlight",
   "magnetic",
   "split",
@@ -70,6 +70,7 @@ export function Scene({
     let originX = 0;
     let originY = 0;
     let hasOrigin = false;
+    let debugged = false;
 
     const readPalette = () => {
       const style = getComputedStyle(canvas);
@@ -162,6 +163,24 @@ export function Scene({
       const to = bounds
         ? Math.min(extentWidth + 10, bounds.x1 + margin)
         : extentWidth + 10;
+
+      if (bounds) {
+        (globalThis as { __diag?: unknown }).__diag = {
+          extentWidth,
+          extentHeight,
+          fieldGap,
+          lines,
+          first,
+          last,
+          from,
+          to,
+          step,
+          cx,
+          cy,
+          debugged,
+        };
+        debugged = true;
+      }
 
       for (let index = first; index <= last; index += 1) {
         const base = (index - 1) * fieldGap;
@@ -360,23 +379,29 @@ export function Scene({
       context.globalAlpha = 1;
     };
 
+    const withAlpha = (color: string, a: number) =>
+      color.startsWith("oklch(") ? color.replace(/\)\s*$/, ` / ${a})`) : color;
+
     const paintSheen = (time: number) => {
       const sweep = ((time * 0.05) % 1) * (width + 600) - 300;
       const at = (offset: number) =>
         Math.min(1, Math.max(0, (sweep + offset) / width));
       const { step, gap } = sampling(width);
+      const dim = withAlpha(ink, 0.13);
+      const warm = withAlpha(accent, 0.3);
+      const hot = withAlpha(accent, 0.55);
       let index = 0;
       for (let base = -gap; base <= height + gap; base += gap) {
         const grad = context.createLinearGradient(0, 0, width, 0);
-        grad.addColorStop(0, ink);
-        grad.addColorStop(at(-260), ink);
-        grad.addColorStop(at(-70), accent);
-        grad.addColorStop(at(0), accent);
-        grad.addColorStop(at(70), accent);
-        grad.addColorStop(at(260), ink);
-        grad.addColorStop(1, ink);
-        context.strokeStyle = index % 9 === 0 ? accent : grad;
-        context.globalAlpha = index % 9 === 0 ? 0.45 : 0.32;
+        grad.addColorStop(0, dim);
+        grad.addColorStop(at(-260), dim);
+        grad.addColorStop(at(-70), warm);
+        grad.addColorStop(at(0), hot);
+        grad.addColorStop(at(70), warm);
+        grad.addColorStop(at(260), dim);
+        grad.addColorStop(1, dim);
+        context.strokeStyle = index % 9 === 0 ? withAlpha(accent, 0.45) : grad;
+        context.globalAlpha = 1;
         context.beginPath();
         for (let x = -gap; x <= width + gap; x += step) {
           const dx = x - cursor.x;
@@ -392,7 +417,7 @@ export function Scene({
       context.globalAlpha = 1;
     };
 
-
+    const paintSpotlight = (time: number) => {
       if (cursor.power < 0.02) {
         if (!blank) {
           if (lastBox) context.clearRect(lastBox.x, lastBox.y, lastBox.w, lastBox.h);
@@ -470,7 +495,15 @@ export function Scene({
       context.lineWidth = 1;
       context.lineCap = "round";
 
-      if (chosen === "diagonal") {
+      if (chosen === "bend") {
+        paintBend(time);
+      } else if (chosen === "warp") {
+        paintWarp(time);
+      } else if (chosen === "flow") {
+        paintFlow(time);
+      } else if (chosen === "sheen") {
+        paintSheen(time);
+      } else if (chosen === "diagonal") {
         const size = Math.hypot(width, height);
         const cos = Math.SQRT1_2;
         const sin = Math.SQRT1_2;

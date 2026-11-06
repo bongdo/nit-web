@@ -230,6 +230,12 @@ export function SettingsPanel({
               <option value="split">Contours · split</option>
               <option value="ripple">Contours · ripple</option>
               <option value="diagonal">Contours · diagonal</option>
+              <option value="bend">Bend</option>
+              <option value="warp">Warp</option>
+              <option value="flow">Flow</option>
+              <option value="sheen">Sheen</option>
+              <option value="fold">Fold</option>
+              <option value="spiral">Spiral</option>
               <option value="random">Random per new chat</option>
             </Select>
           </label>

@@ -8,20 +8,32 @@ export function CommandPalette({
   selected,
   onSelect,
   onHighlight,
+  onDismiss,
 }: {
   open: boolean;
   items: ComposerCommand[];
   selected: number;
   onSelect: (id: string) => void;
   onHighlight: (index: number) => void;
+  onDismiss: () => void;
 }) {
   const [frozen, setFrozen] = useState(items);
   const [highlight, setHighlight] = useState({ top: 0, height: 0 });
+  const root = useRef<HTMLDivElement>(null);
   const rowRefs = useRef<Array<HTMLButtonElement | null>>([]);
 
   useEffect(() => {
     if (open) setFrozen(items);
   }, [open, items]);
+
+  useEffect(() => {
+    if (!open) return;
+    const onPointerDown = (event: PointerEvent) => {
+      if (!root.current?.contains(event.target as Node)) onDismiss();
+    };
+    document.addEventListener("pointerdown", onPointerDown);
+    return () => document.removeEventListener("pointerdown", onPointerDown);
+  }, [open, onDismiss]);
 
   const shown = open ? items : frozen;
   const active = Math.min(selected, Math.max(0, shown.length - 1));
@@ -38,6 +50,7 @@ export function CommandPalette({
 
   return (
     <div
+      ref={root}
       data-open={open}
       aria-hidden={!open}
       inert={!open}

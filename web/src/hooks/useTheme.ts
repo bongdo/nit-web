@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useLayoutEffect, useState } from "react";
 import { THEMES, themeIsDark, type Theme } from "../lib/themes";
 
 export type { Theme } from "../lib/themes";
@@ -21,7 +21,7 @@ function applyTheme(theme: Theme) {
 export function useTheme() {
   const [theme, setThemeState] = useState<Theme>(readTheme);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     applyTheme(theme);
     localStorage.setItem(STORAGE_KEY, theme);
     if (theme !== "system") return;

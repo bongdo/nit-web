@@ -44,7 +44,13 @@ export function WorkspacePicker({
   };
 
   const body = (
-    <div className="bg-background border-border relative flex w-full max-w-lg flex-col overflow-hidden rounded-xl border shadow-xl">
+    <div
+      role={onClose ? "dialog" : undefined}
+      aria-modal={onClose ? true : undefined}
+      aria-label={onClose ? "Choose a workspace" : undefined}
+      onClick={onClose ? (event) => event.stopPropagation() : undefined}
+      className="overlay-modal bg-background border-border relative flex w-full max-w-lg flex-col overflow-hidden rounded-xl border shadow-xl"
+    >
       <div className="border-border flex items-center gap-2 border-b px-4 py-3">
         <Folder className="text-muted-foreground size-4" />
         <div className="min-w-0 flex-1">
@@ -130,14 +136,17 @@ export function WorkspacePicker({
 
   if (onClose) {
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+      <div
+        className="overlay-backdrop fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+        onClick={onClose}
+      >
         {body}
       </div>
     );
   }
 
   return (
-    <div className="bg-background relative flex h-full items-center justify-center overflow-hidden p-4">
+    <div className="overlay-context bg-background relative flex h-full items-center justify-center overflow-hidden p-4">
       <Scene variant={variant} motion={motion} />
       {body}
     </div>
@@ -200,7 +209,7 @@ export function WorkspaceMenu({
       {open && (
         <div
           role="menu"
-          className="border-border bg-popover absolute top-full left-1/2 z-40 mt-1 w-80 max-w-[calc(100vw-2rem)] -translate-x-1/2 rounded-lg border p-1 text-left shadow-lg"
+          className="overlay-popover border-border bg-popover absolute top-full left-1/2 z-40 mt-1 w-80 max-w-[calc(100vw-2rem)] -translate-x-1/2 rounded-lg border p-1 text-left shadow-lg"
         >
           <div className="text-muted-foreground px-2 py-1 text-[10px] font-medium tracking-wide uppercase">
             Recent

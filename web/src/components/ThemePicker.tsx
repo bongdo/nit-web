@@ -1,6 +1,7 @@
 import { Check, X } from "lucide-react";
 import { THEMES, type Theme } from "../lib/themes";
 import { cn } from "../lib/utils";
+import { useModalFocus } from "../hooks/useModalFocus";
 import { Button } from "./ui/button";
 
 export function ThemePicker({
@@ -12,17 +13,21 @@ export function ThemePicker({
   onPick: (theme: Theme) => void;
   onClose: () => void;
 }) {
+  const panel = useModalFocus<HTMLDivElement>();
+
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+      className="overlay-backdrop fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
       onClick={onClose}
     >
       <div
+        ref={panel}
         role="dialog"
         aria-modal="true"
         aria-label="Theme"
+        tabIndex={-1}
         onClick={(event) => event.stopPropagation()}
-        className="bg-background border-border flex max-h-[calc(100dvh-2rem)] w-full max-w-md flex-col overflow-hidden rounded-xl border shadow-xl"
+        className="overlay-modal bg-background border-border flex max-h-[calc(100dvh-2rem)] w-full max-w-md flex-col overflow-hidden rounded-xl border shadow-xl outline-none"
       >
         <div className="border-border flex items-center justify-between border-b px-4 py-3">
           <h2 className="text-sm font-semibold">Theme</h2>

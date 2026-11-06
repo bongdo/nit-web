@@ -1,4 +1,13 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
+import { flushSync } from "react-dom";
 import { CircleAlert, Plus, RefreshCw, X } from "lucide-react";
 import { api } from "./lib/api";
 import type {
@@ -49,7 +58,7 @@ import {
 } from "./lib/sessions";
 import { cn } from "./lib/utils";
 import { useAttention } from "./hooks/useAttention";
-import { useTheme } from "./hooks/useTheme";
+import { useTheme, type Theme } from "./hooks/useTheme";
 import { useEventStream } from "./hooks/useEventStream";
 import { useSidebarSwipe } from "./hooks/useSidebarSwipe";
 import { ChatView } from "./components/ChatView";
@@ -193,6 +202,9 @@ export default function App() {
     if (stored === "animated" || stored === "static") return stored;
     return window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ? "static" : "animated";
   });
+  useLayoutEffect(() => {
+    document.documentElement.dataset.motion = motion;
+  }, [motion]);
   const [background, setBackground] = useState<SceneSetting>(() => {
     const stored = localStorage.getItem("nit-gui.background");
     return stored === "random" || (VARIANTS as readonly string[]).includes(stored ?? "")
@@ -1137,6 +1149,20 @@ export default function App() {
   const closeSettings = useCallback(() => setSettingsOpen(false), []);
   const openTheme = useCallback(() => setThemeOpen(true), []);
   const closeTheme = useCallback(() => setThemeOpen(false), []);
+  const changeTheme = useCallback(
+    (next: Theme) => {
+      if (next === theme) return;
+      const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      if (motion !== "animated" || reduce || !document.startViewTransition) {
+        setTheme(next);
+        return;
+      }
+      document.startViewTransition(() => {
+        flushSync(() => setTheme(next));
+      });
+    },
+    [motion, setTheme, theme],
+  );
   const openSidebar = useCallback(() => setSidebarOpen(true), []);
   const toggleHidden = useCallback(() => setShowHidden((value) => !value), []);
   const clearComposerDraft = useCallback(() => setComposerDraft(null), []);
@@ -1655,6 +1681,10 @@ export default function App() {
           if (!event.repeat) setSettingsOpen(false);
           return;
         }
+        if (pickerOpen) {
+          if (!event.repeat) setPickerOpen(false);
+          return;
+        }
         const id = selectedIdRef.current;
         if (!event.repeat && id && isRunning(id)) {
           const now = Date.now();
@@ -1683,6 +1713,7 @@ export default function App() {
     swipe.close,
     swipe.open,
     themeOpen,
+    pickerOpen,
   ]);
 
   if (booting) return <BootScreen />;
@@ -1997,7 +2028,7 @@ export default function App() {
           sidebarMode={sidebarMode}
           onModel={(model) => void changeModel(model)}
           onAgent={(agent) => void changeAgent(agent)}
-          onTheme={setTheme}
+          onTheme={changeTheme}
           onSidebar={(mode) => {
             setSidebarMode(mode);
             localStorage.setItem("nit-gui.sidebar-mode", mode);
@@ -2028,7 +2059,7 @@ export default function App() {
       )}
 
       {themeOpen && (
-        <ThemePicker theme={theme} onPick={setTheme} onClose={closeTheme} />
+        <ThemePicker theme={theme} onPick={changeTheme} onClose={closeTheme} />
       )}
     </div>
   );

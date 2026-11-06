@@ -81,8 +81,9 @@ export function SubagentMenu({
       {open && (
         <div
           role="menu"
+          data-placement={placement}
           className={cn(
-            "border-border bg-popover absolute z-40 w-80 max-w-[calc(100vw-1rem)] rounded-lg border p-1 shadow-lg",
+            "overlay-popover border-border bg-popover absolute z-40 w-80 max-w-[calc(100vw-1rem)] rounded-lg border p-1 shadow-lg",
             placement === "up"
               ? "bottom-full left-1/2 mb-1 max-h-[55dvh] -translate-x-1/2 overflow-y-auto"
               : "top-full right-0 mt-1",

@@ -4,6 +4,7 @@ import { THEMES, type Theme } from "../lib/themes";
 import type { SceneSetting } from "./Scene";
 import { modelKey } from "../lib/format";
 import { appPath } from "../lib/base";
+import { useModalFocus } from "../hooks/useModalFocus";
 import { Button } from "./ui/button";
 import { Select } from "./ui/select";
 
@@ -65,10 +66,22 @@ export function SettingsPanel({
     ? (models.find((item) => item.id === model.id && item.providerID === model.providerID)
         ?.variants ?? [])
     : [];
+  const panel = useModalFocus<HTMLDivElement>();
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="bg-background border-border flex max-h-[calc(100dvh-2rem)] w-full max-w-2xl flex-col overflow-hidden rounded-xl border shadow-xl">
+    <div
+      className="overlay-backdrop fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+      onClick={onClose}
+    >
+      <div
+        ref={panel}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Settings"
+        tabIndex={-1}
+        onClick={(event) => event.stopPropagation()}
+        className="overlay-modal bg-background border-border flex max-h-[calc(100dvh-2rem)] w-full max-w-2xl flex-col overflow-hidden rounded-xl border shadow-xl outline-none"
+      >
         <div className="border-border flex items-center justify-between border-b px-4 py-3">
           <h2 className="text-sm font-semibold">Settings</h2>
           <Button variant="ghost" size="icon-sm" onClick={onClose} aria-label="Close settings">

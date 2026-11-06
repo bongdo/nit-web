@@ -828,6 +828,7 @@ export const Composer = memo(function Composer({
             selected={commandIndex}
             onSelect={runCommand}
             onHighlight={setCommandIndex}
+            onDismiss={() => setCommandDismissed(true)}
           />
 
           {form && question && (

@@ -39,6 +39,7 @@ type AssistantTurnProps = {
   actionsDisabled?: boolean;
   onRevert: (message: Message) => void;
   onFork: (message: Message) => void;
+  onLoadMessage?: (messageID: string) => void;
 };
 
 export const AssistantTurn = memo(function AssistantTurn({
@@ -50,11 +51,18 @@ export const AssistantTurn = memo(function AssistantTurn({
   actionsDisabled,
   onRevert,
   onFork,
+  onLoadMessage,
 }: AssistantTurnProps) {
   const [open, setOpen] = useState(false);
   const wasStreaming = useRef(streaming);
   const [copied, setCopied] = useState(false);
   const last = messages[messages.length - 1];
+  const owners = new Map<ReasoningPart | ToolPart, Message>();
+  for (const message of messages) {
+    for (const part of message.content ?? []) {
+      if (part.type === "tool" || part.type === "reasoning") owners.set(part, message);
+    }
+  }
   const content = messages.flatMap((message) => message.content ?? []);
   const activity = content.filter(
     (part): part is ReasoningPart | ToolPart =>

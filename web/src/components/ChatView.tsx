@@ -51,6 +51,10 @@ export function ChatView({
   onQuote,
   onPickWorkspace,
   onBrowseWorkspace,
+  hasEarlier,
+  loadingEarlier,
+  onLoadEarlier,
+  onLoadMessage,
 }: {
   session: Session | null;
   messages: Message[];
@@ -72,6 +76,10 @@ export function ChatView({
   onQuote: (text: string) => void;
   onPickWorkspace: (directory: string) => void;
   onBrowseWorkspace: () => void;
+  hasEarlier: boolean;
+  loadingEarlier: boolean;
+  onLoadEarlier: () => void;
+  onLoadMessage: (messageID: string) => void;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
@@ -190,6 +198,7 @@ export function ChatView({
             actionsDisabled={running}
             onRevert={onRevert}
             onFork={onFork}
+            onLoadMessage={onLoadMessage}
           />,
         );
         continue;
@@ -205,11 +214,23 @@ export function ChatView({
           onRevert={onRevert}
           onFork={onFork}
           streaming={false}
+          onLoadMessage={onLoadMessage}
         />,
       );
     }
     return items;
-  }, [agents, freshCompaction, messages, models, onFork, onRevert, running, workspace]);
+  }, [
+    agents,
+    freshCompaction,
+    lastCompactionId,
+    messages,
+    models,
+    onFork,
+    onLoadMessage,
+    onRevert,
+    running,
+    workspace,
+  ]);
 
   if (!session) {
     return (
@@ -276,6 +297,20 @@ export function ChatView({
         }}
       >
         <div ref={contentRef} className="mx-auto w-full max-w-3xl px-4 pt-16 pb-6">
+          {hasEarlier && (
+            <div className="flex justify-center pb-2">
+              <Button
+                variant="ghost"
+                size="xs"
+                onClick={onLoadEarlier}
+                disabled={loadingEarlier}
+              >
+                {loadingEarlier ? <Loader2 className="animate-spin" /> : null}
+                Load earlier messages
+              </Button>
+            </div>
+          )}
+
           {error && (
             <div className="text-destructive border-destructive/30 bg-destructive/5 mb-4 flex items-start gap-2 rounded-lg border px-3 py-2 text-xs">
               <CircleAlert className="mt-0.5 size-4 shrink-0" />

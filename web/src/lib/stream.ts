@@ -190,6 +190,7 @@ function upsertText(
   kind: "text" | "reasoning",
   ordinal: number,
   update: (current: string) => string,
+  light?: boolean,
 ): Message {
   const content = [...(message.content ?? [])];
   const index = content.findIndex(
@@ -200,9 +201,13 @@ function upsertText(
   );
   if (index >= 0) {
     const part = content[index] as TextPart | ReasoningPart;
-    content[index] = { ...part, text: update(part.text) };
+    content[index] = {
+      ...part,
+      text: update(part.text),
+      ...(light === undefined ? {} : { light }),
+    };
   } else {
-    content.push({ type: kind, text: update(""), ordinal });
+    content.push({ type: kind, text: update(""), ordinal, ...(light ? { light } : {}) });
   }
   return { ...message, content };
 }
@@ -272,19 +277,31 @@ export function applyEvent(messages: Message[], event: StreamEvent): Message[] {
 
     case "session.reasoning.started":
       return updateMessage(messages, id, event, (message) =>
-        upsertText(message, "reasoning", ordinal, (current) => str(data.text) || current),
+        upsertText(
+          message,
+          "reasoning",
+          ordinal,
+          (current) => str(data.text) || current,
+          data.light ? true : undefined,
+        ),
       );
 
     case "session.reasoning.delta":
       return updateMessage(messages, id, event, (message) =>
-        upsertText(message, "reasoning", ordinal, (current) => current + str(data.delta)),
+        upsertText(
+          message,
+          "reasoning",
+          ordinal,
+          (current) => current + str(data.delta),
+          data.light ? true : undefined,
+        ),
       );
 
     case "session.reasoning.ended":
       return updateMessage(messages, id, event, (message) => {
         const full = str(data.text);
         if (!full) return message;
-        return upsertText(message, "reasoning", ordinal, () => full);
+        return upsertText(message, "reasoning", ordinal, () => full, Boolean(data.light));
       });
 
     case "session.tool.input.started": {
@@ -313,12 +330,13 @@ export function applyEvent(messages: Message[], event: StreamEvent): Message[] {
       const toolID = str(data.id);
       if (!toolID) return messages;
       return updateMessage(messages, id, event, (message) =>
-        upsertTool(message, toolID, str(data.name) || "tool", (part) =>
-          mergeState(part, {
+        upsertTool(message, toolID, str(data.name) || "tool", (part) => ({
+          ...mergeState(part, {
             status: "streaming",
             input: str(data.text) || part.state.input,
           }),
-        ),
+          ...(data.light ? { light: true } : {}),
+        })),
       );
     }
 
@@ -328,6 +346,7 @@ export function applyEvent(messages: Message[], event: StreamEvent): Message[] {
       return updateMessage(messages, id, event, (message) =>
         upsertTool(message, toolID, str(data.name) || "tool", (part) => ({
           ...part,
+          ...(data.light ? { light: true } : {}),
           executed: Boolean(data.executed),
           state: {
             status: "running",
@@ -362,6 +381,7 @@ export function applyEvent(messages: Message[], event: StreamEvent): Message[] {
       return updateMessage(messages, id, event, (message) =>
         upsertTool(message, toolID, str(data.name) || "tool", (part) => ({
           ...part,
+          light: Boolean(data.light),
           state: {
             status: "completed",
             input: part.state.input,

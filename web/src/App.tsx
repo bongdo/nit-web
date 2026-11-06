@@ -13,8 +13,14 @@ import type {
   Session,
   StreamEvent,
 } from "./lib/types";
-import { applyEvent, coalesceEvents, normalizeMessages } from "./lib/stream";
-import { TranscriptCache } from "./lib/transcripts";
+import {
+  applyEvent,
+  coalesceEvents,
+  lightenEvent,
+  lightMessages,
+  normalizeMessages,
+} from "./lib/stream";
+import { mergeTail, prependMessages, TranscriptCache } from "./lib/transcripts";
 import {
   contextPercent,
   estimateCost,
@@ -49,6 +55,7 @@ import { BootScreen, OfflineScreen } from "./components/StatusScreens";
 import { Button } from "./components/ui/button";
 
 const DOUBLE_ESCAPE_MS = 500;
+const TAIL_LIMIT = 50;
 
 function messageOf(error: unknown): string {
   if (error instanceof Error && error.message) return error.message;
@@ -57,6 +64,14 @@ function messageOf(error: unknown): string {
 
 function saveHidden(ids: Set<string>) {
   localStorage.setItem("nit-gui.hidden", JSON.stringify([...ids]));
+}
+
+function eventSize(event: StreamEvent): number {
+  try {
+    return JSON.stringify(event.data ?? {}).length + 64;
+  } catch {
+    return 64;
+  }
 }
 
 function isMessageStreamEvent(type: string): boolean {
@@ -236,6 +251,12 @@ export default function App() {
   const messagesRef = useRef(messages);
   messagesRef.current = messages;
   const [transcriptCache] = useState(() => new TranscriptCache());
+  const [messageLoads] = useState(() => new Set<string>());
+  const [historyCursor, setHistoryCursor] = useState<string | null>(null);
+  const historyCursorRef = useRef(historyCursor);
+  historyCursorRef.current = historyCursor;
+  const [loadingEarlier, setLoadingEarlier] = useState(false);
+  const loadingEarlierRef = useRef(false);
   const loadedIdRef = useRef<string | null>(null);
   const lastEpochRef = useRef(0);
 
@@ -526,6 +547,9 @@ export default function App() {
       setMessages([]);
       setMessagesLoading(false);
       setTranscriptError(null);
+      setHistoryCursor(null);
+      setLoadingEarlier(false);
+      loadingEarlierRef.current = false;
       loadedIdRef.current = null;
       return;
     }
@@ -538,7 +562,8 @@ export default function App() {
     lastEpochRef.current = messageEpoch;
     const cached = transcriptCache.get(selectedId);
     if (cached && !force) {
-      setMessages(cached);
+      setMessages(cached.messages);
+      setHistoryCursor(cached.previous);
       setMessagesLoading(false);
       loadedIdRef.current = selectedId;
       return;
@@ -546,13 +571,18 @@ export default function App() {
     let cancelled = false;
     setMessagesLoading(!cached);
     setTranscriptError(null);
-    api.messages(selectedId)
-      .then((data) => {
+    api.messages(selectedId, { light: true, limit: TAIL_LIMIT })
+      .then((page) => {
         if (cancelled) return;
-        const normalized = normalizeMessages(data);
-        transcriptCache.set(selectedId, normalized);
+        const tail = normalizeMessages(page.data);
+        const previous = page.previous ?? null;
+        const keepCursor = force && messagesRef.current.length > tail.length;
+        const cursor = keepCursor ? historyCursorRef.current : previous;
+        const next = force ? mergeTail(messagesRef.current, tail) : tail;
+        transcriptCache.set(selectedId, { messages: lightMessages(next), previous: cursor });
         loadedIdRef.current = selectedId;
-        setMessages(normalized);
+        setMessages(next);
+        setHistoryCursor(cursor);
         const session = sessionsRef.current.find((item) => item.id === selectedId);
         if (session) {
           setRunningIds((previous) =>
@@ -606,7 +636,10 @@ export default function App() {
               (event.data ?? {}).sessionID === current ? applyEvent(next, event) : next,
             messagesRef.current,
           );
-    transcriptCache.set(current, latest);
+    transcriptCache.set(current, {
+      messages: lightMessages(latest),
+      previous: historyCursorRef.current,
+    });
   }, [transcriptCache]);
 
   const selectSession = useCallback((id: string | null) => {
@@ -615,9 +648,12 @@ export default function App() {
       saveCurrentTranscript();
       const cached = id ? transcriptCache.get(id) : undefined;
       loadedIdRef.current = cached && id ? id : null;
-      setMessages(cached ?? []);
+      setMessages(cached?.messages ?? []);
+      setHistoryCursor(cached?.previous ?? null);
       setMessagesLoading(Boolean(id) && !cached);
       setTranscriptError(null);
+      setLoadingEarlier(false);
+      loadingEarlierRef.current = false;
     }
     setSelectedIdState(id);
     if (id) localStorage.setItem("nit-gui.session", id);
@@ -643,8 +679,54 @@ export default function App() {
     loadedIdRef.current = null;
     setMessages([]);
     setMessagesLoading(false);
+    setHistoryCursor(null);
+    setLoadingEarlier(false);
+    loadingEarlierRef.current = false;
     setPickerOpen(false);
   }, [saveCurrentTranscript]);
+
+  const loadEarlier = useCallback(async () => {
+    const id = selectedIdRef.current;
+    const cursor = historyCursorRef.current;
+    if (!id || !cursor || loadingEarlierRef.current) return;
+    loadingEarlierRef.current = true;
+    setLoadingEarlier(true);
+    try {
+      const page = await api.messages(id, { light: true, limit: TAIL_LIMIT, before: cursor });
+      if (selectedIdRef.current !== id) return;
+      const older = normalizeMessages(page.data);
+      const previous = page.previous ?? null;
+      historyCursorRef.current = previous;
+      setHistoryCursor(previous);
+      setMessages((current) => prependMessages(current, older));
+    } catch (error) {
+      setBanner(messageOf(error));
+    } finally {
+      loadingEarlierRef.current = false;
+      setLoadingEarlier(false);
+    }
+  }, []);
+
+  const loadMessage = useCallback(async (messageID: string) => {
+    const id = selectedIdRef.current;
+    if (!id) return;
+    const key = `${id}|${messageID}`;
+    if (messageLoads.has(key)) return;
+    messageLoads.add(key);
+    const before = messagesRef.current.find((message) => message.id === messageID);
+    try {
+      const full = await api.message(id, messageID);
+      if (selectedIdRef.current !== id) return;
+      if (messagesRef.current.find((message) => message.id === messageID) !== before) return;
+      setMessages((current) =>
+        current.map((message) => (message.id === messageID ? full : message)),
+      );
+    } catch (error) {
+      setBanner(messageOf(error));
+    } finally {
+      messageLoads.delete(key);
+    }
+  }, [messageLoads]);
 
   const changeScope = useCallback((next: Scope) => {
     setScopeState(next);
@@ -871,7 +953,16 @@ export default function App() {
       }
     } else if (sessionID && isMessageStreamEvent(event.type)) {
       const cached = transcriptCache.get(sessionID);
-      if (cached) transcriptCache.set(sessionID, applyEvent(cached, event));
+      if (cached) {
+        const light = lightenEvent(event);
+        if (light) {
+          transcriptCache.update(
+            sessionID,
+            applyEvent(cached.messages, light),
+            eventSize(light),
+          );
+        }
+      }
     }
 
     if (event.type === "session.deleted" && sessionID) {
@@ -940,6 +1031,9 @@ export default function App() {
           localStorage.setItem("nit-gui.session", session.id);
           loadedIdRef.current = session.id;
           setMessages([]);
+          setHistoryCursor(null);
+          setLoadingEarlier(false);
+          loadingEarlierRef.current = false;
           setSidebarOpen(false);
         } catch (error) {
           setBanner(messageOf(error));
@@ -1409,6 +1503,10 @@ export default function App() {
           onQuote={quoteSelection}
           onPickWorkspace={selectWorkspace}
           onBrowseWorkspace={openPicker}
+          hasEarlier={Boolean(historyCursor)}
+          loadingEarlier={loadingEarlier}
+          onLoadEarlier={loadEarlier}
+          onLoadMessage={loadMessage}
         />
 
         <BottomDock>

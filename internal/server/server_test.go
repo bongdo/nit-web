@@ -561,10 +561,10 @@ func TestMessagesLight(t *testing.T) {
 			Text    string `json:"text"`
 			Summary string `json:"summary"`
 			Content []struct {
-				Type      string         `json:"type"`
-				Text      string         `json:"text"`
-				Light     bool           `json:"light"`
-				State     map[string]any `json:"state"`
+				Type  string         `json:"type"`
+				Text  string         `json:"text"`
+				Light bool           `json:"light"`
+				State map[string]any `json:"state"`
 			} `json:"content"`
 		} `json:"data"`
 	}

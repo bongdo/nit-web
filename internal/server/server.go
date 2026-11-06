@@ -17,6 +17,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -331,51 +332,90 @@ func (s *Server) messages(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusServiceUnavailable, "opencode service not found")
 		return
 	}
-	redactor := c.Redactor()
-	light := r.URL.Query().Get("light") == "1"
-	pages := []json.RawMessage{}
-	cursor := ""
-	for page := 0; page < 20; page++ {
-		path := fmt.Sprintf("/api/session/%s/message?order=asc&limit=100", url.PathEscape(id))
-		if cursor != "" {
-			path = fmt.Sprintf("/api/session/%s/message?limit=100&cursor=%s", url.PathEscape(id), url.QueryEscape(cursor))
+	limit := 0
+	if value := r.URL.Query().Get("limit"); value != "" {
+		parsed, err := strconv.Atoi(value)
+		if err != nil || parsed < 1 {
+			writeError(w, http.StatusBadRequest, "invalid limit")
+			return
 		}
-		raw, err := c.Raw(r.Context(), http.MethodGet, path)
+		if parsed > 200 {
+			parsed = 200
+		}
+		limit = parsed
+	}
+	before := r.URL.Query().Get("before")
+	light := r.URL.Query().Get("light") == "1"
+	redactor := c.Redactor()
+	pages := []json.RawMessage{}
+	previous := ""
+	if limit > 0 {
+		query := url.Values{}
+		query.Set("limit", strconv.Itoa(limit))
+		if before != "" {
+			query.Set("cursor", before)
+		} else {
+			query.Set("order", "desc")
+		}
+		raw, err := c.Raw(r.Context(), http.MethodGet, fmt.Sprintf("/api/session/%s/message?%s", url.PathEscape(id), query.Encode()))
 		if err != nil {
 			s.upstreamError(w, err)
 			return
 		}
-		var env struct {
-			Data   json.RawMessage `json:"data"`
-			Cursor struct {
-				Next *string `json:"next"`
-			} `json:"cursor"`
-		}
-		if err := json.Unmarshal(raw, &env); err != nil {
+		data, _, prev, err := decodeMessagesPage(raw)
+		if err != nil {
 			s.upstreamError(w, err)
 			return
 		}
-		data := bytes.TrimSpace(env.Data)
-		if len(data) == 0 || bytes.Equal(data, []byte("null")) {
-			break
-		}
-		if data[0] != '[' {
-			writeError(w, http.StatusBadGateway, "OpenCode returned an invalid transcript")
-			return
-		}
-		if light {
-			trimmed, err := lightenTranscript(data)
+		previous = prev
+		if len(data) > 0 {
+			if light {
+				data, err = lightenTranscript(data)
+				if err != nil {
+					writeError(w, http.StatusBadGateway, "OpenCode returned an invalid transcript")
+					return
+				}
+			}
+			data, err = reverseTranscript(data)
 			if err != nil {
 				writeError(w, http.StatusBadGateway, "OpenCode returned an invalid transcript")
 				return
 			}
-			data = trimmed
+			pages = append(pages, redactor.JSON(data))
 		}
-		pages = append(pages, redactor.JSON(data))
-		if env.Cursor.Next == nil || *env.Cursor.Next == "" {
-			break
+	} else {
+		cursor := ""
+		for page := 0; page < 20; page++ {
+			path := fmt.Sprintf("/api/session/%s/message?order=asc&limit=100", url.PathEscape(id))
+			if cursor != "" {
+				path = fmt.Sprintf("/api/session/%s/message?limit=100&cursor=%s", url.PathEscape(id), url.QueryEscape(cursor))
+			}
+			raw, err := c.Raw(r.Context(), http.MethodGet, path)
+			if err != nil {
+				s.upstreamError(w, err)
+				return
+			}
+			data, next, _, err := decodeMessagesPage(raw)
+			if err != nil {
+				s.upstreamError(w, err)
+				return
+			}
+			if len(data) == 0 {
+				break
+			}
+			if light {
+				data, err = lightenTranscript(data)
+				if err != nil {
+					writeError(w, http.StatusBadGateway, "OpenCode returned an invalid transcript")
+					return
+				}
+			}
+			pages = append(pages, redactor.JSON(data))
+			if next == "" {
+				break
+			}
+			cursor = next
 		}
-		cursor = *env.Cursor.Next
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
@@ -398,7 +438,53 @@ func (s *Server) messages(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	_, _ = w.Write([]byte("]}"))
+	_, _ = w.Write([]byte(`]`))
+	if previous != "" {
+		encoded, _ := json.Marshal(previous)
+		_, _ = w.Write([]byte(`,"previous":`))
+		_, _ = w.Write(encoded)
+	} else {
+		_, _ = w.Write([]byte(`,"previous":null`))
+	}
+	_, _ = w.Write([]byte(`}`))
+}
+
+func decodeMessagesPage(raw []byte) (json.RawMessage, string, string, error) {
+	var env struct {
+		Data   json.RawMessage `json:"data"`
+		Cursor struct {
+			Next     *string `json:"next"`
+			Previous *string `json:"previous"`
+		} `json:"cursor"`
+	}
+	if err := json.Unmarshal(raw, &env); err != nil {
+		return nil, "", "", err
+	}
+	data := bytes.TrimSpace(env.Data)
+	if len(data) == 0 || bytes.Equal(data, []byte("null")) {
+		data = nil
+	} else if data[0] != '[' {
+		return nil, "", "", fmt.Errorf("OpenCode returned an invalid transcript")
+	}
+	next, prev := "", ""
+	if env.Cursor.Next != nil {
+		next = *env.Cursor.Next
+	}
+	if env.Cursor.Previous != nil {
+		prev = *env.Cursor.Previous
+	}
+	return data, next, prev, nil
+}
+
+func reverseTranscript(data []byte) ([]byte, error) {
+	var messages []json.RawMessage
+	if err := json.Unmarshal(data, &messages); err != nil {
+		return nil, err
+	}
+	for left, right := 0, len(messages)-1; left < right; left, right = left+1, right-1 {
+		messages[left], messages[right] = messages[right], messages[left]
+	}
+	return json.Marshal(messages)
 }
 
 func (s *Server) message(w http.ResponseWriter, r *http.Request) {

@@ -102,7 +102,11 @@ func lightenPart(raw []byte) (json.RawMessage, bool, error) {
 		}
 		part["state"] = encoded
 		part["light"] = json.RawMessage("true")
-		return json.Marshal(part)
+		encodedPart, err := json.Marshal(part)
+		if err != nil {
+			return nil, false, err
+		}
+		return encodedPart, true, nil
 	case "reasoning":
 		var text string
 		if err := json.Unmarshal(part["text"], &text); err != nil {
@@ -117,7 +121,11 @@ func lightenPart(raw []byte) (json.RawMessage, bool, error) {
 		}
 		part["text"] = encoded
 		part["light"] = json.RawMessage("true")
-		return json.Marshal(part)
+		encodedPart, err := json.Marshal(part)
+		if err != nil {
+			return nil, false, err
+		}
+		return encodedPart, true, nil
 	}
 	return raw, false, nil
 }

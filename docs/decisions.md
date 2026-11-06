@@ -180,3 +180,15 @@ Why: the heaviest local chat now opens with about 110 KB and 0.13 s instead of 1
 Rejected: virtualizing the whole transcript (more UI work), loading the full history in the background (wastes the transfer we just avoided), persisting transcripts in IndexedDB (a separate feature), and dropping tool calls entirely (they still give the activity summary and can be opened).
 
 Cost: long chats open at the tail; older messages need "Load earlier". Full tool output and reasoning are one request away, and the cache evicts the least recently used chats by total size.
+
+## 2026-11-06 — Earlier pages load automatically
+
+Context: the manual "Load earlier messages" control from the previous entry is not how a chat should behave; the next page must be there before the user reaches the top.
+
+Decision: `ChatView` requests the previous page when the scroll position is within 400 px of the top, and also fills the viewport when the whole transcript is shorter than the viewport plus that margin. A small "Loading earlier…" pill replaces the button. After prepending, the scroll position is adjusted by the added height so the visible messages do not jump.
+
+Why: the prefetch hides the network latency behind the user's own scrolling, and the scroll anchor keeps the reading position stable.
+
+Rejected: keeping the button as a fallback (it breaks the flow), loading the entire history at once (wasteful), and relying on browser scroll anchoring (the transcript disables it for streaming).
+
+Cost: one extra page request when the user approaches the top; a short transcript may auto-load a few pages until it fills the viewport.

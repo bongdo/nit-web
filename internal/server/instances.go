@@ -45,7 +45,10 @@ func (s *Server) instances(w http.ResponseWriter, r *http.Request) {
 	for _, spec := range specs {
 		instances = append(instances, s.instanceInfo(r.Context(), spec, probeAll, shared))
 	}
-	host, _ := os.Hostname()
+	host := s.publicHost
+	if host == "" {
+		host, _ = os.Hostname()
+	}
 	host = strings.Split(host, ".")[0]
 	writeJSON(w, http.StatusOK, map[string]any{
 		"app":         map[string]string{"name": "nit-gui", "host": host, "version": "dev"},

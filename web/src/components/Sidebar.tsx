@@ -378,7 +378,7 @@ export const Sidebar = memo(function Sidebar({
         const after = next.get(id);
         if (before === undefined || after === undefined) continue;
         const delta = before - after;
-        if (Math.abs(delta) < 1) continue;
+        if (Math.abs(delta) < 1 || typeof row.animate !== "function") continue;
         row.animate(
           [{ transform: `translateY(${delta}px)` }, { transform: "translateY(0)" }],
           { duration: 320, easing: "cubic-bezier(0.22, 0.7, 0.2, 1)" },

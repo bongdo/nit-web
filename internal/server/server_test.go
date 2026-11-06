@@ -531,6 +531,100 @@ func TestMessagesPaginate(t *testing.T) {
 	}
 }
 
+func TestMessagesLight(t *testing.T) {
+	reasoning := strings.Repeat("r", 300)
+	answer := strings.Repeat("a", 300)
+	upstream := httptest.NewServer(auth(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprintf(w, `{"data":[
+			{"id":"m1","type":"user","time":{"created":1},"text":"hello"},
+			{"id":"m2","type":"assistant","time":{"created":2},"content":[
+				{"type":"reasoning","text":%q,"ordinal":0},
+				{"type":"tool","id":"t1","name":"read","state":{"status":"completed","input":{"filePath":"/tmp/a"},"content":[{"type":"text","text":"tool output"}]}},
+				{"type":"text","text":%q,"ordinal":0}
+			]},
+			{"id":"m3","type":"compaction","time":{"created":3},"summary":"kept summary"}
+		],"cursor":{"next":null}}`, reasoning, answer)
+	}))
+	defer upstream.Close()
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "http://127.0.0.1:7788/api/sessions/ses_1/messages?light=1", nil)
+	newHandler(t, upstream.URL).ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d: %s", rec.Code, rec.Body)
+	}
+	var body struct {
+		Data []struct {
+			ID      string `json:"id"`
+			Type    string `json:"type"`
+			Text    string `json:"text"`
+			Summary string `json:"summary"`
+			Content []struct {
+				Type      string         `json:"type"`
+				Text      string         `json:"text"`
+				Light     bool           `json:"light"`
+				State     map[string]any `json:"state"`
+			} `json:"content"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if len(body.Data) != 3 {
+		t.Fatalf("messages = %d: %s", len(body.Data), rec.Body)
+	}
+	if body.Data[0].Text != "hello" || body.Data[2].Summary != "kept summary" {
+		t.Fatalf("user or compaction changed: %s", rec.Body)
+	}
+	parts := body.Data[1].Content
+	if len(parts) != 3 {
+		t.Fatalf("parts = %d: %s", len(parts), rec.Body)
+	}
+	if parts[0].Type != "reasoning" || len(parts[0].Text) != 240 || !parts[0].Light {
+		t.Fatalf("reasoning not trimmed: %+v", parts[0])
+	}
+	if parts[1].Type != "tool" || !parts[1].Light {
+		t.Fatalf("tool not marked light: %+v", parts[1])
+	}
+	if _, ok := parts[1].State["content"]; ok {
+		t.Fatalf("tool content survived: %+v", parts[1].State)
+	}
+	if parts[2].Type != "text" || len(parts[2].Text) != 300 {
+		t.Fatalf("answer changed: %+v", parts[2])
+	}
+}
+
+func TestMessageProxy(t *testing.T) {
+	upstream := httptest.NewServer(auth(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/session/ses_1/message/msg_1" {
+			t.Errorf("path = %s", r.URL.Path)
+		}
+		fmt.Fprintf(w, `{"data":{"id":"msg_1","type":"assistant","time":{"created":1},"content":[{"type":"text","text":"secret %s"}]}}`, testPassword)
+	}))
+	defer upstream.Close()
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "http://127.0.0.1:7788/api/sessions/ses_1/messages/msg_1", nil)
+	newHandler(t, upstream.URL).ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d: %s", rec.Code, rec.Body)
+	}
+	assertNoSecret(t, rec.Body.String(), "message")
+	var body struct {
+		Data struct {
+			ID string `json:"id"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if body.Data.ID != "msg_1" {
+		t.Fatalf("unexpected body: %s", rec.Body)
+	}
+}
+
 func TestPromptForwardsText(t *testing.T) {
 	var got string
 	upstream := httptest.NewServer(auth(func(w http.ResponseWriter, r *http.Request) {

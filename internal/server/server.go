@@ -97,6 +97,7 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("POST /api/sessions", s.createSession)
 	s.mux.HandleFunc("DELETE /api/sessions/{id}", s.deleteSession)
 	s.mux.HandleFunc("GET /api/sessions/{id}/messages", s.messages)
+	s.mux.HandleFunc("GET /api/sessions/{id}/messages/{messageID}", s.message)
 	s.mux.HandleFunc("GET /api/sessions/{id}/children", s.children)
 	s.mux.HandleFunc("POST /api/sessions/{id}/prompt", s.prompt)
 	s.mux.HandleFunc("POST /api/sessions/{id}/interrupt", s.interrupt)
@@ -331,6 +332,7 @@ func (s *Server) messages(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	redactor := c.Redactor()
+	light := r.URL.Query().Get("light") == "1"
 	pages := []json.RawMessage{}
 	cursor := ""
 	for page := 0; page < 20; page++ {
@@ -361,6 +363,14 @@ func (s *Server) messages(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusBadGateway, "OpenCode returned an invalid transcript")
 			return
 		}
+		if light {
+			trimmed, err := lightenTranscript(data)
+			if err != nil {
+				writeError(w, http.StatusBadGateway, "OpenCode returned an invalid transcript")
+				return
+			}
+			data = trimmed
+		}
 		pages = append(pages, redactor.JSON(data))
 		if env.Cursor.Next == nil || *env.Cursor.Next == "" {
 			break
@@ -389,6 +399,43 @@ func (s *Server) messages(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	_, _ = w.Write([]byte("]}"))
+}
+
+func (s *Server) message(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	messageID := r.PathValue("messageID")
+	if !validID(id) || !validID(messageID) {
+		writeError(w, http.StatusBadRequest, "invalid message id")
+		return
+	}
+	c, ok := s.client(r.Context())
+	if !ok {
+		writeError(w, http.StatusServiceUnavailable, "opencode service not found")
+		return
+	}
+	path := fmt.Sprintf("/api/session/%s/message/%s", url.PathEscape(id), url.PathEscape(messageID))
+	raw, err := c.Raw(r.Context(), http.MethodGet, path)
+	if err != nil {
+		s.upstreamError(w, err)
+		return
+	}
+	var env struct {
+		Data json.RawMessage `json:"data"`
+	}
+	if err := json.Unmarshal(raw, &env); err != nil {
+		s.upstreamError(w, err)
+		return
+	}
+	data := bytes.TrimSpace(env.Data)
+	if len(data) == 0 || bytes.Equal(data, []byte("null")) {
+		writeError(w, http.StatusNotFound, "message not found")
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write([]byte(`{"data":`))
+	_, _ = w.Write(c.Redactor().JSON(data))
+	_, _ = w.Write([]byte(`}`))
 }
 
 func (s *Server) children(w http.ResponseWriter, r *http.Request) {

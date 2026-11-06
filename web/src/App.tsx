@@ -33,6 +33,7 @@ import {
   type Scope,
 } from "./lib/sessions";
 import { cn } from "./lib/utils";
+import { useAttention } from "./hooks/useAttention";
 import { useTheme } from "./hooks/useTheme";
 import { useEventStream } from "./hooks/useEventStream";
 import { useSidebarSwipe } from "./hooks/useSidebarSwipe";
@@ -263,6 +264,7 @@ export default function App() {
     () => mergeWaitingSessionIds(selectedId, forms, backgroundWaitingIds),
     [backgroundWaitingIds, forms, selectedId],
   );
+  useAttention(waitingIds);
   const runningNow = selectedId ? isRunning(selectedId) : false;
   const modelInfo =
     models.find(
@@ -396,7 +398,7 @@ export default function App() {
     let polling = false;
 
     const poll = async () => {
-      if (cancelled || polling || document.hidden || !healthRef.current?.ok) return;
+      if (cancelled || polling || !healthRef.current?.ok) return;
       const ids = pollSessionIds(
         sessionsRef.current,
         selectedIdRef.current,

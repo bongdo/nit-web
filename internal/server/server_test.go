@@ -531,6 +531,66 @@ func TestMessagesPaginate(t *testing.T) {
 	}
 }
 
+func TestMessagesLimit(t *testing.T) {
+	upstream := httptest.NewServer(auth(func(w http.ResponseWriter, r *http.Request) {
+		query := r.URL.Query()
+		switch query.Get("cursor") {
+		case "":
+			if query.Get("order") != "desc" || query.Get("limit") != "2" {
+				t.Errorf("unexpected first page query: %s", r.URL.RawQuery)
+			}
+			fmt.Fprint(w, `{"data":[{"id":"m3"},{"id":"m2"}],"cursor":{"next":null,"previous":"older"}}`)
+		case "older":
+			if query.Get("order") != "" || query.Get("limit") != "2" {
+				t.Errorf("unexpected older page query: %s", r.URL.RawQuery)
+			}
+			fmt.Fprint(w, `{"data":[{"id":"m1"}],"cursor":{"next":null,"previous":null}}`)
+		default:
+			t.Errorf("unexpected cursor %q", query.Get("cursor"))
+		}
+	}))
+	defer upstream.Close()
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "http://127.0.0.1:7788/api/sessions/ses_1/messages?limit=2", nil)
+	newHandler(t, upstream.URL).ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d: %s", rec.Code, rec.Body)
+	}
+	var body struct {
+		Data     []map[string]any `json:"data"`
+		Previous *string          `json:"previous"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if len(body.Data) != 2 || body.Data[0]["id"] != "m2" || body.Data[1]["id"] != "m3" {
+		t.Fatalf("tail not reversed: %s", rec.Body)
+	}
+	if body.Previous == nil || *body.Previous != "older" {
+		t.Fatalf("previous = %v: %s", body.Previous, rec.Body)
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodGet, "http://127.0.0.1:7788/api/sessions/ses_1/messages?limit=2&before=older", nil)
+	newHandler(t, upstream.URL).ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d: %s", rec.Code, rec.Body)
+	}
+	body = struct {
+		Data     []map[string]any `json:"data"`
+		Previous *string          `json:"previous"`
+	}{}
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if len(body.Data) != 1 || body.Data[0]["id"] != "m1" || body.Previous != nil {
+		t.Fatalf("unexpected older page: %s", rec.Body)
+	}
+}
+
 func TestMessagesLight(t *testing.T) {
 	reasoning := strings.Repeat("r", 300)
 	answer := strings.Repeat("a", 300)

@@ -81,6 +81,7 @@ export type ReasoningPart = {
   type: "reasoning";
   text: string;
   ordinal?: number;
+  light?: boolean;
 };
 
 export type ToolPart = {
@@ -90,6 +91,7 @@ export type ToolPart = {
   executed?: boolean;
   state: ToolState;
   time?: { created?: number; ran?: number; completed?: number };
+  light?: boolean;
 };
 
 export type Part = TextPart | ReasoningPart | ToolPart;
@@ -152,7 +154,7 @@ export type Session = {
 };
 
 export type SessionList = { data: Session[] };
-export type MessagesResponse = { data: Message[] };
+export type MessagesResponse = { data: Message[]; previous?: string | null };
 
 export type Model = {
   id: string;

@@ -3,6 +3,7 @@ import type {
   Config,
   FormInfo,
   Health,
+  Message,
   MessagesResponse,
   Model,
   ModelRef,
@@ -89,8 +90,22 @@ export const api = {
     });
     return result.data;
   },
-  messages: async (id: string) =>
-    (await request<MessagesResponse>(`/api/sessions/${encodeURIComponent(id)}/messages`)).data,
+  messages: (id: string, options: { light?: boolean; limit?: number; before?: string } = {}) => {
+    const query = new URLSearchParams();
+    if (options.light) query.set("light", "1");
+    if (options.limit) query.set("limit", String(options.limit));
+    if (options.before) query.set("before", options.before);
+    const suffix = query.toString();
+    return request<MessagesResponse>(
+      `/api/sessions/${encodeURIComponent(id)}/messages${suffix ? `?${suffix}` : ""}`,
+    );
+  },
+  message: async (id: string, messageID: string) =>
+    (
+      await request<{ data: Message }>(
+        `/api/sessions/${encodeURIComponent(id)}/messages/${encodeURIComponent(messageID)}`,
+      )
+    ).data,
   children: async (id: string) =>
     (await request<SessionList>(`/api/sessions/${encodeURIComponent(id)}/children`)).data,
   prompt: (

@@ -97,6 +97,13 @@ function SessionRow({
         ? "session-done"
         : null;
   const hasSubagents = depth === 0 && subagentCount > 0;
+  const previousState = useRef(state);
+  const [burst, setBurst] = useState(0);
+  useEffect(() => {
+    const entered = state !== null && state !== previousState.current;
+    previousState.current = state;
+    if (entered && animated) setBurst((count) => count + 1);
+  }, [state, animated]);
   useEffect(() => {
     const wasRunning = previousRunning.current > 0;
     previousRunning.current = runningSubagents;
@@ -119,7 +126,7 @@ function SessionRow({
           "flex w-full flex-col gap-1 rounded-lg px-2.5 py-2 text-left transition-colors",
           depth > 0 && "py-1.5 pl-6",
           hidden && "opacity-60",
-          state && cn("session-state", state, animated && "session-state-live"),
+          state && cn("session-state", state),
           active ? "bg-accent text-accent-foreground" : "hover:bg-accent/60",
         )}
       >
@@ -204,6 +211,9 @@ function SessionRow({
             {session.agent}
           </div>
         ) : null}
+        {animated && state && burst > 0 && (
+          <span key={burst} aria-hidden className="session-burst" />
+        )}
       </button>
       {hasSubagents && (
         <button

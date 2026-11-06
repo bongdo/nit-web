@@ -177,8 +177,11 @@ export function MessageRow({
   }
 
   if (message.type === "system" || message.type === "synthetic" || message.type === "skill") {
-    const text = message.text ?? message.description;
-    return text ? <Note>{text}</Note> : null;
+    const label =
+      message.type === "skill"
+        ? `Skill ${message.name ?? ""}`.trim()
+        : (message.description ?? (message.type === "system" ? "Instructions updated" : ""));
+    return label ? <Note>{label}</Note> : null;
   }
 
   if (message.type !== "assistant") {

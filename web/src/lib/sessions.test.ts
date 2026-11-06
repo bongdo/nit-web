@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { groupSessions, isTechnical, nextSessionId, scopeSessions } from "./sessions";
-import type { Agent, Session } from "./types";
+import {
+  groupSessions,
+  isTechnical,
+  nextSessionId,
+  scopeSessions,
+  waitingSessionIds,
+} from "./sessions";
+import type { Agent, FormInfo, Session } from "./types";
 
 const session = (overrides: Partial<Session> = {}): Session => ({
   id: "ses_1",
@@ -8,6 +14,14 @@ const session = (overrides: Partial<Session> = {}): Session => ({
   cost: 0,
   time: { created: 0, updated: 0 },
   location: { directory: "/home/ubuntu/project" },
+  ...overrides,
+});
+
+const form = (overrides: Partial<FormInfo> = {}): FormInfo => ({
+  id: "frm_1",
+  sessionID: "ses_1",
+  title: "Question",
+  fields: [],
   ...overrides,
 });
 
@@ -56,5 +70,39 @@ describe("sessions", () => {
     expect(nextSessionId(list, null, 1)).toBe("a");
     expect(nextSessionId(list, null, -1)).toBe("c");
     expect(nextSessionId([], "a", 1)).toBeNull();
+  });
+
+  it("collects waiting sessions from forms with a selected-session fallback", () => {
+    expect([
+      ...waitingSessionIds([
+        form(),
+        form({ id: "frm_2", sessionID: "ses_2" }),
+        form({ id: "frm_3", sessionID: "ses_1" }),
+      ]),
+    ]).toEqual(["ses_1", "ses_2"]);
+    expect([...waitingSessionIds([form({ sessionID: "" })], "ses_selected")]).toEqual([
+      "ses_selected",
+    ]);
+    expect([...waitingSessionIds([form({ sessionID: "" })])]).toEqual([]);
+  });
+
+  it("raises waiting sessions first within roots and children", () => {
+    const rows = groupSessions(
+      [
+        session({ id: "parent", time: { created: 3, updated: 3 } }),
+        session({ id: "child", parentID: "parent", time: { created: 2, updated: 2 } }),
+        session({ id: "waiting-child", parentID: "parent", time: { created: 1, updated: 1 } }),
+        session({ id: "root", time: { created: 0, updated: 0 } }),
+        session({ id: "waiting-root", time: { created: 0, updated: 0 } }),
+      ],
+      new Set(["waiting-root", "waiting-child"]),
+    );
+    expect(rows.map((row) => row.session.id)).toEqual([
+      "waiting-root",
+      "parent",
+      "waiting-child",
+      "child",
+      "root",
+    ]);
   });
 });

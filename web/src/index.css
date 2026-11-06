@@ -251,4 +251,50 @@
   .scrollbar-none::-webkit-scrollbar {
     display: none;
   }
+
+  .waiting-glow::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    pointer-events: none;
+    animation: waiting-glow 3.2s ease-in-out infinite;
+  }
+
+  .waiting-dot {
+    animation: waiting-dot 3.2s ease-in-out infinite;
+  }
+
+  @keyframes waiting-glow {
+    0%,
+    100% {
+      opacity: 0.55;
+      box-shadow: 0 0 0 1px color-mix(in oklab, var(--spark) 20%, transparent);
+    }
+    50% {
+      opacity: 1;
+      box-shadow:
+        0 0 0 2px color-mix(in oklab, var(--spark) 40%, transparent),
+        0 0 16px 2px color-mix(in oklab, var(--spark) 18%, transparent);
+    }
+  }
+
+  @keyframes waiting-dot {
+    0%,
+    100% {
+      opacity: 1;
+      transform: scale(1);
+    }
+    50% {
+      opacity: 0.55;
+      transform: scale(0.8);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .waiting-glow::after,
+    .waiting-dot {
+      animation: none;
+    }
+  }
 }

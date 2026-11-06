@@ -1,4 +1,4 @@
-import type { Agent, Session } from "./types";
+import type { Agent, FormInfo, Session } from "./types";
 
 export type Scope = "directory" | "mine" | "all";
 
@@ -19,6 +19,15 @@ export function scopeSessions(sessions: Session[], scope: Scope, agents: Agent[]
   return sessions.filter((session) => !isTechnical(session, agents));
 }
 
+export function waitingSessionIds(forms: FormInfo[], fallbackId?: string | null): Set<string> {
+  const ids = new Set<string>();
+  for (const form of forms) {
+    const id = form.sessionID || fallbackId;
+    if (id) ids.add(id);
+  }
+  return ids;
+}
+
 export type SessionRow = { session: Session; depth: number };
 
 export function nextSessionId(
@@ -32,7 +41,10 @@ export function nextSessionId(
   return sessions[(start + step + sessions.length) % sessions.length]?.id ?? null;
 }
 
-export function groupSessions(sessions: Session[]): SessionRow[] {
+export function groupSessions(
+  sessions: Session[],
+  waiting: ReadonlySet<string> = new Set(),
+): SessionRow[] {
   const ids = new Set(sessions.map((session) => session.id));
   const children = new Map<string, Session[]>();
   const roots: Session[] = [];
@@ -45,11 +57,13 @@ export function groupSessions(sessions: Session[]): SessionRow[] {
       roots.push(session);
     }
   }
+  const waitingFirst = (list: Session[]) =>
+    [...list].sort((a, b) => Number(waiting.has(b.id)) - Number(waiting.has(a.id)));
   const rows: SessionRow[] = [];
   const walk = (session: Session, depth: number) => {
     rows.push({ session, depth });
-    for (const child of children.get(session.id) ?? []) walk(child, depth + 1);
+    for (const child of waitingFirst(children.get(session.id) ?? [])) walk(child, depth + 1);
   };
-  for (const root of roots) walk(root, 0);
+  for (const root of waitingFirst(roots)) walk(root, 0);
   return rows;
 }

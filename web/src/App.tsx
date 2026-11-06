@@ -22,7 +22,13 @@ import {
   sessionRunning,
 } from "./lib/format";
 import { questionField } from "./lib/forms";
-import { groupSessions, nextSessionId, scopeSessions, type Scope } from "./lib/sessions";
+import {
+  groupSessions,
+  nextSessionId,
+  scopeSessions,
+  waitingSessionIds,
+  type Scope,
+} from "./lib/sessions";
 import { cn } from "./lib/utils";
 import { useTheme } from "./hooks/useTheme";
 import { useEventStream } from "./hooks/useEventStream";
@@ -1003,6 +1009,7 @@ export default function App() {
     : sessions.filter((session) => !hiddenIds.has(session.id));
   const hoverSidebar = sidebarMode === "hover";
   const questionForm = forms[0] && questionField(forms[0]) ? forms[0] : null;
+  const waitingIds = waitingSessionIds(forms, selectedId);
   const finishForm = () => {
     setForms((current) => current.slice(1));
     reloadSelected();
@@ -1069,6 +1076,8 @@ export default function App() {
             onDelete={deleteSession}
             onToggleHidden={() => setShowHidden((value) => !value)}
             isRunning={isRunning}
+            waitingIds={waitingIds}
+            motion={motion}
           />
         </div>
       </aside>

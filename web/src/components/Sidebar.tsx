@@ -22,6 +22,8 @@ function SessionRow({
   depth,
   active,
   running,
+  waiting,
+  animated,
   hidden,
   now,
   onClick,
@@ -33,6 +35,8 @@ function SessionRow({
   depth: number;
   active: boolean;
   running: boolean;
+  waiting: boolean;
+  animated: boolean;
   hidden: boolean;
   now: number;
   onClick: () => void;
@@ -57,6 +61,9 @@ function SessionRow({
           "flex w-full flex-col gap-1 rounded-lg px-2.5 py-2 text-left transition-colors",
           depth > 0 && "py-1.5",
           hidden && "opacity-60",
+          waiting && "ring-spark/30 ring-1",
+          waiting && "relative",
+          waiting && animated && "waiting-glow",
           active ? "bg-accent text-accent-foreground" : "hover:bg-accent/60",
         )}
       >
@@ -67,19 +74,28 @@ function SessionRow({
             <span
               className={cn(
                 "size-1.5 shrink-0 rounded-full",
-                running ? "animate-pulse bg-emerald-500" : "bg-border",
+                waiting
+                  ? cn("bg-spark ring-spark/30 ring-2", animated && "waiting-dot")
+                  : running
+                    ? "animate-pulse bg-emerald-500"
+                    : "bg-border",
               )}
-              aria-label={running ? "running" : "idle"}
+              title={waiting ? "Waiting for your answer" : running ? "Running" : "Idle"}
             />
           )}
           <span className="min-w-0 flex-1 truncate text-[13px] font-medium">{title}</span>
           <span
             className={cn(
               "shrink-0 text-[10px] transition-opacity group-hover:opacity-0",
-              running ? "text-emerald-500" : "text-muted-foreground",
+              waiting
+                ? "text-spark font-medium"
+                : running
+                  ? "text-emerald-500"
+                  : "text-muted-foreground",
             )}
+            title={waiting ? "Waiting for your answer" : running ? "Running" : undefined}
           >
-            {running ? "running" : formatRelative(session.time.updated, now)}
+            {waiting ? "Waiting for your answer" : running ? "running" : formatRelative(session.time.updated, now)}
           </span>
         </div>
         {depth === 0 && (
@@ -152,6 +168,8 @@ export function Sidebar({
   onDelete,
   onToggleHidden,
   isRunning,
+  waitingIds,
+  motion,
 }: {
   sessions: Session[];
   workspace: string | null;
@@ -174,6 +192,8 @@ export function Sidebar({
   onDelete: (id: string) => void;
   onToggleHidden: () => void;
   isRunning: (id: string) => boolean;
+  waitingIds: Set<string>;
+  motion: "animated" | "static";
 }) {
   const [now, setNow] = useState(Date.now());
   const modKey =
@@ -183,11 +203,20 @@ export function Sidebar({
     return () => window.clearInterval(timer);
   }, []);
 
-  const visible = groupSessions(filterSessions(sessions, search));
-  const runningCount = sessions.filter((session) => isRunning(session.id)).length;
+  const visible = groupSessions(filterSessions(sessions, search), waitingIds);
+  const waitingCount = sessions.filter((session) => waitingIds.has(session.id)).length;
+  const runningCount = sessions.filter(
+    (session) => isRunning(session.id) && !waitingIds.has(session.id),
+  ).length;
+  const animated = motion === "animated";
 
   return (
     <div className="bg-card/40 flex h-full min-h-0 flex-col">
+      <span className="sr-only" aria-live="polite">
+        {waitingCount > 0
+          ? `${waitingCount} chat${waitingCount === 1 ? "" : "s"} waiting for your answer`
+          : ""}
+      </span>
       <div className="flex items-center gap-2 px-3 pt-3 pb-2">
         <div className="bg-foreground text-background flex size-7 items-center justify-center rounded-md font-mono text-xs font-bold">
           n
@@ -206,6 +235,17 @@ export function Sidebar({
             <span className="truncate">{workspace ?? "Choose a directory"}</span>
           </div>
         </button>
+        {waitingCount > 0 && (
+          <span
+            className="text-spark inline-flex items-center gap-1 text-[10px] font-medium"
+            title="Waiting for your answer"
+          >
+            <span
+              className={cn("bg-spark size-1.5 rounded-full", animated && "waiting-dot")}
+            />
+            {waitingCount}
+          </span>
+        )}
         {runningCount > 0 && (
           <span className="text-muted-foreground inline-flex items-center gap-1 text-[10px]">
             <span className="size-1.5 animate-pulse rounded-full bg-emerald-500" />
@@ -301,6 +341,8 @@ export function Sidebar({
                 depth={depth}
                 active={session.id === selectedId}
                 running={isRunning(session.id)}
+                waiting={waitingIds.has(session.id)}
+                animated={animated}
                 hidden={hiddenIds.has(session.id)}
                 now={now}
                 onClick={() => onSelect(session.id)}

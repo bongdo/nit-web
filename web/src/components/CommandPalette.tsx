@@ -50,7 +50,6 @@ export function CommandPalette({
           style={{ height: `${highlight.height}px`, transform: `translateY(${highlight.top}px)` }}
         >
           <span key={`sweep-${active}`} className="palette-sheen-sweep" />
-          <span key={`line-${active}`} className="palette-sheen-line" />
         </span>
         {shown.map((item, index) => (
           <button

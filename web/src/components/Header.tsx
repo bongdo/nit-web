@@ -96,7 +96,6 @@ function ModelChip({ label }: { label: string }) {
       <span key={`in-${tick}`} className="chrome-sheen-chip-in block truncate">
         · {shown}
       </span>
-      {tick > 0 && <span key={`line-${tick}`} aria-hidden className="chrome-sheen-chip-line" />}
     </span>
   );
 }

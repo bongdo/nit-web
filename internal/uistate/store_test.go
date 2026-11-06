@@ -21,6 +21,15 @@ func TestStorePersists(t *testing.T) {
 	if err := store.SetStatus("c", "failed"); err != nil {
 		t.Fatal(err)
 	}
+	if _, err := store.SetDraft("ses_b", "long prompt"); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.SetModel(&ModelRef{ID: "m", ProviderID: "p", Variant: "v"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.SetAgent("build"); err != nil {
+		t.Fatal(err)
+	}
 
 	reopened, err := Open(path)
 	if err != nil {
@@ -32,6 +41,12 @@ func TestStorePersists(t *testing.T) {
 	}
 	if state.Status["b"] != "done" || state.Status["c"] != "failed" {
 		t.Fatalf("status = %v", state.Status)
+	}
+	if state.Drafts["ses_b"].Text != "long prompt" || state.Drafts["ses_b"].UpdatedAt == 0 {
+		t.Fatalf("drafts = %+v", state.Drafts)
+	}
+	if state.Model == nil || state.Model.ID != "m" || state.Model.Variant != "v" || state.Agent != "build" {
+		t.Fatalf("preferences = %+v / %q", state.Model, state.Agent)
 	}
 
 	if err := reopened.SetHidden([]string{"a"}, false); err != nil {

@@ -52,6 +52,33 @@ func TestUIStateHandlers(t *testing.T) {
 		t.Fatalf("ui state = %s", body)
 	}
 
+	draft := httptest.NewRecorder()
+	s.setDraft(draft, jsonRequest(http.MethodPost, "/api/ui/drafts", `{"key":"new:/tmp","text":"hello"}`))
+	if draft.Code != http.StatusOK {
+		t.Fatalf("draft status = %d: %s", draft.Code, draft.Body)
+	}
+	got := httptest.NewRecorder()
+	s.getDraft(got, httptest.NewRequest(http.MethodGet, "/api/ui/drafts?key=new%3A%2Ftmp", nil))
+	if got.Code != http.StatusOK || !strings.Contains(got.Body.String(), `"text":"hello"`) {
+		t.Fatalf("draft = %d: %s", got.Code, got.Body)
+	}
+
+	model := httptest.NewRecorder()
+	s.setModel(model, jsonRequest(http.MethodPost, "/api/ui/model", `{"model":{"id":"m","providerID":"p","variant":"v"}}`))
+	if model.Code != http.StatusOK {
+		t.Fatalf("model status = %d: %s", model.Code, model.Body)
+	}
+	agent := httptest.NewRecorder()
+	s.setAgent(agent, jsonRequest(http.MethodPost, "/api/ui/agent", `{"agent":"build"}`))
+	if agent.Code != http.StatusOK {
+		t.Fatalf("agent status = %d: %s", agent.Code, agent.Body)
+	}
+	list = httptest.NewRecorder()
+	s.uiState(list, httptest.NewRequest(http.MethodGet, "/api/ui", nil))
+	if !strings.Contains(list.Body.String(), `"agent":"build"`) || !strings.Contains(list.Body.String(), `"providerID":"p"`) {
+		t.Fatalf("ui state with preferences = %s", list.Body)
+	}
+
 	remove := httptest.NewRecorder()
 	request = httptest.NewRequest(http.MethodDelete, "/api/ui/sessions/ses_a", nil)
 	request.SetPathValue("id", "ses_a")

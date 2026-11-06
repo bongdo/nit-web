@@ -131,6 +131,10 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("GET /api/agents", s.agents)
 	s.mux.HandleFunc("GET /api/ui", s.uiState)
 	s.mux.HandleFunc("POST /api/ui/hidden", s.setHidden)
+	s.mux.HandleFunc("GET /api/ui/drafts", s.getDraft)
+	s.mux.HandleFunc("POST /api/ui/drafts", s.setDraft)
+	s.mux.HandleFunc("POST /api/ui/model", s.setModel)
+	s.mux.HandleFunc("POST /api/ui/agent", s.setAgent)
 	s.mux.HandleFunc("POST /api/ui/sessions/{id}/status", s.setSessionStatus)
 	s.mux.HandleFunc("DELETE /api/ui/sessions/{id}", s.removeSessionState)
 	s.mux.HandleFunc("GET /api/events", s.events)
@@ -1317,9 +1321,15 @@ func (s *Server) uiState(w http.ResponseWriter, r *http.Request) {
 	if state.Status == nil {
 		state.Status = map[string]string{}
 	}
+	var agent any
+	if state.Agent != "" {
+		agent = state.Agent
+	}
 	writeJSON(w, http.StatusOK, map[string]any{
 		"hidden": state.Hidden,
 		"status": state.Status,
+		"model":  state.Model,
+		"agent":  agent,
 	})
 }
 
@@ -1343,6 +1353,88 @@ func (s *Server) setHidden(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if err := s.ui.SetHidden(in.IDs, in.Hidden); err != nil {
+		s.log.Error("ui state save failed", "error", err)
+		writeError(w, http.StatusInternalServerError, "could not save ui state")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
+}
+
+func (s *Server) getDraft(w http.ResponseWriter, r *http.Request) {
+	key := r.URL.Query().Get("key")
+	if !validKey(key) {
+		writeError(w, http.StatusBadRequest, "invalid draft key")
+		return
+	}
+	draft := s.ui.Draft(key)
+	writeJSON(w, http.StatusOK, map[string]any{
+		"text":      draft.Text,
+		"updatedAt": draft.UpdatedAt,
+	})
+}
+
+func (s *Server) setDraft(w http.ResponseWriter, r *http.Request) {
+	in, err := decodeJSON[struct {
+		Key  string `json:"key"`
+		Text string `json:"text"`
+	}](w, r)
+	if err != nil {
+		writeDecodeError(w, err)
+		return
+	}
+	if !validKey(in.Key) {
+		writeError(w, http.StatusBadRequest, "invalid draft key")
+		return
+	}
+	if len(in.Text) > 256<<10 {
+		writeError(w, http.StatusRequestEntityTooLarge, "draft is too large")
+		return
+	}
+	draft, err := s.ui.SetDraft(in.Key, in.Text)
+	if err != nil {
+		s.log.Error("ui state save failed", "error", err)
+		writeError(w, http.StatusInternalServerError, "could not save ui state")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]int64{"updatedAt": draft.UpdatedAt})
+}
+
+func (s *Server) setModel(w http.ResponseWriter, r *http.Request) {
+	in, err := decodeJSON[struct {
+		Model *uistate.ModelRef `json:"model"`
+	}](w, r)
+	if err != nil {
+		writeDecodeError(w, err)
+		return
+	}
+	if in.Model != nil {
+		if !validLabel(in.Model.ID, 200) || !validLabel(in.Model.ProviderID, 200) ||
+			!validLabel(in.Model.Variant, 100) {
+			writeError(w, http.StatusBadRequest, "invalid model")
+			return
+		}
+	}
+	if err := s.ui.SetModel(in.Model); err != nil {
+		s.log.Error("ui state save failed", "error", err)
+		writeError(w, http.StatusInternalServerError, "could not save ui state")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
+}
+
+func (s *Server) setAgent(w http.ResponseWriter, r *http.Request) {
+	in, err := decodeJSON[struct {
+		Agent string `json:"agent"`
+	}](w, r)
+	if err != nil {
+		writeDecodeError(w, err)
+		return
+	}
+	if !validLabel(in.Agent, 200) {
+		writeError(w, http.StatusBadRequest, "invalid agent")
+		return
+	}
+	if err := s.ui.SetAgent(in.Agent); err != nil {
 		s.log.Error("ui state save failed", "error", err)
 		writeError(w, http.StatusInternalServerError, "could not save ui state")
 		return
@@ -1492,6 +1584,22 @@ func validID(id string) bool {
 			continue
 		}
 		return false
+	}
+	return true
+}
+
+func validKey(key string) bool {
+	return key != "" && len(key) <= 512 && validLabel(key, 512)
+}
+
+func validLabel(value string, limit int) bool {
+	if len(value) > limit {
+		return false
+	}
+	for _, r := range value {
+		if r < 0x20 || r == 0x7f {
+			return false
+		}
 	}
 	return true
 }

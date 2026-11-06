@@ -212,4 +212,17 @@ export const api = {
     request<{ ok: boolean }>(`/api/ui/sessions/${encodeURIComponent(id)}`, {
       method: "DELETE",
     }),
+  draft: (key: string) =>
+    request<{ text: string; updatedAt: number }>(
+      `/api/ui/drafts?key=${encodeURIComponent(key)}`,
+    ),
+  setDraft: (key: string, text: string) =>
+    request<{ updatedAt: number }>("/api/ui/drafts", {
+      method: "POST",
+      body: { key, text },
+    }),
+  setModel: (model: ModelRef | null) =>
+    request<{ ok: boolean }>("/api/ui/model", { method: "POST", body: { model } }),
+  setAgent: (agent: string) =>
+    request<{ ok: boolean }>("/api/ui/agent", { method: "POST", body: { agent } }),
 };

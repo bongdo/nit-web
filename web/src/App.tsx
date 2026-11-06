@@ -1051,7 +1051,7 @@ export default function App() {
     } else if (sessionID && isMessageStreamEvent(event.type)) {
       const cached = transcriptCache.get(sessionID);
       if (cached) {
-        const light = lightenEvent(event);
+        const light = lightenEvent(event, cached.messages);
         if (light) {
           transcriptCache.update(
             sessionID,

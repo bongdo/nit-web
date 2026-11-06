@@ -13,6 +13,14 @@ function event(type: string, data: Record<string, unknown>, created = 1_000): St
   return { type, data, created };
 }
 
+function questionTool(id: string, state: ToolPart["state"]): ToolPart {
+  return { type: "tool", id, name: "question", state };
+}
+
+function questionMessage(part: ToolPart): Message {
+  return { id: "msg_1", type: "assistant", time: { created: 1 }, content: [part] };
+}
+
 describe("applyEvent", () => {
   it("creates an assistant message from the first text delta", () => {
     const next = applyEvent([], event("session.text.delta", {
@@ -253,6 +261,212 @@ describe("light transcripts", () => {
     );
     expect(next?.data.content).toEqual([{ type: "text", text: "A" }]);
     expect(next?.data.light).toBeUndefined();
+  });
+
+  it("keeps answered and pending question parts whole", () => {
+    const input = { questions: [{ question: "Pick", options: [{ label: "A" }] }] };
+    const answered = questionTool("q1", {
+      status: "completed",
+      input,
+      content: [{ type: "text", text: "User answered: A" }],
+      metadata: { answers: [["A"]] },
+    });
+    const pending = questionTool("q2", {
+      status: "running",
+      input: { questions: [{ question: "Name it" }] },
+    });
+    const messages: Message[] = [
+      {
+        id: "m1",
+        type: "assistant",
+        time: { created: 1 },
+        content: [answered, pending],
+      },
+    ];
+    const light = lightMessages(messages);
+    expect(light[0].content?.[0]).toBe(answered);
+    expect(light[0].content?.[1]).toBe(pending);
+  });
+
+  it("keeps question events out of the light cache", () => {
+    const cached = [
+      questionMessage(
+        questionTool("q1", {
+          status: "running",
+          input: { questions: [{ question: "Pick" }] },
+        }),
+      ),
+    ];
+    const events = [
+      event("session.tool.input.started", {
+        assistantMessageID: "msg_1",
+        id: "q1",
+        name: "question",
+      }),
+      event("session.tool.input.delta", {
+        assistantMessageID: "msg_1",
+        id: "q1",
+        delta: '{"questions":[',
+      }),
+      event("session.tool.input.ended", {
+        assistantMessageID: "msg_1",
+        id: "q1",
+        text: '{"questions":[{"question":"Pick"}]}',
+      }),
+      event("session.tool.called", {
+        assistantMessageID: "msg_1",
+        id: "q1",
+        input: { questions: [{ question: "Pick" }] },
+        executed: false,
+      }),
+      event("session.tool.progress", {
+        assistantMessageID: "msg_1",
+        id: "q1",
+        metadata: { answers: [["A"]] },
+      }),
+      event("session.tool.success", {
+        assistantMessageID: "msg_1",
+        id: "q1",
+        content: [{ type: "text", text: "User answered: A" }],
+        metadata: { answers: [["A"]] },
+      }),
+      event("session.tool.failed", {
+        assistantMessageID: "msg_1",
+        id: "q1",
+        error: { message: "cancelled" },
+      }),
+      event("session.tool.error", {
+        assistantMessageID: "msg_1",
+        id: "q1",
+        error: { message: "cancelled" },
+      }),
+    ];
+    for (const item of events) {
+      expect(lightenEvent(item, cached)).toBe(item);
+    }
+    expect(lightenEvent(events[0])).toBe(events[0]);
+  });
+
+  it("keeps an answered question whole through the cache", () => {
+    const input = {
+      questions: [{ question: "Pick", options: [{ label: "A" }] }],
+    };
+    const events = [
+      event("session.tool.input.started", {
+        assistantMessageID: "msg_1",
+        id: "q1",
+        name: "question",
+      }),
+      event("session.tool.input.delta", {
+        assistantMessageID: "msg_1",
+        id: "q1",
+        delta: '{"questions":[',
+      }),
+      event("session.tool.input.ended", {
+        assistantMessageID: "msg_1",
+        id: "q1",
+        text: JSON.stringify(input),
+      }),
+      event("session.tool.called", {
+        assistantMessageID: "msg_1",
+        id: "q1",
+        input,
+        executed: false,
+      }),
+      event("session.tool.progress", {
+        assistantMessageID: "msg_1",
+        id: "q1",
+        metadata: { answers: [["A"]] },
+      }),
+      event("session.tool.success", {
+        assistantMessageID: "msg_1",
+        id: "q1",
+        content: [{ type: "text", text: "User answered: A" }],
+        metadata: { answers: [["A"]] },
+      }),
+    ];
+    let messages: Message[] = [];
+    for (const item of events) {
+      const light = lightenEvent(item, messages);
+      expect(light).toBe(item);
+      messages = applyEvent(messages, light as StreamEvent);
+    }
+    const part = messages[0].content?.[0] as ToolPart;
+    expect(part.name).toBe("question");
+    expect(part.light).not.toBe(true);
+    expect(part.state.status).toBe("completed");
+    expect(part.state.input).toEqual(input);
+    expect(part.state.content).toEqual([{ type: "text", text: "User answered: A" }]);
+    expect(part.state.metadata?.answers).toEqual([["A"]]);
+  });
+
+  it("keeps a pending question pending through the cache", () => {
+    let messages = applyEvent(
+      [],
+      event("session.tool.input.started", {
+        assistantMessageID: "msg_1",
+        id: "q1",
+        name: "question",
+      }),
+    );
+    const delta = event("session.tool.input.delta", {
+      assistantMessageID: "msg_1",
+      id: "q1",
+      delta: '{"questions":[',
+    });
+    const light = lightenEvent(delta, messages);
+    expect(light).toBe(delta);
+    messages = applyEvent(messages, light as StreamEvent);
+    const part = messages[0].content?.[0] as ToolPart;
+    expect(part.state.status).toBe("streaming");
+    expect(part.state.input).toBe('{"questions":[');
+    expect(part.light).not.toBe(true);
+  });
+
+  it("keeps question state when it fails", () => {
+    const question = questionTool("q1", {
+      status: "running",
+      input: { questions: [{ question: "Pick" }] },
+      content: [{ type: "text", text: "partial" }],
+      metadata: { answers: [["A"]] },
+    });
+    const cached = [questionMessage(question)];
+    for (const type of ["session.tool.failed", "session.tool.error"]) {
+      const failure = event(type, {
+        assistantMessageID: "msg_1",
+        id: "q1",
+        error: { message: "cancelled" },
+      });
+      expect(lightenEvent(failure, cached)).toBe(failure);
+      const part = applyEvent(cached, failure)[0].content?.[0] as ToolPart;
+      expect(part.light).not.toBe(true);
+      expect(part.state.input).toEqual(question.state.input);
+      expect(part.state.content).toEqual(question.state.content);
+      expect(part.state.metadata?.answers).toEqual([["A"]]);
+      expect(part.state.error?.message).toBe("cancelled");
+    }
+  });
+
+  it("clears a stale light flag on a question", () => {
+    const question = questionTool("q1", {
+      status: "completed",
+      input: { questions: [{ question: "Pick" }] },
+      content: [{ type: "text", text: "User answered: A" }],
+      metadata: { answers: [["A"]] },
+    });
+    question.light = true;
+    const cached = [questionMessage(question)];
+    const success = event("session.tool.success", {
+      assistantMessageID: "msg_1",
+      id: "q1",
+      content: [{ type: "text", text: "User answered: A" }],
+      metadata: { answers: [["A"]] },
+    });
+    expect(lightenEvent(success, cached)).toBe(success);
+    const part = applyEvent(cached, success)[0].content?.[0] as ToolPart;
+    expect(part.light).toBe(false);
+    expect(part.state.content).toEqual([{ type: "text", text: "User answered: A" }]);
+    expect(part.state.metadata?.answers).toEqual([["A"]]);
   });
 
   it("lists messages whose steps are still light", () => {

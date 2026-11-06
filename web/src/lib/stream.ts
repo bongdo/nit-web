@@ -71,9 +71,9 @@ export function lightMessages(messages: Message[]): Message[] {
   });
 }
 
-export function lightenEvent(event: StreamEvent): StreamEvent | null {
+export function lightenEvent(event: StreamEvent, messages: Message[] = []): StreamEvent | null {
   const data = event.data ?? {};
-  if (str(data.name) === "question") return event;
+  if (isQuestionEvent(event, messages)) return event;
   switch (event.type) {
     case "session.reasoning.delta":
     case "session.tool.input.delta":
@@ -96,7 +96,10 @@ export function lightStepIDs(messages: Message[]): string[] {
   return messages
     .filter((message) =>
       (message.content ?? []).some(
-        (part) => (part.type === "tool" || part.type === "reasoning") && part.light,
+        (part) =>
+          part.light &&
+          (part.type === "reasoning" ||
+            (part.type === "tool" && part.name !== "question")),
       ),
     )
     .map((message) => message.id);
@@ -181,6 +184,10 @@ function upsertText(
   return { ...message, content };
 }
 
+function clearQuestionLight(part: ToolPart): ToolPart {
+  return part.name === "question" ? { ...part, light: false } : part;
+}
+
 function upsertTool(
   message: Message,
   id: string,
@@ -190,16 +197,18 @@ function upsertTool(
   const content = [...(message.content ?? [])];
   const index = content.findIndex((part) => part.type === "tool" && part.id === id);
   if (index >= 0) {
-    content[index] = update(content[index] as ToolPart);
+    content[index] = clearQuestionLight(update(content[index] as ToolPart));
   } else {
     content.push(
-      update({
-        type: "tool",
-        id,
-        name,
-        state: { status: "streaming", input: "" },
-        time: { created: Date.now() },
-      }),
+      clearQuestionLight(
+        update({
+          type: "tool",
+          id,
+          name,
+          state: { status: "streaming", input: "" },
+          time: { created: Date.now() },
+        }),
+      ),
     );
   }
   return { ...message, content };
@@ -313,16 +322,20 @@ export function applyEvent(messages: Message[], event: StreamEvent): Message[] {
       const toolID = str(data.id);
       if (!toolID) return messages;
       return updateMessage(messages, id, event, (message) =>
-        upsertTool(message, toolID, str(data.name) || "tool", (part) => ({
-          ...part,
-          ...(data.light ? { light: true } : {}),
-          executed: Boolean(data.executed),
-          state: {
-            status: "running",
-            input: data.light ? undefined : (data.input ?? part.state.input),
-            metadata: {},
-          },
-        })),
+        upsertTool(message, toolID, str(data.name) || "tool", (part) => {
+          const question = part.name === "question";
+          const light = !question && Boolean(data.light);
+          return {
+            ...part,
+            light,
+            executed: Boolean(data.executed),
+            state: {
+              status: "running",
+              input: light ? undefined : (data.input ?? part.state.input),
+              metadata: question ? (part.state.metadata ?? {}) : {},
+            },
+          };
+        }),
       );
     }
 
@@ -348,21 +361,28 @@ export function applyEvent(messages: Message[], event: StreamEvent): Message[] {
       const toolID = str(data.id);
       if (!toolID) return messages;
       return updateMessage(messages, id, event, (message) =>
-        upsertTool(message, toolID, str(data.name) || "tool", (part) => ({
-          ...part,
-          light: Boolean(data.light),
-          state: {
-            status: "completed",
-            input: part.state.input,
-            content: Array.isArray(data.content) ? (data.content as ToolState["content"]) : [],
-            metadata: {
-              ...(part.state.metadata ?? {}),
-              ...(data.metadata && typeof data.metadata === "object"
-                ? (data.metadata as Record<string, unknown>)
-                : {}),
+        upsertTool(message, toolID, str(data.name) || "tool", (part) => {
+          const question = part.name === "question";
+          const content = Array.isArray(data.content)
+            ? (data.content as ToolState["content"])
+            : undefined;
+          const kept = question && !content?.length ? part.state.content : content;
+          return {
+            ...part,
+            light: !question && Boolean(data.light),
+            state: {
+              status: "completed",
+              input: part.state.input,
+              content: kept ?? [],
+              metadata: {
+                ...(part.state.metadata ?? {}),
+                ...(data.metadata && typeof data.metadata === "object"
+                  ? (data.metadata as Record<string, unknown>)
+                  : {}),
+              },
             },
-          },
-        })),
+          };
+        }),
       );
     }
 
@@ -371,17 +391,31 @@ export function applyEvent(messages: Message[], event: StreamEvent): Message[] {
       const toolID = str(data.id);
       if (!toolID) return messages;
       return updateMessage(messages, id, event, (message) =>
-        upsertTool(message, toolID, str(data.name) || "tool", (part) => ({
-          ...part,
-          state: {
-            status: "error",
-            input: part.state.input,
-            error:
-              data.error && typeof data.error === "object"
-                ? (data.error as ToolState["error"])
-                : { message: "Tool failed" },
-          },
-        })),
+        upsertTool(message, toolID, str(data.name) || "tool", (part) => {
+          const question = part.name === "question";
+          const content = Array.isArray(data.content)
+            ? (data.content as ToolState["content"])
+            : undefined;
+          const kept = question && !content?.length ? part.state.content : content;
+          return {
+            ...part,
+            state: {
+              status: "error",
+              input: part.state.input,
+              content: kept ?? part.state.content,
+              metadata: {
+                ...(part.state.metadata ?? {}),
+                ...(data.metadata && typeof data.metadata === "object"
+                  ? (data.metadata as Record<string, unknown>)
+                  : {}),
+              },
+              error:
+                data.error && typeof data.error === "object"
+                  ? (data.error as ToolState["error"])
+                  : { message: "Tool failed" },
+            },
+          };
+        }),
       );
     }
 

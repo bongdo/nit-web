@@ -76,6 +76,7 @@ export function ChatView({
   workspace,
   motion,
   background,
+  sceneKey,
   onRetry,
   onRevert,
   onFork,
@@ -101,6 +102,7 @@ export function ChatView({
   workspace: string | null;
   motion: "animated" | "static";
   background: SceneSetting;
+  sceneKey: number;
   onRetry: () => void;
   onRevert: (message: Message) => Promise<void>;
   onFork: (message: Message) => Promise<void>;
@@ -312,7 +314,7 @@ export function ChatView({
   if (!session) {
     return (
       <div className="relative flex min-h-0 flex-1 items-center justify-center overflow-y-auto px-6 py-10">
-        <Scene variant={background} motion={motion} />
+        <Scene key={sceneKey} variant={background} motion={motion} />
         <div className="relative max-w-md text-center">
           <div
             className={cn(

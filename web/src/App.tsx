@@ -199,6 +199,7 @@ export default function App() {
       ? (stored as SceneSetting)
       : "ripple";
   });
+  const [sceneEpoch, setSceneEpoch] = useState(0);
   const [forms, setForms] = useState<FormInfo[]>([]);
   const [backgroundWaitingIds, setBackgroundWaitingIds] = useState<Set<string>>(new Set());
   const [failedIds, setFailedIds] = useState<Set<string>>(() => new Set());
@@ -922,6 +923,7 @@ export default function App() {
     setScopeState("directory");
     localStorage.setItem("nit-gui.scope", "directory");
     setSelectedIdState(null);
+    setSceneEpoch((epoch) => epoch + 1);
     localStorage.removeItem("nit-gui.session");
     loadedIdRef.current = null;
     setMessages([]);
@@ -986,6 +988,7 @@ export default function App() {
 
   const newChat = useCallback(() => {
     selectSession(null);
+    setSceneEpoch((epoch) => epoch + 1);
     setSidebarOpen(false);
     if (!workspaceRef.current) setPickerOpen(true);
   }, [selectSession]);
@@ -1862,6 +1865,7 @@ export default function App() {
           workspace={workspace}
           motion={motion}
           background={background}
+          sceneKey={sceneEpoch}
           onRetry={reloadSelected}
           onRevert={revertMessage}
           onFork={forkMessage}

@@ -6,7 +6,8 @@ export type StreamStatus = "connecting" | "online" | "offline";
 
 export function useEventStream(
   onEvent: (event: StreamEvent) => void,
-  onOpen?: () => void,
+  onOpen: (() => void) | undefined,
+  instance: string,
 ) {
   const [status, setStatus] = useState<StreamStatus>("connecting");
   const eventRef = useRef(onEvent);
@@ -22,7 +23,11 @@ export function useEventStream(
     const connect = () => {
       if (closed) return;
       setStatus("connecting");
-      source = new EventSource(appPath("/api/events"));
+      source = new EventSource(
+        appPath(
+          instance ? `/api/events?instance=${encodeURIComponent(instance)}` : "/api/events",
+        ),
+      );
       source.onopen = () => {
         retry = 0;
         setStatus("online");
@@ -52,7 +57,7 @@ export function useEventStream(
       closed = true;
       source?.close();
     };
-  }, []);
+  }, [instance]);
 
   return status;
 }

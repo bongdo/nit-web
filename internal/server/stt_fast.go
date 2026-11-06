@@ -47,6 +47,20 @@ func fastSTTModel() string {
 	return filepath.Join(home, ".local/share/whisper/ggml-small-q5_1.bin")
 }
 
+func (f *fastSTT) available() (bool, string) {
+	model := fastSTTModel()
+	if _, err := os.Stat(model); err != nil {
+		return false, "fast model not installed"
+	}
+	bin := strings.TrimSpace(os.Getenv("NIT_GUI_WHISPER_SERVER"))
+	if bin == "" {
+		if _, err := exec.LookPath("whisper-server"); err != nil {
+			return false, "whisper-server not installed"
+		}
+	}
+	return true, "fast"
+}
+
 func (f *fastSTT) running() bool {
 	if f.cmd == nil {
 		return false

@@ -1,5 +1,5 @@
 import { memo, useEffect, useRef, useState } from "react";
-import { ArrowLeft, Folder, PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { ArrowLeft, Folder, PanelLeftClose, PanelLeftOpen, Server } from "lucide-react";
 import type { Model, ModelRef, Session } from "../lib/types";
 import { basename, formatCost, modelLabel } from "../lib/format";
 import { cn } from "../lib/utils";

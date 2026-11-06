@@ -198,7 +198,7 @@ func TestRegistryClientUsesDefault(t *testing.T) {
 }
 
 func TestRegistryLastError(t *testing.T) {
-	writeInstances(t, `{"instances":[{"name":"office","url":"http://127.0.0.1:1","password":"topsecret"}]}`)
+	writeInstances(t, `{"instances":[{"name":"office","url":"ftp://example.com","password":"topsecret"}]}`)
 	r := NewRegistry()
 	defer r.Close()
 	if _, err := r.ClientFor(context.Background(), "office"); err == nil {

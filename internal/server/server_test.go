@@ -1279,3 +1279,127 @@ func TestStaticFallback(t *testing.T) {
 		t.Fatalf("status = %d, body = %s", rec.Code, rec.Body)
 	}
 }
+
+type multiProvider struct {
+	clients map[string]*opencode.Client
+	specs   []opencode.InstanceSpec
+	def     string
+}
+
+func (p *multiProvider) Client(context.Context) (*opencode.Client, error) {
+	return p.clients[p.def], nil
+}
+
+func (p *multiProvider) Drop() {}
+
+func (p *multiProvider) ClientFor(_ context.Context, name string) (*opencode.Client, error) {
+	client, ok := p.clients[name]
+	if !ok {
+		return nil, opencode.ErrUnknownInstance
+	}
+	return client, nil
+}
+
+func (p *multiProvider) DropFor(string) {}
+
+func (p *multiProvider) Instances() []opencode.InstanceSpec { return p.specs }
+
+func (p *multiProvider) DefaultInstance() string { return p.def }
+
+func (p *multiProvider) ConfigError() string { return "" }
+
+func (p *multiProvider) Connected(string) bool { return true }
+
+func (p *multiProvider) LastError(string) string { return "" }
+
+func newMultiHandler(t *testing.T, provider *multiProvider) http.Handler {
+	t.Helper()
+	log := slog.New(slog.NewTextHandler(io.Discard, nil))
+	return server.New(provider, fstest.MapFS{
+		"index.html": &fstest.MapFile{Data: []byte("<html>nit</html>")},
+	}, log)
+}
+
+func TestInstancesAndRouting(t *testing.T) {
+	upstreamA := httptest.NewServer(auth(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, `{"version":"2.4.0"}`)
+	}))
+	defer upstreamA.Close()
+	upstreamB := httptest.NewServer(auth(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, `{"version":"2.3.1"}`)
+	}))
+	defer upstreamB.Close()
+
+	provider := &multiProvider{
+		clients: map[string]*opencode.Client{
+			"alpha": opencode.New(opencode.Endpoint{URL: upstreamA.URL, Password: testPassword}),
+			"beta":  opencode.New(opencode.Endpoint{URL: upstreamB.URL, Password: testPassword}),
+		},
+		specs: []opencode.InstanceSpec{
+			{Name: "alpha", URL: "auto"},
+			{Name: "beta", URL: upstreamB.URL, Dir: "/srv/projects"},
+		},
+		def: "alpha",
+	}
+	handler := newMultiHandler(t, provider)
+
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "http://127.0.0.1:7788/api/instances", nil))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("instances status = %d: %s", rec.Code, rec.Body)
+	}
+	var body struct {
+		Default   string `json:"default"`
+		Instances []struct {
+			ID               string `json:"id"`
+			State            string `json:"state"`
+			DefaultDirectory string `json:"defaultDirectory"`
+			OpenCode         struct {
+				Version string `json:"version"`
+			} `json:"opencode"`
+			Capabilities []struct {
+				ID       string `json:"id"`
+				State    string `json:"state"`
+				Required bool   `json:"required"`
+			} `json:"capabilities"`
+		} `json:"instances"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if body.Default != "alpha" || len(body.Instances) != 2 {
+		t.Fatalf("unexpected instances: %s", rec.Body)
+	}
+	if body.Instances[0].State != "connected" || body.Instances[0].OpenCode.Version != "2.4.0" {
+		t.Fatalf("unexpected alpha: %+v", body.Instances[0])
+	}
+	if body.Instances[1].OpenCode.Version != "2.3.1" || body.Instances[1].DefaultDirectory != "/srv/projects" {
+		t.Fatalf("unexpected beta: %+v", body.Instances[1])
+	}
+	required := false
+	for _, cap := range body.Instances[0].Capabilities {
+		if cap.ID == "chat" && cap.Required {
+			required = true
+		}
+	}
+	if !required {
+		t.Fatalf("chat is not required: %s", rec.Body)
+	}
+	assertNoSecret(t, rec.Body.String(), "/api/instances")
+
+	health := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodGet, "http://127.0.0.1:7788/api/health", nil)
+	request.Header.Set("X-Nit-Instance", "beta")
+	handler.ServeHTTP(health, request)
+	if !strings.Contains(health.Body.String(), `"version":"2.3.1"`) {
+		t.Fatalf("health did not route to beta: %s", health.Body)
+	}
+
+	unknown := httptest.NewRecorder()
+	request = httptest.NewRequest(http.MethodGet, "http://127.0.0.1:7788/api/health", nil)
+	request.Header.Set("X-Nit-Instance", "missing")
+	handler.ServeHTTP(unknown, request)
+	if unknown.Code != http.StatusOK || !strings.Contains(unknown.Body.String(), `"ok":false`) {
+		t.Fatalf("unknown instance health = %d: %s", unknown.Code, unknown.Body)
+	}
+}

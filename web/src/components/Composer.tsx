@@ -16,6 +16,7 @@ import { encodeWav } from "../lib/audio";
 import { api } from "../lib/api";
 import { questionField } from "../lib/forms";
 import { formatBytes, quoteText } from "../lib/format";
+import { shouldCaptureKey } from "../lib/keys";
 import { applyIssue, issueAtCaret, issueKey, maskedAt, safeAutoFix, type SpellIssue } from "../lib/spell";
 import { useSpellcheck } from "../hooks/useSpellcheck";
 import { checkSpelling } from "../lib/spell-client";
@@ -70,6 +71,8 @@ export function Composer({
   disabled,
   running,
   focusKey,
+  typingBlocked,
+  drawerOpen,
   draft,
   insert,
   commands,
@@ -88,6 +91,8 @@ export function Composer({
   disabled?: boolean;
   running?: boolean;
   focusKey?: string | null;
+  typingBlocked?: boolean;
+  drawerOpen?: boolean;
   draft?: { text: string; id: number } | null;
   insert?: { text: string; id: number } | null;
   commands: ComposerCommand[];
@@ -154,6 +159,19 @@ export function Composer({
   useEffect(() => {
     if (focusKey) ref.current?.focus();
   }, [focusKey]);
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      const target = event.target instanceof Element ? event.target : null;
+      const blocked = typingBlocked || (drawerOpen && window.innerWidth < 768);
+      if (!customAnswer || disabled || !workspace || formBusy) return;
+      if (!shouldCaptureKey(event, target, blocked)) return;
+      if (event.key === " ") autoCorrectPending.current = true;
+      ref.current?.focus();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [customAnswer, disabled, drawerOpen, formBusy, typingBlocked, workspace]);
 
   useEffect(() => {
     if (form && question) {

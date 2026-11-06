@@ -1231,6 +1231,8 @@ export default function App() {
           error={transcriptError}
           models={models}
           agents={agents}
+          projects={projects}
+          recent={recent}
           workspace={workspace}
           motion={motion}
           background={background}
@@ -1238,6 +1240,8 @@ export default function App() {
           onRevert={(message) => void revertAt(message)}
           onFork={(message) => void forkAt(message)}
           onQuote={quoteSelection}
+          onPickWorkspace={selectWorkspace}
+          onBrowseWorkspace={() => setPickerOpen(true)}
         />
 
         <BottomDock>
@@ -1259,6 +1263,8 @@ export default function App() {
               disabled={!health?.ok}
               running={running}
               focusKey={selectedId}
+              typingBlocked={settingsOpen || pickerOpen}
+              drawerOpen={sidebarOpen}
               draft={composerDraft}
               insert={composerInsert}
               commands={COMMANDS}

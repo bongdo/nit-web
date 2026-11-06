@@ -1,11 +1,15 @@
-import { useState } from "react";
-import { Folder, FolderGit2, X } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { ChevronDown, Folder, FolderGit2, FolderOpen, X } from "lucide-react";
 import type { Project } from "../lib/types";
 import { basename, formatRelative } from "../lib/format";
 import { cn } from "../lib/utils";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Scene, type SceneSetting } from "./Scene";
+
+export function workspaceOptions(projects: Project[], recent: string[]): string[] {
+  return Array.from(new Set([...recent, ...projects.map((item) => item.canonical)]));
+}
 
 export function WorkspacePicker({
   projects,
@@ -27,7 +31,7 @@ export function WorkspacePicker({
   const [path, setPath] = useState("");
   const [error, setError] = useState<string | null>(null);
   const known = new Map(projects.map((project) => [project.canonical, project]));
-  const directories = Array.from(new Set([...recent, ...projects.map((item) => item.canonical)]));
+  const directories = workspaceOptions(projects, recent);
 
   const submit = () => {
     const value = path.trim().replace(/\/+$/, "");
@@ -136,6 +140,122 @@ export function WorkspacePicker({
     <div className="bg-background relative flex h-full items-center justify-center overflow-hidden p-4">
       <Scene variant={variant} motion={motion} />
       {body}
+    </div>
+  );
+}
+
+export function WorkspaceMenu({
+  projects,
+  recent,
+  current,
+  onPick,
+  onBrowse,
+}: {
+  projects: Project[];
+  recent: string[];
+  current: string;
+  onPick: (directory: string) => void;
+  onBrowse: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const root = useRef<HTMLDivElement>(null);
+  const known = new Map(projects.map((project) => [project.canonical, project]));
+  const directories = workspaceOptions(projects, recent).filter(
+    (directory) => directory !== current,
+  );
+
+  useEffect(() => {
+    if (!open) return;
+    const onPointerDown = (event: PointerEvent) => {
+      if (!root.current?.contains(event.target as Node)) setOpen(false);
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("pointerdown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [open]);
+
+  return (
+    <div ref={root} className="relative inline-block max-w-full">
+      <button
+        type="button"
+        onClick={() => setOpen((value) => !value)}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        title="Switch workspace"
+        className="text-muted-foreground hover:bg-accent hover:text-foreground mx-auto flex max-w-full items-center gap-1.5 rounded-md px-2 py-1 font-mono text-[11px]"
+      >
+        <Folder className="size-3.5 shrink-0" />
+        <span className="truncate">{current}</span>
+        <ChevronDown
+          className={cn("size-3 shrink-0 transition-transform", open && "rotate-180")}
+        />
+      </button>
+
+      {open && (
+        <div
+          role="menu"
+          className="border-border bg-popover absolute top-full left-1/2 z-40 mt-1 w-80 max-w-[calc(100vw-2rem)] -translate-x-1/2 rounded-lg border p-1 text-left shadow-lg"
+        >
+          <div className="text-muted-foreground px-2 py-1 text-[10px] font-medium tracking-wide uppercase">
+            Recent
+          </div>
+          <div className="scrollbar-thin max-h-64 overflow-y-auto">
+            {directories.length === 0 ? (
+              <p className="text-muted-foreground px-2 py-3 text-center text-[11px]">
+                No other workspaces yet.
+              </p>
+            ) : (
+              directories.map((directory) => {
+                const project = known.get(directory);
+                return (
+                  <button
+                    key={directory}
+                    role="menuitem"
+                    type="button"
+                    onClick={() => {
+                      setOpen(false);
+                      onPick(directory);
+                    }}
+                    className="hover:bg-accent/60 flex w-full items-center gap-2 rounded px-2 py-1.5 text-left"
+                  >
+                    {project?.vcs ? (
+                      <FolderGit2 className="text-muted-foreground size-3.5 shrink-0" />
+                    ) : (
+                      <Folder className="text-muted-foreground size-3.5 shrink-0" />
+                    )}
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-[12px] font-medium">
+                        {basename(directory)}
+                      </span>
+                      <span className="text-muted-foreground block truncate font-mono text-[10px]">
+                        {directory}
+                      </span>
+                    </span>
+                  </button>
+                );
+              })
+            )}
+          </div>
+          <button
+            role="menuitem"
+            type="button"
+            onClick={() => {
+              setOpen(false);
+              onBrowse();
+            }}
+            className="border-border hover:bg-accent/60 mt-1 flex w-full items-center gap-2 rounded border-t px-2 py-2 text-left text-[12px]"
+          >
+            <FolderOpen className="text-muted-foreground size-3.5 shrink-0" />
+            Choose another folder…
+          </button>
+        </div>
+      )}
     </div>
   );
 }

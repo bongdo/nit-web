@@ -7,12 +7,13 @@ import {
   Quote,
   Sparkles,
 } from "lucide-react";
-import type { Agent, Message, Model, Session } from "../lib/types";
+import type { Agent, Message, Model, Project, Session } from "../lib/types";
 import { cn } from "../lib/utils";
 import { Button } from "./ui/button";
 import { AssistantTurn } from "./AssistantTurn";
 import { MessageRow } from "./MessageRow";
 import { Scene, type SceneSetting } from "./Scene";
+import { WorkspaceMenu } from "./WorkspacePicker";
 
 function Skeleton() {
   return (
@@ -36,6 +37,8 @@ export function ChatView({
   error,
   models,
   agents,
+  projects,
+  recent,
   workspace,
   motion,
   background,
@@ -43,6 +46,8 @@ export function ChatView({
   onRevert,
   onFork,
   onQuote,
+  onPickWorkspace,
+  onBrowseWorkspace,
 }: {
   session: Session | null;
   messages: Message[];
@@ -51,6 +56,8 @@ export function ChatView({
   error: string | null;
   models: Model[];
   agents: Agent[];
+  projects: Project[];
+  recent: string[];
   workspace: string | null;
   motion: "animated" | "static";
   background: SceneSetting;
@@ -58,6 +65,8 @@ export function ChatView({
   onRevert: (message: Message) => void;
   onFork: (message: Message) => void;
   onQuote: (text: string) => void;
+  onPickWorkspace: (directory: string) => void;
+  onBrowseWorkspace: () => void;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
@@ -164,9 +173,19 @@ export function ChatView({
               ? "Ask anything, attach files or dictate. Code, tables and HTML previews render inline."
               : "Pick a directory for this chat. Markdown, tables, code and HTML previews render here."}
           </p>
-          <p className="text-muted-foreground mt-3 font-mono text-[11px]">
-            {workspace ?? "no workspace"}
-          </p>
+          <div className="mt-3 flex justify-center">
+            {workspace ? (
+              <WorkspaceMenu
+                projects={projects}
+                recent={recent}
+                current={workspace}
+                onPick={onPickWorkspace}
+                onBrowse={onBrowseWorkspace}
+              />
+            ) : (
+              <span className="text-muted-foreground font-mono text-[11px]">no workspace</span>
+            )}
+          </div>
         </div>
       </div>
     );

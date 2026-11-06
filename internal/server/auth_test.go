@@ -102,6 +102,40 @@ func TestAuthLockout(t *testing.T) {
 	}
 }
 
+func TestAuthSecureCookieOnPublicHost(t *testing.T) {
+	gate := testAuthGate(t)
+	gate.publicHost = "frankfurt.tailf358cb.ts.net"
+	handler := gate.wrap(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+
+	request := authRequest(http.MethodPost, "/auth", url.Values{"password": {"secret"}}.Encode())
+	request.Host = "frankfurt.tailf358cb.ts.net"
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, request)
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("login status = %d", rec.Code)
+	}
+	cookies := rec.Result().Cookies()
+	if len(cookies) == 0 || !cookies[0].Secure {
+		t.Fatal("public host did not set a Secure cookie")
+	}
+}
+
+func TestSafeNext(t *testing.T) {
+	cases := map[string]string{
+		"":                     "/nit/",
+		"//evil.example":       "/nit/",
+		"https://evil.example": "/nit/",
+		"/":                    "/nit/",
+		"/foo":                 "/nit/foo",
+		"/nit/foo":             "/nit/foo",
+	}
+	for raw, want := range cases {
+		if got := safeNext(raw, "/nit"); got != want {
+			t.Errorf("safeNext(%q) = %q, want %q", raw, got, want)
+		}
+	}
+}
+
 func TestAuthBasePath(t *testing.T) {
 	gate := testAuthGate(t)
 	gate.base = "/nit"

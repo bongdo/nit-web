@@ -145,7 +145,7 @@ func (s *Server) middleware(next http.Handler) http.Handler {
 		w.Header().Set("Permissions-Policy", "microphone=(self)")
 		w.Header().Set("Cross-Origin-Opener-Policy", "same-origin")
 		w.Header().Set("Cross-Origin-Resource-Policy", "same-origin")
-		if isHTTPS(r) {
+		if s.auth.secure(r) {
 			w.Header().Set("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
 		}
 		if !s.allowedHost(forwardedHost(r)) {

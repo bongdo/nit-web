@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+set -euo pipefail
+cd "$(dirname "$0")/.."
+
+port="${NIT_GUI_PUBLIC_PORT:-7792}"
+path="${NIT_GUI_BASE:-/nit/}"
+path="${path%/}"
+
+exec sudo tailscale funnel --bg --set-path "$path" --yes "$port"

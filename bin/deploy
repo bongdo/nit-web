@@ -97,6 +97,7 @@ deploy_frankfurt() {
   local caddyfile="$run_dir/frankfurt.Caddyfile"
   local auth_env="${NIT_GUI_AUTH_ENV:-$HOME/.config/nit-gui/auth.env}"
   local tailnet_ip=""
+  local code=""
 
   if [ -r "$auth_env" ]; then
     set -a
@@ -134,7 +135,7 @@ deploy_frankfurt() {
     fi
   fi
 
-  NIT_GUI_ALLOWED_HOSTS="$allowed" NIT_GUI_BASE_PATH="$base_path" setsid "$bin" --addr "127.0.0.1:$port" >"$run_dir/nit-gui.log" 2>&1 < /dev/null &
+  NIT_GUI_ALLOWED_HOSTS="$allowed" NIT_GUI_BASE_PATH="$base_path" NIT_GUI_PUBLIC_HOST="$public_host" setsid "$bin" --addr "127.0.0.1:$port" >"$run_dir/nit-gui.log" 2>&1 < /dev/null &
 
   local ready=0
   for _ in $(seq 1 40); do
@@ -156,7 +157,8 @@ deploy_frankfurt() {
 	admin off
 }
 
-127.0.0.1:$public_port {
+:$public_port {
+	bind 127.0.0.1
 	encode zstd gzip
 	header {
 		X-Content-Type-Options nosniff
@@ -168,10 +170,16 @@ deploy_frankfurt() {
 		-Server
 	}
 	handle_path $base_path/* {
-		reverse_proxy 127.0.0.1:$port
+		reverse_proxy 127.0.0.1:$port {
+			header_up X-Forwarded-For {http.request.header.X-Forwarded-For}
+			header_up X-Forwarded-Proto {http.request.header.X-Forwarded-Proto}
+		}
 	}
 	handle {
-		reverse_proxy 127.0.0.1:$port
+		reverse_proxy 127.0.0.1:$port {
+			header_up X-Forwarded-For {http.request.header.X-Forwarded-For}
+			header_up X-Forwarded-Proto {http.request.header.X-Forwarded-Proto}
+		}
 	}
 }
 EOF
@@ -202,7 +210,7 @@ EOF
   fi
   echo "deploy: public https://$public_host$base_path/"
   if ! tailscale funnel status 2>/dev/null | grep -q "$public_port"; then
-    echo "deploy: enable public access with: sudo tailscale funnel --bg --set-path $base_path $public_port"
+    echo "deploy: enable public access with: bin/funnel"
   fi
 }
 

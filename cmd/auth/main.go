@@ -59,4 +59,5 @@ func main() {
 	_ = os.Chmod(*out, 0o600)
 	fmt.Printf("password: %s\n", *password)
 	fmt.Printf("env: %s\n", *out)
+	fmt.Fprintln(os.Stderr, "auth: store the password now; only the hash is saved")
 }

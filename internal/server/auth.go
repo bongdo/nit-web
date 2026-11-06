@@ -38,6 +38,7 @@ type authGate struct {
 	enabled            bool
 	hash               string
 	base               string
+	publicHost         string
 	log                *slog.Logger
 	mu                 sync.Mutex
 	sessions           map[string]time.Time
@@ -114,13 +115,14 @@ func newAuthGate(log *slog.Logger) *authGate {
 		}
 	}
 	return &authGate{
-		enabled:  hash != "",
-		hash:     hash,
-		base:     strings.TrimRight(os.Getenv("NIT_GUI_BASE_PATH"), "/"),
-		log:      log,
-		sessions: map[string]time.Time{},
-		attempts: map[string]*authAttempt{},
-		now:      time.Now,
+		enabled:    hash != "",
+		hash:       hash,
+		base:       strings.TrimRight(os.Getenv("NIT_GUI_BASE_PATH"), "/"),
+		publicHost: strings.ToLower(strings.TrimSpace(os.Getenv("NIT_GUI_PUBLIC_HOST"))),
+		log:        log,
+		sessions:   map[string]time.Time{},
+		attempts:   map[string]*authAttempt{},
+		now:        time.Now,
 	}
 }
 
@@ -215,7 +217,7 @@ func (a *authGate) handleLogout(w http.ResponseWriter, r *http.Request) {
 		Path:     a.cookiePath(),
 		MaxAge:   -1,
 		HttpOnly: true,
-		Secure:   isHTTPS(r),
+		Secure:   a.secure(r),
 		SameSite: http.SameSiteStrictMode,
 	})
 	http.Redirect(w, r, a.authPath(), http.StatusSeeOther)
@@ -271,7 +273,7 @@ func (a *authGate) startSession(w http.ResponseWriter, r *http.Request) {
 		Path:     a.cookiePath(),
 		MaxAge:   int(authSessionTTL.Seconds()),
 		HttpOnly: true,
-		Secure:   isHTTPS(r),
+		Secure:   a.secure(r),
 		SameSite: http.SameSiteStrictMode,
 	})
 }
@@ -405,11 +407,26 @@ func blockMessage(retry time.Duration) string {
 	return fmt.Sprintf("Too many attempts. Try again in %d min.", minutes)
 }
 
+func (a *authGate) secure(r *http.Request) bool {
+	if isHTTPS(r) {
+		return true
+	}
+	return a.publicHost != "" && strings.EqualFold(hostOnly(forwardedHost(r)), a.publicHost)
+}
+
 func isHTTPS(r *http.Request) bool {
 	if r.TLS != nil {
 		return true
 	}
 	return strings.EqualFold(strings.TrimSpace(r.Header.Get("X-Forwarded-Proto")), "https")
+}
+
+func hostOnly(hostport string) string {
+	host := hostport
+	if h, _, err := net.SplitHostPort(hostport); err == nil {
+		host = h
+	}
+	return strings.Trim(host, "[]")
 }
 
 func clientIP(r *http.Request) string {
@@ -420,9 +437,8 @@ func clientIP(r *http.Request) string {
 	if host == "127.0.0.1" || host == "::1" {
 		forwarded := r.Header.Get("X-Forwarded-For")
 		if forwarded != "" {
-			parts := strings.Split(forwarded, ",")
-			for i := len(parts) - 1; i >= 0; i-- {
-				if ip := strings.TrimSpace(parts[i]); ip != "" {
+			for _, part := range strings.Split(forwarded, ",") {
+				if ip := strings.TrimSpace(part); ip != "" {
 					return ip
 				}
 			}

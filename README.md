@@ -34,19 +34,22 @@ Spelling is the remaining exception; see [Known limits](#known-limits).
 
 Open <http://127.0.0.1:7788>. `bin/run` installs frontend dependencies if
 needed, builds the web bundle when sources are newer, builds the Go binary and
-serves it on loopback. This is local development, not a deployment.
+serves it on loopback. This is local development, not a deployment. Local
+`bin/run` has no login unless `NIT_GUI_PASSWORD` or `NIT_GUI_PASSWORD_HASH` is
+set.
 
 ## Deploy
 
 ```sh
 bin/auth        # once: generate the server password
 bin/frankfurt   # build and restart the app and its local Caddy
-sudo tailscale funnel --bg --set-path /nit 7792   # once: public HTTPS
+bin/funnel      # once: public HTTPS through Tailscale Funnel
 ```
 
 `bin/auth` writes `~/.config/nit-gui/auth.env` with mode `0600` and a
 PBKDF2-SHA256 hash, then prints the password once. Rotate it with
-`bin/auth -force` and restart with `bin/frankfurt`.
+`bin/auth -force` and restart with `bin/frankfurt`. `bin/funnel` runs the
+one-time `sudo tailscale funnel` command that enables the public URL.
 
 `bin/frankfurt` builds the web bundle with base `/nit/`, restarts the app on
 `127.0.0.1:7791`, and starts a user Caddy on `127.0.0.1:7792`. Caddy is
@@ -192,7 +195,7 @@ rewritten to loopback. Credentials in a server URL are discarded.
 | `XDG_CONFIG_HOME` | Used to locate `opencode/service.json`. |
 | `NIT_GUI_ALLOWED_HOSTS` | Comma-separated extra `Host` names accepted behind a reverse proxy. Loopback is always accepted. |
 | `NIT_GUI_PUBLIC_PORT` | Caddy port for `bin/frankfurt`, default `7792`. |
-| `NIT_GUI_PUBLIC_HOST` | Public host printed by `bin/frankfurt`, default `frankfurt.tailf358cb.ts.net`. |
+| `NIT_GUI_PUBLIC_HOST` | Public Funnel host; also marks requests for Secure cookies and HSTS. |
 | `NIT_GUI_BASE_PATH` | External path prefix, default `/nit` in `bin/frankfurt`. |
 | `NIT_GUI_AUTH_ENV` | Auth env file sourced by `bin/frankfurt`, default `~/.config/nit-gui/auth.env`. |
 | `NIT_GUI_PASSWORD_HASH` | PBKDF2-SHA256 hash used by the login page. Set by `bin/auth`. |
@@ -239,6 +242,8 @@ The browser only talks to these same-origin endpoints:
 | `GET /api/models`, `GET /api/agents` | Pickers. |
 | `GET /api/events` | Server-sent events proxied from OpenCode `/api/event`. |
 
+All `/api` endpoints require the session cookie. `/auth` is the only
+unauthenticated page; `/auth/logout` is a POST that clears the session.
 OpenCode's plural resource paths are singular (`/api/session`, `/api/model`,
 `/api/agent`, `/api/event`); the mapping is deliberate and lives in the backend.
 
@@ -267,6 +272,9 @@ nspell worker. It is not implemented yet.
   response stays valid JSON; SSE framing is preserved.
 - `Host` is restricted to `localhost`, `127.0.0.1` and `::1`, case-insensitively.
   Cross-origin `POST` requests are rejected by checking `Origin` when present.
+- Responses set `X-Content-Type-Options`, `X-Frame-Options: DENY`,
+  `Referrer-Policy: no-referrer`, `Permissions-Policy: microphone=(self)`,
+  COOP/CORP, and HSTS on the public host. Caddy repeats the safe subset.
 - JSON request bodies are capped at 1 MiB, uploads at 20 MiB and audio at 30 MiB.
   Upstream JSON responses are capped at 64 MiB. API requests have a 20 second
   upstream timeout; the event stream is exempt and is cancelled when the browser
@@ -304,6 +312,7 @@ nspell worker. It is not implemented yet.
   A local event newer than the list request wins, so a missed idle event cannot
   leave the dot stuck.
 - Dark, light and system themes. Theme is stored in `localStorage`.
+- Settings → Sign out posts to `/auth/logout` and clears the session cookie.
 - The empty chat and the workspace picker draw slow contour lines with a copper
   accent (`--spark`). Settings → Background picks `spotlight`, `magnetic`,
   `split`, `ripple`, `diagonal` or `random` (one variant per new chat).

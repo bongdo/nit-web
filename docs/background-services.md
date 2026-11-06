@@ -69,12 +69,13 @@ voice or dictionary is not finished.
 1. OpenCode and its TTS plugin.
 2. LanguageTool and `whisper-server` (they can start in parallel).
 3. nit-gui.
-4. Caddy.
+4. Caddy on loopback.
+5. Tailscale Funnel (`bin/funnel`).
 
 The Go app warms LanguageTool and fast dictation at startup. If LanguageTool is
 started as a detached sidecar (`bin/languagetool`), it can start before the app
-and survive app restarts. Caddy should only be exposed after the app health
-check passes.
+and survive app restarts. Enable Funnel only after the app and Caddy health
+checks pass.
 
 ## Resource budget
 
@@ -210,6 +211,7 @@ After=network.target
 [Service]
 Environment=NIT_GUI_LANGUAGETOOL_URL=http://127.0.0.1:8180
 Environment=NIT_GUI_ALLOWED_HOSTS=frankfurt.tailf358cb.ts.net,frankfurt
+Environment=NIT_GUI_PUBLIC_HOST=frankfurt.tailf358cb.ts.net
 Environment=NIT_GUI_BASE_PATH=/nit
 EnvironmentFile=%h/.config/nit-gui/auth.env
 ExecStart=/path/to/nit-gui --addr 127.0.0.1:7791

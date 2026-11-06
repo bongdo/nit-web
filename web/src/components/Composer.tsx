@@ -91,6 +91,8 @@ export function Composer({
   onCommand,
   onError,
   onFormDone,
+  onDraftApplied,
+  onInsertApplied,
 }: {
   session: Session | null;
   workspace: string | null;
@@ -113,6 +115,8 @@ export function Composer({
   onCommand: (id: string) => void;
   onError: (message: string) => void;
   onFormDone: () => void;
+  onDraftApplied?: () => void;
+  onInsertApplied?: () => void;
 }) {
   const [value, setText] = useState(() => loadDraft(draftKey));
   const valueRef = useRef(value);
@@ -140,10 +144,18 @@ export function Composer({
   const fileRef = useRef<HTMLInputElement>(null);
   const draftBeforeForm = useRef("");
   const activeForm = useRef<string | null>(null);
+  const appliedDraft = useRef<number | null>(null);
+  const appliedInsert = useRef<number | null>(null);
   const question = form ? questionField(form) : null;
   const option = question?.options?.find((item) => item.value === value) ?? null;
   const answerText = option ? "" : value;
   const customAnswer = !question || (question.options?.length ?? 0) === 0 || question.custom !== false;
+  const updateValue = (next: string | ((current: string) => string)) => {
+    const resolved = typeof next === "function" ? next(valueRef.current) : next;
+    valueRef.current = resolved;
+    setText(resolved);
+    if (!question) saveDraft(draftKey, resolved);
+  };
   const { issues } = useSpellcheck(
     question && !customAnswer ? "" : answerText,
     spellcheck && !recording && !finishing,
@@ -192,7 +204,7 @@ export function Composer({
     if (form && question) {
       if (activeForm.current === form.id) return;
       activeForm.current = form.id;
-      setValue((current) => {
+      updateValue((current) => {
         draftBeforeForm.current = current;
         return typeof question.default === "string" ? question.default : "";
       });
@@ -202,7 +214,7 @@ export function Composer({
     }
     if (!activeForm.current) return;
     activeForm.current = null;
-    setValue(draftBeforeForm.current);
+    updateValue(draftBeforeForm.current);
     setFormError(null);
   }, [form, question]);
 
@@ -218,8 +230,10 @@ export function Composer({
   );
 
   useEffect(() => {
-    if (!draft) return;
-    setValue(draft.text);
+    if (!draft || appliedDraft.current === draft.id) return;
+    appliedDraft.current = draft.id;
+    updateValue(draft.text);
+    onDraftApplied?.();
     requestAnimationFrame(() => {
       const area = ref.current;
       if (!area) return;
@@ -229,11 +243,13 @@ export function Composer({
   }, [draft]);
 
   useEffect(() => {
-    if (!insert) return;
+    if (!insert || appliedInsert.current === insert.id) return;
+    appliedInsert.current = insert.id;
     const quoted = quoteText(insert.text);
-    setValue((current) =>
+    updateValue((current) =>
       current.trim() ? `${current.replace(/\s+$/, "")}\n\n${quoted}\n\n` : `${quoted}\n\n`,
     );
+    onInsertApplied?.();
     requestAnimationFrame(() => {
       const area = ref.current;
       if (!area) return;
@@ -319,7 +335,7 @@ export function Composer({
     const clean = text.trim();
     if (!clean) return;
     setDismissed(null);
-    setValue((current) => {
+    updateValue((current) => {
       if (!current) return clean;
       return /\s$/.test(current) ? `${current}${clean}` : `${current} ${clean}`;
     });
@@ -335,7 +351,7 @@ export function Composer({
 
   const applySuggestion = (issue: SpellIssue, replacement: string) => {
     const position = issue.start + replacement.length;
-    setValue(applyIssue(answerText, issue, replacement));
+    updateValue(applyIssue(answerText, issue, replacement));
     setCaret(position);
     setDismissed(null);
     setHintRect(null);
@@ -374,7 +390,7 @@ export function Composer({
     const next = area.value.slice(0, start) + fix + area.value.slice(end);
     const shift = fix.length - word.length;
     const nextCaret = caretNow >= end ? caretNow + shift : caretNow;
-    setValue(next);
+    updateValue(next);
     setCaret(nextCaret);
     setDismissed(null);
     setHintRect(null);
@@ -400,7 +416,7 @@ export function Composer({
     const shift = fix.original.length - fix.replacement.length;
     const caretNow = area.selectionStart;
     const nextCaret = caretNow >= end ? caretNow + shift : caretNow;
-    setValue(next);
+    updateValue(next);
     setCaret(nextCaret);
     ignoreWord(fix.original);
     setUndoFix(null);
@@ -603,7 +619,7 @@ export function Composer({
     setSubmitting(true);
     try {
       await onSend(text, readyFiles, running ? "queue" : undefined);
-      setValue("");
+      updateValue("");
       for (const item of attachments) {
         if (item.preview) URL.revokeObjectURL(item.preview);
       }
@@ -626,7 +642,7 @@ export function Composer({
     setFormError(null);
     try {
       await api.replyForm(session.id, form.id, answer ? { [question.key]: answer } : {});
-      setValue("");
+      updateValue("");
       onFormDone();
     } catch (cause) {
       const message = cause instanceof Error ? cause.message : "Could not submit the answer.";
@@ -643,7 +659,7 @@ export function Composer({
     setFormError(null);
     try {
       await api.cancelForm(session.id, form.id, "Cancelled in nit-gui");
-      setValue("");
+      updateValue("");
       onFormDone();
     } catch (cause) {
       const message = cause instanceof Error ? cause.message : "Could not cancel the form.";
@@ -664,10 +680,10 @@ export function Composer({
 
   const runCommand = (id: string) => {
     if (id === "clear") {
-      setValue("");
+      updateValue("");
       return;
     }
-    setValue("");
+    updateValue("");
     setCommandDismissed(true);
     onCommand(id);
   };
@@ -782,7 +798,7 @@ export function Composer({
                             type="radio"
                             name={`${form.id}-${question.key}`}
                             checked={value === item.value}
-                            onChange={() => setValue(item.value)}
+                            onChange={() => updateValue(item.value)}
                             className="accent-primary mt-0.5 size-3.5"
                           />
                           <span className="min-w-0">
@@ -872,7 +888,7 @@ export function Composer({
                   const next = event.target.value;
                   const pending = autoCorrectPending.current;
                   autoCorrectPending.current = false;
-                  setValue(next);
+                  updateValue(next);
                   const caretNow = event.target.selectionStart;
                   setCaret(caretNow === event.target.selectionEnd ? caretNow : null);
                   setDismissed(null);

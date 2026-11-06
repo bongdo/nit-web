@@ -77,6 +77,9 @@ workspace on the first Send, so an empty draft never appears in the list.
 ## Composer and message actions
 
 - The textarea grows to 200 px and then scrolls inside itself.
+- Each chat keeps its own unsent draft in `localStorage`; switching chats or
+  reloading restores it. The new-chat draft is separate per workspace. Unsent
+  attachments are not kept when you switch chats.
 - Typing anywhere focuses the composer and keeps the first key, unless a
   dialog/menu is open or another field already has focus.
 - `/` opens the command palette: `/new`, `/dir`, `/compact`, `/revert`, `/fork`,

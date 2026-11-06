@@ -132,3 +132,15 @@ Why: the GUI should not duplicate OpenCode's MIME handling or convert documents 
 Rejected: converting PDFs to text locally, blocking every file the model cannot read, serving arbitrary file paths through `/api/file`.
 
 Cost: other binary files are uploaded but not sent to the model; PDFs need a PDF-capable model; the PDF preview depends on the browser's built-in viewer and a `SAMEORIGIN` frame header on `/api/file`.
+
+## 2026-11-06 — Per-chat composer drafts
+
+Context: the composer kept one textarea value for the whole app. Typing in one chat and switching to another left the text in place, and reloading lost it. Unsent attachments also leaked between chats.
+
+Decision: key the composer by the selected session (or by workspace for a new chat), initialize its text from `localStorage`, and persist every edit under `nit-gui.draft.<key>`. Sending clears that key. Remounting on a chat switch also resets attachments, form state, dictation and undo state. The external revert/quote effects are consumed once and cleared so they do not replay on the next chat.
+
+Why: remounting is the smallest change that gives each chat independent transient state and makes the draft survive reloads. A lifted draft map only in React state would still lose drafts on reload.
+
+Rejected: one global draft (leaks between chats), lifting every composer field into App state (large rewrite for no extra behavior), persisting attachments (needs a serialized upload queue; not requested).
+
+Cost: unsent attachments are dropped on a switch, drafts are stored in plain text in `localStorage`, and empty entries are removed only when the input is cleared or sent.

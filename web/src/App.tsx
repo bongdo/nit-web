@@ -226,6 +226,7 @@ export default function App() {
   const backgroundWaitingRef = useRef(backgroundWaitingIds);
   backgroundWaitingRef.current = backgroundWaitingIds;
   const selectedSession = sessions.find((session) => session.id === selectedId) ?? null;
+  const composerKey = selectedId ?? `new:${workspace ?? ""}`;
   const parentSession = selectedSession?.parentID
     ? (sessions.find((session) => session.id === selectedSession.parentID) ?? null)
     : null;
@@ -1258,9 +1259,11 @@ export default function App() {
 
           <div className="pointer-events-auto">
             <Composer
+              key={composerKey}
               session={selectedSession}
               workspace={workspace}
               model={modelInfo}
+              draftKey={composerKey}
               disabled={!health?.ok}
               running={running}
               focusKey={selectedId}
@@ -1278,6 +1281,8 @@ export default function App() {
               onCommand={runCommand}
               onError={(message) => setBanner(message)}
               onFormDone={finishForm}
+              onDraftApplied={() => setComposerDraft(null)}
+              onInsertApplied={() => setComposerInsert(null)}
             />
           </div>
         </BottomDock>

@@ -424,7 +424,7 @@ func (s InstanceSpec) detail() string {
 		if u, err := normalizeServerURL(s.URL); err == nil {
 			return u
 		}
-		return s.URL
+		return "url (invalid)"
 	}
 }
 

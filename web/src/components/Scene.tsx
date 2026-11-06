@@ -13,7 +13,7 @@ export type SceneVariant = (typeof VARIANTS)[number];
 export type SceneSetting = SceneVariant | "random";
 
 export function Scene({
-  variant = "magnetic",
+  variant = "spotlight",
   motion = "animated",
   className,
 }: {
@@ -46,6 +46,7 @@ export function Scene({
     let accent = "";
     let blank = true;
     let lastBox: { x: number; y: number; w: number; h: number } | null = null;
+    let seenPointer = false;
 
     const readPalette = () => {
       const style = getComputedStyle(canvas);
@@ -192,16 +193,16 @@ export function Scene({
       context.lineWidth = 1.1;
       context.lineCap = "round";
       context.globalAlpha = 0.6 * cursor.power;
-      context.beginPath();
       for (let index = first; index <= last; index += 1) {
         const base = (index - 1) * SPOTLIGHT_GAP;
+        context.beginPath();
         for (let x = from; x <= to; x += STEP) {
           const y = wave(x, base, index, time, width);
           if (x === from) context.moveTo(x, y);
           else context.lineTo(x, y);
         }
+        context.stroke();
       }
-      context.stroke();
       context.globalAlpha = 1;
     };
 
@@ -252,10 +253,17 @@ export function Scene({
       width = rect.width;
       height = rect.height;
       if (!width || !height) return;
-      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      const dpr = Math.min(window.devicePixelRatio || 1, chosen === "spotlight" ? 1.5 : 2);
       canvas.width = Math.round(width * dpr);
       canvas.height = Math.round(height * dpr);
       context.setTransform(dpr, 0, 0, dpr, 0, 0);
+      blank = true;
+      lastBox = null;
+      if (chosen === "spotlight" && !seenPointer) {
+        cursor.x = width * 0.63;
+        cursor.y = height * 0.42;
+        cursor.power = 1;
+      }
       readPalette();
       paint(still ? STILL_TIME : (performance.now() - started) / 1000);
     };
@@ -264,7 +272,13 @@ export function Scene({
       frame = requestAnimationFrame(loop);
       if (now - painted < 33) return;
       painted = now;
-      const target = pointer.x > -999 ? 1 : 0;
+      const inScene =
+        pointer.x > -999 &&
+        pointer.x > -40 &&
+        pointer.x < width + 40 &&
+        pointer.y > -40 &&
+        pointer.y < height + 40;
+      const target = chosen === "spotlight" ? (inScene ? 1 : 0) : pointer.x > -999 ? 1 : 0;
       if (target) {
         if (cursor.power < 0.02) {
           cursor.x = pointer.x;
@@ -273,10 +287,18 @@ export function Scene({
         cursor.x += (pointer.x - cursor.x) * 0.16;
         cursor.y += (pointer.y - cursor.y) * 0.16;
       }
-      cursor.power += (target - cursor.power) * 0.12;
+      if (seenPointer || chosen !== "spotlight") {
+        cursor.power += (target - cursor.power) * 0.12;
+      }
       if (now - paletteAt > 1000) {
         paletteAt = now;
         readPalette();
+      }
+      if (chosen === "spotlight" && cursor.power < 0.02) {
+        paint((now - started) / 1000);
+        cancelAnimationFrame(frame);
+        frame = 0;
+        return;
       }
       paint((now - started) / 1000);
     };
@@ -285,7 +307,14 @@ export function Scene({
       const rect = canvas.getBoundingClientRect();
       pointer.x = event.clientX - rect.left;
       pointer.y = event.clientY - rect.top;
-      if (!still) return;
+      seenPointer = true;
+      if (!still) {
+        if (chosen === "spotlight" && !frame) {
+          painted = 0;
+          frame = requestAnimationFrame(loop);
+        }
+        return;
+      }
       cursor.x = pointer.x;
       cursor.y = pointer.y;
       cursor.power = 1;

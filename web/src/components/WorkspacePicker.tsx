@@ -16,7 +16,7 @@ export function WorkspacePicker({
   recent,
   current,
   motion = "animated",
-  variant = "magnetic",
+  variant = "spotlight",
   onPick,
   onClose,
 }: {

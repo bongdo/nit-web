@@ -129,7 +129,11 @@ export function CompactionRow({
                   <span className="max-w-[40%] truncate normal-case tracking-normal">{reason}</span>
                 )}
               </div>
-              <div className="scrollbar-thin max-h-[min(50vh,20rem)] overflow-y-auto pr-1">
+              <div
+                tabIndex={0}
+                aria-label="Summary of earlier conversation"
+                className="scrollbar-thin max-h-[min(50vh,20rem)] overflow-y-auto pr-1"
+              >
                 <Markdown
                   text={summary}
                   className="compaction-summary text-muted-foreground"

@@ -225,6 +225,7 @@ export function SettingsPanel({
               value={background}
               onChange={(event) => onBackground(event.target.value as SceneSetting)}
             >
+              <option value="spotlight">Contours · spotlight</option>
               <option value="magnetic">Contours · magnetic</option>
               <option value="split">Contours · split</option>
               <option value="ripple">Contours · ripple</option>

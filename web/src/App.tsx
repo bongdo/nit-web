@@ -167,13 +167,14 @@ export default function App() {
   });
   const [background, setBackground] = useState<SceneSetting>(() => {
     const stored = localStorage.getItem("nit-gui.background");
-    return stored === "magnetic" ||
+    return stored === "spotlight" ||
+      stored === "magnetic" ||
       stored === "split" ||
       stored === "ripple" ||
       stored === "diagonal" ||
       stored === "random"
       ? stored
-      : "magnetic";
+      : "spotlight";
   });
   const [forms, setForms] = useState<FormInfo[]>([]);
   const [backgroundWaitingIds, setBackgroundWaitingIds] = useState<Set<string>>(new Set());

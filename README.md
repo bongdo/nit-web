@@ -272,7 +272,9 @@ nspell worker. It is not implemented yet.
   response stays valid JSON; SSE framing is preserved.
 - `Host` is restricted to `localhost`, `127.0.0.1` and `::1`, case-insensitively.
   Cross-origin `POST` requests are rejected unless `Origin` matches `Host`,
-  `X-Forwarded-Host` or `NIT_GUI_PUBLIC_HOST`.
+  `X-Forwarded-Host` or `NIT_GUI_PUBLIC_HOST`. The login form also accepts
+  `Origin: null`, which some privacy browsers and extensions send; `/api`
+  never does.
 - Responses set `X-Content-Type-Options`, `X-Frame-Options: DENY`,
   `Referrer-Policy: no-referrer`, `Permissions-Policy: microphone=(self)`,
   COOP/CORP, and HSTS on the public host. Caddy repeats the safe subset.

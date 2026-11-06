@@ -132,7 +132,8 @@ TTS environment variable and no browser speech fallback.
   stored as a PBKDF2-SHA256 hash (600k rounds), the session cookie is HttpOnly,
   Secure and SameSite=Strict, and the login page sends no-store plus a strict
   CSP. Five wrong passwords block the source IP for 15 minutes; 50 failures
-  across all clients block new logins for 5 minutes.
+  across all clients block new logins for 5 minutes. The login form accepts
+  `Origin: null` from privacy browsers; `/api` does not.
 - The OpenCode password stays in the Go process and is redacted from JSON and
   SSE before it reaches the browser. The login password is never logged or put
   in a URL.

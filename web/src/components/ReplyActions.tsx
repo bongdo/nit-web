@@ -4,7 +4,15 @@ import { copyText } from "../lib/clipboard";
 import { cn } from "../lib/utils";
 import { Button } from "./ui/button";
 
-export function ReplyActions({ text, className }: { text: string; className?: string }) {
+export function ReplyActions({
+  text,
+  className,
+  enter = false,
+}: {
+  text: string;
+  className?: string;
+  enter?: boolean;
+}) {
   const [copied, setCopied] = useState(false);
   const [speaking, setSpeaking] = useState(false);
   const timer = useRef<number | null>(null);
@@ -48,7 +56,7 @@ export function ReplyActions({ text, className }: { text: string; className?: st
   };
 
   return (
-    <div className={cn("reply-actions-enter flex items-center gap-1", className)}>
+    <div className={cn("flex items-center gap-1", enter && "reply-actions-enter", className)}>
       <Button
         variant="ghost"
         size="xs"

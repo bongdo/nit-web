@@ -415,6 +415,9 @@ export function ChatView({
     return () => observer.disconnect();
   }, [applyAnchor, session?.id, loading, scheduleScroll]);
 
+  const fresh =
+    motion === "animated" && freshRow && freshRow.session === session?.id ? freshRow.id : null;
+
   const rows = useMemo(() => {
     const items: ReactNode[] = [];
     const lastUserID = [...messages].reverse().find((message) => message.type === "user")?.id;

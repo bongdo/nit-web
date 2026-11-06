@@ -97,13 +97,6 @@ function SessionRow({
         ? "session-done"
         : null;
   const hasSubagents = depth === 0 && subagentCount > 0;
-  const previousState = useRef(state);
-  const [burst, setBurst] = useState(0);
-  useEffect(() => {
-    const entered = state !== null && state !== previousState.current;
-    previousState.current = state;
-    if (entered && animated) setBurst((count) => count + 1);
-  }, [state, animated]);
   useEffect(() => {
     const wasRunning = previousRunning.current > 0;
     previousRunning.current = runningSubagents;
@@ -211,9 +204,6 @@ function SessionRow({
             {session.agent}
           </div>
         ) : null}
-        {animated && state && burst > 0 && (
-          <span key={burst} aria-hidden className="session-burst" />
-        )}
       </button>
       {hasSubagents && (
         <button

@@ -41,6 +41,7 @@ export const AssistantTurn = memo(function AssistantTurn({
 }: AssistantTurnProps) {
   const [open, setOpen] = useState(false);
   const wasStreaming = useRef(streaming);
+  const wasLive = useRef(streaming);
   const [loadingSteps, setLoadingSteps] = useState(false);
   const last = messages[messages.length - 1];
   const owners = new Map<ReasoningPart | ToolPart, Message>();
@@ -105,6 +106,7 @@ export const AssistantTurn = memo(function AssistantTurn({
 
   useEffect(() => {
     if (streaming) {
+      wasLive.current = true;
       wasStreaming.current = true;
       return;
     }
@@ -233,7 +235,9 @@ export const AssistantTurn = memo(function AssistantTurn({
             </span>
           </div>
         )}
-        {!streaming && reply.trim() !== "" && <ReplyActions text={reply} className="mt-2" />}
+        {!streaming && reply.trim() !== "" && (
+          <ReplyActions text={reply} className="mt-2" enter={wasLive.current} />
+        )}
       </div>
     </div>
   );

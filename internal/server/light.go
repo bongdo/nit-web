@@ -73,6 +73,7 @@ func lightenMessage(raw []byte) (json.RawMessage, error) {
 func lightenPart(raw []byte) (json.RawMessage, bool, error) {
 	var kind struct {
 		Type string `json:"type"`
+		Name string `json:"name"`
 	}
 	if err := json.Unmarshal(raw, &kind); err != nil {
 		return nil, false, err
@@ -80,12 +81,12 @@ func lightenPart(raw []byte) (json.RawMessage, bool, error) {
 	if kind.Type != "tool" && kind.Type != "reasoning" {
 		return raw, false, nil
 	}
+	if kind.Name == "question" {
+		return raw, false, nil
+	}
 	var part lightPart
 	if err := json.Unmarshal(raw, &part); err != nil {
 		return nil, false, err
-	}
-	if part.Name == "question" {
-		return raw, false, nil
 	}
 	part.Light = true
 	if kind.Type == "reasoning" {

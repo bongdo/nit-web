@@ -248,7 +248,7 @@ export function Scene({
         context.translate(width / 2, height / 2);
         context.rotate(-Math.PI / 4);
         context.translate(-size / 2, -size / 2);
-        drawField(time, size, size, width, localX, localY, "magnetic", Math.SQRT1_2);
+        drawField(time, size, size, width, localX, localY, "ripple", Math.SQRT1_2);
         context.restore();
       } else {
         drawField(time, width, height, WAVE_SPAN, cursor.x, cursor.y, chosen, 1, originX);

@@ -6,6 +6,7 @@ import (
 	"net/url"
 	"strings"
 	"testing"
+	"time"
 
 	"nitgui/internal/auth"
 )
@@ -151,7 +152,13 @@ func TestAllowedOriginPublicHost(t *testing.T) {
 }
 
 func TestAllowedOriginNull(t *testing.T) {
-	s := &Server{basePath: "/nit"}
+	s := &Server{
+		basePath: "/nit",
+		auth: &authGate{
+			sessions: map[string]time.Time{"token": time.Now().Add(time.Hour)},
+			now:      time.Now,
+		},
+	}
 	login := httptest.NewRequest(http.MethodPost, "http://127.0.0.1:7791/auth", nil)
 	login.Header.Set("Origin", "null")
 	if !s.allowedOrigin(login) {
@@ -160,7 +167,11 @@ func TestAllowedOriginNull(t *testing.T) {
 	api := httptest.NewRequest(http.MethodPost, "http://127.0.0.1:7791/api/prompt", nil)
 	api.Header.Set("Origin", "null")
 	if s.allowedOrigin(api) {
-		t.Fatal("null origin accepted on the API")
+		t.Fatal("null origin accepted without a session")
+	}
+	api.AddCookie(&http.Cookie{Name: authCookieName, Value: "token"})
+	if !s.allowedOrigin(api) {
+		t.Fatal("null origin rejected with a session")
 	}
 }
 

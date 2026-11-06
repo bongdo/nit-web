@@ -70,7 +70,6 @@ export function Scene({
     let originX = 0;
     let originY = 0;
     let hasOrigin = false;
-    let debugged = false;
 
     const readPalette = () => {
       const style = getComputedStyle(canvas);
@@ -163,24 +162,6 @@ export function Scene({
       const to = bounds
         ? Math.min(extentWidth + 10, bounds.x1 + margin)
         : extentWidth + 10;
-
-      if (bounds) {
-        (globalThis as { __diag?: unknown }).__diag = {
-          extentWidth,
-          extentHeight,
-          fieldGap,
-          lines,
-          first,
-          last,
-          from,
-          to,
-          step,
-          cx,
-          cy,
-          debugged,
-        };
-        debugged = true;
-      }
 
       for (let index = first; index <= last; index += 1) {
         const base = (index - 1) * fieldGap;

@@ -36,6 +36,7 @@ import {
   mergeWaitingSessionIds,
   nextSessionId,
   pollSessionIds,
+  SCOPES,
   scopeSessions,
   type Scope,
 } from "./lib/sessions";
@@ -1341,7 +1342,7 @@ export default function App() {
           break;
         case "help":
           setBanner(
-            "Commands: /new /dir /compact /revert /fork /retry /theme /clear /help · Shortcuts: Alt+N new chat, Tab / Shift+Tab next/prev chat, Alt+J/K same, Ctrl/⌘K search",
+            "Commands: /new /dir /compact /revert /fork /retry /theme /clear /help · Shortcuts: Alt+N new chat, Tab / Shift+Tab next/prev chat, Alt+J/K same, Alt+←/→ this dir / mine / all, Ctrl/⌘K search",
           );
           break;
       }
@@ -1405,6 +1406,14 @@ export default function App() {
         if (nextId) selectSession(nextId);
         return;
       }
+      if (event.altKey && (event.code === "ArrowLeft" || event.code === "ArrowRight")) {
+        event.preventDefault();
+        const step = event.code === "ArrowRight" ? 1 : -1;
+        const index = SCOPES.findIndex((item) => item.id === scopeRef.current);
+        const next = SCOPES[(index + step + SCOPES.length) % SCOPES.length];
+        if (next) changeScope(next.id);
+        return;
+      }
       if (
         event.key === "Tab" &&
         !event.altKey &&
@@ -1447,6 +1456,7 @@ export default function App() {
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [
+    changeScope,
     cycleSessions,
     isRunning,
     newChat,

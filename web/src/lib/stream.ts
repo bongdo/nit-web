@@ -1,4 +1,12 @@
-import type { Message, ReasoningPart, StreamEvent, TextPart, ToolPart, ToolState } from "./types";
+import type {
+  Message,
+  Part,
+  ReasoningPart,
+  StreamEvent,
+  TextPart,
+  ToolPart,
+  ToolState,
+} from "./types";
 
 function str(value: unknown): string {
   return typeof value === "string" ? value : "";
@@ -52,33 +60,40 @@ export function normalizeMessages(messages: Message[]): Message[] {
 
 export function lightMessages(messages: Message[]): Message[] {
   return messages.map((message) => {
-    if (!message.content?.length) return message;
-    let changed = false;
-    const content = message.content.map((part) => {
+    if (message.type !== "assistant" || !message.content?.length) return message;
+    let steps = 0;
+    let tools = 0;
+    let errors = 0;
+    const content: Part[] = [];
+    for (const part of message.content) {
       if (part.type === "reasoning") {
-        if (part.text === "") return part;
-        changed = true;
-        return { ...part, text: "", light: true };
+        steps += 1;
+        continue;
       }
-      if (part.type !== "tool") return part;
-      if (part.name === "question") return part;
-      const hasContent = Boolean(part.state.content?.length);
-      const hasInput = part.state.input !== undefined;
-      const hasMetadata = part.state.metadata !== undefined;
-      if (!hasContent && !hasInput && !hasMetadata) return part;
-      changed = true;
-      return {
-        ...part,
-        light: true,
-        state: {
-          ...part.state,
-          content: undefined,
-          input: undefined,
-          metadata: undefined,
-        },
-      };
-    });
-    return changed ? { ...message, content } : message;
+      if (part.type === "tool" && part.name !== "question") {
+        steps += 1;
+        tools += 1;
+        if (part.state.status === "error") errors += 1;
+        continue;
+      }
+      content.push(part);
+    }
+    if (steps === 0) {
+      if (message.steps === undefined && message.tools === undefined && message.errors === undefined) {
+        return message;
+      }
+      const next = { ...message };
+      delete next.steps;
+      delete next.tools;
+      delete next.errors;
+      return next;
+    }
+    const next: Message = { ...message, content, steps };
+    if (tools > 0) next.tools = tools;
+    else delete next.tools;
+    if (errors > 0) next.errors = errors;
+    else delete next.errors;
+    return next;
   });
 }
 

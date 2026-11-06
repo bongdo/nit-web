@@ -119,6 +119,9 @@ export type Message = {
   status?: string;
   exit?: number | string;
   output?: { output: string; truncated?: boolean };
+  steps?: number;
+  tools?: number;
+  errors?: number;
   name?: string;
   description?: string;
   summary?: string;

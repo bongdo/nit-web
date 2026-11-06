@@ -1,3 +1,4 @@
+import { memo } from "react";
 import {
   ArrowLeft,
   Folder,
@@ -26,7 +27,7 @@ function ThemeIcon({ theme }: { theme: Theme }) {
   return <Monitor />;
 }
 
-export function Header({
+export const Header = memo(function Header({
   session,
   directory: fallbackDirectory,
   models,
@@ -193,4 +194,4 @@ export function Header({
       </div>
     </header>
   );
-}
+});

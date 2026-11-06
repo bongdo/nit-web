@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   ArrowDown,
   CircleAlert,
@@ -157,6 +157,47 @@ export function ChatView({
     return () => observer.disconnect();
   }, [session?.id, loading]);
 
+  const rows = useMemo(() => {
+    const items: ReactNode[] = [];
+    for (let index = 0; index < messages.length; index += 1) {
+      const message = messages[index];
+      if (message.type === "assistant") {
+        const group = [message];
+        while (messages[index + 1]?.type === "assistant") {
+          index += 1;
+          group.push(messages[index]);
+        }
+        items.push(
+          <AssistantTurn
+            key={`turn-${message.id}`}
+            messages={group}
+            models={models}
+            agents={agents}
+            workspace={workspace}
+            streaming={Boolean(running && index === messages.length - 1)}
+            actionsDisabled={running}
+            onRevert={onRevert}
+            onFork={onFork}
+          />,
+        );
+        continue;
+      }
+      items.push(
+        <MessageRow
+          key={message.id}
+          message={message}
+          models={models}
+          agents={agents}
+          actionsDisabled={running}
+          onRevert={onRevert}
+          onFork={onFork}
+          streaming={false}
+        />,
+      );
+    }
+    return items;
+  }, [agents, messages, models, onFork, onRevert, running, workspace]);
+
   if (!session) {
     return (
       <div className="relative flex min-h-0 flex-1 items-center justify-center overflow-y-auto px-6 py-10">
@@ -201,44 +242,6 @@ export function ChatView({
 
   const lastAssistant = [...messages].reverse().find((message) => message.type === "assistant");
   const waiting = running && (!lastAssistant || messages[messages.length - 1]?.type === "user");
-
-  const rows: ReactNode[] = [];
-  for (let index = 0; index < messages.length; index += 1) {
-    const message = messages[index];
-    if (message.type === "assistant") {
-      const group = [message];
-      while (messages[index + 1]?.type === "assistant") {
-        index += 1;
-        group.push(messages[index]);
-      }
-      rows.push(
-        <AssistantTurn
-          key={`turn-${message.id}`}
-          messages={group}
-          models={models}
-          agents={agents}
-          workspace={workspace}
-          streaming={Boolean(running && index === messages.length - 1)}
-          actionsDisabled={running}
-          onRevert={onRevert}
-          onFork={onFork}
-        />,
-      );
-      continue;
-    }
-    rows.push(
-      <MessageRow
-        key={message.id}
-        message={message}
-        models={models}
-        agents={agents}
-        actionsDisabled={running}
-        onRevert={onRevert}
-        onFork={onFork}
-        streaming={false}
-      />,
-    );
-  }
 
   return (
     <div className="relative flex min-h-0 flex-1 flex-col">

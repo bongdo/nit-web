@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useRef, useState } from "react";
 import {
   AlertTriangle,
   ArrowUp,
@@ -69,7 +69,7 @@ function loadIgnoredWords(): string[] {
   }
 }
 
-export function Composer({
+export const Composer = memo(function Composer({
   session,
   workspace,
   model,
@@ -1157,4 +1157,4 @@ export function Composer({
       </div>
     </div>
   );
-}
+});

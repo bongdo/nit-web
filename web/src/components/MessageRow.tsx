@@ -1,5 +1,4 @@
-import type { ReactNode } from "react";
-import { useState } from "react";
+import { memo, useState, type ReactNode } from "react";
 import {
   Bot,
   Check,
@@ -100,7 +99,7 @@ function Note({ children }: { children: ReactNode }) {
   return <div className="text-muted-foreground my-3 text-center text-xs">{children}</div>;
 }
 
-export function MessageRow({
+export const MessageRow = memo(function MessageRow({
   message,
   models,
   agents,
@@ -330,4 +329,4 @@ export function MessageRow({
       </div>
     </div>
   );
-}
+});

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { memo, useEffect, useRef, useState } from "react";
 import {
   Bot,
   Check,
@@ -30,16 +30,7 @@ function durationLabel(messages: Message[]): string {
   return `${Math.floor(seconds / 60)}m ${seconds % 60}s`;
 }
 
-export function AssistantTurn({
-  messages,
-  models,
-  agents,
-  workspace,
-  streaming,
-  actionsDisabled,
-  onRevert,
-  onFork,
-}: {
+type AssistantTurnProps = {
   messages: Message[];
   models: Model[];
   agents: Agent[];
@@ -48,7 +39,18 @@ export function AssistantTurn({
   actionsDisabled?: boolean;
   onRevert: (message: Message) => void;
   onFork: (message: Message) => void;
-}) {
+};
+
+export const AssistantTurn = memo(function AssistantTurn({
+  messages,
+  models,
+  agents,
+  workspace,
+  streaming,
+  actionsDisabled,
+  onRevert,
+  onFork,
+}: AssistantTurnProps) {
   const [open, setOpen] = useState(false);
   const wasStreaming = useRef(streaming);
   const [copied, setCopied] = useState(false);
@@ -223,4 +225,23 @@ export function AssistantTurn({
       </div>
     </div>
   );
+}, sameTurn);
+
+function sameTurn(left: AssistantTurnProps, right: AssistantTurnProps): boolean {
+  return (
+    left.streaming === right.streaming &&
+    left.actionsDisabled === right.actionsDisabled &&
+    left.workspace === right.workspace &&
+    left.models === right.models &&
+    left.agents === right.agents &&
+    left.onRevert === right.onRevert &&
+    left.onFork === right.onFork &&
+    sameMessages(left.messages, right.messages)
+  );
+}
+
+function sameMessages(left: Message[], right: Message[]): boolean {
+  if (left === right) return true;
+  if (left.length !== right.length) return false;
+  return left.every((message, index) => message === right[index]);
 }

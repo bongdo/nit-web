@@ -13,7 +13,8 @@ import type {
   Session,
   StreamEvent,
 } from "./lib/types";
-import { applyEvent, normalizeMessages } from "./lib/stream";
+import { applyEvent, coalesceEvents, normalizeMessages } from "./lib/stream";
+import { TranscriptCache } from "./lib/transcripts";
 import {
   contextPercent,
   estimateCost,
@@ -221,6 +222,11 @@ export default function App() {
   const streamQueue = useRef<StreamEvent[]>([]);
   const streamFrame = useRef<number | null>(null);
   const formsOwnerRef = useRef<string | null>(null);
+  const messagesRef = useRef(messages);
+  messagesRef.current = messages;
+  const transcriptCache = useRef(new TranscriptCache());
+  const loadedIdRef = useRef<string | null>(null);
+  const lastEpochRef = useRef(0);
 
   const sessionsRef = useRef(sessions);
   sessionsRef.current = sessions;
@@ -265,7 +271,7 @@ export default function App() {
       cancelAnimationFrame(streamFrame.current);
       streamFrame.current = null;
     }
-    const events = streamQueue.current;
+    const events = coalesceEvents(streamQueue.current);
     streamQueue.current = [];
     if (events.length === 0) return;
     const current = selectedIdRef.current;
@@ -506,20 +512,35 @@ export default function App() {
     streamQueue.current = [];
     if (!selectedId) {
       setMessages([]);
+      setMessagesLoading(false);
       setTranscriptError(null);
+      loadedIdRef.current = null;
       return;
     }
     if (skipLoadRef.current === selectedId) {
       skipLoadRef.current = null;
+      loadedIdRef.current = selectedId;
+      return;
+    }
+    const force = lastEpochRef.current !== messageEpoch;
+    lastEpochRef.current = messageEpoch;
+    const cached = transcriptCache.current.get(selectedId);
+    if (cached && !force) {
+      setMessages(cached);
+      setMessagesLoading(false);
+      loadedIdRef.current = selectedId;
       return;
     }
     let cancelled = false;
-    setMessagesLoading(true);
+    setMessagesLoading(!cached);
     setTranscriptError(null);
     api.messages(selectedId)
       .then((data) => {
         if (cancelled) return;
-        setMessages(normalizeMessages(data));
+        const normalized = normalizeMessages(data);
+        transcriptCache.current.set(selectedId, normalized);
+        loadedIdRef.current = selectedId;
+        setMessages(normalized);
         const session = sessionsRef.current.find((item) => item.id === selectedId);
         if (session) {
           setRunningIds((previous) =>
@@ -555,8 +576,15 @@ export default function App() {
   }, [hiddenIds, selectedId, showHidden]);
 
   const selectSession = useCallback((id: string | null) => {
-    if (id !== selectedIdRef.current) {
-      setMessages([]);
+    const current = selectedIdRef.current;
+    if (id !== current) {
+      if (current && loadedIdRef.current === current) {
+        transcriptCache.current.set(current, messagesRef.current);
+      }
+      const cached = id ? transcriptCache.current.get(id) : undefined;
+      loadedIdRef.current = cached && id ? id : null;
+      setMessages(cached ?? []);
+      setMessagesLoading(Boolean(id) && !cached);
       setTranscriptError(null);
     }
     setSelectedIdState(id);
@@ -579,7 +607,9 @@ export default function App() {
     localStorage.setItem("nit-gui.scope", "directory");
     setSelectedIdState(null);
     localStorage.removeItem("nit-gui.session");
+    loadedIdRef.current = null;
     setMessages([]);
+    setMessagesLoading(false);
     setPickerOpen(false);
   }, []);
 
@@ -663,6 +693,7 @@ export default function App() {
       setBanner(null);
       try {
         await api.deleteSession(id);
+        transcriptCache.current.delete(id);
         setSessions((current) => current.filter((item) => item.id !== id));
         setHiddenIds((current) => {
           if (!current.has(id)) return current;
@@ -751,6 +782,13 @@ export default function App() {
         flushStream();
         reloadSelected();
       }
+    } else if (sessionID && isMessageStreamEvent(event.type)) {
+      const cached = transcriptCache.current.get(sessionID);
+      if (cached) transcriptCache.current.set(sessionID, applyEvent(cached, event));
+    }
+
+    if (event.type === "session.deleted" && sessionID) {
+      transcriptCache.current.delete(sessionID);
     }
 
     if (
@@ -812,6 +850,7 @@ export default function App() {
           setRunningIds((previous) => ({ ...previous, [session.id]: false }));
           setSelectedIdState(session.id);
           localStorage.setItem("nit-gui.session", session.id);
+          loadedIdRef.current = session.id;
           setMessages([]);
           setSidebarOpen(false);
         } catch (error) {

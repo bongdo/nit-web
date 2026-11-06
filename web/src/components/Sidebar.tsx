@@ -1,4 +1,4 @@
-import { useEffect, useState, type RefObject } from "react";
+import { memo, useEffect, useState, type RefObject } from "react";
 import {
   CornerDownRight,
   Eye,
@@ -154,7 +154,7 @@ function SessionRow({
   );
 }
 
-export function Sidebar({
+export const Sidebar = memo(function Sidebar({
   sessions,
   workspace,
   scope,
@@ -394,4 +394,4 @@ export function Sidebar({
       </div>
     </div>
   );
-}
+});

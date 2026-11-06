@@ -1,5 +1,5 @@
 import { memo, useState, type ReactNode } from "react";
-import { Bot, Check, CircleAlert, Copy, GitFork, Terminal, Undo2 } from "lucide-react";
+import { Bot, Check, CircleAlert, Copy, GitFork, Loader2, Terminal, Undo2 } from "lucide-react";
 import type { Agent, Message, Model, UserFile } from "../lib/types";
 import { attachmentHref } from "../lib/attachments";
 import { copyText } from "../lib/clipboard";
@@ -41,7 +41,8 @@ export const MessageRow = memo(function MessageRow({
   models,
   agents,
   streaming,
-  actionsDisabled,
+  running,
+  alwaysShowActions,
   autoOpen,
   onRevert,
   onFork,
@@ -51,13 +52,25 @@ export const MessageRow = memo(function MessageRow({
   models: Model[];
   agents: Agent[];
   streaming: boolean;
-  actionsDisabled?: boolean;
+  running?: boolean;
+  alwaysShowActions?: boolean;
   autoOpen?: boolean;
-  onRevert: (message: Message) => void;
-  onFork: (message: Message) => void;
+  onRevert: (message: Message) => Promise<void>;
+  onFork: (message: Message) => Promise<void>;
   onLoadMessage?: (messageID: string) => void | Promise<void>;
 }) {
   const [copied, setCopied] = useState(false);
+  const [busy, setBusy] = useState<"revert" | "fork" | null>(null);
+
+  const act = async (kind: "revert" | "fork", run: () => Promise<void>) => {
+    if (busy) return;
+    setBusy(kind);
+    try {
+      await run();
+    } finally {
+      setBusy(null);
+    }
+  };
 
   if (message.type === "user") {
     return (
@@ -76,7 +89,13 @@ export const MessageRow = memo(function MessageRow({
               {timeLabel(message.time.created)}
             </div>
           </div>
-          <div className="mt-1 flex justify-end gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
+          <div
+            className={`mt-1 flex justify-end gap-0.5 pointer-events-none opacity-0 transition-opacity group-focus-within:pointer-events-auto group-focus-within:opacity-100 group-hover:pointer-events-auto group-hover:opacity-100${
+              alwaysShowActions
+                ? " any-pointer-coarse:pointer-events-auto any-pointer-coarse:opacity-100 pointer-coarse:pointer-events-auto pointer-coarse:opacity-100"
+                : ""
+            }`}
+          >
             <Button
               variant="ghost"
               size="icon-xs"
@@ -86,25 +105,42 @@ export const MessageRow = memo(function MessageRow({
             >
               <Copy />
             </Button>
+            <span
+              className="inline-flex"
+              title={running ? "Stop the run first" : undefined}
+            >
+              <Button
+                variant="ghost"
+                size="icon-xs"
+                title={
+                  running
+                    ? "Stop the run first"
+                    : busy === "revert"
+                      ? "Reverting…"
+                      : "Revert and edit this message"
+                }
+                aria-label={
+                  running
+                    ? "Revert and edit this message — stop the run first"
+                    : busy === "revert"
+                      ? "Reverting…"
+                      : "Revert and edit this message"
+                }
+                disabled={running || busy !== null}
+                onClick={() => void act("revert", () => onRevert(message))}
+              >
+                {busy === "revert" ? <Loader2 className="animate-spin" /> : <Undo2 />}
+              </Button>
+            </span>
             <Button
               variant="ghost"
               size="icon-xs"
-              title="Revert and edit this message"
-              aria-label="Revert and edit this message"
-              disabled={actionsDisabled}
-              onClick={() => onRevert(message)}
+              title={busy === "fork" ? "Forking…" : "Fork before this message"}
+              aria-label={busy === "fork" ? "Forking…" : "Fork before this message"}
+              disabled={busy !== null}
+              onClick={() => void act("fork", () => onFork(message))}
             >
-              <Undo2 />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon-xs"
-              title="Fork before this message"
-              aria-label="Fork before this message"
-              disabled={actionsDisabled}
-              onClick={() => onFork(message)}
-            >
-              <GitFork />
+              {busy === "fork" ? <Loader2 className="animate-spin" /> : <GitFork />}
             </Button>
           </div>
         </div>

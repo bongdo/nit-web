@@ -1240,7 +1240,15 @@ export default function App() {
       runningEventsAt.current[sessionId] = Date.now();
       setRunningIds((previous) => ({ ...previous, [sessionId]: true }));
       try {
-        await api.prompt(sessionId, text, files, delivery);
+        const admitted = (await api.prompt(sessionId, text, files, delivery)) as {
+          data?: { id?: string };
+        };
+        const messageID = admitted?.data?.id;
+        if (messageID) {
+          setMessages((current) =>
+            current.map((item) => (item.id === optimistic.id ? { ...item, id: messageID } : item)),
+          );
+        }
       } catch (error) {
         setRunningIds((previous) => ({ ...previous, [sessionId]: false }));
         setBanner(messageOf(error));
@@ -1317,10 +1325,19 @@ export default function App() {
     async (message: Message) => {
       const session = selectedSession;
       const target = previousUser(message);
-      if (!session || !target || runningNow) return;
+      if (!session || !target) return;
+      if (runningNow) {
+        setBanner("Stop the run first.");
+        return;
+      }
+      if (!window.confirm("Revert this message? It and everything after it will be removed.")) return;
       setBanner(null);
       try {
         await api.revert(session.id, target.id);
+        setMessages((current) => {
+          const index = current.findIndex((item) => item.id === target.id);
+          return index >= 0 ? current.slice(0, index) : current;
+        });
         setComposerDraft({ text: target.text ?? "", id: Date.now() });
         reloadSelected();
         void loadSessions();
@@ -1336,7 +1353,7 @@ export default function App() {
     async (message: Message) => {
       const session = selectedSession;
       const target = previousUser(message);
-      if (!session || runningNow) return;
+      if (!session) return;
       setBanner(null);
       try {
         const forked = await api.fork(session.id, target?.id);
@@ -1346,19 +1363,18 @@ export default function App() {
         setBanner(messageOf(error));
       }
     },
-    [previousUser, runningNow, selectSession, selectedSession],
+    [previousUser, selectSession, selectedSession],
   );
 
   const revertRef = useRef(revertAt);
   revertRef.current = revertAt;
   const forkRef = useRef(forkAt);
   forkRef.current = forkAt;
-  const revertMessage = useCallback((message: Message) => {
-    void revertRef.current(message);
-  }, []);
-  const forkMessage = useCallback((message: Message) => {
-    void forkRef.current(message);
-  }, []);
+  const revertMessage = useCallback(
+    (message: Message) => revertRef.current(message),
+    [],
+  );
+  const forkMessage = useCallback((message: Message) => forkRef.current(message), []);
 
   const compactSession = useCallback(async () => {
     const id = selectedIdRef.current;
@@ -1514,7 +1530,8 @@ export default function App() {
         !isEditableTarget(target) &&
         !pickerOpen &&
         !settingsOpen &&
-        !(target && target.closest("[data-form-card]"))
+        !(target && target.closest("[data-form-card]")) &&
+        !(target && target.closest("[data-transcript]"))
       ) {
         if (cycleSessions.length === 0) return;
         event.preventDefault();

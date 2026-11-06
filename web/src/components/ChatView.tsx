@@ -102,8 +102,8 @@ export function ChatView({
   motion: "animated" | "static";
   background: SceneSetting;
   onRetry: () => void;
-  onRevert: (message: Message) => void;
-  onFork: (message: Message) => void;
+  onRevert: (message: Message) => Promise<void>;
+  onFork: (message: Message) => Promise<void>;
   onQuote: (text: string) => void;
   onPickWorkspace: (directory: string) => void;
   onBrowseWorkspace: () => void;
@@ -251,6 +251,7 @@ export function ChatView({
 
   const rows = useMemo(() => {
     const items: ReactNode[] = [];
+    const lastUserID = [...messages].reverse().find((message) => message.type === "user")?.id;
     let lastCompactionId: string | null = null;
     for (let index = messages.length - 1; index >= 0; index -= 1) {
       if (messages[index].type === "compaction") {
@@ -285,7 +286,8 @@ export function ChatView({
           message={message}
           models={models}
           agents={agents}
-          actionsDisabled={running}
+          running={running}
+          alwaysShowActions={message.id === lastUserID}
           autoOpen={freshCompaction && message.id === lastCompactionId}
           onRevert={onRevert}
           onFork={onFork}

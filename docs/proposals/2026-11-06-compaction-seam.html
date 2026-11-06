@@ -112,18 +112,9 @@
   .variant-note { margin-left: auto; letter-spacing: 0; text-transform: none; font-family: inherit; }
 
   .stage {
-    padding: 16px 18px 14px;
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    background:
-      radial-gradient(120% 90% at 50% 0%, var(--spark-soft), transparent 55%),
-      var(--card);
-  }
-
-  html[data-theme="light"] .stage {
-    background:
-      radial-gradient(120% 90% at 50% 0%, var(--spark-soft), transparent 55%),
-      var(--card);
+    padding: 14px 4px 12px;
+    border: 0;
+    background: transparent;
   }
 
   .context {
@@ -362,6 +353,11 @@
 
   .foldcard .summary-clip { padding-top: 6px; }
 
+  .foldcard-main[aria-expanded="true"] {
+    border-radius: 12px 12px 0 0;
+    box-shadow: none;
+  }
+
   /* ── C · whisper ──────────────────────────────────────────── */
 
   .whisper {
@@ -373,7 +369,7 @@
     padding: 6px 8px;
     border: 0;
     background: transparent;
-    color: var(--faint);
+    color: var(--muted);
     font: 10px/1.4 ui-monospace, "SFMono-Regular", monospace;
     letter-spacing: 0.13em;
     text-transform: uppercase;
@@ -558,9 +554,7 @@
         <button class="pill" type="button" aria-expanded="true" aria-controls="sum-a" data-toggle="sum-a">
           <span class="fold-ico">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-              <path d="M2 12h6"/><path d="M22 12h-6"/>
-              <path d="M12 2v2"/><path d="M12 8v2"/><path d="M12 14v2"/><path d="M12 20v2"/>
-              <path d="m19 9-3 3 3 3"/><path d="m5 9 3 3-3 3"/>
+              <path d="m12 2 9 5-9 5-9-5 9-5"/><path d="m3 17 9 5 9-5"/><path d="m3 12 9 5 9-5"/>
             </svg>
           </span>
           <span class="pill-label">Context compacted</span>
@@ -576,7 +570,7 @@
             <div class="summary-head">
               <span>Summary of earlier conversation</span>
               <span class="rule"></span>
-              <span class="summary-meta">manual · 309k tokens</span>
+              <span class="summary-meta">on request</span>
             </div>
             <ul>
               <li><strong>Goal:</strong> make compaction read as a seam, not a gray box.</li>
@@ -605,9 +599,7 @@
         <button class="foldcard-main" type="button" aria-expanded="false" aria-controls="sum-b" data-toggle="sum-b">
           <span class="tile">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-              <path d="M2 12h6"/><path d="M22 12h-6"/>
-              <path d="M12 2v2"/><path d="M12 8v2"/><path d="M12 14v2"/><path d="M12 20v2"/>
-              <path d="m19 9-3 3 3 3"/><path d="m5 9 3 3-3 3"/>
+              <path d="m12 2 9 5-9 5-9-5 9-5"/><path d="m3 17 9 5 9-5"/><path d="m3 12 9 5 9-5"/>
             </svg>
           </span>
           <span class="foldcard-text">
@@ -620,7 +612,7 @@
         <div class="summary" id="sum-b">
           <div class="summary-clip">
             <div class="summary-body">
-              <div class="summary-head"><span>Summary of earlier conversation</span><span class="rule"></span><span class="summary-meta">manual</span></div>
+              <div class="summary-head"><span>Summary of earlier conversation</span><span class="rule"></span><span class="summary-meta">on request</span></div>
               <p>Composer overlay, green checks, and the background scene were finished earlier. The only open item is the compaction event itself.</p>
             </div>
           </div>
@@ -669,9 +661,7 @@
       <span class="running-pill">
         <span class="fold-ico">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <path d="M2 12h6"/><path d="M22 12h-6"/>
-            <path d="M12 2v2"/><path d="M12 8v2"/><path d="M12 14v2"/><path d="M12 20v2"/>
-            <path d="m19 9-3 3 3 3"/><path d="m5 9 3 3-3 3"/>
+            <path d="m12 2 9 5-9 5-9-5 9-5"/><path d="m3 17 9 5 9-5"/><path d="m3 12 9 5 9-5"/>
           </svg>
         </span>
         <span>Compacting context</span>

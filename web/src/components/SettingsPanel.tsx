@@ -67,7 +67,7 @@ export function SettingsPanel({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="bg-background border-border flex max-h-[calc(100dvh-2rem)] w-full max-w-md flex-col overflow-hidden rounded-xl border shadow-xl">
+      <div className="bg-background border-border flex max-h-[calc(100dvh-2rem)] w-full max-w-2xl flex-col overflow-hidden rounded-xl border shadow-xl">
         <div className="border-border flex items-center justify-between border-b px-4 py-3">
           <h2 className="text-sm font-semibold">Settings</h2>
           <Button variant="ghost" size="icon-sm" onClick={onClose} aria-label="Close settings">
@@ -75,8 +75,8 @@ export function SettingsPanel({
           </Button>
         </div>
 
-        <div className="scrollbar-thin min-h-0 space-y-3 overflow-y-auto p-4">
-          <label className="block space-y-1">
+        <div className="scrollbar-thin grid min-h-0 gap-3 overflow-y-auto p-4 sm:grid-cols-2">
+          <label className="block space-y-1 sm:col-span-2">
             <span className="text-muted-foreground text-[11px]">Workspace</span>
             <div className="border-border bg-muted/30 truncate rounded-md border px-2.5 py-1.5 font-mono text-[11px]">
               {directory ?? "none"}

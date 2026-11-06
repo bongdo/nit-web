@@ -44,7 +44,10 @@ type AttentionOptions = {
   onOpen: (id: string) => void;
 };
 
-export function useAttention(waitingIds: Set<string>, { enabled, sessions, onOpen }: AttentionOptions) {
+export function useAttention(
+  waitingIds: Set<string>,
+  { enabled, sessions, onOpen }: AttentionOptions,
+) {
   const previous = useRef(waitingIds);
   const open = useRef(onOpen);
   open.current = onOpen;

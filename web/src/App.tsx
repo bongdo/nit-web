@@ -451,6 +451,10 @@ export default function App() {
   }, [forms, selectedId]);
 
   useEffect(() => {
+    if (selectedId) clearFailed(selectedId);
+  }, [clearFailed, selectedId]);
+
+  useEffect(() => {
     let cancelled = false;
     let polling = false;
 
@@ -955,6 +959,7 @@ export default function App() {
       if (event.type === "session.execution.started") {
         runningEventsAt.current[sessionID] = Date.now();
         setRunningIds((previous) => ({ ...previous, [sessionID]: true }));
+        clearFailed(sessionID);
       }
       if (
         event.type === "session.idle" ||
@@ -965,6 +970,18 @@ export default function App() {
         runningEventsAt.current[sessionID] = Date.now();
         setRunningIds((previous) => ({ ...previous, [sessionID]: false }));
         clearCompacting(sessionID);
+      }
+      if (
+        event.type === "session.execution.failed" ||
+        event.type === "session.compaction.failed"
+      ) {
+        markFailed(sessionID);
+      }
+      if (
+        (event.type === "session.idle" || event.type === "session.execution.succeeded") &&
+        !failedRef.current.has(sessionID)
+      ) {
+        flashDone(sessionID);
       }
       if (event.type === "session.compaction.started") {
         markCompacting(sessionID);
@@ -1497,6 +1514,8 @@ export default function App() {
             onToggleHidden={toggleHidden}
             isRunning={isRunning}
             waitingIds={waitingIds}
+            failedIds={failedIds}
+            doneIds={doneIds}
             motion={motion}
           />
         </div>
@@ -1528,11 +1547,13 @@ export default function App() {
           sidebarMode={sidebarMode}
           subagents={subagents}
           parent={parentSession}
+          notify={notifications}
           onOpenSubagent={openSubagent}
           onBack={backToParent}
           onSettings={openSettings}
           onToggleSidebar={toggleSidebar}
           onTheme={cycle}
+          onNotify={() => void toggleNotify()}
           onMenu={openSidebar}
         />
 

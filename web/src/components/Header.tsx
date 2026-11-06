@@ -1,6 +1,8 @@
 import { memo } from "react";
 import {
   ArrowLeft,
+  Bell,
+  BellOff,
   Folder,
   Loader2,
   Menu,
@@ -43,11 +45,13 @@ export const Header = memo(function Header({
   sidebarMode,
   subagents,
   parent,
+  notify,
   onOpenSubagent,
   onBack,
   onSettings,
   onToggleSidebar,
   onTheme,
+  onNotify,
   onMenu,
 }: {
   session: Session | null;
@@ -65,11 +69,13 @@ export const Header = memo(function Header({
   sidebarMode: "button" | "hover" | "swipe";
   subagents: Session[];
   parent?: Session | null;
+  notify: boolean;
   onOpenSubagent: (session: Session) => void;
   onBack: () => void;
   onSettings: () => void;
   onToggleSidebar: () => void;
   onTheme: () => void;
+  onNotify: () => void;
   onMenu: () => void;
 }) {
   const directory = session?.location?.directory ?? fallbackDirectory;
@@ -170,6 +176,17 @@ export const Header = memo(function Header({
             <WifiOff className="size-3.5" />
           )}
         </span>
+
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          className={cn(pill, "size-9", notify && "text-emerald-500")}
+          onClick={onNotify}
+          title={notify ? "Desktop notifications on" : "Desktop notifications off"}
+          aria-label="Desktop notifications"
+        >
+          {notify ? <Bell /> : <BellOff />}
+        </Button>
 
         <Button
           variant="ghost"

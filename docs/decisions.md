@@ -71,3 +71,16 @@ Why: the dictionaries are about 4 MB, need no runtime or account, and keep the d
 Rejected: OpenCode generate (sends the draft to a provider), LanguageTool (heavy), Harper (English only), Chrome Proofreader (trial, English-oriented), Yandex Speller (cloud), a local LLM (extra runtime and model).
 
 Cost: spelling only. Real-word errors (`too` vs `to`), Russian `-тся/-ться` and punctuation are not caught. The first check waits for a worker-side dictionary parse of a few seconds.
+
+## 2026-11-06 — Deploy targets: nixos and frankfurt through Caddy
+
+Context: the app needs one-command deploys to the NixOS host and to the Frankfurt box, but the Go listener is loopback-only and has no authentication of its own.
+
+Decision: `bin/deploy [nixos|frankfurt]` with `bin/nixos` and `bin/frankfurt` aliases. NixOS keeps the existing cross-compile-and-restart path. Frankfurt builds locally, restarts on `127.0.0.1:7791`, and starts a user Caddy on `:7792` with basic auth and the existing Caddy password hash. The app trusts extra `Host` names from `NIT_GUI_ALLOWED_HOSTS`; the proxy forwards the original Host and Origin, so the CSRF check stays intact.
+
+Why: no root or system-Caddy edit is needed, the public listener never exposes the Go app directly, and the existing Caddy password is reused. The app remains loopback-only.
+
+Rejected: binding the Go server to `0.0.0.0` (no auth), adding app-level basic auth (duplicates Caddy), and editing `/etc/caddy/Caddyfile` (needs root).
+
+Cost: a second Caddy process that does not survive reboot; plain HTTP without a secure context, so remote dictation needs an SSH tunnel or HTTPS; the public port must be opened in the OCI security list.
+

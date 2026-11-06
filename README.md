@@ -344,8 +344,8 @@ nspell worker. It is not implemented yet.
   A local event newer than the list request wins, so a missed idle event cannot
   leave the dot stuck.
 - Stock light and dark themes plus Nord, Solarized, Gruvbox, Dracula, Paper,
-  Paper Dark, Ember, Kiln, Mist and Ash, or follow the system. `/theme` opens the
-  picker. Theme is stored in `localStorage`.
+  Paper Dark, Ember, Kiln, Mist, Ash and Ash Dark, or follow the system. `/theme`
+  opens the picker. Theme is stored in `localStorage`.
 - Settings → Sign out posts to `/auth/logout` and clears the session cookie.
 - The empty chat and the workspace picker draw slow contour lines with a copper
   accent (`--spark`). Settings → Background picks `spotlight`, `magnetic`,

@@ -77,6 +77,20 @@ export function pollSessionIds(
     .map((session) => session.id);
 }
 
+export function newlyRunning(
+  sessions: Session[],
+  running: Record<string, boolean>,
+  seen: Record<string, boolean>,
+): string[] {
+  const ids: string[] = [];
+  for (const session of sessions) {
+    const active = running[session.id] ?? sessionRunning(session);
+    if (active && !seen[session.id]) ids.push(session.id);
+    seen[session.id] = active;
+  }
+  return ids;
+}
+
 export type SessionRow = { session: Session; depth: number };
 
 export function nextSessionId(

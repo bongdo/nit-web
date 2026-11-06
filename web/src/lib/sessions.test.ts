@@ -5,6 +5,7 @@ import {
   listedSessions,
   listedSubagents,
   mergeWaitingSessionIds,
+  newlyRunning,
   nextSessionId,
   pollSessionIds,
   scopeSessions,
@@ -188,6 +189,18 @@ describe("sessions", () => {
     expect([
       ...mergeWaitingSessionIds("ses_1", [form({ sessionID: "ses_2" })], new Set()),
     ]).toEqual(["ses_2"]);
+  });
+
+  it("reports each session only when it starts running", () => {
+    const seen: Record<string, boolean> = {};
+    const idle = session({ id: "idle" });
+    const busy = session({ id: "busy", time: { created: 0, updated: 0, busy: 2, idle: 1 } });
+
+    expect(newlyRunning([busy, idle], {}, seen)).toEqual(["busy"]);
+    expect(newlyRunning([busy, idle], {}, seen)).toEqual([]);
+    expect(newlyRunning([busy, idle], { idle: true }, seen)).toEqual(["idle"]);
+    expect(newlyRunning([busy, idle], { busy: false }, seen)).toEqual([]);
+    expect(newlyRunning([busy, idle], {}, seen)).toEqual(["busy"]);
   });
 
   it("polls only unselected running or already-waiting sessions", () => {

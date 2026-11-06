@@ -303,6 +303,31 @@
   --success: #4a7045;
 }
 
+[data-theme="ash-dark"] {
+  --background: #1f2021;
+  --foreground: #e5e6e6;
+  --card: #272829;
+  --card-foreground: #e5e6e6;
+  --popover: #2c2d2e;
+  --popover-foreground: #e5e6e6;
+  --primary: #8ab6d6;
+  --primary-foreground: #14212b;
+  --secondary: #303233;
+  --secondary-foreground: #e5e6e6;
+  --muted: #262728;
+  --muted-foreground: #9ba0a3;
+  --accent: #2f3438;
+  --accent-foreground: #dce8f1;
+  --destructive: #e06a5c;
+  --destructive-foreground: #fff2ee;
+  --border: #363839;
+  --input: #363839;
+  --ring: #8ab6d6;
+  --spark: #8ab6d6;
+  --attention: #e0c06a;
+  --success: #8fbf87;
+}
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);

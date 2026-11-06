@@ -41,6 +41,7 @@ import {
   listedSessions,
   listedSubagents,
   mergeWaitingSessionIds,
+  newlyRunning,
   nextSessionId,
   pollSessionIds,
   SCOPES,
@@ -339,6 +340,7 @@ export default function App() {
   sessionsRef.current = sessions;
   const runningIdsRef = useRef(runningIds);
   runningIdsRef.current = runningIds;
+  const runningSeen = useRef<Record<string, boolean>>({});
   const backgroundWaitingRef = useRef(backgroundWaitingIds);
   backgroundWaitingRef.current = backgroundWaitingIds;
   const selectedSession = sessions.find((session) => session.id === selectedId) ?? null;
@@ -1056,6 +1058,12 @@ export default function App() {
     [saveHidden, sessionAndChildren],
   );
 
+  useEffect(() => {
+    for (const id of newlyRunning(sessions, runningIds, runningSeen.current)) {
+      if (hiddenIds.has(id)) unhideSession(id);
+    }
+  }, [hiddenIds, runningIds, sessions, unhideSession]);
+
   const deleteSession = useCallback(
     async (id: string) => {
       if (!window.confirm("Delete this chat? This cannot be undone.")) return;
@@ -1438,7 +1446,6 @@ export default function App() {
         setBanner("Stop the run first.");
         return;
       }
-      if (!window.confirm("Revert this message? It and everything after it will be removed.")) return;
       setBanner(null);
       try {
         await api.revert(session.id, target.id);

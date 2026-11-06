@@ -188,10 +188,10 @@ func (g *grammarChecker) check(ctx context.Context, text string) ([]grammarMatch
 }
 
 type languageToolMatch struct {
-	Offset       int    `json:"offset"`
-	Length       int    `json:"length"`
-	Message      string `json:"message"`
-	Rule         struct {
+	Offset  int    `json:"offset"`
+	Length  int    `json:"length"`
+	Message string `json:"message"`
+	Rule    struct {
 		ID string `json:"id"`
 	} `json:"rule"`
 	Replacements []struct {
@@ -201,9 +201,9 @@ type languageToolMatch struct {
 
 func (g *grammarChecker) request(ctx context.Context, text, language string) ([]grammarMatch, error) {
 	form := url.Values{
-		"text":           {text},
-		"language":       {language},
-		"disabledRules":  {grammarDisabledRules},
+		"text":               {text},
+		"language":           {language},
+		"disabledRules":      {grammarDisabledRules},
 		"maxCheckTimeMillis": {"5000"},
 	}
 	request, err := http.NewRequestWithContext(ctx, http.MethodPost, g.url+"/v2/check",

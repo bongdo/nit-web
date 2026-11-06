@@ -19,6 +19,7 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"nitgui/internal/opencode"
 )
@@ -36,6 +37,7 @@ type Server struct {
 	log          *slog.Logger
 	mux          *http.ServeMux
 	fast         *fastSTT
+	grammar      *grammarChecker
 	allowedHosts map[string]struct{}
 }
 
@@ -49,6 +51,7 @@ func New(provider ClientProvider, static fs.FS, log *slog.Logger) http.Handler {
 		log:          log,
 		mux:          http.NewServeMux(),
 		fast:         newFastSTT(log),
+		grammar:      newGrammarChecker(log),
 		allowedHosts: map[string]struct{}{},
 	}
 	for _, host := range strings.Split(os.Getenv("NIT_GUI_ALLOWED_HOSTS"), ",") {
@@ -75,6 +78,7 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("POST /api/sessions/{id}/fork", s.fork)
 	s.mux.HandleFunc("POST /api/sessions/{id}/compact", s.compact)
 	s.mux.HandleFunc("POST /api/stt", s.stt)
+	s.mux.HandleFunc("POST /api/grammar", s.grammarCheck)
 	s.mux.HandleFunc("POST /api/upload", s.upload)
 	s.mux.HandleFunc("GET /api/file", s.file)
 	s.mux.HandleFunc("GET /api/sessions/{id}/form", s.forms)
@@ -765,6 +769,33 @@ func (s *Server) cancelForm(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+func (s *Server) grammarCheck(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		Text string `json:"text"`
+	}
+	decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, 64<<10))
+	if err := decoder.Decode(&body); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request")
+		return
+	}
+	text := strings.TrimSpace(body.Text)
+	if text == "" {
+		writeError(w, http.StatusBadRequest, "text is empty")
+		return
+	}
+	if utf8.RuneCountInString(text) > maxGrammarText {
+		writeError(w, http.StatusRequestEntityTooLarge, "text is too long")
+		return
+	}
+	matches, err := s.grammar.check(r.Context(), text)
+	if err != nil {
+		s.log.Warn("grammar check failed", "error", err)
+		writeError(w, http.StatusServiceUnavailable, "grammar check unavailable")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"matches": matches})
 }
 
 func (s *Server) stt(w http.ResponseWriter, r *http.Request) {

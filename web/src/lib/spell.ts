@@ -6,6 +6,16 @@ export type SpellIssue = {
   word: string;
   suggestions: string[];
   language: SpellLanguage;
+  source?: "spell" | "grammar";
+  message?: string;
+};
+
+export type GrammarMatch = {
+  offset: number;
+  length: number;
+  message: string;
+  ruleID: string;
+  replacements: string[];
 };
 
 export type SpellChecker = {
@@ -239,7 +249,7 @@ function checkPart(
   const suggestions = Array.from(new Set(primary.suggest(word)))
     .filter((item) => item.toLowerCase() !== word.toLowerCase())
     .slice(0, 5);
-  return [{ start, end, word, suggestions, language }];
+  return [{ start, end, word, suggestions, language, source: "spell" }];
 }
 
 export function findIssues(

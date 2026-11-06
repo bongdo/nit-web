@@ -61,8 +61,7 @@ function SessionRow({
           "flex w-full flex-col gap-1 rounded-lg px-2.5 py-2 text-left transition-colors",
           depth > 0 && "py-1.5",
           hidden && "opacity-60",
-          waiting && "ring-spark/30 ring-1",
-          waiting && "relative",
+          waiting && "relative ring-spark/30 ring-1",
           waiting && animated && "waiting-glow",
           active ? "bg-accent text-accent-foreground" : "hover:bg-accent/60",
         )}
@@ -88,14 +87,18 @@ function SessionRow({
             className={cn(
               "shrink-0 text-[10px] transition-opacity group-hover:opacity-0",
               waiting
-                ? "text-spark font-medium"
+                ? "text-foreground font-semibold"
                 : running
                   ? "text-emerald-500"
                   : "text-muted-foreground",
             )}
             title={waiting ? "Waiting for your answer" : running ? "Running" : undefined}
           >
-            {waiting ? "Waiting for your answer" : running ? "running" : formatRelative(session.time.updated, now)}
+            {waiting
+              ? "Waiting for your answer"
+              : running
+                ? "running"
+                : formatRelative(session.time.updated, now)}
           </span>
         </div>
         {depth === 0 && (
@@ -237,7 +240,7 @@ export function Sidebar({
         </button>
         {waitingCount > 0 && (
           <span
-            className="text-spark inline-flex items-center gap-1 text-[10px] font-medium"
+            className="text-foreground/80 inline-flex items-center gap-1 text-[10px] font-medium"
             title="Waiting for your answer"
           >
             <span

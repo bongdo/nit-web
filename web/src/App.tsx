@@ -32,6 +32,7 @@ import { questionField } from "./lib/forms";
 import {
   groupSessions,
   listedSessions,
+  listedSubagents,
   mergeWaitingSessionIds,
   nextSessionId,
   pollSessionIds,
@@ -362,8 +363,20 @@ export default function App() {
     const requestedAt = Date.now();
     const scopedDirectory = scopeRef.current === "directory" ? workspaceRef.current : null;
     try {
-      const list = await api.sessions(scopedDirectory ?? undefined);
+      const [list, nested] = await Promise.all([
+        api.sessions(scopedDirectory ?? undefined),
+        api
+          .sessions(scopedDirectory ?? undefined, true)
+          .catch(() => ({ data: [] as Session[] })),
+      ]);
       let data = list.data;
+      const known = new Set(data.map((session) => session.id));
+      for (const session of nested.data) {
+        if (session.parentID && !known.has(session.id)) {
+          data.push(session);
+          known.add(session.id);
+        }
+      }
       const selected = selectedIdRef.current;
       if (selected && !data.some((session) => session.id === selected)) {
         try {
@@ -1359,6 +1372,10 @@ export default function App() {
     () => listedSessions(scopeSessions(sessions, scope, agents), hiddenIds, showHidden),
     [agents, hiddenIds, scope, sessions, showHidden],
   );
+  const visibleSubagents = useMemo(() => {
+    const parentIds = new Set(visibleSessions.map((session) => session.id));
+    return listedSubagents(sessions, parentIds, hiddenIds, showHidden);
+  }, [hiddenIds, sessions, showHidden, visibleSessions]);
 
   const quoteSelection = useCallback((text: string) => {
     const clean = text.trim();
@@ -1487,6 +1504,7 @@ export default function App() {
         >
           <Sidebar
             sessions={visibleSessions}
+            subagents={visibleSubagents}
             workspace={workspace}
             scope={scope}
             selectedId={selectedId}

@@ -1,10 +1,12 @@
 import { memo, useEffect, useState, type RefObject } from "react";
 import {
+  ChevronRight,
   CornerDownRight,
   Eye,
   EyeOff,
   Folder,
   FolderOpen,
+  GitBranch,
   MessageSquare,
   Plus,
   Search,
@@ -160,6 +162,7 @@ function SessionRow({
 
 export const Sidebar = memo(function Sidebar({
   sessions,
+  subagents,
   workspace,
   scope,
   selectedId,
@@ -186,6 +189,7 @@ export const Sidebar = memo(function Sidebar({
   motion,
 }: {
   sessions: Session[];
+  subagents: Session[];
   workspace: string | null;
   scope: Scope;
   selectedId: string | null;
@@ -212,18 +216,30 @@ export const Sidebar = memo(function Sidebar({
   motion: "animated" | "static";
 }) {
   const [now, setNow] = useState(Date.now());
+  const [showSubagents, setShowSubagents] = useState(false);
   const modKey =
     typeof navigator !== "undefined" && /mac/i.test(navigator.platform) ? "⌘K" : "Ctrl K";
   useEffect(() => {
     const timer = window.setInterval(() => setNow(Date.now()), 30_000);
     return () => window.clearInterval(timer);
   }, []);
+  useEffect(() => {
+    setShowSubagents((value) => value || subagents.some((session) => session.id === selectedId));
+  }, [selectedId, subagents]);
 
   const visible = groupSessions(filterSessions(sessions, search), waitingIds);
   const waitingCount = sessions.filter((session) => waitingIds.has(session.id)).length;
   const runningCount = sessions.filter(
     (session) => isRunning(session.id) && !waitingIds.has(session.id),
   ).length;
+  const parentTitles = new Map(
+    sessions.map((session) => [session.id, session.title?.trim() || "New chat"]),
+  );
+  const runningSubagents = subagents.filter((session) => isRunning(session.id)).length;
+  const sortedSubagents = [...subagents].sort(
+    (a, b) =>
+      Number(isRunning(b.id)) - Number(isRunning(a.id)) || b.time.updated - a.time.updated,
+  );
   const animated = motion === "animated";
 
   return (
@@ -267,6 +283,25 @@ export const Sidebar = memo(function Sidebar({
             <span className="size-1.5 animate-pulse rounded-full bg-emerald-500" />
             {runningCount}
           </span>
+        )}
+        {subagents.length > 0 && (
+          <button
+            type="button"
+            onClick={() => setShowSubagents((value) => !value)}
+            aria-expanded={showSubagents}
+            className={cn(
+              "inline-flex items-center gap-1 text-[10px]",
+              runningSubagents > 0 ? "text-emerald-500" : "text-muted-foreground",
+            )}
+            title={
+              runningSubagents > 0
+                ? `${runningSubagents} of ${subagents.length} subagents running`
+                : `${subagents.length} subagents`
+            }
+          >
+            <GitBranch className="size-3" />
+            {runningSubagents > 0 ? `${runningSubagents}/${subagents.length}` : subagents.length}
+          </button>
         )}
       </div>
 
@@ -330,6 +365,79 @@ export const Sidebar = memo(function Sidebar({
       </div>
 
       <div className="scrollbar-thin min-h-0 flex-1 overflow-y-auto px-2 pb-2">
+        {subagents.length > 0 && (
+          <div className="mb-2">
+            <button
+              type="button"
+              onClick={() => setShowSubagents((value) => !value)}
+              aria-expanded={showSubagents}
+              className="hover:bg-accent/60 flex w-full items-center gap-1.5 rounded-md px-2 py-1.5 text-left"
+            >
+              <ChevronRight
+                className={cn(
+                  "size-3 shrink-0 transition-transform",
+                  showSubagents && "rotate-90",
+                )}
+              />
+              <GitBranch className="size-3 shrink-0" />
+              <span className="flex-1 text-[11px] font-medium">Subagents</span>
+              <span
+                className={cn(
+                  "text-[10px]",
+                  runningSubagents > 0 ? "text-emerald-500" : "text-muted-foreground",
+                )}
+              >
+                {runningSubagents > 0
+                  ? `${runningSubagents} running`
+                  : `${subagents.length} total`}
+              </span>
+            </button>
+            {showSubagents && (
+              <div className="space-y-0.5">
+                {sortedSubagents.map((session) => {
+                  const running = isRunning(session.id);
+                  return (
+                    <button
+                      key={session.id}
+                      type="button"
+                      onClick={() => onSelect(session.id)}
+                      className={cn(
+                        "flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left",
+                        session.id === selectedId
+                          ? "bg-accent text-accent-foreground"
+                          : "hover:bg-accent/60",
+                      )}
+                    >
+                      <span
+                        className={cn(
+                          "size-1.5 shrink-0 rounded-full",
+                          running ? "animate-pulse bg-emerald-500" : "bg-border",
+                        )}
+                      />
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-[12px]">
+                          {session.title?.trim() || session.agent || "Subagent"}
+                        </span>
+                        <span className="text-muted-foreground block truncate text-[10px]">
+                          {parentTitles.get(session.parentID ?? "") ?? "Subagent"} ·{" "}
+                          {session.agent ?? "subagent"}
+                        </span>
+                      </span>
+                      <span
+                        className={cn(
+                          "shrink-0 text-[10px]",
+                          running ? "text-emerald-500" : "text-muted-foreground",
+                        )}
+                      >
+                        {running ? "running" : formatRelative(session.time.updated, now)}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
         {loading && sessions.length === 0 ? (
           <div className="space-y-2 px-1 py-2">
             {[0, 1, 2, 3].map((item) => (

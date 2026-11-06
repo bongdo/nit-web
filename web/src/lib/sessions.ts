@@ -30,6 +30,19 @@ export function listedSessions(
   );
 }
 
+export function listedSubagents(
+  sessions: Session[],
+  parentIds: ReadonlySet<string>,
+  hiddenIds: ReadonlySet<string>,
+  showHidden: boolean,
+): Session[] {
+  return sessions.filter(
+    (session) =>
+      Boolean(session.parentID && parentIds.has(session.parentID)) &&
+      (showHidden || !hiddenIds.has(session.id)),
+  );
+}
+
 export function waitingSessionIds(forms: FormInfo[], fallbackId?: string | null): Set<string> {
   const ids = new Set<string>();
   for (const form of forms) {

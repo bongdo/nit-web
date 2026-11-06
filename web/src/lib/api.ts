@@ -68,9 +68,10 @@ export const api = {
   health: () => request<Health>("/api/health"),
   config: () => request<Config>("/api/config"),
   projects: () => request<Project[]>("/api/projects"),
-  sessions: (dir?: string) => {
+  sessions: (dir?: string, children = false) => {
     const query = new URLSearchParams();
     if (dir) query.set("dir", dir);
+    if (children) query.set("children", "true");
     const suffix = query.toString();
     return request<SessionList>(`/api/sessions${suffix ? `?${suffix}` : ""}`);
   },

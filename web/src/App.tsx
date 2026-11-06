@@ -1758,6 +1758,8 @@ export default function App({
         motion={motion}
         variant={background}
         onPick={selectWorkspace}
+        instance={instance}
+        onInstances={onOpenInstances}
       />
     );
   }
@@ -2041,6 +2043,8 @@ export default function App({
           variant={background}
           onPick={selectWorkspace}
           onClose={closePicker}
+          instance={instance}
+          onInstances={onOpenInstances}
         />
       )}
 

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { ChevronDown, Folder, FolderGit2, FolderOpen, X } from "lucide-react";
+import { ChevronDown, Folder, FolderGit2, FolderOpen, Server, X } from "lucide-react";
 import type { Project } from "../lib/types";
 import { basename, formatRelative } from "../lib/format";
 import { cn } from "../lib/utils";
@@ -19,6 +19,8 @@ export function WorkspacePicker({
   variant = "spotlight",
   onPick,
   onClose,
+  instance,
+  onInstances,
 }: {
   projects: Project[];
   recent: string[];
@@ -27,6 +29,8 @@ export function WorkspacePicker({
   variant?: SceneSetting;
   onPick: (directory: string) => void;
   onClose?: () => void;
+  instance?: string;
+  onInstances?: () => void;
 }) {
   const [path, setPath] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -59,6 +63,18 @@ export function WorkspacePicker({
             Every chat is scoped to one directory for its lifetime.
           </div>
         </div>
+        {onInstances && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="max-w-36 shrink-0"
+            onClick={onInstances}
+            title="OpenCode instances"
+          >
+            <Server className="size-3.5 shrink-0" />
+            <span className="truncate">{instance || "Instances"}</span>
+          </Button>
+        )}
         {onClose && (
           <Button variant="ghost" size="icon-sm" onClick={onClose} aria-label="Close">
             <X />

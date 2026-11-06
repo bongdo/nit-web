@@ -44,11 +44,12 @@ export function InstancesMenu({
   active: string;
   configError?: string;
   onSelect: (id: string) => void;
-  onRefresh: () => void;
+  onRefresh: () => void | Promise<void>;
   onClose: () => void;
 }) {
   const panel = useModalFocus<HTMLDivElement>();
   const [selected, setSelected] = useState(active);
+  const [refreshing, setRefreshing] = useState(false);
   const supportsSpeech = typeof window !== "undefined" && "speechSynthesis" in window;
 
   useEffect(() => {
@@ -70,6 +71,15 @@ export function InstancesMenu({
   const caps = info
     ? mergeDeviceCapabilities(info.capabilities ?? [], supportsSpeech)
     : [];
+
+  const refresh = async () => {
+    setRefreshing(true);
+    try {
+      await onRefresh();
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
   return (
     <div
@@ -228,9 +238,14 @@ export function InstancesMenu({
                     </Button>
                   )}
                   {(info.state === "offline" || info.state === "unknown") && (
-                    <Button variant="outline" size="sm" onClick={onRefresh}>
-                      <RefreshCw />
-                      Reconnect
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => void refresh()}
+                      disabled={refreshing}
+                    >
+                      <RefreshCw className={refreshing ? "animate-spin" : undefined} />
+                      {refreshing ? "Checking…" : "Reconnect"}
                     </Button>
                   )}
                   <Button variant="ghost" size="sm" onClick={onClose}>

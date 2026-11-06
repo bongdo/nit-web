@@ -121,7 +121,7 @@ export default function Root() {
           active={info.id}
           configError={data.configError || error || ""}
           onSelect={select}
-          onRefresh={() => void refresh()}
+          onRefresh={refresh}
           onClose={() => setMenuOpen(false)}
         />
       )}

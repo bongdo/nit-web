@@ -39,10 +39,11 @@ type instanceOut struct {
 
 func (s *Server) instances(w http.ResponseWriter, r *http.Request) {
 	probeAll := r.URL.Query().Get("probe") == "all"
+	shared := s.sharedCapabilities(r.Context())
 	specs := s.multi.Instances()
 	instances := make([]instanceOut, 0, len(specs))
 	for _, spec := range specs {
-		instances = append(instances, s.instanceInfo(r.Context(), spec, probeAll))
+		instances = append(instances, s.instanceInfo(r.Context(), spec, probeAll, shared))
 	}
 	host, _ := os.Hostname()
 	host = strings.Split(host, ".")[0]
@@ -54,7 +55,19 @@ func (s *Server) instances(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func (s *Server) instanceInfo(ctx context.Context, spec opencode.InstanceSpec, probeAll bool) instanceOut {
+type sharedCapabilities struct {
+	dictation capabilityOut
+	grammar   capabilityOut
+}
+
+func (s *Server) sharedCapabilities(ctx context.Context) sharedCapabilities {
+	return sharedCapabilities{
+		dictation: s.dictationCapability(),
+		grammar:   s.grammarCapability(ctx),
+	}
+}
+
+func (s *Server) instanceInfo(ctx context.Context, spec opencode.InstanceSpec, probeAll bool, shared sharedCapabilities) instanceOut {
 	out := instanceOut{
 		ID:               spec.Name,
 		Name:             spec.Name,
@@ -68,14 +81,14 @@ func (s *Server) instanceInfo(ctx context.Context, spec opencode.InstanceSpec, p
 		if out.Error != "" {
 			out.State = "offline"
 		}
-		out.Capabilities = s.capabilities(ctx, "", "unknown", "not connected")
+		out.Capabilities = s.capabilities("", "unknown", "not connected", shared)
 		return out
 	}
 	c, err := s.multi.ClientFor(ctx, spec.Name)
 	if err != nil {
 		out.State = "offline"
 		out.Error = err.Error()
-		out.Capabilities = s.capabilities(ctx, "", "unknown", "OpenCode unreachable")
+		out.Capabilities = s.capabilities("", "unknown", "OpenCode unreachable", shared)
 		return out
 	}
 	probeCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
@@ -84,26 +97,27 @@ func (s *Server) instanceInfo(ctx context.Context, spec opencode.InstanceSpec, p
 		Version string `json:"version"`
 	}
 	if err := c.Do(probeCtx, http.MethodGet, "/api/info", nil, &info); err != nil {
+		s.multi.DropFor(spec.Name)
 		out.State = "offline"
 		out.Error = err.Error()
 		out.OpenCode.Server = c.BaseURL
-		out.Capabilities = s.capabilities(ctx, "", "unknown", "OpenCode unreachable")
+		out.Capabilities = s.capabilities("", "unknown", "OpenCode unreachable", shared)
 		return out
 	}
 	out.State = "connected"
 	out.OpenCode = opencodeOut{OK: true, Version: info.Version, Server: c.BaseURL}
-	out.Capabilities = s.capabilities(ctx, info.Version, "on", "")
+	out.Capabilities = s.capabilities(info.Version, "on", "", shared)
 	return out
 }
 
-func (s *Server) capabilities(ctx context.Context, version, chatState, chatDetail string) []capabilityOut {
+func (s *Server) capabilities(version, chatState, chatDetail string, shared sharedCapabilities) []capabilityOut {
 	if chatDetail == "" {
 		chatDetail = "OpenCode " + version
 	}
 	return []capabilityOut{
 		{ID: "chat", Label: "Chat & sessions", Owner: "opencode", State: chatState, Required: true, Detail: chatDetail},
-		s.dictationCapability(),
-		s.grammarCapability(ctx),
+		shared.dictation,
+		shared.grammar,
 		{ID: "speech", Label: "Speech", Owner: "opencode", State: "off", Detail: "host TTS not connected"},
 		{ID: "spelling", Label: "Spelling", Owner: "browser", State: "fallback", Detail: "nspell RU+EN · this device"},
 	}

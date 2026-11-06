@@ -121,10 +121,11 @@ is in use.
 4. Caddy on loopback.
 5. Tailscale Funnel (`bin/funnel`).
 
-The Go app warms LanguageTool and fast dictation at startup. If LanguageTool is
-started as a detached sidecar (`bin/languagetool`), it can start before the app
-and survive app restarts. Enable Funnel only after the app and Caddy health
-checks pass.
+The Go app warms LanguageTool and fast dictation at startup. A local or URL
+instance is contacted on demand; an SSH tunnel opens on the first request that
+needs that instance. If LanguageTool is started as a detached sidecar
+(`bin/languagetool`), it can start before the app and survive app restarts.
+Enable Funnel only after the app and Caddy health checks pass.
 
 ## Resource budget
 
@@ -149,6 +150,7 @@ is not measured here.
 | --- | --- |
 | `NIT_SERVER`, `OPENCODE_SERVER`, `OPENCODE_URL` | nit-gui discovery |
 | `XDG_CONFIG_HOME` | OpenCode `service.json` password |
+| `NIT_GUI_INSTANCES` | path to `instances.json`, default `$XDG_CONFIG_HOME/nit-gui/instances.json` |
 | `NIT_GUI_ALLOWED_HOSTS` | extra `Host` names behind a reverse proxy |
 | `NIT_GUI_LANGUAGETOOL` | path to `languagetool-http-server`; app spawns it |
 | `NIT_GUI_LANGUAGETOOL_URL` | use an already running LanguageTool |
@@ -168,13 +170,16 @@ is not measured here.
 | `NIT_GUI_DEPLOY_*` | deploy host, port and directory |
 
 TTS is configured in the OpenCode TTS plugin, not in nit-gui. nit-gui has no
-TTS environment variable and no browser speech fallback.
+TTS environment variable and does not proxy the hub. The reply `Read` button
+uses the browser's `speechSynthesis` as a labeled device fallback when no host
+voice is connected.
 
 ## Security boundary
 
-- Production is the single Frankfurt instance. Every visitor shares the same
-  OpenCode sessions, credentials and working directories. This is a one-user
-  product until real per-user auth and session scoping exist.
+- Production is one nit-gui service on Frankfurt. Every visitor shares the same
+  set of OpenCode instances, sessions, credentials and working directories. An
+  instance is a separate OpenCode namespace, not a security or quota boundary.
+  This is a one-user product until real per-user auth and session scoping exist.
 - Tailscale Funnel terminates public TLS. Caddy and the Go app stay on
   loopback; `bin/frankfurt` binds Caddy to `127.0.0.1:7792` and proxies only to
   `127.0.0.1:7791`. Set `NIT_GUI_ALLOWED_HOSTS` for the public name.
@@ -209,8 +214,16 @@ TTS environment variable and no browser speech fallback.
   the dictionaries gets no spelling.
 - **TTS is not proxied by nit-gui.** The OpenCode TTS plugin currently listens
   on `0.0.0.0:7787` and is not part of the app. It must bind to `127.0.0.1` and
-  be reached through the app or Caddy; the browser must only receive audio.
-  Do not add `speechSynthesis` as a fallback.
+  be reached through the app or Caddy. Until then the reply `Read` button uses
+  the browser's `speechSynthesis` as a labeled device fallback; the Instances
+  menu reports it as `fallback` or `off`, never as host speech.
+- **SSH tunnels are not reconnected automatically.** A tunnel lives until
+  `DropFor` or app shutdown. Use `Reconnect` or switch to the instance again
+  after a network drop. There is no background health check for inactive
+  instances.
+- **Only the active instance has an event stream.** Inactive instances do not
+  accumulate unread counts or approvals; switching reloads the list and
+  transcript.
 - **UI state has no push channel.** Clients read it on focus and every 10
   seconds. The JSON file is last-write-wins, drafts are capped at 256 KiB, and
   a completion marker only exists if a client was open to receive the idle

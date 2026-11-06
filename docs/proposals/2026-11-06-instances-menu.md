@@ -1,8 +1,11 @@
 # Instances menu: make the stack legible
 
 Date: 2026-11-06
-Status: proposal, nothing implemented yet
+Status: implemented
 Mockup: [`2026-11-06-instances-menu.html`](2026-11-06-instances-menu.html)
+Decisions: [`../decisions.md`](../decisions.md), 2026-11-06 — Instances are
+OpenCode servers behind one nit-gui; Browser voice is a labeled device TTS
+fallback.
 
 ## Why this is confusing
 
@@ -217,16 +220,15 @@ URL instance. Tunnel lifecycle, reconnect and backoff are separate work.
 - Editing instances in the browser, or storing passwords there.
 - A browser-only "bare OpenCode" mode.
 
-## Current code that contradicts the target
+## Resolved during implementation
 
-- `web/src/components/ReplyActions.tsx` calls `speechSynthesis`, while README
-  and the 2026-11-06 decision say the browser must never synthesize speech.
-  Decide before the menu describes speech: remove the button, or label it
-  `owner: browser`, `state: fallback`, and update the docs.
-- `web/src/components/SettingsPanel.tsx` hardcodes "Private Frankfurt
-  instance". It should show the app identity from `/api/instances`.
-- `internal/uistate/store.go` keys state by session id only. Switching instances
-  will collide until keys are instance-scoped.
+- `ReplyActions` keeps `speechSynthesis`, now documented and shown as a
+  `browser` / `fallback` capability, never as host TTS.
+- `SettingsPanel` shows `nit-gui · <instance>` and links to the Instances menu.
+- `uistate` is keyed by instance and migrates the old flat file under the default
+  instance.
+- `App` is remounted by instance id, so the transcript cache, event stream,
+  models and drafts reset without a long manual state teardown.
 
 ## Verification
 
@@ -242,12 +244,11 @@ Browser scenario:
 
 `bin/check` must be green before this is called done.
 
-## Open questions
+## Resolved questions
 
-1. Confirm the definition: one nit-gui with N OpenCode instances, or several
-   nit-gui deployments? The first is recommended; the second is a later
-   "servers" feature.
-2. Speech: remove browser `speechSynthesis`, or keep it as an explicit device
-   fallback? The menu must not imply host TTS when it is the device.
-3. Phase 1 config: a JSON file on the nit-gui host is the smallest path. Is
-   that acceptable, or does it wait for UI-managed instances?
+1. One nit-gui with N OpenCode instances. Several nit-gui deployments remain a
+   later "servers" feature, not an instance.
+2. Browser `speechSynthesis` stays as an explicit device fallback, labeled in
+   the menu. See the 2026-11-06 decision.
+3. A JSON file on the nit-gui host is the config. In-UI editing is not part of
+   this change.

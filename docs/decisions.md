@@ -384,3 +384,54 @@ Why: one wide target opens chats, one tap starts a new chat, and the rest sits b
 Rejected: keeping five icon buttons, putting Settings next to `+`, and a separate theme control in the dock.
 
 Cost: opening chats requires a tap or an upward swipe on the pill instead of a dedicated hamburger icon; changing the theme takes two taps on mobile.
+
+## 2026-11-06 — Instances are OpenCode servers behind one nit-gui
+
+Context: the `nit` TUI treats an instance as one OpenCode server because the
+client and the host are the same machine. In nit-gui the browser, the nit-gui
+service and OpenCode can be on three different hosts, so a bare list of servers
+hides who owns TTS, STT, spelling and shared state.
+
+Decision: production runs one nit-gui service and fronts one or more OpenCode
+servers, called instances. `instances.json` on the nit-gui host defines
+`local`, explicit `url` and `ssh` instances. The browser sends
+`X-Nit-Instance` (or `?instance=` for SSE and file links) and the backend routes
+the request. UI state, drafts, hidden chats and done/failed markers are keyed by
+instance. Only the active instance keeps an event stream.
+
+Why: the nit-gui host owns auth, redaction, shared state, STT and grammar, which
+the browser must not own. The OpenCode server owns sessions, models, agents and
+workspaces. This keeps the TUI model where it fits and makes the split visible
+in the Instances menu instead of implicit.
+
+Rejected: many nit-gui deployments called instances (different origin, login
+and state, and no reusable SSE); a browser talking to bare OpenCode (service
+password in the browser, no shared state, no server STT or grammar); combined
+tabs and background SSE for every instance (connections and unread state for a
+screen that shows one chat).
+
+Cost: switching remounts the chat view and reloads the transcript; inactive
+instances do not accumulate unread or approvals; SSH tunnels are not
+auto-reconnected; config changes need an app restart.
+
+## 2026-11-06 — Browser voice is a labeled device TTS fallback
+
+Context: the reply `Read` button calls `speechSynthesis`, while the 2026-11-06
+Frankfurt boundary said the browser must never synthesize speech. The
+Instances menu needs to describe speech honestly.
+
+Decision: keep the browser voice as an explicit device fallback. The backend
+reports host speech as `off` until the OpenCode TTS hub is proxied; the
+Instances menu upgrades `speech` to `fallback` only when the browser exposes
+`speechSynthesis`, with owner `browser`. Host TTS is never implied.
+
+Why: removing a working read-aloud button is a user-visible regression, and
+hiding the fallback would make the capability matrix lie. Labeling the owner
+fixes the contradiction without pretending the device is the host.
+
+Rejected: removing `speechSynthesis` until the hub is proxied; reporting
+device speech as host TTS.
+
+Cost: speech quality and voice availability depend on the device; a browser
+without a voice gets no speech. This supersedes the TTS clause of the
+2026-11-06 Frankfurt-only decision.

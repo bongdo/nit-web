@@ -360,3 +360,15 @@ Why: the token layer already drives every surface, so new themes need CSS only. 
 Rejected: a stylesheet per theme and CSS-in-JS (more moving parts), and rewriting every `dark:` utility into per-theme variants.
 
 Cost: each named theme must define every token, and the dark theme ids are repeated in the pre-paint script in `web/index.html`.
+
+## 2026-11-06 — Mobile dock: session pill instead of bar buttons
+
+Context: five equal buttons in the mobile dock spread the most useful controls, and the theme switch was rarely used there. The session title and status card stayed in the top bar, away from the thumb.
+
+Decision: the mobile dock is the session pill (title, directory, agent/model, context, cost) with `+` and subagents to its right. Tapping the pill or swiping it up opens the sessions sheet; the sheet keeps Settings as its last row. Theme lives in Settings, so the dock has no theme button. Replaces the mobile bar part of 2026-11-06 — Mobile: bottom navigation and a bottom sheet.
+
+Why: one wide target opens chats, one tap starts a new chat, and the rest sits behind a bottom sheet where the thumb reaches.
+
+Rejected: keeping five icon buttons, putting Settings next to `+`, and a separate theme control in the dock.
+
+Cost: opening chats requires a tap or an upward swipe on the pill instead of a dedicated hamburger icon; changing the theme takes two taps on mobile.

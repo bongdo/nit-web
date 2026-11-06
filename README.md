@@ -69,7 +69,10 @@ The sidebar has three scopes:
 | --- | --- |
 | `This dir` | chats created in the current workspace. |
 | `Mine` | all top-level chats with a primary agent, across workspaces. |
-| `All` | everything, including subagent sessions and scripted roles. |
+| `All` | every top-level chat, including scripted roles, across workspaces. |
+
+Subagent sessions never appear in the sidebar. Open them from the parent chat's
+`N subagents` menu; the parent header also has `Back to parent`.
 
 `New chat` does not create a session. The session is created in the current
 workspace on the first Send, so an empty draft never appears in the list.
@@ -165,6 +168,7 @@ The browser only talks to these same-origin endpoints:
 | `GET /api/projects` | Known projects from OpenCode `/api/project`, for the workspace picker. |
 | `GET /api/sessions?dir=&children=true` | Newest sessions; `children=true` includes subagent sessions. |
 | `POST /api/sessions` | Create `{directory, title?, agent?, model?}`. |
+| `GET /api/sessions/{id}` | One session, used to restore a selected subagent after reload. |
 | `GET /api/sessions/{id}/messages` | Full transcript, ascending, paginated upstream, redacted. |
 | `GET /api/sessions/{id}/children` | Subagent sessions with this parent. |
 | `POST /api/sessions/{id}/prompt` | Send `{text, files?}`. |

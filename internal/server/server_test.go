@@ -118,6 +118,23 @@ func TestSessionsProxy(t *testing.T) {
 	}
 }
 
+func TestSessionProxy(t *testing.T) {
+	upstream := httptest.NewServer(auth(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/session/ses_child" {
+			t.Errorf("path = %s", r.URL.Path)
+		}
+		fmt.Fprint(w, `{"data":{"id":"ses_child","parentID":"ses_1"}}`)
+	}))
+	defer upstream.Close()
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "http://127.0.0.1:7788/api/sessions/ses_child", nil)
+	newHandler(t, upstream.URL).ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), "ses_child") {
+		t.Fatalf("status = %d: %s", rec.Code, rec.Body)
+	}
+}
+
 func TestSessionsChildren(t *testing.T) {
 	upstream := httptest.NewServer(auth(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Query().Has("parentID") {

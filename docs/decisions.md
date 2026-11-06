@@ -144,3 +144,15 @@ Why: remounting is the smallest change that gives each chat independent transien
 Rejected: one global draft (leaks between chats), lifting every composer field into App state (large rewrite for no extra behavior), persisting attachments (needs a serialized upload queue; not requested).
 
 Cost: unsent attachments are dropped on a switch, drafts are stored in plain text in `localStorage`, and empty entries are removed only when the input is cleared or sent.
+
+## 2026-11-06 — Subagent sessions stay out of the sidebar
+
+Context: the `All` scope fetched children and rendered agent-spawned subagent sessions as top-level chats. A subagent chat the user never created could appear in the list. The selected subagent also has to survive a reload so the header can show `Back to parent`.
+
+Decision: the sidebar lists top-level sessions only in every scope. The scopes now mean: this workspace, the user's primary-agent chats across workspaces, and every top-level chat including scripted roles. Subagents are opened from the parent header's `N subagents` menu. `GET /api/sessions/{id}` restores a selected session that is not in the top-level page.
+
+Why: agent-created child sessions are internal work, not user chats; the parent header is the only place that gives them context. Keeping the selected child in state, but not in the list, preserves navigation without polluting the sidebar.
+
+Rejected: keeping subagents in `All` as a debug view (they looked like user chats), hiding only on the client after grouping (the 100-session page would still fill with subagents).
+
+Cost: subagent sessions are only reachable through their parent; a reload of a subagent URL restores it via an extra upstream request, and the parent must still be in the top-level page for `Back to parent`.

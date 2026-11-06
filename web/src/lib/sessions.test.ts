@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   groupSessions,
   isTechnical,
+  listedSessions,
   mergeWaitingSessionIds,
   nextSessionId,
   pollSessionIds,
@@ -47,6 +48,21 @@ describe("sessions", () => {
     ];
     expect(scopeSessions(list, "mine", agents).map((item) => item.id)).toEqual(["a"]);
     expect(scopeSessions(list, "all", agents)).toHaveLength(3);
+  });
+
+  it("never lists subagent sessions and still honors hidden chats", () => {
+    const list = [
+      session({ id: "visible" }),
+      session({ id: "hidden" }),
+      session({ id: "child", parentID: "visible" }),
+    ];
+    expect(listedSessions(list, new Set(["hidden"]), false).map((item) => item.id)).toEqual([
+      "visible",
+    ]);
+    expect(listedSessions(list, new Set(["hidden"]), true).map((item) => item.id)).toEqual([
+      "visible",
+      "hidden",
+    ]);
   });
 
   it("nests children under their parent and leaves orphans as roots", () => {

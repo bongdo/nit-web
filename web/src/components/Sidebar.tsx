@@ -296,8 +296,8 @@ export function Sidebar({
               item.id === "directory"
                 ? "Chats in this workspace"
                 : item.id === "mine"
-                  ? "All your chats, every workspace"
-                  : "Everything, including subagents and scripted sessions"
+                  ? "Your chats, every workspace"
+                  : "Every top-level chat, every workspace"
             }
           >
             {item.label}

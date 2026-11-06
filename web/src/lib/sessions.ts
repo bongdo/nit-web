@@ -20,6 +20,16 @@ export function scopeSessions(sessions: Session[], scope: Scope, agents: Agent[]
   return sessions.filter((session) => !isTechnical(session, agents));
 }
 
+export function listedSessions(
+  sessions: Session[],
+  hiddenIds: ReadonlySet<string>,
+  showHidden: boolean,
+): Session[] {
+  return sessions.filter(
+    (session) => !session.parentID && (showHidden || !hiddenIds.has(session.id)),
+  );
+}
+
 export function waitingSessionIds(forms: FormInfo[], fallbackId?: string | null): Set<string> {
   const ids = new Set<string>();
   for (const form of forms) {

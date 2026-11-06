@@ -24,6 +24,7 @@ import {
 import { questionField } from "./lib/forms";
 import {
   groupSessions,
+  listedSessions,
   mergeWaitingSessionIds,
   nextSessionId,
   pollSessionIds,
@@ -219,8 +220,6 @@ export default function App() {
 
   const sessionsRef = useRef(sessions);
   sessionsRef.current = sessions;
-  const agentsRef = useRef(agents);
-  agentsRef.current = agents;
   const runningIdsRef = useRef(runningIds);
   runningIdsRef.current = runningIds;
   const backgroundWaitingRef = useRef(backgroundWaitingIds);
@@ -293,17 +292,18 @@ export default function App() {
     const requestedAt = Date.now();
     const scopedDirectory = scopeRef.current === "directory" ? workspaceRef.current : null;
     try {
-      const list = await api.sessions(scopedDirectory ?? undefined, scopeRef.current === "all");
-      const data = scopeSessions(list.data, scopeRef.current, agentsRef.current);
-      setSessions((previous) => {
-        const keep = previous.find(
-          (item) =>
-            item.id === selectedIdRef.current &&
-            item.parentID &&
-            !data.some((session) => session.id === item.id),
-        );
-        return keep ? [keep, ...data] : data;
-      });
+      const list = await api.sessions(scopedDirectory ?? undefined);
+      let data = list.data;
+      const selected = selectedIdRef.current;
+      if (selected && !data.some((session) => session.id === selected)) {
+        try {
+          data = [await api.session(selected), ...data];
+        } catch {
+          const keep = sessionsRef.current.find((session) => session.id === selected);
+          if (keep) data = [keep, ...data];
+        }
+      }
+      setSessions(data);
       setRunningIds((previous) =>
         mergeRunningStates(previous, data, runningEventsAt.current, requestedAt),
       );
@@ -1018,12 +1018,12 @@ export default function App() {
     () =>
       groupSessions(
         filterSessions(
-          showHidden ? sessions : sessions.filter((session) => !hiddenIds.has(session.id)),
+          listedSessions(scopeSessions(sessions, scope, agents), hiddenIds, showHidden),
           search,
         ),
         waitingIds,
       ).map((row) => row.session),
-    [hiddenIds, search, sessions, showHidden, waitingIds],
+    [agents, hiddenIds, scope, search, sessions, showHidden, waitingIds],
   );
 
   const quoteSelection = useCallback((text: string) => {
@@ -1095,9 +1095,11 @@ export default function App() {
   const activeError = banner ?? offlineBanner;
   const running = selectedId ? isRunning(selectedId) : false;
   const hiddenCount = sessions.filter((session) => hiddenIds.has(session.id)).length;
-  const visibleSessions = showHidden
-    ? sessions
-    : sessions.filter((session) => !hiddenIds.has(session.id));
+  const visibleSessions = listedSessions(
+    scopeSessions(sessions, scope, agents),
+    hiddenIds,
+    showHidden,
+  );
   const hoverSidebar = sidebarMode === "hover";
   const questionForm = forms[0] && questionField(forms[0]) ? forms[0] : null;
   const finishForm = () => {

@@ -67,7 +67,9 @@ if [ -n "$pids" ]; then
   done
 fi
 
-setsid ./nit-gui --addr "127.0.0.1:$port" >nit-gui.log 2>&1 < /dev/null &
+runner=./nit-gui
+[ -x ./run ] && runner=./run
+setsid "$runner" --addr "127.0.0.1:$port" >nit-gui.log 2>&1 < /dev/null &
 
 for _ in $(seq 1 40); do
   if curl -fsS "http://127.0.0.1:$port/api/health" >/dev/null 2>&1; then

@@ -21,8 +21,10 @@ bin/nixos       # copy to nixos and restart 127.0.0.1:7791 there
 bin/frankfurt   # build here and expose through Caddy on :7792
 ```
 
-`bin/nixos` is `bin/deploy nixos`. It cross-compiles for the remote architecture
-and restarts the binary in `~/Projects/nit-gui` on the `nixos` SSH host.
+`bin/nixos` is `bin/deploy nixos`. It cross-compiles for the remote architecture,
+copies the binary to `~/Projects/nit-gui` and restarts it. If the remote directory
+has a `./run` wrapper, the restart uses it (the NixOS wrapper sets `NIT_SERVER`);
+otherwise it runs `./nit-gui` directly.
 
 `bin/frankfurt` builds locally, restarts the app on `127.0.0.1:7791`, and starts
 a user Caddy on `:7792` with basic auth. It reuses the first `basicauth` entry

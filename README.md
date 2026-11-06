@@ -28,7 +28,8 @@ and restarts the binary in `~/Projects/nit-gui` on the `nixos` SSH host.
 a user Caddy on `:7792` with basic auth. It reuses the first `basicauth` entry
 from `/etc/caddy/Caddyfile`; set `NIT_GUI_PUBLIC_PASSWORD` to use another
 password. The public port must be open in the OCI security list. The tailnet URL
-works without opening it.
+works without opening it. The listener is plain HTTP: basic auth protects access,
+not the password in transit, so prefer the tailnet URL for anything private.
 
 ```sh
 ./bin/check

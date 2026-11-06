@@ -2,27 +2,47 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-host="${NIT_GUI_DEPLOY_HOST:-nixos}"
-port="${NIT_GUI_DEPLOY_PORT:-7791}"
-remote_dir="${NIT_GUI_DEPLOY_DIR:-Projects/nit-gui}"
-
-npm --prefix web run build
-
-case "$(ssh "$host" uname -m)" in
-  x86_64) arch=amd64 ;;
-  aarch64 | arm64) arch=arm64 ;;
-  *)
-    echo "deploy: unsupported remote architecture" >&2
-    exit 1
-    ;;
-esac
+target="${1:-${NIT_GUI_DEPLOY_TARGET:-nixos}}"
+if [ $# -gt 0 ]; then shift; fi
 
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
-CGO_ENABLED=0 GOOS=linux GOARCH="$arch" go build -trimpath -o "$tmp/nit-gui" .
-scp -q "$tmp/nit-gui" "$host:$remote_dir/nit-gui.new"
 
-ssh "$host" bash -s -- "$remote_dir" "$port" <<'REMOTE'
+stop() {
+  local pattern="$1" pids pid alive
+  pids="$(pgrep -f "$pattern" || true)"
+  [ -n "$pids" ] || return 0
+  kill $pids 2>/dev/null || true
+  for _ in $(seq 1 30); do
+    alive=0
+    for pid in $pids; do
+      kill -0 "$pid" 2>/dev/null && alive=1
+    done
+    [ "$alive" = 0 ] && return 0
+    sleep 0.1
+  done
+  kill -9 $pids 2>/dev/null || true
+}
+
+deploy_nixos() {
+  local host="${NIT_GUI_DEPLOY_HOST:-nixos}"
+  local port="${NIT_GUI_DEPLOY_PORT:-7791}"
+  local remote_dir="${NIT_GUI_DEPLOY_DIR:-Projects/nit-gui}"
+  local arch
+
+  case "$(ssh "$host" uname -m)" in
+    x86_64) arch=amd64 ;;
+    aarch64 | arm64) arch=arm64 ;;
+    *)
+      echo "deploy: unsupported remote architecture" >&2
+      return 1
+      ;;
+  esac
+
+  CGO_ENABLED=0 GOOS=linux GOARCH="$arch" go build -trimpath -o "$tmp/nit-gui" .
+  scp -q "$tmp/nit-gui" "$host:$remote_dir/nit-gui.new"
+
+  ssh "$host" bash -s -- "$remote_dir" "$port" <<'REMOTE'
 set -euo pipefail
 dir="$HOME/$1"
 port="$2"
@@ -44,7 +64,7 @@ if [ -n "$pids" ]; then
   done
 fi
 
-setsid ./run --addr "127.0.0.1:$port" >nit-gui.log 2>&1 < /dev/null &
+setsid ./nit-gui --addr "127.0.0.1:$port" >nit-gui.log 2>&1 < /dev/null &
 
 for _ in $(seq 1 40); do
   if curl -fsS "http://127.0.0.1:$port/api/health" >/dev/null 2>&1; then
@@ -58,4 +78,105 @@ tail -20 nit-gui.log >&2 || true
 exit 1
 REMOTE
 
-echo "deploy: http://127.0.0.1:$port/"
+  echo "deploy: nixos http://127.0.0.1:$port/"
+}
+
+deploy_frankfurt() {
+  local port="${NIT_GUI_DEPLOY_PORT:-7791}"
+  local public_port="${NIT_GUI_PUBLIC_PORT:-7792}"
+  local public_host="${NIT_GUI_PUBLIC_HOST:-92.5.143.242}"
+  local run_dir="$PWD/.cache"
+  local bin="$run_dir/nit-gui"
+  local caddyfile="$run_dir/frankfurt.Caddyfile"
+  local tailnet_ip=""
+
+  tailnet_ip="$(tailscale ip -4 2>/dev/null | head -1 || true)"
+  local allowed="$public_host"
+  for candidate in "$tailnet_ip" "$(hostname)" frankfurt; do
+    [ -n "$candidate" ] && allowed="$allowed,$candidate"
+  done
+
+  mkdir -p "$run_dir"
+  go build -trimpath -o "$bin" .
+  stop "$bin --addr 127.0.0.1:$port"
+  NIT_GUI_ALLOWED_HOSTS="$allowed" setsid "$bin" --addr "127.0.0.1:$port" >"$run_dir/nit-gui.log" 2>&1 < /dev/null &
+
+  local ready=0
+  for _ in $(seq 1 40); do
+    if curl -fsS "http://127.0.0.1:$port/" >/dev/null 2>&1; then
+      ready=1
+      break
+    fi
+    sleep 0.2
+  done
+  if [ "$ready" = 0 ]; then
+    echo "deploy: nit-gui did not start" >&2
+    tail -20 "$run_dir/nit-gui.log" >&2 || true
+    return 1
+  fi
+
+  local auth_user auth_hash
+  auth_user="$(awk '/basicauth \{/{getline; print $1; exit}' /etc/caddy/Caddyfile 2>/dev/null || true)"
+  auth_hash="$(awk '/basicauth \{/{getline; print $2; exit}' /etc/caddy/Caddyfile 2>/dev/null || true)"
+  if [ -n "${NIT_GUI_PUBLIC_PASSWORD:-}" ]; then
+    auth_user="${NIT_GUI_PUBLIC_USER:-bongdo}"
+    auth_hash="$(caddy hash-password --plaintext "$NIT_GUI_PUBLIC_PASSWORD")"
+  fi
+  if [ -z "$auth_user" ] || [ -z "$auth_hash" ]; then
+    echo "deploy: set NIT_GUI_PUBLIC_PASSWORD for the public listener" >&2
+    return 1
+  fi
+
+  cat >"$caddyfile" <<EOF
+{
+	auto_https off
+	admin off
+}
+
+:$public_port {
+	basicauth {
+		$auth_user $auth_hash
+	}
+	reverse_proxy 127.0.0.1:$port {
+		header_up Host 127.0.0.1:$port
+		header_up Origin http://127.0.0.1:$port
+	}
+}
+EOF
+
+  caddy validate --config "$caddyfile" --adapter caddyfile >/dev/null
+  stop "caddy run --config $caddyfile"
+  setsid caddy run --config "$caddyfile" --adapter caddyfile >"$run_dir/frankfurt-caddy.log" 2>&1 < /dev/null &
+
+  ready=0
+  for _ in $(seq 1 40); do
+    if [ "$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:$public_port/" || true)" = 401 ]; then
+      ready=1
+      break
+    fi
+    sleep 0.2
+  done
+  if [ "$ready" = 0 ]; then
+    echo "deploy: public listener did not start" >&2
+    tail -20 "$run_dir/frankfurt-caddy.log" >&2 || true
+    return 1
+  fi
+
+  tailnet_ip="$(tailscale ip -4 2>/dev/null | head -1 || true)"
+  echo "deploy: frankfurt http://$public_host:$public_port/ (basic auth: $auth_user)"
+  if [ -n "$tailnet_ip" ]; then
+    echo "deploy: tailnet http://$tailnet_ip:$public_port/"
+  fi
+  echo "deploy: open tcp/$public_port in the OCI security list for public access"
+}
+
+npm --prefix web run build
+
+case "$target" in
+  nixos) deploy_nixos ;;
+  frankfurt) deploy_frankfurt ;;
+  *)
+    echo "usage: deploy [nixos|frankfurt]" >&2
+    exit 2
+    ;;
+esac

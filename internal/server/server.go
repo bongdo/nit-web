@@ -31,18 +31,31 @@ type ClientProvider interface {
 }
 
 type Server struct {
-	provider ClientProvider
-	static   fs.FS
-	log      *slog.Logger
-	mux      *http.ServeMux
-	fast     *fastSTT
+	provider     ClientProvider
+	static       fs.FS
+	log          *slog.Logger
+	mux          *http.ServeMux
+	fast         *fastSTT
+	allowedHosts map[string]struct{}
 }
 
 func New(provider ClientProvider, static fs.FS, log *slog.Logger) http.Handler {
 	if log == nil {
 		log = slog.Default()
 	}
-	s := &Server{provider: provider, static: static, log: log, mux: http.NewServeMux(), fast: newFastSTT(log)}
+	s := &Server{
+		provider:     provider,
+		static:       static,
+		log:          log,
+		mux:          http.NewServeMux(),
+		fast:         newFastSTT(log),
+		allowedHosts: map[string]struct{}{},
+	}
+	for _, host := range strings.Split(os.Getenv("NIT_GUI_ALLOWED_HOSTS"), ",") {
+		if host = strings.ToLower(strings.TrimSpace(host)); host != "" {
+			s.allowedHosts[host] = struct{}{}
+		}
+	}
 	s.routes()
 	return s.middleware(s.mux)
 }
@@ -83,7 +96,7 @@ func (s *Server) middleware(next http.Handler) http.Handler {
 		w.Header().Set("X-Content-Type-Options", "nosniff")
 		w.Header().Set("Referrer-Policy", "no-referrer")
 		w.Header().Set("X-Frame-Options", "DENY")
-		if !allowedHost(r.Host) {
+		if !s.allowedHost(r.Host) {
 			writeError(w, http.StatusForbidden, "host not allowed")
 			return
 		}
@@ -104,7 +117,7 @@ func (s *Server) middleware(next http.Handler) http.Handler {
 	})
 }
 
-func allowedHost(hostport string) bool {
+func (s *Server) allowedHost(hostport string) bool {
 	if hostport == "" {
 		return false
 	}
@@ -113,7 +126,11 @@ func allowedHost(hostport string) bool {
 		host = h
 	}
 	host = strings.Trim(host, "[]")
-	return strings.EqualFold(host, "localhost") || host == "127.0.0.1" || host == "::1"
+	if strings.EqualFold(host, "localhost") || host == "127.0.0.1" || host == "::1" {
+		return true
+	}
+	_, ok := s.allowedHosts[strings.ToLower(host)]
+	return ok
 }
 
 func allowedOrigin(r *http.Request) bool {

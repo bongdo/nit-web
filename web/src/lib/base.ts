@@ -3,3 +3,7 @@ export const BASE_PATH = import.meta.env.BASE_URL.replace(/\/$/, "");
 export function appPath(path: string): string {
   return `${BASE_PATH}${path}`;
 }
+
+export function loginPath(next: string): string {
+  return appPath(`/auth?next=${encodeURIComponent(next)}`);
+}

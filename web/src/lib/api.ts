@@ -13,7 +13,7 @@ import type {
   UiState,
 } from "./types";
 import type { GrammarMatch } from "./spell";
-import { appPath } from "./base";
+import { appPath, loginPath } from "./base";
 
 export class ApiError extends Error {
   status: number;
@@ -41,6 +41,14 @@ async function errorText(response: Response): Promise<string> {
   }
 }
 
+let redirecting = false;
+
+function redirectToLogin() {
+  if (redirecting) return;
+  redirecting = true;
+  window.location.assign(loginPath(window.location.pathname));
+}
+
 async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const headers: Record<string, string> = { Accept: "application/json" };
   if (options.body !== undefined) headers["Content-Type"] = "application/json";
@@ -51,6 +59,7 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
     signal: options.signal ?? AbortSignal.timeout(30_000),
   });
   if (!response.ok) {
+    if (response.status === 401) redirectToLogin();
     let message = `Request failed (${response.status})`;
     try {
       const data = (await response.json()) as { error?: string; message?: string };

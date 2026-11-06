@@ -108,3 +108,15 @@ Why: the user pays the warmup once when the app starts, not on every first actio
 Rejected: starting LanguageTool lazily (the old 5–10 s first check), starting it synchronously before serving (the app would take seconds to open), keeping fast dictation lazy.
 
 Cost: LanguageTool uses about 0.6–0.7 GB and fast dictation loads its model at boot; if the binaries or models are missing, warmup is skipped and the feature falls back silently. The external sidecar has no supervisor unless it is run under systemd.
+
+## 2026-11-06 — Safe auto-fix with word-level undo
+
+Context: most underlined words are typos, but nspell often returns several equally close suggestions (`хочю` → `холю`, `хорю`, `хочу`). Auto-applying the first suggestion would damage names and terms.
+
+Decision: auto-fix only lowercase words of four or more characters that are not code, paths, commands or ignored, and only when exactly one suggestion is one Levenshtein edit away. The fix runs after a space, keeps the rest of the text, and shows a `↶ word` chip for ten seconds. Clicking it or `Ctrl/Cmd+Z` restores just that word and adds the original to the ignore list. Settings → Auto-fix typos can disable it.
+
+Why: it removes the obvious, unambiguous typos while leaving ambiguous ones on the existing suggestion chip. Word-level undo is faster than retyping and does not discard later edits.
+
+Rejected: auto-applying the first nspell suggestion (too many false positives), auto-fixing capitalized words and names, a whole-text undo (would throw away typing after the fix).
+
+Cost: conservative coverage; `хочю` and many English typos with two close candidates still need a click. The undo entry expires after ten seconds.

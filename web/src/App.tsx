@@ -146,6 +146,7 @@ export default function App() {
     localStorage.getItem("nit-gui.dictation") === "accurate" ? "accurate" : "fast",
   );
   const [spellcheck, setSpellcheck] = useState(() => localStorage.getItem("nit-gui.spellcheck") !== "0");
+  const [autofix, setAutofix] = useState(() => localStorage.getItem("nit-gui.autofix") !== "0");
   const [motion, setMotion] = useState<"animated" | "static">(() => {
     const stored = localStorage.getItem("nit-gui.motion");
     if (stored === "animated" || stored === "static") return stored;
@@ -1263,6 +1264,7 @@ export default function App() {
               commands={COMMANDS}
               dictationMode={dictationMode}
               spellcheck={spellcheck}
+              autofix={autofix}
               form={questionForm}
               onSend={send}
               onStop={() => void stop()}
@@ -1296,6 +1298,7 @@ export default function App() {
           directory={workspace}
           dictationMode={dictationMode}
           spellcheck={spellcheck}
+          autofix={autofix}
           motion={motion}
           background={background}
           sidebarMode={sidebarMode}
@@ -1314,6 +1317,10 @@ export default function App() {
           onSpellcheck={(value) => {
             setSpellcheck(value);
             localStorage.setItem("nit-gui.spellcheck", value ? "1" : "0");
+          }}
+          onAutofix={(value) => {
+            setAutofix(value);
+            localStorage.setItem("nit-gui.autofix", value ? "1" : "0");
           }}
           onMotion={(value) => {
             setMotion(value);

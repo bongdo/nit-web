@@ -98,6 +98,11 @@ workspace on the first Send, so an empty draft never appears in the list.
   also shows punctuation and real-word fixes (`too` → `to`) from the local
   Java process. Without it, only spelling runs. The draft goes to that local
   process, never to a cloud service.
+- Obvious lowercase typos are fixed after a space when exactly one suggestion is
+  one edit away. The small `↶ word` chip above the composer, or `Ctrl/Cmd+Z`,
+  restores the original and adds it to the ignore list so it is not fixed
+  again. Ambiguous, capitalized, code and path words are never auto-fixed;
+  Settings → Auto-fix typos turns this off.
 - Hover a user message for Copy, Revert and Fork. Revert commits the revert and
   puts the message text back into the composer; Fork opens a new session before
   that message. The composer also has a fast `Undo` button for the last prompt.
@@ -302,6 +307,10 @@ own startup warmup.
   `to`), Russian `-тся/-ться` or punctuation. It loads about 4 MB of
   dictionaries in a worker; the first check can take a few seconds after start.
   Ignored words are kept in `nit-gui.spell-ignore` in `localStorage`.
+- Auto-fix is deliberately conservative: lowercase words only, one edit away,
+  exactly one candidate, not in code or a path. `хочю` stays for the chip
+  because `холю`, `хорю` and `хочу` are equally close. Undo adds the original
+  to the ignore list.
 - Grammar is optional and slower: LanguageTool warms up on the first request
   (3–4 s), then Russian checks take about 250 ms and English about 30–40 ms.
   Capitalization and spelling rules are disabled so the composer does not

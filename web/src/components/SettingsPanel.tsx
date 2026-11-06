@@ -15,6 +15,7 @@ export function SettingsPanel({
   directory,
   dictationMode,
   spellcheck,
+  autofix,
   motion,
   background,
   sidebarMode,
@@ -23,6 +24,7 @@ export function SettingsPanel({
   onTheme,
   onDictation,
   onSpellcheck,
+  onAutofix,
   onMotion,
   onBackground,
   onSidebar,
@@ -36,6 +38,7 @@ export function SettingsPanel({
   directory?: string | null;
   dictationMode: "fast" | "accurate";
   spellcheck: boolean;
+  autofix: boolean;
   motion: "animated" | "static";
   background: SceneSetting;
   sidebarMode: "button" | "hover";
@@ -44,6 +47,7 @@ export function SettingsPanel({
   onTheme: (theme: Theme) => void;
   onDictation: (mode: "fast" | "accurate") => void;
   onSpellcheck: (value: boolean) => void;
+  onAutofix: (value: boolean) => void;
   onMotion: (mode: "animated" | "static") => void;
   onBackground: (mode: SceneSetting) => void;
   onSidebar: (mode: "button" | "hover") => void;
@@ -195,6 +199,18 @@ export function SettingsPanel({
               onChange={(event) => onSpellcheck(event.target.value === "on")}
             >
               <option value="on">On · RU + EN spelling, grammar if configured</option>
+              <option value="off">Off</option>
+            </Select>
+          </label>
+
+          <label className="block space-y-1">
+            <span className="text-muted-foreground text-[11px]">Auto-fix typos</span>
+            <Select
+              className="w-full"
+              value={autofix ? "on" : "off"}
+              onChange={(event) => onAutofix(event.target.value === "on")}
+            >
+              <option value="on">On · only unambiguous lowercase words</option>
               <option value="off">Off</option>
             </Select>
           </label>

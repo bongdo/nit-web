@@ -531,12 +531,13 @@ function drawFluid(t) {
   const data = fluid.img.data;
   for (let i = 0; i < FW * FH; i += 1) {
     const r = fluid.cur[0][i], g = fluid.cur[1][i], b = fluid.cur[2][i];
-    const a = Math.min(1, Math.max(r, g, b) * 2.4);
+    const peak = Math.max(r, g, b);
+    const scale = peak > 1e-4 ? 255 / peak : 0;
     const o = i * 4;
-    data[o] = Math.min(255, r * 255);
-    data[o + 1] = Math.min(255, g * 255);
-    data[o + 2] = Math.min(255, b * 255);
-    data[o + 3] = a * 255;
+    data[o] = r * scale;
+    data[o + 1] = g * scale;
+    data[o + 2] = b * scale;
+    data[o + 3] = Math.min(1, peak * 2.2) * 255;
   }
   fluid.octx.putImageData(fluid.img, 0, 0);
   ctx.imageSmoothingEnabled = true;

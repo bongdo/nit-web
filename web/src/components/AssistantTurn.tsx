@@ -56,6 +56,7 @@ export const AssistantTurn = memo(function AssistantTurn({
   const [open, setOpen] = useState(false);
   const wasStreaming = useRef(streaming);
   const [copied, setCopied] = useState(false);
+  const [loadingSteps, setLoadingSteps] = useState(false);
   const last = messages[messages.length - 1];
   const owners = new Map<ReasoningPart | ToolPart, Message>();
   for (const message of messages) {
@@ -66,7 +67,7 @@ export const AssistantTurn = memo(function AssistantTurn({
   const content = messages.flatMap((message) => message.content ?? []);
   const activity = content.filter(
     (part): part is ReasoningPart | ToolPart =>
-      part.type === "tool" || (part.type === "reasoning" && part.text.trim() !== ""),
+      part.type === "tool" || part.type === "reasoning",
   );
   const textParts = content.filter((part) => part.type === "text");
   const toolCount = activity.filter((part) => part.type === "tool").length;
@@ -108,6 +109,26 @@ export const AssistantTurn = memo(function AssistantTurn({
       setCopied(true);
       window.setTimeout(() => setCopied(false), 1500);
     }
+  };
+
+  const loadSteps = () => {
+    if (!onLoadMessage) return;
+    const ids = new Set<string>();
+    for (const message of messages) {
+      if (streaming && message.id === last?.id) continue;
+      if (
+        (message.content ?? []).some(
+          (part) => (part.type === "tool" || part.type === "reasoning") && part.light,
+        )
+      ) {
+        ids.add(message.id);
+      }
+    }
+    if (ids.size === 0) return;
+    setLoadingSteps(true);
+    Promise.allSettled(
+      [...ids].map((id) => Promise.resolve(onLoadMessage(id))),
+    ).finally(() => setLoadingSteps(false));
   };
 
   return (
@@ -167,12 +188,19 @@ export const AssistantTurn = memo(function AssistantTurn({
             <button
               type="button"
               aria-expanded={open}
-              onClick={() => setOpen((value) => !value)}
+              onClick={() => {
+                const next = !open;
+                setOpen(next);
+                if (next) loadSteps();
+              }}
               className="hover:bg-accent/40 flex w-full items-center gap-2 px-2.5 py-1.5 text-left"
             >
               {open ? <ChevronDown className="size-3.5" /> : <ChevronRight className="size-3.5" />}
               {streaming ? (
                 <Loader2 className="size-3.5 animate-spin text-emerald-500" />
+              ) : null}
+              {loadingSteps ? (
+                <Loader2 className="text-muted-foreground size-3.5 animate-spin" />
               ) : null}
               <span
                 className={`min-w-0 flex-1 truncate text-left text-[11px] ${

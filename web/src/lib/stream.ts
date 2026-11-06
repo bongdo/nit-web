@@ -242,7 +242,7 @@ export function applyEvent(messages: Message[], event: StreamEvent): Message[] {
     case "session.reasoning.ended":
       return updateMessage(messages, id, event, (message) => {
         const full = str(data.text);
-        if (!full) return message;
+        if (!full && !data.light) return message;
         return upsertText(message, "reasoning", ordinal, () => full, Boolean(data.light));
       });
 
@@ -292,7 +292,7 @@ export function applyEvent(messages: Message[], event: StreamEvent): Message[] {
           executed: Boolean(data.executed),
           state: {
             status: "running",
-            input: data.input ?? part.state.input,
+            input: data.light ? undefined : (data.input ?? part.state.input),
             metadata: {},
           },
         })),

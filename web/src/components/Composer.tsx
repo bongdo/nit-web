@@ -8,6 +8,7 @@ import {
   Mic,
   Paperclip,
   Square,
+  Undo2,
   X,
 } from "lucide-react";
 import type { FormInfo, Session } from "../lib/types";
@@ -15,8 +16,9 @@ import { encodeWav } from "../lib/audio";
 import { api } from "../lib/api";
 import { questionField } from "../lib/forms";
 import { formatBytes, quoteText } from "../lib/format";
-import { applyIssue, issueAtCaret, issueKey, type SpellIssue } from "../lib/spell";
+import { applyIssue, issueAtCaret, issueKey, maskedAt, safeAutoFix, type SpellIssue } from "../lib/spell";
 import { useSpellcheck } from "../hooks/useSpellcheck";
+import { checkSpelling } from "../lib/spell-client";
 import { cn } from "../lib/utils";
 import { COMPOSER_TEXT, ComposerHighlights, type HintRect } from "./ComposerHighlights";
 import { Button } from "./ui/button";
@@ -35,6 +37,13 @@ export type ComposerCommand = {
   id: string;
   label: string;
   description: string;
+};
+
+type AutoFix = {
+  original: string;
+  replacement: string;
+  start: number;
+  at: number;
 };
 
 const MAX_UPLOAD = 25 << 20;
@@ -66,6 +75,7 @@ export function Composer({
   commands,
   dictationMode,
   spellcheck,
+  autofix,
   form,
   onSend,
   onStop,
@@ -83,6 +93,7 @@ export function Composer({
   commands: ComposerCommand[];
   dictationMode: "fast" | "accurate";
   spellcheck: boolean;
+  autofix: boolean;
   form?: FormInfo | null;
   onSend: (text: string, attachments: Attachment[], delivery?: "queue" | "steer") => Promise<void>;
   onStop: () => void;
@@ -101,6 +112,7 @@ export function Composer({
   const [commandIndex, setCommandIndex] = useState(0);
   const [commandDismissed, setCommandDismissed] = useState(false);
   const [ignored, setIgnored] = useState<string[]>(loadIgnoredWords);
+  const [undoFix, setUndoFix] = useState<AutoFix | null>(null);
   const [caret, setCaret] = useState<number | null>(null);
   const [dismissed, setDismissed] = useState<string | null>(null);
   const [hintRect, setHintRect] = useState<HintRect | null>(null);
@@ -109,6 +121,7 @@ export function Composer({
   const [formError, setFormError] = useState<string | null>(null);
   const ref = useRef<HTMLTextAreaElement>(null);
   const highlightRef = useRef<HTMLDivElement>(null);
+  const autoCorrectPending = useRef(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const draftBeforeForm = useRef("");
   const activeForm = useRef<string | null>(null);
@@ -259,6 +272,12 @@ export function Composer({
   }, []);
 
   useEffect(() => {
+    if (!undoFix) return;
+    const timer = window.setTimeout(() => setUndoFix(null), 10_000);
+    return () => window.clearTimeout(timer);
+  }, [undoFix]);
+
+  useEffect(() => {
     setCommandIndex(0);
     setCommandDismissed(false);
   }, [value]);
@@ -305,6 +324,58 @@ export function Composer({
       const next = [...current, clean];
       localStorage.setItem("nit-gui.spell-ignore", JSON.stringify(next));
       return next;
+    });
+  };
+
+  const autoFixWord = async (start: number, end: number, word: string) => {
+    if (!autofix || !spellcheck) return;
+    const started = Date.now();
+    const found = await checkSpelling(word, ignored);
+    if (Date.now() - started > 1500 || !autofix || !spellcheck) return;
+    const issue = found.find((item) => item.start === 0 && item.end === word.length);
+    const fix = issue ? safeAutoFix(word, issue.suggestions) : null;
+    if (!fix) return;
+    const area = ref.current;
+    if (!area || area.value.slice(start, end) !== word) return;
+    const caretNow = area.selectionStart;
+    const next = area.value.slice(0, start) + fix + area.value.slice(end);
+    const shift = fix.length - word.length;
+    const nextCaret = caretNow >= end ? caretNow + shift : caretNow;
+    setValue(next);
+    setCaret(nextCaret);
+    setDismissed(null);
+    setHintRect(null);
+    setUndoFix({ original: word, replacement: fix, start, at: Date.now() });
+    requestAnimationFrame(() => {
+      const current = ref.current;
+      if (!current) return;
+      current.focus();
+      current.setSelectionRange(nextCaret, nextCaret);
+    });
+  };
+
+  const revertAutoFix = () => {
+    const fix = undoFix;
+    const area = ref.current;
+    if (!fix || !area) return;
+    const end = fix.start + fix.replacement.length;
+    if (area.value.slice(fix.start, end) !== fix.replacement) {
+      setUndoFix(null);
+      return;
+    }
+    const next = area.value.slice(0, fix.start) + fix.original + area.value.slice(end);
+    const shift = fix.original.length - fix.replacement.length;
+    const caretNow = area.selectionStart;
+    const nextCaret = caretNow >= end ? caretNow + shift : caretNow;
+    setValue(next);
+    setCaret(nextCaret);
+    ignoreWord(fix.original);
+    setUndoFix(null);
+    requestAnimationFrame(() => {
+      const current = ref.current;
+      if (!current) return;
+      current.focus();
+      current.setSelectionRange(nextCaret, nextCaret);
     });
   };
 
@@ -587,6 +658,21 @@ export function Composer({
             }
           }}
         >
+          {undoFix && (
+            <div className="absolute -top-9 right-3 z-20">
+              <button
+                type="button"
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={revertAutoFix}
+                title={`Restore ${undoFix.original}`}
+                aria-label={`Restore ${undoFix.original}`}
+                className="border-border bg-popover text-muted-foreground hover:text-foreground flex items-center gap-1 rounded-md border px-2 py-1 text-[11px] shadow-lg"
+              >
+                <Undo2 className="size-3.5" />
+                {undoFix.original}
+              </button>
+            </div>
+          )}
           {paletteOpen && (
             <div className="border-border bg-popover absolute inset-x-2 bottom-full z-20 mb-2 max-h-64 overflow-y-auto rounded-lg border p-1 shadow-lg">
               {matches.map((item, index) => (
@@ -742,13 +828,26 @@ export function Composer({
                   "block scrollbar-none max-h-[200px] min-h-[44px] overflow-y-auto",
                 )}
                 onChange={(event) => {
-                  setValue(event.target.value);
-                  setCaret(
-                    event.target.selectionStart === event.target.selectionEnd
-                      ? event.target.selectionStart
-                      : null,
-                  );
+                  const next = event.target.value;
+                  const pending = autoCorrectPending.current;
+                  autoCorrectPending.current = false;
+                  setValue(next);
+                  const caretNow = event.target.selectionStart;
+                  setCaret(caretNow === event.target.selectionEnd ? caretNow : null);
                   setDismissed(null);
+                  if (!pending || !autofix || !spellcheck) return;
+                  if (caretNow !== next.length || !next.endsWith(" ")) return;
+                  if (next.startsWith("/") && !next.includes("\n")) return;
+                  const end = next.length - 1;
+                  const match = /(\p{L}[\p{L}\p{M}]*(?:['’\-]\p{L}[\p{L}\p{M}]*)*)$/u.exec(
+                    next.slice(0, end),
+                  );
+                  if (!match) return;
+                  const word = match[1];
+                  const start = end - word.length;
+                  if (maskedAt(next, start)) return;
+                  if (ignored.includes(word.toLowerCase())) return;
+                  void autoFixWord(start, end, word);
                 }}
                 onScroll={syncScroll}
                 onSelect={updateCaret}
@@ -765,6 +864,34 @@ export function Composer({
                   }
                 }}
                 onKeyDown={(event) => {
+                  if (
+                    (event.metaKey || event.ctrlKey) &&
+                    event.key.toLowerCase() === "z" &&
+                    !event.shiftKey &&
+                    undoFix
+                  ) {
+                    const area = ref.current;
+                    const end = undoFix.start + undoFix.replacement.length;
+                    if (
+                      area &&
+                      Math.abs(area.selectionStart - end) <= 1 &&
+                      area.value.slice(undoFix.start, end) === undoFix.replacement
+                    ) {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      revertAutoFix();
+                      return;
+                    }
+                  }
+                  if (
+                    event.key === " " &&
+                    !event.nativeEvent.isComposing &&
+                    !event.metaKey &&
+                    !event.ctrlKey &&
+                    !event.altKey
+                  ) {
+                    autoCorrectPending.current = true;
+                  }
                   if (paletteOpen) {
                     if (event.key === "ArrowDown") {
                       event.preventDefault();

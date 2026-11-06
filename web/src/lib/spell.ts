@@ -322,3 +322,37 @@ export function mergeIssues(spelling: SpellIssue[], grammar: SpellIssue[]): Spel
   }
   return result.sort((left, right) => left.start - right.start || right.end - left.end);
 }
+
+export function levenshtein(left: string, right: string): number {
+  if (left === right) return 0;
+  if (left.length === 0) return right.length;
+  if (right.length === 0) return left.length;
+  let previous = Array.from({ length: right.length + 1 }, (_, index) => index);
+  for (let row = 1; row <= left.length; row += 1) {
+    const current = [row];
+    for (let column = 1; column <= right.length; column += 1) {
+      current[column] = Math.min(
+        previous[column] + 1,
+        current[column - 1] + 1,
+        previous[column - 1] + (left[row - 1] === right[column - 1] ? 0 : 1),
+      );
+    }
+    previous = current;
+  }
+  return previous[right.length];
+}
+
+export function safeAutoFix(word: string, suggestions: string[]): string | null {
+  if (word.length < 4 || word.includes("-") || word !== word.toLowerCase()) return null;
+  const lower = word.toLowerCase();
+  const candidates = Array.from(new Set(suggestions))
+    .map((item) => item.trim())
+    .filter((item) => item && item.toLowerCase() !== lower)
+    .filter((item) => levenshtein(lower, item.toLowerCase()) === 1);
+  return candidates.length === 1 ? candidates[0] : null;
+}
+
+export function maskedAt(text: string, index: number): boolean {
+  if (index < 0 || index >= text.length) return false;
+  return maskCode(text)[index] === " " && text[index] !== " ";
+}

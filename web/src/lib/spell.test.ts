@@ -5,8 +5,11 @@ import {
   grammarIssues,
   issueAtCaret,
   languageOf,
+  levenshtein,
   maskCode,
+  maskedAt,
   mergeIssues,
+  safeAutoFix,
   words,
   type SpellChecker,
 } from "./spell";
@@ -175,5 +178,28 @@ describe("spell", () => {
     const merged = mergeIssues(spelling, grammar);
     expect(merged).toHaveLength(1);
     expect(merged[0].source).toBe("spell");
+  });
+
+  it("measures edit distance", () => {
+    expect(levenshtein("хочю", "хочу")).toBe(1);
+    expect(levenshtein("grammer", "grammar")).toBe(1);
+    expect(levenshtein("граматики", "грамматики")).toBe(1);
+    expect(levenshtein("кот", "кто")).toBe(2);
+  });
+
+  it("auto-fixes only unambiguous lowercase words", () => {
+    expect(safeAutoFix("граматики", ["грамматики", "грамотеи"])).toBe("грамматики");
+    expect(safeAutoFix("grammer", ["grammar"])).toBe("grammar");
+    expect(safeAutoFix("grammer", ["grammar", "grimmer"])).toBeNull();
+    expect(safeAutoFix("хочю", ["холю", "хорю", "хочу"])).toBeNull();
+    expect(safeAutoFix("Хочю", ["хочу"])).toBeNull();
+    expect(safeAutoFix("кот", ["кто"])).toBeNull();
+    expect(safeAutoFix("кто-то", ["кто-то"])).toBeNull();
+  });
+
+  it("detects code and path positions", () => {
+    expect(maskedAt("run `bin/check`", 5)).toBe(true);
+    expect(maskedAt("run bin/check", 4)).toBe(true);
+    expect(maskedAt("hello world", 0)).toBe(false);
   });
 });

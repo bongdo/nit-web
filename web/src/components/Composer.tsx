@@ -23,6 +23,7 @@ import { useSpellcheck } from "../hooks/useSpellcheck";
 import { checkSpelling } from "../lib/spell-client";
 import { cn } from "../lib/utils";
 import { FileTypeIcon } from "./Attachment";
+import { CommandPalette } from "./CommandPalette";
 import { COMPOSER_TEXT, ComposerHighlights, type HintRect } from "./ComposerHighlights";
 import { Button } from "./ui/button";
 import { Textarea } from "./ui/textarea";
@@ -137,6 +138,7 @@ export const Composer = memo(function Composer({
   const [formOpen, setFormOpen] = useState(true);
   const [formBusy, setFormBusy] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  const [removing, setRemoving] = useState<string[]>([]);
   const ref = useRef<HTMLTextAreaElement>(null);
   const highlightRef = useRef<HTMLDivElement>(null);
   const autoCorrectPending = useRef(false);
@@ -145,6 +147,8 @@ export const Composer = memo(function Composer({
   const activeForm = useRef<string | null>(null);
   const appliedDraft = useRef<number | null>(null);
   const appliedInsert = useRef<number | null>(null);
+  const addedDelay = useRef(new Map<string, number>());
+  const removeTimers = useRef(new Set<number>());
   const question = form ? questionField(form) : null;
   const option = question?.options?.find((item) => item.value === value) ?? null;
   const answerText = option ? "" : value;
@@ -224,6 +228,13 @@ export const Composer = memo(function Composer({
       window.clearInterval(state.timer);
       for (const track of state.stream.getTracks()) track.stop();
       void state.context.close().catch(() => undefined);
+    },
+    [],
+  );
+
+  useEffect(
+    () => () => {
+      for (const timer of removeTimers.current) window.clearTimeout(timer);
     },
     [],
   );
@@ -459,7 +470,9 @@ export const Composer = memo(function Composer({
     if (!workspace) {
       onError("Choose a workspace before attaching files.");
       return;
-    }    for (const file of files) {
+    }
+    let offset = 0;
+    for (const file of files) {
       if (file.size > MAX_UPLOAD) {
         onError(`${file.name} is larger than ${formatBytes(MAX_UPLOAD)}.`);
         continue;
@@ -467,6 +480,8 @@ export const Composer = memo(function Composer({
       const id = attachmentId();
       const preview = file.type.startsWith("image/") ? URL.createObjectURL(file) : undefined;
       const warning = attachmentWarning({ name: file.name, mime: file.type }, model);
+      addedDelay.current.set(id, offset * 35);
+      offset += 1;
       setAttachments((current) => [
         ...current,
         { id, name: file.name || "file", size: file.size, mime: file.type, preview },
@@ -492,11 +507,19 @@ export const Composer = memo(function Composer({
   };
 
   const removeAttachment = (id: string) => {
-    setAttachments((current) => {
-      const found = current.find((item) => item.id === id);
-      if (found?.preview) URL.revokeObjectURL(found.preview);
-      return current.filter((item) => item.id !== id);
-    });
+    if (removing.includes(id)) return;
+    setRemoving((current) => [...current, id]);
+    const timer = window.setTimeout(() => {
+      removeTimers.current.delete(timer);
+      setAttachments((current) => {
+        const found = current.find((item) => item.id === id);
+        if (found?.preview) URL.revokeObjectURL(found.preview);
+        return current.filter((item) => item.id !== id);
+      });
+      setRemoving((current) => current.filter((item) => item !== id));
+      addedDelay.current.delete(id);
+    }, 160);
+    removeTimers.current.add(timer);
   };
 
   const enqueueSegment = (chunks: Float32Array[], rate: number) => {
@@ -635,8 +658,9 @@ export const Composer = memo(function Composer({
     else if (!finishing) void startDictation();
   };
 
-  const uploading = attachments.some((item) => !item.path && !item.error);
-  const readyFiles = attachments.filter((item) => item.path && !item.error);
+  const visibleAttachments = attachments.filter((item) => !removing.includes(item.id));
+  const uploading = visibleAttachments.some((item) => !item.path && !item.error);
+  const readyFiles = visibleAttachments.filter((item) => item.path && !item.error);
 
   const submit = async () => {
     const text = value.trim();
@@ -653,6 +677,8 @@ export const Composer = memo(function Composer({
       for (const item of attachments) {
         if (item.preview) URL.revokeObjectURL(item.preview);
       }
+      setRemoving([]);
+      addedDelay.current.clear();
       setAttachments([]);
     } catch {
       return;
@@ -740,29 +766,13 @@ export const Composer = memo(function Composer({
             }
           }}
         >
-          {paletteOpen && (
-            <div className="border-border bg-popover absolute inset-x-2 bottom-full z-20 mb-2 max-h-64 overflow-y-auto rounded-lg border p-1 shadow-lg">
-              {matches.map((item, index) => (
-                <button
-                  key={item.id}
-                  type="button"
-                  onMouseDown={(event) => {
-                    event.preventDefault();
-                    runCommand(item.id);
-                  }}
-                  className={cn(
-                    "flex w-full items-baseline gap-2 rounded px-2 py-1.5 text-left",
-                    index === commandIndex ? "bg-accent" : "hover:bg-accent/60",
-                  )}
-                >
-                  <span className="font-mono text-xs">/{item.id}</span>
-                  <span className="text-muted-foreground truncate text-[11px]">
-                    {item.description}
-                  </span>
-                </button>
-              ))}
-            </div>
-          )}
+          <CommandPalette
+            open={paletteOpen}
+            items={matches}
+            selected={commandIndex}
+            onSelect={runCommand}
+            onHighlight={setCommandIndex}
+          />
 
           {form && question && (
             <div className="border-border border-b">
@@ -845,11 +855,13 @@ export const Composer = memo(function Composer({
                   <span
                     key={item.id}
                     className={cn(
-                      "border-border bg-muted/40 flex max-w-full items-center gap-1.5 rounded-md border px-1.5 py-1 text-[11px]",
+                      "attach-sheen-chip border-border bg-muted/40 flex max-w-full items-center gap-1.5 rounded-md border px-1.5 py-1 text-[11px]",
                       item.error && "border-destructive/50",
                       warning && "border-amber-500/60",
+                      removing.includes(item.id) && "attach-sheen-leave",
                     )}
                     title={item.error ?? warning ?? item.name}
+                    style={{ animationDelay: `${addedDelay.current.get(item.id) ?? 0}ms` }}
                   >
                     {item.preview ? (
                       <img src={item.preview} alt="" className="size-5 rounded object-cover" />
@@ -867,6 +879,7 @@ export const Composer = memo(function Composer({
                     <button
                       type="button"
                       onClick={() => removeAttachment(item.id)}
+                      disabled={removing.includes(item.id)}
                       aria-label={`Remove ${item.name}`}
                       className="hover:bg-accent rounded p-0.5"
                     >

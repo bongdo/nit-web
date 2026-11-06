@@ -574,3 +574,1167 @@
     }
   }
 }
+
+@layer components {
+  .row-sheen-turn-line {
+    display: block;
+    width: 100%;
+    height: 1px;
+    background: linear-gradient(
+      90deg,
+      transparent,
+      color-mix(in oklab, white 45%, var(--spark)) 50%,
+      transparent
+    );
+    transform-origin: center;
+    animation: row-sheen-turn 320ms cubic-bezier(0.22, 0.7, 0.2, 1) both;
+  }
+
+  .row-sheen-copy {
+    --sweep: var(--success);
+    position: relative;
+    min-width: 4.75rem;
+    overflow: hidden;
+  }
+
+  .row-sheen-copy > * {
+    position: relative;
+    z-index: 1;
+  }
+
+  .row-sheen-copy-on::after {
+    content: "";
+    position: absolute;
+    inset: 0 -60%;
+    pointer-events: none;
+    background: linear-gradient(
+      100deg,
+      transparent 42%,
+      color-mix(in oklab, white 55%, var(--sweep)) 48%,
+      color-mix(in oklab, white 18%, var(--sweep)) 52%,
+      transparent 58%
+    );
+    opacity: 0;
+    transform: translateX(-120%);
+    animation: row-sheen-glint 900ms cubic-bezier(0.22, 0.7, 0.2, 1) both;
+  }
+
+  .row-sheen-copy-on > svg {
+    transform-origin: center;
+    animation: row-sheen-check 420ms cubic-bezier(0.22, 0.7, 0.2, 1) both;
+  }
+
+  .row-sheen-copy-on > span {
+    animation: row-sheen-label 1500ms cubic-bezier(0.22, 0.7, 0.2, 1) both;
+  }
+
+  .row-sheen-tool-live > summary,
+  .row-sheen-tool-done > summary,
+  .row-sheen-tool-error > summary {
+    position: relative;
+    overflow: hidden;
+  }
+
+  .row-sheen-tool-live > summary::after {
+    content: "";
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    height: 1px;
+    background: linear-gradient(
+      100deg,
+      transparent 42%,
+      color-mix(in oklab, white 55%, var(--spark)) 48%,
+      color-mix(in oklab, white 18%, var(--spark)) 52%,
+      transparent 58%
+    );
+    animation: row-sheen-glint 3.6s cubic-bezier(0.22, 0.7, 0.2, 1) infinite;
+  }
+
+  .row-sheen-tool-done > summary::after,
+  .row-sheen-tool-error > summary::after {
+    content: "";
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    height: 1px;
+    transform-origin: center;
+    animation: row-sheen-settle 900ms cubic-bezier(0.22, 0.7, 0.2, 1) both;
+  }
+
+  .row-sheen-tool-done > summary::after {
+    background: linear-gradient(
+      90deg,
+      transparent,
+      color-mix(in oklab, white 30%, var(--success)) 50%,
+      transparent
+    );
+  }
+
+  .row-sheen-tool-error > summary::after {
+    background: linear-gradient(90deg, transparent, var(--destructive) 50%, transparent);
+  }
+
+  .row-sheen-tool-done .row-sheen-tool-check {
+    transform-origin: center;
+    animation: row-sheen-check 420ms cubic-bezier(0.22, 0.7, 0.2, 1) both;
+  }
+
+  .row-sheen-thinking {
+    --sweep: var(--spark);
+    position: relative;
+    display: inline-block;
+    overflow: hidden;
+    border-radius: 2px;
+  }
+
+  .row-sheen-thinking::after {
+    content: "";
+    position: absolute;
+    inset: 0 -60%;
+    pointer-events: none;
+    background: linear-gradient(
+      100deg,
+      transparent 42%,
+      color-mix(in oklab, white 55%, var(--sweep)) 48%,
+      color-mix(in oklab, white 18%, var(--sweep)) 52%,
+      transparent 58%
+    );
+    opacity: 0;
+    transform: translateX(-120%);
+    animation: row-sheen-shimmer 3.2s cubic-bezier(0.22, 0.7, 0.2, 1) infinite;
+  }
+
+  .row-sheen-thought {
+    display: inline-block;
+    animation: row-sheen-thought 520ms cubic-bezier(0.22, 0.7, 0.2, 1) both;
+  }
+
+  .row-sheen-lang {
+    animation: row-sheen-lang 240ms ease-out both;
+  }
+
+  .row-sheen-preview-frame {
+    display: block;
+    opacity: 0;
+    transform: translateY(2px);
+    transition:
+      opacity 320ms cubic-bezier(0.22, 0.7, 0.2, 1),
+      transform 320ms cubic-bezier(0.22, 0.7, 0.2, 1);
+  }
+
+  .row-sheen-preview-ready .row-sheen-preview-frame {
+    opacity: 1;
+    transform: none;
+  }
+
+  .row-sheen-preview-scan {
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    pointer-events: none;
+    background: linear-gradient(
+      180deg,
+      transparent 40%,
+      color-mix(in oklab, white 45%, var(--spark)) 49%,
+      color-mix(in oklab, white 14%, var(--spark)) 51%,
+      transparent 60%
+    );
+    opacity: 0;
+    transform: translateY(-100%);
+    animation: row-sheen-scan 3.6s cubic-bezier(0.22, 0.7, 0.2, 1) infinite;
+  }
+
+  .row-sheen-preview-trace {
+    position: absolute;
+    inset: 0;
+    z-index: 3;
+    pointer-events: none;
+    border-radius: inherit;
+    opacity: 0;
+  }
+
+  .row-sheen-preview-ready .row-sheen-preview-trace {
+    box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--spark) 45%, transparent);
+    animation: row-sheen-trace-glow 900ms ease-out both;
+  }
+
+  .row-sheen-preview-ready .row-sheen-preview-trace::before,
+  .row-sheen-preview-ready .row-sheen-preview-trace::after {
+    content: "";
+    position: absolute;
+    right: 0;
+    left: 0;
+    height: 1px;
+    background: linear-gradient(
+      90deg,
+      transparent,
+      color-mix(in oklab, white 35%, var(--spark)) 50%,
+      transparent
+    );
+    transform: scaleX(0);
+    animation: row-sheen-trace 700ms cubic-bezier(0.22, 0.7, 0.2, 1) both;
+  }
+
+  .row-sheen-preview-ready .row-sheen-preview-trace::before {
+    top: 0;
+    transform-origin: left;
+  }
+
+  .row-sheen-preview-ready .row-sheen-preview-trace::after {
+    bottom: 0;
+    transform-origin: right;
+    animation-delay: 80ms;
+  }
+}
+
+@layer utilities {
+  @keyframes row-sheen-turn {
+    from {
+      opacity: 0;
+      transform: scaleX(0);
+    }
+    to {
+      opacity: 1;
+      transform: scaleX(1);
+    }
+  }
+
+  @keyframes row-sheen-glint {
+    0%,
+    10% {
+      opacity: 0;
+      transform: translateX(-120%);
+    }
+    18% {
+      opacity: 1;
+    }
+    36% {
+      opacity: 0;
+      transform: translateX(120%);
+    }
+    100% {
+      opacity: 0;
+      transform: translateX(120%);
+    }
+  }
+
+  @keyframes row-sheen-check {
+    from {
+      opacity: 0;
+      transform: scale(0.7);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
+
+  @keyframes row-sheen-label {
+    0% {
+      opacity: 0;
+      transform: translateY(2px);
+    }
+    12%,
+    72% {
+      opacity: 1;
+      transform: none;
+    }
+    100% {
+      opacity: 0;
+      transform: translateY(-2px);
+    }
+  }
+
+  @keyframes row-sheen-settle {
+    0% {
+      opacity: 0;
+      transform: scaleX(0.2);
+    }
+    20% {
+      opacity: 0.9;
+      transform: scaleX(1);
+    }
+    100% {
+      opacity: 0;
+      transform: scaleX(1);
+    }
+  }
+
+  @keyframes row-sheen-shimmer {
+    0%,
+    55% {
+      opacity: 0;
+      transform: translateX(-120%);
+    }
+    64% {
+      opacity: 0.5;
+    }
+    84% {
+      opacity: 0;
+      transform: translateX(120%);
+    }
+    100% {
+      opacity: 0;
+      transform: translateX(120%);
+    }
+  }
+
+  @keyframes row-sheen-thought {
+    from {
+      opacity: 0;
+      transform: translateY(2px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  @keyframes row-sheen-lang {
+    from {
+      opacity: 0;
+      transform: translateY(-2px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  @keyframes row-sheen-scan {
+    0%,
+    12% {
+      opacity: 0;
+      transform: translateY(-100%);
+    }
+    22% {
+      opacity: 0.5;
+    }
+    62% {
+      opacity: 0.3;
+    }
+    78%,
+    100% {
+      opacity: 0;
+      transform: translateY(100%);
+    }
+  }
+
+  @keyframes row-sheen-trace {
+    0% {
+      opacity: 0;
+      transform: scaleX(0);
+    }
+    15% {
+      opacity: 1;
+    }
+    100% {
+      opacity: 0;
+      transform: scaleX(1);
+    }
+  }
+
+  @keyframes row-sheen-trace-glow {
+    0% {
+      opacity: 0;
+    }
+    25% {
+      opacity: 1;
+    }
+    100% {
+      opacity: 0;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .row-sheen-turn-line,
+    .row-sheen-copy-on::after,
+    .row-sheen-copy-on > svg,
+    .row-sheen-copy-on > span,
+    .row-sheen-tool-live > summary::after,
+    .row-sheen-tool-done > summary::after,
+    .row-sheen-tool-error > summary::after,
+    .row-sheen-tool-done .row-sheen-tool-check,
+    .row-sheen-thinking::after,
+    .row-sheen-thought,
+    .row-sheen-lang,
+    .row-sheen-preview-scan,
+    .row-sheen-preview-ready .row-sheen-preview-trace,
+    .row-sheen-preview-ready .row-sheen-preview-trace::before,
+    .row-sheen-preview-ready .row-sheen-preview-trace::after {
+      animation: none;
+    }
+
+    .row-sheen-turn-line {
+      opacity: 1;
+      transform: none;
+    }
+
+    .row-sheen-copy-on::after,
+    .row-sheen-tool-live > summary::after,
+    .row-sheen-tool-done > summary::after,
+    .row-sheen-tool-error > summary::after,
+    .row-sheen-thinking::after,
+    .row-sheen-preview-scan,
+    .row-sheen-preview-trace {
+      opacity: 0;
+    }
+
+    .row-sheen-preview-frame {
+      opacity: 1;
+      transform: none;
+      transition: none;
+    }
+  }
+}
+
+
+@layer components {
+  .chrome-sheen-context {
+    position: relative;
+  }
+
+  .chrome-sheen-context-fill {
+    background-color: color-mix(in oklab, var(--foreground) 38%, transparent);
+    transform-origin: left center;
+    transition:
+      transform 600ms cubic-bezier(0.22, 0.7, 0.2, 1),
+      background-color 400ms ease;
+  }
+
+  .chrome-sheen-context-hot {
+    --sweep: var(--attention);
+  }
+
+  .chrome-sheen-context-hot .chrome-sheen-context-fill {
+    background-color: color-mix(in oklab, var(--attention) 78%, transparent);
+  }
+
+  .chrome-sheen-context-hot::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background: linear-gradient(
+      100deg,
+      transparent 42%,
+      color-mix(in oklab, white 55%, var(--sweep)) 48%,
+      color-mix(in oklab, white 18%, var(--sweep)) 52%,
+      transparent 58%
+    );
+    opacity: 0;
+    transform: translateX(-120%);
+    animation: chrome-sheen-context-shimmer 5.2s cubic-bezier(0.22, 0.7, 0.2, 1) infinite;
+  }
+
+  .chrome-sheen-context-sweep {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background: linear-gradient(
+      100deg,
+      transparent 30%,
+      color-mix(in oklab, white 55%, var(--spark)) 50%,
+      transparent 70%
+    );
+    opacity: 0;
+    transform: translateX(-120%);
+    animation: chrome-sheen-context-reset 900ms cubic-bezier(0.22, 0.7, 0.2, 1) 120ms both;
+  }
+
+  .chrome-sheen-latest::after {
+    content: "";
+    position: absolute;
+    inset: -1px;
+    border-radius: inherit;
+    pointer-events: none;
+    opacity: 0;
+    animation: chrome-sheen-latest 640ms cubic-bezier(0.22, 0.7, 0.2, 1) both;
+  }
+
+  .chrome-sheen-error {
+    --sweep: var(--destructive);
+    position: relative;
+  }
+
+  .chrome-sheen-error::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    right: 0;
+    left: 0;
+    height: 1px;
+    pointer-events: none;
+    background: linear-gradient(
+      90deg,
+      transparent 30%,
+      color-mix(in oklab, white 55%, var(--sweep)) 48%,
+      color-mix(in oklab, white 18%, var(--sweep)) 52%,
+      transparent 70%
+    );
+    opacity: 0;
+    transform: translateX(-120%);
+    animation: chrome-sheen-error-line 900ms cubic-bezier(0.22, 0.7, 0.2, 1) 100ms both;
+  }
+
+  .chrome-sheen-error-progress {
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    height: 1px;
+    pointer-events: none;
+    background: color-mix(in oklab, var(--destructive) 50%, transparent);
+    transform-origin: left center;
+    animation: chrome-sheen-error-progress 10s linear both;
+  }
+
+  .chrome-sheen-chip {
+    position: relative;
+  }
+
+  .chrome-sheen-chip-in {
+    animation: chrome-sheen-chip-in 240ms cubic-bezier(0.22, 0.7, 0.2, 1) both;
+  }
+
+  .chrome-sheen-chip-out {
+    animation: chrome-sheen-chip-out 240ms cubic-bezier(0.22, 0.7, 0.2, 1) both;
+  }
+
+  .chrome-sheen-chip-line {
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    height: 1px;
+    pointer-events: none;
+    background: linear-gradient(
+      90deg,
+      transparent,
+      color-mix(in oklab, white 40%, var(--spark)),
+      transparent
+    );
+    opacity: 0;
+    transform: translateX(-110%);
+    animation: chrome-sheen-chip-line 620ms cubic-bezier(0.22, 0.7, 0.2, 1) both;
+  }
+
+  .chrome-sheen-health {
+    position: relative;
+    overflow: hidden;
+  }
+
+  .chrome-sheen-health > svg {
+    position: relative;
+    z-index: 1;
+  }
+
+  .chrome-sheen-health-offline::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background: radial-gradient(
+      circle at 50% 50%,
+      color-mix(in oklab, var(--destructive) 42%, transparent),
+      transparent 72%
+    );
+    opacity: 0.1;
+    animation: chrome-sheen-health-breathe 4.8s ease-in-out infinite;
+  }
+
+  .chrome-sheen-health-sweep {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    background: linear-gradient(
+      100deg,
+      transparent 42%,
+      color-mix(in oklab, white 55%, var(--success)) 48%,
+      color-mix(in oklab, white 18%, var(--success)) 52%,
+      transparent 58%
+    );
+    opacity: 0;
+    transform: translateX(-120%);
+    animation: chrome-sheen-health-sweep 900ms cubic-bezier(0.22, 0.7, 0.2, 1) both;
+  }
+
+  .chrome-sheen-empty {
+    position: relative;
+  }
+
+  .chrome-sheen-empty::before {
+    content: "";
+    position: absolute;
+    inset: -3px;
+    border-radius: inherit;
+    pointer-events: none;
+    background: radial-gradient(
+      circle at 50% 50%,
+      color-mix(in oklab, var(--spark) 45%, transparent),
+      transparent 72%
+    );
+    opacity: 0.14;
+    animation: chrome-sheen-empty 6s ease-in-out infinite;
+  }
+
+  .chrome-sheen-row {
+    position: relative;
+    overflow: hidden;
+  }
+
+  .chrome-sheen-row::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    pointer-events: none;
+    background: linear-gradient(
+      100deg,
+      transparent 42%,
+      color-mix(in oklab, white 55%, var(--spark)) 48%,
+      color-mix(in oklab, white 18%, var(--spark)) 52%,
+      transparent 58%
+    );
+    opacity: 0;
+    transform: translateX(-120%);
+  }
+
+  .chrome-sheen-row:hover::after {
+    animation: chrome-sheen-row 760ms cubic-bezier(0.22, 0.7, 0.2, 1);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .chrome-sheen-context-fill {
+      transition: none;
+    }
+
+    .chrome-sheen-context-hot::after,
+    .chrome-sheen-context-sweep,
+    .chrome-sheen-latest::after,
+    .chrome-sheen-error::after,
+    .chrome-sheen-error-progress,
+    .chrome-sheen-chip-in,
+    .chrome-sheen-chip-out,
+    .chrome-sheen-chip-line,
+    .chrome-sheen-health-offline::before,
+    .chrome-sheen-health-sweep,
+    .chrome-sheen-empty::before,
+    .chrome-sheen-row:hover::after {
+      animation: none;
+    }
+
+    .chrome-sheen-context-sweep,
+    .chrome-sheen-latest::after,
+    .chrome-sheen-error::after,
+    .chrome-sheen-chip-out,
+    .chrome-sheen-health-sweep,
+    .chrome-sheen-row::after {
+      opacity: 0;
+    }
+
+    .chrome-sheen-error-progress {
+      opacity: 0.4;
+      transform: none;
+    }
+
+    .chrome-sheen-health-offline::before {
+      opacity: 0.24;
+    }
+
+    .chrome-sheen-empty::before {
+      opacity: 0.22;
+      transform: none;
+    }
+  }
+}
+
+@layer utilities {
+  @keyframes chrome-sheen-context-shimmer {
+    0%,
+    12% {
+      opacity: 0;
+      transform: translateX(-120%);
+    }
+    20% {
+      opacity: 1;
+    }
+    36% {
+      opacity: 0;
+      transform: translateX(120%);
+    }
+    100% {
+      opacity: 0;
+      transform: translateX(120%);
+    }
+  }
+
+  @keyframes chrome-sheen-context-reset {
+    0% {
+      opacity: 0;
+      transform: translateX(-120%);
+    }
+    22% {
+      opacity: 1;
+    }
+    100% {
+      opacity: 0;
+      transform: translateX(120%);
+    }
+  }
+
+  @keyframes chrome-sheen-latest {
+    0% {
+      box-shadow: 0 0 0 0 color-mix(in oklab, var(--spark) 45%, transparent);
+      opacity: 0;
+    }
+    30% {
+      opacity: 1;
+    }
+    100% {
+      box-shadow: 0 0 0 7px transparent;
+      opacity: 0;
+    }
+  }
+
+  @keyframes chrome-sheen-error-line {
+    0% {
+      opacity: 0;
+      transform: translateX(-120%);
+    }
+    25% {
+      opacity: 0.9;
+    }
+    100% {
+      opacity: 0;
+      transform: translateX(120%);
+    }
+  }
+
+  @keyframes chrome-sheen-error-progress {
+    from {
+      transform: scaleX(1);
+    }
+    to {
+      transform: scaleX(0);
+    }
+  }
+
+  @keyframes chrome-sheen-chip-in {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+
+  @keyframes chrome-sheen-chip-out {
+    from {
+      opacity: 1;
+    }
+    to {
+      opacity: 0;
+    }
+  }
+
+  @keyframes chrome-sheen-chip-line {
+    0% {
+      opacity: 0;
+      transform: translateX(-110%);
+    }
+    30% {
+      opacity: 0.85;
+    }
+    100% {
+      opacity: 0;
+      transform: translateX(110%);
+    }
+  }
+
+  @keyframes chrome-sheen-health-breathe {
+    0%,
+    100% {
+      opacity: 0.1;
+    }
+    50% {
+      opacity: 0.42;
+    }
+  }
+
+  @keyframes chrome-sheen-health-sweep {
+    0% {
+      opacity: 0;
+      transform: translateX(-120%);
+    }
+    24% {
+      opacity: 1;
+    }
+    100% {
+      opacity: 0;
+      transform: translateX(120%);
+    }
+  }
+
+  @keyframes chrome-sheen-empty {
+    0%,
+    100% {
+      opacity: 0.14;
+      transform: scale(0.99);
+    }
+    50% {
+      opacity: 0.5;
+      transform: scale(1.02);
+    }
+  }
+
+  @keyframes chrome-sheen-row {
+    0% {
+      opacity: 0;
+      transform: translateX(-120%);
+    }
+    30% {
+      opacity: 0.5;
+    }
+    100% {
+      opacity: 0;
+      transform: translateX(120%);
+    }
+  }
+}
+
+
+@layer components {
+  .form-sheen-card {
+    --form-sweep: var(--attention);
+    position: relative;
+    overflow: hidden;
+  }
+
+  .form-sheen-card::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 36%;
+    height: 1px;
+    pointer-events: none;
+    background: linear-gradient(
+      100deg,
+      transparent 42%,
+      color-mix(in oklab, white 55%, var(--form-sweep)) 48%,
+      color-mix(in oklab, white 18%, var(--form-sweep)) 52%,
+      transparent 58%
+    );
+    opacity: 0;
+    transform: translateX(-120%);
+  }
+
+  .form-sheen-waiting::after {
+    animation: form-sheen-wait 3.6s cubic-bezier(0.22, 0.7, 0.2, 1) infinite;
+  }
+
+  .form-sheen-card.form-sheen-done {
+    --form-sweep: var(--success);
+  }
+
+  .form-sheen-card.form-sheen-done::after {
+    animation: form-sheen-done 780ms cubic-bezier(0.22, 0.7, 0.2, 1) both;
+  }
+
+  .form-sheen-option,
+  .form-sheen-chosen {
+    position: relative;
+    isolation: isolate;
+  }
+
+  .form-sheen-option {
+    overflow: hidden;
+  }
+
+  .form-sheen-option::after,
+  .form-sheen-chosen::after {
+    content: "";
+    position: absolute;
+    z-index: -1;
+    pointer-events: none;
+    border-radius: inherit;
+    opacity: 0;
+    transform-origin: 0.9rem 50%;
+    background: radial-gradient(
+      circle at 0.9rem 50%,
+      color-mix(in oklab, var(--spark) 30%, transparent),
+      transparent 62%
+    );
+  }
+
+  .form-sheen-option::after {
+    inset: 0;
+  }
+
+  .form-sheen-option:has(input:checked)::after {
+    animation: form-sheen-ripple 300ms cubic-bezier(0.22, 0.7, 0.2, 1) both;
+  }
+
+  .form-sheen-chosen::after {
+    inset: -2px;
+    transform-origin: 0.3rem 55%;
+    background: radial-gradient(
+      circle at 0.3rem 55%,
+      color-mix(in oklab, var(--success) 26%, transparent),
+      transparent 70%
+    );
+    animation: form-sheen-ripple 340ms cubic-bezier(0.22, 0.7, 0.2, 1) both;
+  }
+
+  .form-sheen-check {
+    transform-origin: center;
+    animation: form-sheen-check 360ms cubic-bezier(0.22, 0.7, 0.2, 1) both;
+  }
+
+  .attach-sheen-chip {
+    position: relative;
+    overflow: hidden;
+    animation: attach-sheen-rise 420ms cubic-bezier(0.22, 0.7, 0.2, 1) backwards;
+    transition:
+      opacity 160ms linear,
+      transform 160ms linear;
+  }
+
+  .attach-sheen-chip::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    border-radius: inherit;
+    background: linear-gradient(
+      100deg,
+      transparent 42%,
+      color-mix(in oklab, white 55%, var(--spark)) 48%,
+      color-mix(in oklab, white 18%, var(--spark)) 52%,
+      transparent 58%
+    );
+    opacity: 0;
+    transform: translateX(-120%);
+    animation: attach-sheen-glint 700ms cubic-bezier(0.22, 0.7, 0.2, 1) both;
+    animation-delay: inherit;
+  }
+
+  .attach-sheen-leave {
+    pointer-events: none;
+    opacity: 0;
+    transform: scale(0.9);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .form-sheen-waiting::after,
+    .form-sheen-card.form-sheen-done::after,
+    .form-sheen-option:has(input:checked)::after,
+    .form-sheen-chosen::after,
+    .form-sheen-check,
+    .attach-sheen-chip,
+    .attach-sheen-chip::after {
+      animation: none;
+    }
+
+    .attach-sheen-chip {
+      transition: none;
+    }
+  }
+}
+
+@layer utilities {
+  @keyframes form-sheen-wait {
+    0%,
+    8% {
+      opacity: 0;
+      transform: translateX(-120%);
+    }
+    14%,
+    38% {
+      opacity: 1;
+    }
+    44%,
+    100% {
+      opacity: 0;
+      transform: translateX(360%);
+    }
+  }
+
+  @keyframes form-sheen-done {
+    0% {
+      opacity: 0;
+      transform: translateX(-120%);
+    }
+    18%,
+    72% {
+      opacity: 1;
+    }
+    100% {
+      opacity: 0;
+      transform: translateX(360%);
+    }
+  }
+
+  @keyframes form-sheen-ripple {
+    0% {
+      opacity: 0;
+      transform: scale(0.4);
+    }
+    30% {
+      opacity: 0.75;
+    }
+    100% {
+      opacity: 0;
+      transform: scale(1.15);
+    }
+  }
+
+  @keyframes form-sheen-check {
+    0% {
+      opacity: 0;
+      transform: scale(0.7);
+    }
+    55% {
+      opacity: 1;
+      transform: scale(1.04);
+    }
+    100% {
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
+
+  @keyframes attach-sheen-rise {
+    from {
+      opacity: 0;
+      transform: translateY(4px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  @keyframes attach-sheen-glint {
+    from {
+      opacity: 0;
+      transform: translateX(-120%);
+    }
+    22%,
+    70% {
+      opacity: 1;
+    }
+    to {
+      opacity: 0;
+      transform: translateX(120%);
+    }
+  }
+}
+
+
+@layer components {
+  .palette-sheen-panel {
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transform: translateY(4px) scale(0.99);
+    transform-origin: bottom center;
+    transition:
+      opacity 160ms cubic-bezier(0.22, 0.7, 0.2, 1),
+      transform 160ms cubic-bezier(0.22, 0.7, 0.2, 1),
+      visibility 0s linear 160ms;
+  }
+
+  .palette-sheen-panel[data-open="true"] {
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+    transform: translateY(0) scale(1);
+    transition-delay: 0s;
+  }
+
+  .palette-sheen-highlight {
+    position: absolute;
+    inset-inline: 0;
+    top: 0;
+    z-index: 0;
+    overflow: hidden;
+    border-radius: 0.25rem;
+    background: var(--accent);
+    pointer-events: none;
+    transition: transform 180ms cubic-bezier(0.22, 0.7, 0.2, 1);
+  }
+
+  .palette-sheen-sweep {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    background: linear-gradient(
+      100deg,
+      transparent 42%,
+      color-mix(in oklab, white 55%, var(--spark)) 48%,
+      color-mix(in oklab, white 18%, var(--spark)) 52%,
+      transparent 58%
+    );
+    transform: translateX(-120%);
+    animation: palette-sheen-sweep 720ms cubic-bezier(0.22, 0.7, 0.2, 1) both;
+  }
+
+  .palette-sheen-line {
+    position: absolute;
+    inset-inline: 0;
+    bottom: 0;
+    height: 1px;
+    background: var(--spark);
+    transform: scaleX(1);
+    transform-origin: left;
+    animation: palette-sheen-line 220ms cubic-bezier(0.22, 0.7, 0.2, 1) both;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .palette-sheen-panel,
+    .palette-sheen-highlight {
+      transition: none;
+    }
+
+    .palette-sheen-sweep,
+    .palette-sheen-line {
+      animation: none;
+    }
+  }
+}
+
+@layer utilities {
+  @keyframes palette-sheen-sweep {
+    0% {
+      opacity: 0;
+      transform: translateX(-120%);
+    }
+    7% {
+      opacity: 1;
+    }
+    30% {
+      opacity: 0.85;
+    }
+    40%,
+    100% {
+      opacity: 0;
+      transform: translateX(120%);
+    }
+  }
+
+  @keyframes palette-sheen-line {
+    from {
+      transform: scaleX(0);
+    }
+    to {
+      transform: scaleX(1);
+    }
+  }
+}
+

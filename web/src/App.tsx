@@ -424,6 +424,14 @@ export default function App() {
             try {
               const page = await api.messages(session.id, { light: true });
               if (selectedIdRef.current === session.id) continue;
+              const latest = sessionsRef.current.find((item) => item.id === session.id);
+              if (
+                !latest ||
+                latest.time.updated !== session.time.updated ||
+                (runningIdsRef.current[session.id] ?? sessionRunning(latest))
+              ) {
+                continue;
+              }
               const full = normalizeMessages(page.data);
               const existing = transcriptCache.get(session.id);
               transcriptCache.set(session.id, {

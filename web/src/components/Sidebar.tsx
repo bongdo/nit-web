@@ -158,13 +158,11 @@ function SessionRow({
               {basename(session.location?.directory) || "unknown"}
             </span>
           </div>
-        ) : (
-          session.agent && (
-            <div className="text-muted-foreground truncate pl-3.5 text-[10px]">
-              {session.agent}
-            </div>
-          )
-        )}
+        ) : session.agent ? (
+          <div className="text-muted-foreground truncate pl-3.5 text-[10px]">
+            {session.agent}
+          </div>
+        ) : null}
       </button>
       <div className="absolute top-1 right-1 hidden items-center gap-0.5 group-hover:flex">
         {hidden ? (

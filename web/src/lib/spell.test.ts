@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  allowedWord,
   applyIssue,
   findIssues,
   grammarIssues,
@@ -203,5 +204,11 @@ describe("spell", () => {
     expect(maskedAt("run `bin/check`", 5)).toBe(true);
     expect(maskedAt("run bin/check", 4)).toBe(true);
     expect(maskedAt("hello world", 0)).toBe(false);
+  });
+
+  it("allows the Russian subagent forms", () => {
+    expect(allowedWord("субагенты")).toBe(true);
+    expect(allowedWord("субагентов")).toBe(true);
+    expect(allowedWord("сабагенты")).toBe(false);
   });
 });

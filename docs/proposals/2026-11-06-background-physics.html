@@ -223,6 +223,7 @@ function drawGravity(t) {
   }
 }
 
+const goldTone = (a) => `oklch(${isDark() ? "0.88 0.13 78" : "0.55 0.14 66"} / ${a})`;
 const goldLift = (x, base) => {
   const dx = x - cursor.x;
   const dy = base - cursor.y;
@@ -231,27 +232,22 @@ const goldLift = (x, base) => {
 };
 function drawGold(t) {
   ctx.globalCompositeOperation = isDark() ? "lighter" : "source-over";
-  const bands = 4;
+  const bands = 3;
   for (let i = 0; i < bands; i += 1) {
-    const base = h * (0.14 + i * 0.24);
-    const thick = 170 + (i % 2) * 60;
-    const amp = 24 + i * 9;
+    const base = h * (0.2 + i * 0.3);
+    const thick = 150 + i * 45;
+    const amp = 28 + i * 10;
     const f = 0.0017 + i * 0.0005;
-    const speed = 0.06 + i * 0.015;
+    const speed = 0.05 + i * 0.014;
     const phase = i * 2.1;
     const top = [];
     for (let x = -40; x <= w + 40; x += 14) {
       top.push([x, base + Math.sin(x * f + t * speed + phase) * amp + goldLift(x, base)]);
     }
-    const grad = ctx.createLinearGradient(0, base - thick / 2, 0, base + thick / 2);
-    const stops = isDark()
-      ? [0, 0.24, 0.4, 0.14, 0]
-      : [0, 0.14, 0.24, 0.09, 0];
-    grad.addColorStop(0, spark(0.02));
-    grad.addColorStop(0.16, spark(stops[1] * 0.5));
-    grad.addColorStop(0.32, spark(stops[2]));
-    grad.addColorStop(0.72, spark(stops[3]));
-    grad.addColorStop(1, spark(stops[4]));
+    const grad = ctx.createLinearGradient(0, base, 0, base + thick);
+    grad.addColorStop(0, goldTone(isDark() ? 0.1 : 0.06));
+    grad.addColorStop(0.45, goldTone(isDark() ? 0.02 : 0.02));
+    grad.addColorStop(1, goldTone(isDark() ? 0.07 : 0.04));
     ctx.fillStyle = grad;
     ctx.beginPath();
     for (const [x, y] of top) {
@@ -262,11 +258,21 @@ function drawGold(t) {
     }
     ctx.closePath();
     ctx.fill();
-    ctx.strokeStyle = spark(isDark() ? 0.34 : 0.26);
+    for (const [width, a] of [[7, 0.05], [3, 0.16], [1, 0.66]]) {
+      ctx.lineWidth = width;
+      ctx.strokeStyle = goldTone(isDark() ? a : a * 0.7);
+      ctx.beginPath();
+      for (const [x, y] of top) {
+        if (x === -40) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+    }
     ctx.lineWidth = 1;
+    ctx.strokeStyle = goldTone(isDark() ? 0.14 : 0.1);
     ctx.beginPath();
     for (const [x, y] of top) {
-      if (x === -40) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      const by = y + thick;
+      if (x === -40) ctx.moveTo(x, by); else ctx.lineTo(x, by);
     }
     ctx.stroke();
   }

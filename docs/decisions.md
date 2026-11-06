@@ -228,3 +228,15 @@ Why: the composer is where the user sits, and cycling from there is one keystrok
 Rejected: hijacking Tab inside dialogs and forms (makes those screens unusable from the keyboard).
 
 Cost: header and composer controls are no longer reachable with Tab. Replaces the Tab part of 2026-11-05 — Chat shortcuts.
+
+## 2026-11-06 — Keyboard-only undo and learning dictionary
+
+Context: the `↶ word` toast added visual noise. The user wants a keyboard-only way to reject an auto-fix and wants project words such as `субагенты` to stop being flagged.
+
+Decision: remove the undo toast. `Backspace` at the end of the corrected word or `Ctrl/Cmd+Z` restores it and adds the original to the personal dictionary. A word still flagged when sent three times is learned automatically. Add `субагент` and its Russian forms to the allowlist.
+
+Why: the keyboard gesture is faster than moving to a toast, and repeated sent words are a stronger signal than a single typo. The allowlist fixes the immediate false positive without waiting for learning.
+
+Rejected: keeping the toast, learning a word after one send (would learn typos too), adding every declined form to a hand-written list forever.
+
+Cost: three sends are needed before a new project word is learned; the keyboard undo only works while the correction is recent. The personal dictionary stays in browser `localStorage`, so it is per browser.

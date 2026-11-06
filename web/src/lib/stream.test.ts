@@ -4,7 +4,7 @@ import {
   coalesceEvents,
   lightenEvent,
   lightMessages,
-  lightStepIDs,
+  stepMessageIDs,
   normalizeMessages,
 } from "./stream";
 import type { Message, StreamEvent, ToolPart } from "./types";
@@ -165,7 +165,7 @@ describe("coalesceEvents", () => {
 });
 
 describe("light transcripts", () => {
-  it("strips tool content and trims reasoning", () => {
+  it("keeps visible parts and counts tools and reasoning", () => {
     const long = "r".repeat(400);
     const messages: Message[] = [
       {
@@ -189,38 +189,34 @@ describe("light transcripts", () => {
       },
     ];
     const light = lightMessages(messages);
-    const parts = light[0].content ?? [];
-    expect(parts[0]).toMatchObject({ type: "reasoning", text: "", light: true });
-    expect(parts[1]).toMatchObject({ type: "tool", light: true });
-    expect((parts[1] as ToolPart).state.content).toBeUndefined();
-    expect((parts[1] as ToolPart).state.input).toBeUndefined();
-    expect(parts[2]).toMatchObject({ type: "text", text: "answer" });
+    expect(light[0].content).toEqual([{ type: "text", text: "answer", ordinal: 0 }]);
+    expect(light[0].steps).toBe(2);
+    expect(light[0].tools).toBe(1);
+    expect(light[0].errors).toBeUndefined();
   });
 
-  it("drops tool output from cached events", () => {
-    const next = lightenEvent(
-      event("session.tool.success", {
-        assistantMessageID: "msg_1",
-        id: "t1",
-        content: [{ type: "text", text: "x".repeat(400) }],
-      }),
-    );
-    expect(next?.data.light).toBe(true);
-    expect(next?.data.content).toEqual([]);
+  it("drops tool events from the visible cache", () => {
+    expect(
+      lightenEvent(
+        event("session.tool.success", {
+          assistantMessageID: "msg_1",
+          id: "t1",
+          content: [{ type: "text", text: "x".repeat(400) }],
+        }),
+      ),
+    ).toBeNull();
   });
 
-  it("keeps a light reasoning stub without its text", () => {
-    const next = lightenEvent(
-      event("session.reasoning.ended", {
-        assistantMessageID: "msg_1",
-        ordinal: 0,
-        text: "thinking",
-      }),
-    );
-    expect(next?.data.text).toBe("");
-    const messages = applyEvent([], next as StreamEvent);
-    const part = messages[0].content?.[0] as { type: string; text: string; light?: boolean };
-    expect(part).toMatchObject({ type: "reasoning", text: "", light: true });
+  it("drops reasoning events from the visible cache", () => {
+    expect(
+      lightenEvent(
+        event("session.reasoning.ended", {
+          assistantMessageID: "msg_1",
+          ordinal: 0,
+          text: "thinking",
+        }),
+      ),
+    ).toBeNull();
   });
 
   it("drops reasoning deltas from the cache", () => {
@@ -482,12 +478,13 @@ describe("light transcripts", () => {
     expect(part.state.metadata?.answers).toEqual([["A"]]);
   });
 
-  it("lists messages whose steps are still light", () => {
+  it("lists messages with a step marker and no loaded steps", () => {
     const light = {
       id: "m1",
       type: "assistant",
       time: { created: 1 },
-      content: [{ type: "tool", id: "t1", name: "read", light: true, state: { status: "completed" } }],
+      steps: 2,
+      content: [{ type: "text", text: "answer" }],
     } as Message;
     const full = {
       id: "m2",
@@ -495,46 +492,102 @@ describe("light transcripts", () => {
       time: { created: 2 },
       content: [{ type: "tool", id: "t2", name: "read", state: { status: "completed" } }],
     } as Message;
-    expect(lightStepIDs([light, full])).toEqual(["m1"]);
+    expect(stepMessageIDs([light, full])).toEqual(["m1"]);
   });
 
-  it("does not list a question-only message as a lazy step", () => {
+  it("lists a question with other steps but not a fully loaded message", () => {
     const question = questionTool("q1", {
       status: "completed",
       input: { questions: [{ question: "Pick" }] },
       content: [{ type: "text", text: "User answered: A" }],
       metadata: { answers: [["A"]] },
     });
-    question.light = true;
     const messages: Message[] = [
       {
         id: "m1",
         type: "assistant",
         time: { created: 1 },
+        steps: 2,
         content: [question],
       },
       {
         id: "m2",
         type: "assistant",
         time: { created: 2 },
-        content: [{ type: "reasoning", text: "", light: true }],
+        steps: 1,
+        content: [{ type: "text", text: "answer" }],
       },
       {
         id: "m3",
         type: "assistant",
         time: { created: 3 },
+        steps: 1,
         content: [
           {
             type: "tool",
             id: "t1",
             name: "read",
-            light: true,
             state: { status: "completed" },
           },
         ],
       },
     ];
-    expect(lightStepIDs(messages)).toEqual(["m2", "m3"]);
+    expect(stepMessageIDs(messages)).toEqual(["m1", "m2"]);
+  });
+
+  it("counts errors and keeps a question beside other steps", () => {
+    const question = questionTool("q1", {
+      status: "completed",
+      input: { questions: [{ question: "Pick" }] },
+      content: [{ type: "text", text: "User answered: A" }],
+      metadata: { answers: [["A"]] },
+    });
+    const messages: Message[] = [
+      {
+        id: "m1",
+        type: "assistant",
+        time: { created: 1 },
+        content: [
+          question,
+          { type: "reasoning", text: "thinking", ordinal: 0 },
+          {
+            type: "tool",
+            id: "t1",
+            name: "read",
+            state: { status: "error", error: { message: "boom" } },
+          },
+        ],
+      },
+    ];
+    const light = lightMessages(messages);
+    expect(light[0].content).toEqual([question]);
+    expect(light[0].steps).toBe(2);
+    expect(light[0].tools).toBe(1);
+    expect(light[0].errors).toBe(1);
+  });
+
+  it("clears step markers when live steps arrive", () => {
+    let messages: Message[] = [
+      {
+        id: "msg_1",
+        type: "assistant",
+        time: { created: 1 },
+        steps: 2,
+        tools: 1,
+        content: [{ type: "text", text: "answer" }],
+      },
+    ];
+    messages = applyEvent(
+      messages,
+      event("session.tool.input.started", {
+        assistantMessageID: "msg_1",
+        id: "t1",
+        name: "read",
+      }),
+    );
+    expect(messages[0].steps).toBeUndefined();
+    expect(messages[0].tools).toBeUndefined();
+    expect(messages[0].content?.some((part) => part.type === "tool")).toBe(true);
   });
 
   it("marks a light tool as loaded when the full event arrives", () => {

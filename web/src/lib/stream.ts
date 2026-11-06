@@ -108,32 +108,33 @@ export function lightenEvent(
     return { ...event, data: { ...data, name: "question" } };
   }
   switch (event.type) {
+    case "session.reasoning.started":
     case "session.reasoning.delta":
+    case "session.reasoning.ended":
+    case "session.tool.input.started":
     case "session.tool.input.delta":
     case "session.tool.input.ended":
-    case "session.tool.progress":
-      return null;
-    case "session.reasoning.started":
-    case "session.reasoning.ended":
-      return { ...event, data: { ...data, text: "", light: true } };
     case "session.tool.called":
-      return { ...event, data: { ...data, input: undefined, light: true } };
+    case "session.tool.progress":
     case "session.tool.success":
-      return { ...event, data: { ...data, content: [], light: true } };
+    case "session.tool.failed":
+    case "session.tool.error":
+      return null;
     default:
       return event;
   }
 }
 
-export function lightStepIDs(messages: Message[]): string[] {
+export function stepMessageIDs(messages: Message[]): string[] {
   return messages
-    .filter((message) =>
-      (message.content ?? []).some(
-        (part) =>
-          (part.type === "reasoning" ||
-            (part.type === "tool" && part.name !== "question")) &&
-          part.light,
-      ),
+    .filter(
+      (message) =>
+        (message.steps ?? 0) > 0 &&
+        !(message.content ?? []).some(
+          (part) =>
+            part.type === "reasoning" ||
+            (part.type === "tool" && part.name !== "question"),
+        ),
     )
     .map((message) => message.id);
 }
@@ -190,6 +191,17 @@ function updateMessage(
   return next;
 }
 
+function clearStepMarkers(message: Message): Message {
+  if (message.steps === undefined && message.tools === undefined && message.errors === undefined) {
+    return message;
+  }
+  const next = { ...message };
+  delete next.steps;
+  delete next.tools;
+  delete next.errors;
+  return next;
+}
+
 function upsertText(
   message: Message,
   kind: "text" | "reasoning",
@@ -214,7 +226,8 @@ function upsertText(
   } else {
     content.push({ type: kind, text: update(""), ordinal, ...(light ? { light } : {}) });
   }
-  return { ...message, content };
+  const next = { ...message, content };
+  return kind === "reasoning" ? clearStepMarkers(next) : next;
 }
 
 function clearQuestionLight(part: ToolPart): ToolPart {
@@ -244,7 +257,7 @@ function upsertTool(
       ),
     );
   }
-  return { ...message, content };
+  return clearStepMarkers({ ...message, content });
 }
 
 function mergeState(part: ToolPart, state: ToolState): ToolPart {

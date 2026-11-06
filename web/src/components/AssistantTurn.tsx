@@ -12,7 +12,7 @@ import {
 import type { Agent, Message, Model, ReasoningPart, ToolPart } from "../lib/types";
 import { activityLine } from "../lib/activity";
 import { copyText } from "../lib/clipboard";
-import { lightStepIDs } from "../lib/stream";
+import { stepMessageIDs } from "../lib/stream";
 import { isPureHtml, looksLikeHtml } from "../lib/html";
 import { modelLabel, replyText } from "../lib/format";
 import { Button } from "./ui/button";
@@ -80,21 +80,37 @@ export const AssistantTurn = memo(function AssistantTurn({
   const errorCount = activity.filter(
     (part) => part.type === "tool" && part.state.status === "error",
   ).length;
+  const markerSteps =
+    activity.length === 0
+      ? messages.reduce((total, message) => total + (message.steps ?? 0), 0)
+      : 0;
+  const markerTools =
+    activity.length === 0
+      ? messages.reduce((total, message) => total + (message.tools ?? 0), 0)
+      : 0;
+  const markerErrors =
+    activity.length === 0
+      ? messages.reduce((total, message) => total + (message.errors ?? 0), 0)
+      : 0;
+  const shownSteps = activity.length > 0 ? activity.length : markerSteps;
+  const shownTools = activity.length > 0 ? toolCount : markerTools;
+  const shownErrors = activity.length > 0 ? errorCount : markerErrors;
+  const hasSteps = shownSteps > 0;
   const reply = messages.map(replyText).filter(Boolean).join("\n\n");
   const agent = agents.find((item) => item.id === last?.agent);
   const model = modelLabel(last?.model, models);
   const current = activity[activity.length - 1];
   const stats = [
-    activity.length > 0 ? `${activity.length} steps` : "",
-    toolCount > 0 ? `${toolCount} tools` : "",
-    errorCount > 0 ? `${errorCount} error${errorCount === 1 ? "" : "s"}` : "",
+    shownSteps > 0 ? `${shownSteps} steps` : "",
+    shownTools > 0 ? `${shownTools} tools` : "",
+    shownErrors > 0 ? `${shownErrors} error${shownErrors === 1 ? "" : "s"}` : "",
     durationLabel(messages),
   ]
     .filter(Boolean)
     .join(" · ");
   const summary = streaming && current ? activityLine(current, workspace) : stats;
   const liveStats = streaming
-    ? [activity.length > 0 ? `${activity.length} steps` : "", durationLabel(messages)]
+    ? [shownSteps > 0 ? `${shownSteps} steps` : "", durationLabel(messages)]
         .filter(Boolean)
         .join(" · ")
     : "";
@@ -119,7 +135,7 @@ export const AssistantTurn = memo(function AssistantTurn({
 
   const loadSteps = () => {
     if (!onLoadMessage) return;
-    const ids = lightStepIDs(messages).filter(
+    const ids = stepMessageIDs(messages).filter(
       (id) => !(streaming && id === last?.id),
     );
     if (ids.length === 0) return;
@@ -186,7 +202,7 @@ export const AssistantTurn = memo(function AssistantTurn({
           <QuestionCard key={`question-${part.id}`} part={part} />
         ))}
 
-        {activity.length > 0 && (
+        {hasSteps && (
           <div className="border-border bg-card/40 my-2 overflow-hidden rounded-lg border">
             <button
               type="button"
@@ -218,6 +234,9 @@ export const AssistantTurn = memo(function AssistantTurn({
             </button>
             {open && (
               <div className="border-border border-t px-1.5 py-1">
+                {loadingSteps && activity.length === 0 && (
+                  <div className="text-muted-foreground px-2 py-1 text-xs">Loading steps…</div>
+                )}
                 {activity.map((part, index) => {
                   const owner = owners.get(part);
                   const onLoad =
@@ -262,7 +281,7 @@ export const AssistantTurn = memo(function AssistantTurn({
           );
         })}
 
-        {textParts.length === 0 && activity.length === 0 && streaming && (
+        {textParts.length === 0 && !hasSteps && streaming && (
           <div className="text-muted-foreground py-2 text-xs">Waiting for the first token…</div>
         )}
         {last?.error && (

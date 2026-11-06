@@ -704,24 +704,18 @@ export default function App() {
     setMessagesLoading(!cached);
     setTranscriptError(null);
     const before = new Map(messagesRef.current.map((message) => [message.id, message]));
-    api.messages(selectedId, { light: true, limit: TAIL_LIMIT })
+    api.messages(selectedId, { light: true })
       .then((page) => {
         if (cancelled) return;
         const tail = normalizeMessages(page.data);
         const previous = page.previous ?? null;
         const current = messagesRef.current;
-        const olderLoaded =
-          force &&
-          current.length > 0 &&
-          tail.length > 0 &&
-          current[0].id !== tail[0].id &&
-          !current[0].id.startsWith("local-");
-        const cursor = olderLoaded ? historyCursorRef.current : previous;
+        const cursor = previous;
         const changed = current.filter((message) => before.get(message.id) !== message);
         const base = force ? mergeTail(current, tail) : tail;
-        const next = changed.length > 0 ? mergeTail(base, changed) : base;
+        const next = lightMessages(changed.length > 0 ? mergeTail(base, changed) : base);
         transcriptCache.set(selectedId, {
-          messages: lightMessages(next),
+          messages: next,
           previous: cursor,
           complete: cursor === null,
         });
@@ -867,7 +861,7 @@ export default function App() {
     try {
       const page = await api.messages(id, { light: true, limit: TAIL_LIMIT, before: cursor });
       if (selectedIdRef.current !== id) return;
-      const older = normalizeMessages(page.data);
+      const older = lightMessages(normalizeMessages(page.data));
       const previous = page.previous ?? null;
       earlierFailedRef.current = false;
       historyCursorRef.current = previous;

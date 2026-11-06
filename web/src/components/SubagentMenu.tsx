@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ChevronDown, GitBranch, Loader2 } from "lucide-react";
 import type { Session } from "../lib/types";
 import { formatRelative, sessionRunning } from "../lib/format";
@@ -29,7 +29,25 @@ export function SubagentMenu({
   className?: string;
 }) {
   const [open, setOpen] = useState(false);
+  const root = useRef<HTMLDivElement>(null);
   const active = sessions.filter((session) => sessionRunning(session)).length;
+
+  useEffect(() => {
+    if (!open) return;
+    const onPointerDown = (event: PointerEvent) => {
+      if (!root.current?.contains(event.target as Node)) setOpen(false);
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("pointerdown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [open]);
+
   if (sessions.length === 0) return null;
   const sorted = [...sessions].sort((a, b) => {
     const running = Number(sessionRunning(b)) - Number(sessionRunning(a));
@@ -37,12 +55,14 @@ export function SubagentMenu({
   });
 
   return (
-    <div className="relative">
+    <div ref={root} className="relative">
       <Button
         variant="ghost"
         size="sm"
         className={cn("h-9", className)}
         onClick={() => setOpen((value) => !value)}
+        aria-haspopup="menu"
+        aria-expanded={open}
       >
         <GitBranch />
         <span>{sessions.length}</span>
@@ -55,11 +75,15 @@ export function SubagentMenu({
         <ChevronDown className={cn("size-3 transition-transform", open && "rotate-180")} />
       </Button>
       {open && (
-        <div className="border-border bg-popover absolute top-full right-0 z-40 mt-1 w-80 rounded-lg border p-1 shadow-lg">
+        <div
+          role="menu"
+          className="border-border bg-popover absolute top-full right-0 z-40 mt-1 w-80 rounded-lg border p-1 shadow-lg"
+        >
           {sorted.map((session) => (
             <button
               key={session.id}
               type="button"
+              role="menuitem"
               onClick={() => {
                 setOpen(false);
                 onOpen(session);

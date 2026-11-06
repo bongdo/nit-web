@@ -77,6 +77,8 @@ workspace on the first Send, so an empty draft never appears in the list.
 ## Composer and message actions
 
 - The textarea grows to 200 px and then scrolls inside itself.
+- Typing anywhere focuses the composer and keeps the first key, unless a
+  dialog/menu is open or another field already has focus.
 - `/` opens the command palette: `/new`, `/dir`, `/compact`, `/revert`, `/fork`,
   `/retry`, `/theme`, `/clear`, `/help`. Commands run in the client; they are
   never sent to the model.

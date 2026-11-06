@@ -162,9 +162,14 @@ export function Composer({
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      const target = event.target instanceof Element ? event.target : null;
-      const blocked = typingBlocked || (drawerOpen && window.innerWidth < 768);
       if (!customAnswer || disabled || !workspace || formBusy) return;
+      const target = event.target instanceof Element ? event.target : null;
+      const menu = document.querySelector("[role='menu']");
+      const blocked = Boolean(
+        typingBlocked ||
+          (drawerOpen && window.innerWidth < 768) ||
+          (menu && menu.getClientRects().length > 0),
+      );
       if (!shouldCaptureKey(event, target, blocked)) return;
       if (event.key === " ") autoCorrectPending.current = true;
       ref.current?.focus();

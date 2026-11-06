@@ -1,4 +1,4 @@
-type KeyEvent = {
+export type KeyEvent = {
   key: string;
   metaKey: boolean;
   ctrlKey: boolean;

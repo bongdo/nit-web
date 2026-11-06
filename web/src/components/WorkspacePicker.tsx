@@ -205,7 +205,7 @@ export function WorkspaceMenu({
           <div className="text-muted-foreground px-2 py-1 text-[10px] font-medium tracking-wide uppercase">
             Recent
           </div>
-          <div className="scrollbar-thin max-h-64 overflow-y-auto">
+          <div className="scrollbar-thin max-h-48 overflow-y-auto">
             {directories.length === 0 ? (
               <p className="text-muted-foreground px-2 py-3 text-center text-[11px]">
                 No other workspaces yet.

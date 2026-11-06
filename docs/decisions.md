@@ -156,3 +156,15 @@ Why: agent-created child sessions are internal work, not user chats; the parent 
 Rejected: keeping subagents in `All` as a debug view (they looked like user chats), hiding only on the client after grouping (the 100-session page would still fill with subagents).
 
 Cost: subagent sessions are only reachable through their parent; a reload of a subagent URL restores it via an extra upstream request, and the parent must still be in the top-level page for `Back to parent`.
+
+## 2026-11-06 — Instant chat switching: transcript cache and raw pass-through
+
+Context: opening a large chat took about a second. The proxy re-encoded every message, Go asked OpenCode for gzip (whose compression cost more than the transfer), and the UI refetched the whole transcript on every switch.
+
+Decision: keep the last five normalized transcripts in memory, update them from the SSE stream, and restore them before any fetch; fetch only on first open, explicit reload and reconnect. The proxy requests identity encoding for transcripts, passes clean `data` pages through without decoding each message, and writes one response body. Streaming rows, the sidebar, header and composer are memoized, and delta events are coalesced per animation frame.
+
+Why: switching back to a cached chat is immediate; the first open of the heaviest local transcript dropped from about 1.05s to 0.31s. Redaction still runs on every page and SSE payload; the fast path only skips bodies that cannot contain a secret.
+
+Rejected: persisting transcripts in localStorage (5 MB limit and huge payloads), IndexedDB (more moving parts for the same result), virtualizing the transcript (a separate feature), and disabling upstream compression globally (other endpoints can still benefit).
+
+Cost: the cache is lost on reload and trusts the event stream for background updates; a change made by another client to a cached, non-running session is not seen until reconnect or reload.

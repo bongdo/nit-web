@@ -136,6 +136,20 @@ func TestSafeNext(t *testing.T) {
 	}
 }
 
+func TestAllowedOriginPublicHost(t *testing.T) {
+	s := &Server{publicHost: "frankfurt.tailf358cb.ts.net"}
+	request := httptest.NewRequest(http.MethodPost, "http://127.0.0.1:7791/api/prompt", nil)
+	request.Host = "127.0.0.1:7791"
+	request.Header.Set("Origin", "https://frankfurt.tailf358cb.ts.net")
+	if !s.allowedOrigin(request) {
+		t.Fatal("public origin rejected behind a rewritten Host")
+	}
+	request.Header.Set("Origin", "https://evil.example")
+	if s.allowedOrigin(request) {
+		t.Fatal("foreign origin accepted")
+	}
+}
+
 func TestAuthBasePath(t *testing.T) {
 	gate := testAuthGate(t)
 	gate.base = "/nit"

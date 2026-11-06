@@ -411,7 +411,18 @@ func (a *authGate) secure(r *http.Request) bool {
 	if isHTTPS(r) {
 		return true
 	}
-	return a.publicHost != "" && strings.EqualFold(hostOnly(forwardedHost(r)), a.publicHost)
+	if a.publicHost == "" {
+		return false
+	}
+	if strings.EqualFold(hostOnly(forwardedHost(r)), a.publicHost) {
+		return true
+	}
+	if origin := r.Header.Get("Origin"); origin != "" {
+		if u, err := url.Parse(origin); err == nil {
+			return strings.EqualFold(hostOnly(u.Host), a.publicHost)
+		}
+	}
+	return false
 }
 
 func isHTTPS(r *http.Request) bool {

@@ -41,6 +41,7 @@ type Server struct {
 	grammar      *grammarChecker
 	auth         *authGate
 	basePath     string
+	publicHost   string
 	allowedHosts map[string]struct{}
 }
 
@@ -57,6 +58,7 @@ func New(provider ClientProvider, static fs.FS, log *slog.Logger) http.Handler {
 		grammar:      newGrammarChecker(log),
 		auth:         newAuthGate(log),
 		basePath:     strings.TrimRight(os.Getenv("NIT_GUI_BASE_PATH"), "/"),
+		publicHost:   strings.ToLower(strings.TrimSpace(os.Getenv("NIT_GUI_PUBLIC_HOST"))),
 		allowedHosts: map[string]struct{}{},
 	}
 	for _, host := range strings.Split(os.Getenv("NIT_GUI_ALLOWED_HOSTS"), ",") {
@@ -152,7 +154,7 @@ func (s *Server) middleware(next http.Handler) http.Handler {
 			writeError(w, http.StatusForbidden, "host not allowed")
 			return
 		}
-		if r.Method != http.MethodGet && r.Method != http.MethodHead && !allowedOrigin(r) {
+		if r.Method != http.MethodGet && r.Method != http.MethodHead && !s.allowedOrigin(r) {
 			writeError(w, http.StatusForbidden, "origin not allowed")
 			return
 		}
@@ -185,7 +187,7 @@ func (s *Server) allowedHost(hostport string) bool {
 	return ok
 }
 
-func allowedOrigin(r *http.Request) bool {
+func (s *Server) allowedOrigin(r *http.Request) bool {
 	origin := r.Header.Get("Origin")
 	if origin == "" {
 		return true
@@ -194,7 +196,10 @@ func allowedOrigin(r *http.Request) bool {
 	if err != nil || (u.Scheme != "http" && u.Scheme != "https") {
 		return false
 	}
-	return strings.EqualFold(u.Host, forwardedHost(r))
+	if strings.EqualFold(u.Host, forwardedHost(r)) {
+		return true
+	}
+	return s.publicHost != "" && strings.EqualFold(hostOnly(u.Host), s.publicHost)
 }
 
 func forwardedHost(r *http.Request) string {

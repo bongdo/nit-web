@@ -53,6 +53,7 @@ func (s *Server) instances(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{
 		"app":         map[string]string{"name": "nit-gui", "host": host, "version": "dev"},
 		"default":     s.multi.DefaultInstance(),
+		"configPath":  s.multi.ConfigPath(),
 		"configError": s.multi.ConfigError(),
 		"instances":   instances,
 	})

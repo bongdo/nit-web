@@ -333,6 +333,10 @@ func (r *Registry) ConfigError() string {
 	return r.configErr
 }
 
+func (r *Registry) ConfigPath() string {
+	return instancesPath()
+}
+
 func (r *Registry) Connected(name string) bool {
 	in, ok := r.byName[name]
 	if !ok {

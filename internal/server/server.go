@@ -43,6 +43,7 @@ type MultiProvider interface {
 	LastError(string) string
 	Transport(string) string
 	Detail(string) string
+	ConfigPath() string
 }
 
 type singleProvider struct {
@@ -72,6 +73,7 @@ func (p singleProvider) Connected(string) bool   { return true }
 func (p singleProvider) LastError(string) string { return "" }
 func (p singleProvider) Transport(string) string { return "local" }
 func (p singleProvider) Detail(string) string    { return "local" }
+func (p singleProvider) ConfigPath() string      { return "" }
 
 type Server struct {
 	multi        MultiProvider

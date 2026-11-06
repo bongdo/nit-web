@@ -232,6 +232,7 @@ export type Instance = {
 export type InstancesResponse = {
   app: { name: string; host: string; version: string };
   default: string;
+  configPath?: string;
   configError?: string;
   instances: Instance[];
 };

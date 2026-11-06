@@ -1316,6 +1316,8 @@ func (p *multiProvider) Transport(string) string { return "local" }
 
 func (p *multiProvider) Detail(name string) string { return name }
 
+func (p *multiProvider) ConfigPath() string { return "/tmp/instances.json" }
+
 func newMultiHandler(t *testing.T, provider *multiProvider) http.Handler {
 	t.Helper()
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))

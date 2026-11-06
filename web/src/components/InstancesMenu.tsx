@@ -260,7 +260,8 @@ export function InstancesMenu({
         </div>
 
         <div className="border-border text-muted-foreground border-t px-4 py-3 font-mono text-[10px]">
-          Edit ~/.config/nit-gui/instances.json on {data.app.host} to add or change instances.
+          Edit {data.configPath || "~/.config/nit-gui/instances.json"} on {data.app.host} to add
+          or change instances.
         </div>
       </div>
     </div>

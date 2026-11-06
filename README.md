@@ -107,8 +107,8 @@ Missing or empty means one auto-discovered local instance named `local`.
 - A malformed file does not stop the app: it falls back to `local` and shows the
   error in the menu.
 
-The name, URL, SSH host and password files are read once at startup. Restart the
-app after editing the file.
+The instance list is read once at startup; password files are re-read on a
+`401`. Restart the app after editing the instance list.
 
 ### Switching
 

@@ -40,6 +40,7 @@ type Server struct {
 	fast         *fastSTT
 	grammar      *grammarChecker
 	auth         *authGate
+	basePath     string
 	allowedHosts map[string]struct{}
 }
 
@@ -55,6 +56,7 @@ func New(provider ClientProvider, static fs.FS, log *slog.Logger) http.Handler {
 		fast:         newFastSTT(log),
 		grammar:      newGrammarChecker(log),
 		auth:         newAuthGate(log),
+		basePath:     strings.TrimRight(os.Getenv("NIT_GUI_BASE_PATH"), "/"),
 		allowedHosts: map[string]struct{}{},
 	}
 	for _, host := range strings.Split(os.Getenv("NIT_GUI_ALLOWED_HOSTS"), ",") {
@@ -130,6 +132,13 @@ func (s *Server) routes() {
 
 func (s *Server) middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if s.basePath != "" {
+			if r.URL.Path == s.basePath {
+				r.URL.Path = "/"
+			} else if strings.HasPrefix(r.URL.Path, s.basePath+"/") {
+				r.URL.Path = strings.TrimPrefix(r.URL.Path, s.basePath)
+			}
+		}
 		w.Header().Set("X-Content-Type-Options", "nosniff")
 		w.Header().Set("Referrer-Policy", "no-referrer")
 		w.Header().Set("X-Frame-Options", "DENY")
@@ -797,6 +806,10 @@ type modelOut struct {
 		ID string `json:"id"`
 	} `json:"variants"`
 	Cost []struct {
+		Tier *struct {
+			Type string `json:"type"`
+			Size int    `json:"size"`
+		} `json:"tier,omitempty"`
 		Input  float64 `json:"input"`
 		Output float64 `json:"output"`
 		Cache  struct {

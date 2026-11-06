@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -175,6 +176,7 @@ func (a *authGate) handleLogin(w http.ResponseWriter, r *http.Request) {
 	ip := clientIP(r)
 	allowed, retry := a.allowAttempt(ip)
 	if !allowed {
+		setRetryAfter(w, retry)
 		a.renderLogin(w, r, http.StatusTooManyRequests, next, blockMessage(retry), true)
 		return
 	}
@@ -188,6 +190,7 @@ func (a *authGate) handleLogin(w http.ResponseWriter, r *http.Request) {
 	allowed, retry = a.allowAttempt(ip)
 	if !allowed {
 		a.log.Warn("auth lockout", "ip", ip, "retry_after", retry.Round(time.Second).String())
+		setRetryAfter(w, retry)
 		a.renderLogin(w, r, http.StatusTooManyRequests, next, blockMessage(retry), true)
 		return
 	}
@@ -384,6 +387,14 @@ func safeNext(raw, base string) string {
 		return base + raw
 	}
 	return raw
+}
+
+func setRetryAfter(w http.ResponseWriter, retry time.Duration) {
+	seconds := int((retry + time.Second - 1) / time.Second)
+	if seconds < 1 {
+		seconds = 1
+	}
+	w.Header().Set("Retry-After", strconv.Itoa(seconds))
 }
 
 func blockMessage(retry time.Duration) string {

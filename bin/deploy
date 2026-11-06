@@ -90,7 +90,8 @@ deploy_frankfurt() {
   local port="${NIT_GUI_DEPLOY_PORT:-7791}"
   local public_port="${NIT_GUI_PUBLIC_PORT:-7792}"
   local public_host="${NIT_GUI_PUBLIC_HOST:-frankfurt.tailf358cb.ts.net}"
-  local base_path="${NIT_GUI_BASE_PATH:-/nit}"
+  local base_path="${NIT_GUI_BASE:-/nit/}"
+  base_path="${base_path%/}"
   local run_dir="$PWD/.cache"
   local bin="$run_dir/nit-gui"
   local caddyfile="$run_dir/frankfurt.Caddyfile"
@@ -213,7 +214,11 @@ case "$target" in
     ;;
 esac
 
-npm --prefix web run build
+if [ "$target" = "frankfurt" ]; then
+  NIT_GUI_BASE="${NIT_GUI_BASE:-/nit/}" npm --prefix web run build
+else
+  npm --prefix web run build
+fi
 
 case "$target" in
   nixos) deploy_nixos ;;

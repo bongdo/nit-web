@@ -158,6 +158,7 @@ export type Session = {
 
 export type SessionList = { data: Session[] };
 export type MessagesResponse = { data: Message[]; previous?: string | null };
+export type UiState = { hidden: string[]; status: Record<string, string> };
 
 export type Model = {
   id: string;

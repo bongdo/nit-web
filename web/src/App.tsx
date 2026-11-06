@@ -12,6 +12,7 @@ import type {
   Project,
   Session,
   StreamEvent,
+  UiState,
 } from "./lib/types";
 import {
   applyEvent,
@@ -71,9 +72,8 @@ function messageOf(error: unknown): string {
   return "Something went wrong";
 }
 
-function saveHidden(ids: Set<string>) {
-  localStorage.setItem("nit-gui.hidden", JSON.stringify([...ids]));
-}
+const LEGACY_HIDDEN_KEY = "nit-gui.hidden";
+const UI_MIGRATED_KEY = "nit-gui.ui-migrated";
 
 function eventSize(event: StreamEvent): number {
   try {
@@ -202,14 +202,7 @@ export default function App() {
   const [doneIds, setDoneIds] = useState<Set<string>>(() => new Set());
   const failedRef = useRef<Set<string>>(new Set());
   const [notifyOn, setNotifyOn] = useState(() => localStorage.getItem("nit-gui.notify") === "on");
-  const [hiddenIds, setHiddenIds] = useState<Set<string>>(() => {
-    try {
-      const value = JSON.parse(localStorage.getItem("nit-gui.hidden") ?? "[]");
-      return new Set(Array.isArray(value) ? value.filter((item) => typeof item === "string") : []);
-    } catch {
-      return new Set();
-    }
-  });
+  const [hiddenIds, setHiddenIds] = useState<Set<string>>(() => new Set());
   const [showHidden, setShowHidden] = useState(false);
   const [sessions, setSessions] = useState<Session[]>([]);
   const [sessionsLoading, setSessionsLoading] = useState(true);
@@ -273,6 +266,57 @@ export default function App() {
   const loadingEarlierRef = useRef(false);
   const loadedIdRef = useRef<string | null>(null);
   const lastEpochRef = useRef(0);
+
+  const applyUiState = useCallback((state: UiState) => {
+    const hidden = new Set(Array.isArray(state.hidden) ? state.hidden : []);
+    const done = new Set<string>();
+    const failed = new Set<string>();
+    for (const [id, status] of Object.entries(state.status ?? {})) {
+      if (status === "done") done.add(id);
+      else if (status === "failed") failed.add(id);
+    }
+    failedRef.current = failed;
+    setHiddenIds(hidden);
+    setDoneIds(done);
+    setFailedIds(failed);
+  }, []);
+
+  const loadUiState = useCallback(async () => {
+    try {
+      let state = await api.ui();
+      if (localStorage.getItem(UI_MIGRATED_KEY) !== "1") {
+        let legacy: string[] = [];
+        try {
+          const value = JSON.parse(localStorage.getItem(LEGACY_HIDDEN_KEY) ?? "[]");
+          legacy = Array.isArray(value)
+            ? value.filter((item) => typeof item === "string")
+            : [];
+        } catch {}
+        if (legacy.length > 0 && state.hidden.length === 0) {
+          await api.setHidden(legacy, true);
+          state = { ...state, hidden: legacy };
+        }
+        localStorage.setItem(UI_MIGRATED_KEY, "1");
+        localStorage.removeItem(LEGACY_HIDDEN_KEY);
+      }
+      applyUiState(state);
+    } catch {}
+  }, [applyUiState]);
+
+  useEffect(() => {
+    void loadUiState();
+    const refresh = () => {
+      if (!document.hidden) void loadUiState();
+    };
+    const timer = window.setInterval(refresh, 10_000);
+    window.addEventListener("focus", refresh);
+    document.addEventListener("visibilitychange", refresh);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener("focus", refresh);
+      document.removeEventListener("visibilitychange", refresh);
+    };
+  }, [loadUiState]);
 
   const sessionsRef = useRef(sessions);
   sessionsRef.current = sessions;

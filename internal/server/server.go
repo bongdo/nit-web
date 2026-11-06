@@ -23,6 +23,7 @@ import (
 	"unicode/utf8"
 
 	"nitgui/internal/opencode"
+	"nitgui/internal/uistate"
 )
 
 const maxJSONBody = 1 << 20
@@ -40,6 +41,7 @@ type Server struct {
 	fast         *fastSTT
 	grammar      *grammarChecker
 	auth         *authGate
+	ui           *uistate.Store
 	basePath     string
 	publicHost   string
 	allowedHosts map[string]struct{}
@@ -49,6 +51,10 @@ func New(provider ClientProvider, static fs.FS, log *slog.Logger) http.Handler {
 	if log == nil {
 		log = slog.Default()
 	}
+	ui, err := uistate.Open(uistate.DefaultPath())
+	if err != nil {
+		log.Warn("ui state load failed", "error", err)
+	}
 	s := &Server{
 		provider:     provider,
 		static:       static,
@@ -57,6 +63,7 @@ func New(provider ClientProvider, static fs.FS, log *slog.Logger) http.Handler {
 		fast:         newFastSTT(log),
 		grammar:      newGrammarChecker(log),
 		auth:         newAuthGate(log),
+		ui:           ui,
 		basePath:     strings.TrimRight(os.Getenv("NIT_GUI_BASE_PATH"), "/"),
 		publicHost:   strings.TrimSuffix(strings.ToLower(strings.TrimSpace(os.Getenv("NIT_GUI_PUBLIC_HOST"))), "."),
 		allowedHosts: map[string]struct{}{},
@@ -122,6 +129,10 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("POST /api/sessions/{id}/agent", s.switchAgent)
 	s.mux.HandleFunc("GET /api/models", s.models)
 	s.mux.HandleFunc("GET /api/agents", s.agents)
+	s.mux.HandleFunc("GET /api/ui", s.uiState)
+	s.mux.HandleFunc("POST /api/ui/hidden", s.setHidden)
+	s.mux.HandleFunc("POST /api/ui/sessions/{id}/status", s.setSessionStatus)
+	s.mux.HandleFunc("DELETE /api/ui/sessions/{id}", s.removeSessionState)
 	s.mux.HandleFunc("GET /api/events", s.events)
 	s.mux.HandleFunc("/api/", func(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, "not found")
@@ -1296,6 +1307,87 @@ func (s *Server) projects(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeRaw(w, raw, c.Redactor())
+}
+
+func (s *Server) uiState(w http.ResponseWriter, r *http.Request) {
+	state := s.ui.Snapshot()
+	if state.Hidden == nil {
+		state.Hidden = []string{}
+	}
+	if state.Status == nil {
+		state.Status = map[string]string{}
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"hidden": state.Hidden,
+		"status": state.Status,
+	})
+}
+
+func (s *Server) setHidden(w http.ResponseWriter, r *http.Request) {
+	in, err := decodeJSON[struct {
+		IDs    []string `json:"ids"`
+		Hidden bool     `json:"hidden"`
+	}](w, r)
+	if err != nil {
+		writeDecodeError(w, err)
+		return
+	}
+	if len(in.IDs) > 1000 {
+		writeError(w, http.StatusBadRequest, "too many sessions")
+		return
+	}
+	for _, id := range in.IDs {
+		if !validID(id) {
+			writeError(w, http.StatusBadRequest, "invalid session id")
+			return
+		}
+	}
+	if err := s.ui.SetHidden(in.IDs, in.Hidden); err != nil {
+		s.log.Error("ui state save failed", "error", err)
+		writeError(w, http.StatusInternalServerError, "could not save ui state")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
+}
+
+func (s *Server) setSessionStatus(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	if !validID(id) {
+		writeError(w, http.StatusBadRequest, "invalid session id")
+		return
+	}
+	in, err := decodeJSON[struct {
+		Status string `json:"status"`
+	}](w, r)
+	if err != nil {
+		writeDecodeError(w, err)
+		return
+	}
+	status := strings.TrimSpace(in.Status)
+	if status != "" && status != "done" && status != "failed" {
+		writeError(w, http.StatusBadRequest, "invalid status")
+		return
+	}
+	if err := s.ui.SetStatus(id, status); err != nil {
+		s.log.Error("ui state save failed", "error", err)
+		writeError(w, http.StatusInternalServerError, "could not save ui state")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
+}
+
+func (s *Server) removeSessionState(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	if !validID(id) {
+		writeError(w, http.StatusBadRequest, "invalid session id")
+		return
+	}
+	if err := s.ui.Remove(id); err != nil {
+		s.log.Error("ui state save failed", "error", err)
+		writeError(w, http.StatusInternalServerError, "could not save ui state")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 }
 
 func (s *Server) events(w http.ResponseWriter, r *http.Request) {

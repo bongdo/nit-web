@@ -10,6 +10,7 @@ import type {
   Project,
   Session,
   SessionList,
+  UiState,
 } from "./types";
 import type { GrammarMatch } from "./spell";
 import { appPath } from "./base";
@@ -199,4 +200,16 @@ export const api = {
     }),
   models: async () => (await request<{ data: Model[] }>("/api/models")).data,
   agents: async () => (await request<{ data: Agent[] }>("/api/agents")).data,
+  ui: () => request<UiState>("/api/ui"),
+  setHidden: (ids: string[], hidden: boolean) =>
+    request<{ ok: boolean }>("/api/ui/hidden", { method: "POST", body: { ids, hidden } }),
+  setSessionStatus: (id: string, status: "" | "done" | "failed") =>
+    request<{ ok: boolean }>(`/api/ui/sessions/${encodeURIComponent(id)}/status`, {
+      method: "POST",
+      body: { status },
+    }),
+  removeSessionState: (id: string) =>
+    request<{ ok: boolean }>(`/api/ui/sessions/${encodeURIComponent(id)}`, {
+      method: "DELETE",
+    }),
 };

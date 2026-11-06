@@ -1,8 +1,29 @@
 # nit-gui
 
-Web GUI for the local OpenCode v2 service. Sessions on the left, transcript in
-the middle, composer at the bottom. It is a client only: OpenCode remains the
-source of truth for sessions, messages, models and agents.
+Web GUI for the OpenCode v2 service. Sessions on the left, transcript in the
+middle, composer at the bottom. It is a client only: OpenCode remains the source
+of truth for sessions, messages, models and agents.
+
+Production has one instance: **Frankfurt**. Everything that needs a model,
+dictionary, voice, JVM or another background process runs on that host. The
+browser is a thin client: it renders the UI, records microphone audio and plays
+audio. It is never assumed to have local TTS voices, local STT, Hunspell
+dictionaries, LanguageTool or a GPU.
+
+## Runtime contract
+
+| Capability | Runs on | State |
+| --- | --- | --- |
+| Sessions, messages, models, agents | OpenCode on Frankfurt | source of truth |
+| STT | Frankfurt, `/api/stt` + `whisper-server` / `whisper-cli` | implemented |
+| TTS | Frankfurt, OpenCode TTS plugin; the browser only plays returned audio | host-side plugin, not managed by nit-gui |
+| Spelling | browser nspell worker today; target Frankfurt `/api/spell` | migration gap |
+| Grammar | Frankfurt LanguageTool sidecar through `/api/grammar` | optional |
+| Attachments | Frankfurt, OpenCode `/api/experimental/fs/write` and `/tmp` | implemented |
+
+The supported client is a browser with a microphone and audio output. Features
+must not depend on local models, dictionaries, OS speech voices or a GPU.
+Spelling is the remaining exception; see [Known limits](#known-limits).
 
 ## Run
 
@@ -17,20 +38,15 @@ serves it on loopback.
 ## Deploy
 
 ```sh
-bin/nixos       # copy to nixos and restart 127.0.0.1:7791 there
-bin/frankfurt   # build here and expose through Caddy on :7792
+bin/frankfurt   # the only supported production deployment
 ```
 
-`bin/nixos` is `bin/deploy nixos`. It cross-compiles for the remote architecture,
-copies the binary to `~/Projects/nit-gui` and restarts it. If the remote directory
-has a `./run` wrapper, the restart uses it (the NixOS wrapper sets `NIT_SERVER`);
-otherwise it runs `./nit-gui` directly.
-
-`bin/frankfurt` builds locally, restarts the app on `127.0.0.1:7791`, and starts
-a user Caddy on `:7792` with basic auth. When LanguageTool is configured
-(`NIT_GUI_LANGUAGETOOL` or `languagetool-http-server` on `PATH`), it also
-starts or reuses a detached sidecar on `8180` and passes its URL to the app, so
-grammar stays warm across app restarts. It reuses the first `basicauth` entry
+`bin/frankfurt` builds on the Frankfurt host, restarts the app on
+`127.0.0.1:7791`, and starts a user Caddy on `:7792` with basic auth. When
+LanguageTool is configured (`NIT_GUI_LANGUAGETOOL` or
+`languagetool-http-server` on `PATH`), it also starts or reuses a detached
+sidecar on `8180` and passes its URL to the app, so grammar stays warm across
+app restarts. It reuses the first `basicauth` entry
 from `/etc/caddy/Caddyfile`; set `NIT_GUI_PUBLIC_PASSWORD` to use another
 password. The public port must be open in the OCI security list. The tailnet URL
 works without opening it. The listener is plain HTTP: basic auth protects access,
@@ -39,9 +55,13 @@ Dictation needs a secure context, so `http://<public-or-tailnet-ip>` cannot use
 the microphone. Use an SSH tunnel to `127.0.0.1:7792` or put HTTPS in front
 (Tailscale Serve/Funnel) when dictation matters.
 
+`bin/nixos` and `bin/deploy nixos` remain in the tree for the old NixOS host.
+That path is legacy and is not a supported production target; new features are
+only verified on Frankfurt.
+
 See [`docs/background-services.md`](docs/background-services.md) for the full
-list of background processes, ports, memory, startup order and the public-link
-security checklist.
+list of Frankfurt-side processes, ports, memory, startup order and the
+public-link security checklist.
 
 ```sh
 ./bin/check
@@ -111,20 +131,24 @@ workspace on the first Send, so an empty draft never appears in the list.
   current model cannot read an image or PDF; pick a model whose capabilities
   include `image` or `pdf` (for example Gemini or Claude for PDFs).
 - The microphone records 16 kHz mono WAV in the browser and sends it to
-  `/api/stt`; the transcript is appended to the existing input. It never sends
-  and never clears what you typed. Transcription happens when you stop, not as
-  a live stream.
-- Spelling is checked locally for Russian and English. Misspelled words are red
-  with a wavy underline; put the caret in a word (or click it) and a gray
-  `→ ...` chip shows replacements next to it. Click a suggestion to apply it,
-  or `ignore` to add the word to your dictionary. `Esc` hides the chip, and
-  Settings → Spelling & grammar turns both checks off. Code blocks, inline
-  code, URLs, paths, file names and known project terms are skipped. Spelling
-  stays in the browser.
-- Grammar is optional: when a LanguageTool sidecar is configured, the same chip
-  also shows punctuation and real-word fixes (`too` → `to`) from the local
-  Java process. Without it, only spelling runs. The draft goes to that local
-  process, never to a cloud service.
+  `/api/stt` on Frankfurt; the transcript is appended to the existing input. It
+  never sends and never clears what you typed. Transcription happens when you
+  stop, not as a live stream. The browser does not run STT itself.
+- Spelling is checked by an nspell worker in the browser for Russian and
+  English today. Misspelled words are red with a wavy underline; put the caret
+  in a word (or click it) and a gray `→ ...` chip shows replacements next to
+  it. Click a suggestion to apply it, or `ignore` to add the word to your
+  dictionary. `Esc` hides the chip, and Settings → Spelling & grammar turns
+  both checks off. Code blocks, inline code, URLs, paths, file names and known
+  project terms are skipped. This is the last client-side capability; it is
+  scheduled to move behind `/api/spell` on Frankfurt.
+- Grammar is optional: when a LanguageTool sidecar is configured on Frankfurt,
+  the same chip also shows punctuation and real-word fixes (`too` → `to`) from
+  the host's Java process. Without it, only spelling runs. The draft goes to
+  that host process, never to a cloud service.
+- Speech output is not generated in the browser. TTS belongs to the Frankfurt
+  host (OpenCode TTS plugin); the GUI never calls `speechSynthesis` and does not
+  assume the client has a voice.
 - Obvious lowercase typos are fixed after a space when exactly one suggestion is
   one edit away. Backspace at the end of the corrected word, or `Ctrl/Cmd+Z`,
   restores the original and adds it to the ignore list so it is not fixed
@@ -141,7 +165,7 @@ workspace on the first Send, so an empty draft never appears in the list.
 
 ## Discovery and environment
 
-The backend finds the same service the `nit` TUI uses:
+The backend runs on Frankfurt and finds the same service the `nit` TUI uses:
 
 1. `NIT_SERVER`, then `OPENCODE_SERVER`, then `OPENCODE_URL`.
 2. Otherwise `opencode service status`.
@@ -168,6 +192,9 @@ rewritten to loopback. Credentials in a server URL are discarded.
 | `NIT_GUI_WARM` | Set to `0` to skip eager LanguageTool and fast-dictation warmup. |
 | `--addr` | Listener address, default `127.0.0.1:7788`. |
 
+TTS is configured in the OpenCode TTS plugin on the same host; nit-gui has no
+TTS variable and no browser-side speech fallback.
+
 If the service is down, the GUI still starts and shows an offline screen with a
 retry button. Health is polled every 20 seconds.
 
@@ -192,8 +219,8 @@ The browser only talks to these same-origin endpoints:
 | `POST /api/sessions/{id}/fork` | Fork before `{before?}`. |
 | `POST /api/sessions/{id}/compact` | Compact the context. |
 | `POST /api/upload?dir=&name=` | Raw file body up to 20 MiB, written through OpenCode `/api/experimental/fs/write`. |
-| `POST /api/stt` | Raw 16 kHz mono WAV, transcribed by `whisper-cli`. |
-| `POST /api/grammar` | `{text}`; optional LanguageTool grammar/punctuation check. |
+| `POST /api/stt` | Raw 16 kHz mono WAV; transcribed on Frankfurt by `whisper-cli` or `whisper-server`. |
+| `POST /api/grammar` | `{text}`; optional LanguageTool grammar/punctuation check on Frankfurt. |
 | `POST /api/sessions/{id}/model` | Switch model `{model: {id, providerID, variant?}}`. |
 | `POST /api/sessions/{id}/agent` | Switch agent `{agent}`. |
 | `GET /api/models`, `GET /api/agents` | Pickers. |
@@ -202,8 +229,14 @@ The browser only talks to these same-origin endpoints:
 OpenCode's plural resource paths are singular (`/api/session`, `/api/model`,
 `/api/agent`, `/api/event`); the mapping is deliberate and lives in the backend.
 
+`POST /api/spell` is the planned Frankfurt-side replacement for the browser
+nspell worker. It is not implemented yet.
+
 ## Security model
 
+- Production is one Frankfurt instance. The browser is untrusted and thin: it
+  gets only the same-origin API, never host files, service credentials, model
+  paths or a local shell.
 - The Go listener stays on loopback. `bin/frankfurt` puts a separate user Caddy
   with basic auth in front; it proxies only to `127.0.0.1:7791`. The app trusts a
   `Host` name only when it is loopback or listed in `NIT_GUI_ALLOWED_HOSTS`.
@@ -288,7 +321,7 @@ Frontend runtime:
 | `lucide-react` | Icons used by the shadcn-style primitives and chat. |
 | `clsx`, `tailwind-merge` | `cn()` class composition used by the primitives. |
 | `class-variance-authority` | Variants for the local shadcn/ui button and badge. |
-| `nspell`, `dictionary-ru`, `dictionary-en` | Offline Hunspell spelling for the composer; dictionaries are served as assets and parsed in a worker. |
+| `nspell`, `dictionary-ru`, `dictionary-en` | Browser spelling today; target is server-side `/api/spell`, after which these leave the bundle. |
 
 Frontend development and build:
 
@@ -304,12 +337,14 @@ shadcn/ui primitives are local source files (`Button`, `Input`, `Textarea`,
 `Badge`, `Select`), so they follow shadcn's shape without adding dependencies.
 The dictionary licenses are served from `web/public/licenses`.
 
-Grammar checking is optional and separate from the npm dependencies. It uses a
-LanguageTool 6.x HTTP server: either point `NIT_GUI_LANGUAGETOOL_URL` at a
-running `languagetool-http-server`, or set `NIT_GUI_LANGUAGETOOL` to its binary
-and the app starts it on the first grammar request. It needs Java 17 or newer,
-about 0.7 GB RSS after Russian and English are warm, and about 0.5 GB of disk
-for LanguageTool plus the JRE. Without it, the composer only checks spelling.
+Grammar checking is optional and separate from the npm dependencies. It runs
+on Frankfurt as a LanguageTool 6.x HTTP server: either point
+`NIT_GUI_LANGUAGETOOL_URL` at a running `languagetool-http-server`, or set
+`NIT_GUI_LANGUAGETOOL` to its binary and the app starts it on the first grammar
+request. It needs Java 17 or newer, about 0.7 GB RSS after Russian and English
+are warm, and about 0.5 GB of disk for LanguageTool plus the JRE. Without it,
+the composer only checks spelling. The browser never talks to LanguageTool
+directly.
 
 The app warms both LanguageTool and fast dictation at startup, so the first
 check in a running app is not a cold start. To keep LanguageTool alive across
@@ -331,29 +366,36 @@ own startup warmup.
 - The UI opens the newest 50 messages and loads older pages on demand. The full
   endpoint is assembled from at most 20 upstream pages (100 messages each);
   longer sessions are truncated at 2000 messages.
-- No permission prompt UI, form/question UI, session deletion, shell panel, PTY
-  or VCS panel yet.
-- Dictation has two modes. Fast needs `whisper-server` (override with
-  `NIT_GUI_WHISPER_SERVER`) and
+- No permission prompt UI, shell panel, PTY or VCS panel yet.
+- There is one production instance on Frankfurt. Every visitor shares the same
+  OpenCode service, sessions and workspace namespace; there are no per-user
+  accounts or quotas.
+- Dictation runs on Frankfurt and has two modes. Fast needs `whisper-server`
+  (override with `NIT_GUI_WHISPER_SERVER`) and
   `~/.local/share/whisper/ggml-small-q5_1.bin` (override with
   `NIT_GUI_STT_FAST_MODEL`); the server warms at app startup and transcribes
   segments while you record. Accurate needs `whisper-cli` and
   `~/.local/share/whisper/ggml-large-v3-turbo-q5_0.bin`; it runs one pass when
   you stop. Override the accurate model with `NIT_GUI_WHISPER_MODEL` and the
-  language with `NIT_GUI_STT_LANG`.
-- Spelling is spellcheck only: nspell does not catch real-word errors (`too` vs
-  `to`), Russian `-тся/-ться` or punctuation. It loads about 4 MB of
-  dictionaries in a worker; the first check can take a few seconds after start.
-  Ignored words are kept in `nit-gui.spell-ignore` in `localStorage`.
+  language with `NIT_GUI_STT_LANG`. The client only captures and uploads audio.
+- Spelling still runs in a browser worker. It is the remaining client-side
+  capability: a thin browser without Web Workers or the ~4 MB dictionaries gets
+  no spelling until `/api/spell` lands on Frankfurt. It is spellcheck only:
+  nspell does not catch real-word errors (`too` vs `to`), Russian `-тся/-ться`
+  or punctuation. Ignored words are kept in `nit-gui.spell-ignore` in
+  `localStorage`.
 - Auto-fix is deliberately conservative: lowercase words only, one edit away,
   exactly one candidate, not in code or a path. `хочю` stays for the chip
   because `холю`, `хорю` and `хочу` are equally close. Backspace at the end of
   the corrected word or `Ctrl/Cmd+Z` restores it; words sent three times while
   still flagged are learned automatically.
-- Grammar is optional and slower: LanguageTool warms up on the first request
-  (3–4 s), then Russian checks take about 250 ms and English about 30–40 ms.
-  Capitalization and spelling rules are disabled so the composer does not
-  duplicate nspell; some Russian commas are still missed.
+- Grammar is optional and slower: LanguageTool on Frankfurt warms up on the
+  first request (3–4 s), then Russian checks take about 250 ms and English
+  about 30–40 ms. Capitalization and spelling rules are disabled so the
+  composer does not duplicate nspell; some Russian commas are still missed.
+- TTS is not implemented in nit-gui. The OpenCode TTS plugin is a Frankfurt
+  host service; the GUI has no browser `speechSynthesis` fallback, so a client
+  with no local voices is not a supported way to get speech output.
 - Uploaded files live under `/tmp/nit-gui-*` on the OpenCode host. Nothing
   cleans them up. Only those paths can be served back through `/api/file`.
 - PDF support depends on the model. The default DeepSeek model reads images but

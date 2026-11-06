@@ -402,6 +402,27 @@ func TestFileProxyAllowsFrameForPDFPreview(t *testing.T) {
 	}
 }
 
+func TestFileProxyDownloadsActiveContent(t *testing.T) {
+	upstream := httptest.NewServer(auth(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, "<script>alert(1)</script>")
+	}))
+	defer upstream.Close()
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet,
+		"http://127.0.0.1:7788/api/file?path=file:///tmp/nit-gui-1-page.html", nil)
+	newHandler(t, upstream.URL).ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d: %s", rec.Code, rec.Body)
+	}
+	if !strings.HasPrefix(rec.Header().Get("Content-Disposition"), "attachment") {
+		t.Fatalf("content disposition = %q", rec.Header().Get("Content-Disposition"))
+	}
+	if rec.Header().Get("X-Frame-Options") != "DENY" {
+		t.Fatalf("x-frame-options = %q", rec.Header().Get("X-Frame-Options"))
+	}
+}
+
 func TestSTT(t *testing.T) {
 	script := filepath.Join(t.TempDir(), "whisper")
 	if err := os.WriteFile(script, []byte("#!/bin/sh\necho hello world\n"), 0o755); err != nil {

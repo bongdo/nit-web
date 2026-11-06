@@ -701,6 +701,17 @@ func safeUploadName(name string) string {
 	return stem + ext
 }
 
+func inlineFileType(contentType string) bool {
+	if strings.HasPrefix(contentType, "text/plain") {
+		return true
+	}
+	switch contentType {
+	case "application/pdf", "image/png", "image/jpeg", "image/gif", "image/webp", "image/avif", "image/bmp":
+		return true
+	}
+	return false
+}
+
 func uploadedPath(raw string) (string, bool) {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {
@@ -778,7 +789,14 @@ func (s *Server) file(w http.ResponseWriter, r *http.Request) {
 	if contentType == "" {
 		contentType = "application/octet-stream"
 	}
-	w.Header().Set("X-Frame-Options", "SAMEORIGIN")
+	if contentType == "application/pdf" {
+		w.Header().Set("X-Frame-Options", "SAMEORIGIN")
+	}
+	if !inlineFileType(contentType) {
+		w.Header().Set("Content-Disposition", mime.FormatMediaType("attachment", map[string]string{
+			"filename": filepath.Base(path),
+		}))
+	}
 	w.Header().Set("Content-Type", contentType)
 	w.Header().Set("Cache-Control", "private, max-age=3600")
 	if _, err := io.Copy(w, body.Body); err != nil {

@@ -1,5 +1,6 @@
 import { memo } from "react";
 import { Brain, ChevronRight } from "lucide-react";
+import { thinkingPreview } from "../lib/activity";
 import type { ReasoningPart } from "../lib/types";
 
 export const Reasoning = memo(function Reasoning({
@@ -9,14 +10,18 @@ export const Reasoning = memo(function Reasoning({
   part: ReasoningPart;
   streaming?: boolean;
 }) {
+  const preview = thinkingPreview(part.text);
   return (
-    <details className="group my-2">
-      <summary className="text-muted-foreground hover:text-foreground inline-flex cursor-pointer list-none items-center gap-1.5 text-xs transition-colors [&::-webkit-details-marker]:hidden">
-        <ChevronRight className="size-3.5 transition-transform group-open:rotate-90" />
-        <Brain className="size-3.5" />
-        {streaming ? "Thinking…" : "Thinking"}
+    <details className="group">
+      <summary className="hover:bg-muted/40 flex cursor-pointer list-none items-center gap-2 rounded px-2 py-1 text-[11px] [&::-webkit-details-marker]:hidden">
+        <ChevronRight className="text-muted-foreground size-3.5 shrink-0 transition-transform group-open:rotate-90" />
+        <Brain className="text-muted-foreground size-3.5 shrink-0" />
+        <span className={streaming ? "shrink-0 text-foreground" : "text-muted-foreground shrink-0"}>
+          {streaming ? "Thinking" : "Thought"}
+        </span>
+        <span className="text-muted-foreground min-w-0 flex-1 truncate">{preview}</span>
       </summary>
-      <div className="border-border text-muted-foreground mt-2 border-l-2 pl-3 text-xs leading-6 whitespace-pre-wrap">
+      <div className="border-border text-muted-foreground mr-2 mb-1 ml-7 border-l-2 py-1 pl-3 text-xs leading-5 whitespace-pre-wrap">
         {part.text}
       </div>
     </details>

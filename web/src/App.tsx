@@ -29,6 +29,7 @@ import {
   sessionRunning,
 } from "./lib/format";
 import { questionField } from "./lib/forms";
+import { isEditableTarget } from "./lib/keys";
 import {
   groupSessions,
   listedSessions,
@@ -254,6 +255,10 @@ export default function App() {
   const [transcriptCache] = useState(() => new TranscriptCache());
   const [messageLoads] = useState(() => new Set<string>());
   const questionIDs = useRef(new Set<string>());
+  const prefetchedAt = useRef(new Map<string, number>());
+  const prefetching = useRef(new Set<string>());
+  const prefetchTimer = useRef<number | null>(null);
+  const prefetchRun = useRef({ active: false, again: false });
   const [historyCursor, setHistoryCursor] = useState<string | null>(null);
   const historyCursorRef = useRef(historyCursor);
   historyCursorRef.current = historyCursor;
@@ -394,6 +399,56 @@ export default function App() {
       setSessionsLoading(false);
     }
   }, []);
+
+  const prefetchTranscripts = useCallback(
+    async function run(list: Session[]) {
+      if (prefetchRun.current.active) {
+        prefetchRun.current.again = true;
+        return;
+      }
+      prefetchRun.current.active = true;
+      try {
+        const queue = [...list].sort((a, b) => b.time.updated - a.time.updated);
+        let next = 0;
+        const worker = async () => {
+          while (next < queue.length) {
+            const session = queue[next++];
+            if (selectedIdRef.current === session.id) continue;
+            if (prefetching.current.has(session.id)) continue;
+            const complete = transcriptCache.isComplete(session.id);
+            if (complete && prefetchedAt.current.get(session.id) === session.time.updated) {
+              continue;
+            }
+            if (runningIdsRef.current[session.id] ?? sessionRunning(session)) continue;
+            prefetching.current.add(session.id);
+            try {
+              const page = await api.messages(session.id, { light: true });
+              if (selectedIdRef.current === session.id) continue;
+              const full = normalizeMessages(page.data);
+              const existing = transcriptCache.get(session.id);
+              transcriptCache.set(session.id, {
+                messages: lightMessages(existing ? mergeTail(full, existing.messages) : full),
+                previous: page.previous ?? null,
+              });
+              prefetchedAt.current.set(session.id, session.time.updated);
+            } catch {
+              continue;
+            } finally {
+              prefetching.current.delete(session.id);
+            }
+          }
+        };
+        await Promise.all([worker(), worker()]);
+      } finally {
+        prefetchRun.current.active = false;
+        if (prefetchRun.current.again) {
+          prefetchRun.current.again = false;
+          void run(sessionsRef.current);
+        }
+      }
+    },
+    [transcriptCache],
+  );
 
   const loadProjects = useCallback(async () => {
     try {
@@ -580,6 +635,21 @@ export default function App() {
     }, 20_000);
     return () => window.clearInterval(timer);
   }, [loadCatalog, loadHealth, loadSessions]);
+
+  useEffect(() => {
+    if (!health?.ok || sessionsLoading || sessions.length === 0) return;
+    if (prefetchTimer.current !== null) window.clearTimeout(prefetchTimer.current);
+    prefetchTimer.current = window.setTimeout(() => {
+      prefetchTimer.current = null;
+      void prefetchTranscripts(sessions);
+    }, 300);
+    return () => {
+      if (prefetchTimer.current !== null) {
+        window.clearTimeout(prefetchTimer.current);
+        prefetchTimer.current = null;
+      }
+    };
+  }, [health?.ok, prefetchTranscripts, selectedId, sessions, sessionsLoading]);
 
   useEffect(() => {
     if (streamFrame.current !== null) {
@@ -1342,7 +1412,7 @@ export default function App() {
           break;
         case "help":
           setBanner(
-            "Commands: /new /dir /compact /revert /fork /retry /theme /clear /help · Shortcuts: Alt+N new chat, Tab / Shift+Tab next/prev chat, Alt+J/K same, Alt+←/→ this dir / mine / all, Ctrl/⌘K search",
+            "Commands: /new /dir /compact /revert /fork /retry /theme /clear /help · Shortcuts: Alt+N new chat, Alt+J/K or Tab/Shift+Tab next/prev chat (Tab in a text field completes /commands and accepts the highlighted suggestion), Alt+←/→ this dir / mine / all, Ctrl/⌘K search",
           );
           break;
       }
@@ -1386,6 +1456,7 @@ export default function App() {
     const onKeyDown = (event: KeyboardEvent) => {
       const mod = event.metaKey || event.ctrlKey;
       const key = event.key.toLowerCase();
+      const target = event.target instanceof Element ? event.target : null;
       if (mod && key === "k") {
         event.preventDefault();
         setSidebarOpen(true);
@@ -1419,9 +1490,10 @@ export default function App() {
         !event.altKey &&
         !event.metaKey &&
         !event.ctrlKey &&
+        !isEditableTarget(target) &&
         !pickerOpen &&
         !settingsOpen &&
-        !(event.target instanceof Element && event.target.closest("[data-form-card]"))
+        !(target && target.closest("[data-form-card]"))
       ) {
         if (cycleSessions.length === 0) return;
         event.preventDefault();

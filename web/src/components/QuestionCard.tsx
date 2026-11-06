@@ -10,9 +10,15 @@ export const QuestionCard = memo(function QuestionCard({ part }: { part: ToolPar
   const pending = part.state.status === "running" || part.state.status === "streaming";
   const answered = questions.some((question) => question.answers.length > 0);
   if (pending && !answered) return null;
+  const complete = questions.every((question) => question.answers.length > 0);
 
   return (
-    <div className="border-border bg-card my-2 rounded-lg border px-3 py-2 text-sm">
+    <div
+      className={cn(
+        "form-sheen-card border-border bg-card my-2 rounded-lg border px-3 py-2 text-sm",
+        !complete && "form-sheen-waiting",
+      )}
+    >
       <div className="text-muted-foreground mb-1.5 flex items-center gap-1.5 text-[11px]">
         <MessageCircleQuestion className="size-3.5" />
         Question
@@ -34,7 +40,9 @@ export const QuestionCard = memo(function QuestionCard({ part }: { part: ToolPar
                       key={optionIndex}
                       className={cn(
                         "flex gap-1.5",
-                        chosen ? "text-foreground font-medium" : "text-muted-foreground",
+                        chosen
+                          ? "form-sheen-chosen text-foreground font-medium"
+                          : "text-muted-foreground",
                       )}
                     >
                       <span className="shrink-0">{chosen ? "•" : "○"}</span>

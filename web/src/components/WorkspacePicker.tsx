@@ -74,7 +74,7 @@ export function WorkspacePicker({
                 type="button"
                 onClick={() => onPick(directory)}
                 className={cn(
-                  "flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left",
+                  "chrome-sheen-row flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left",
                   current === directory ? "bg-accent" : "hover:bg-accent/60",
                 )}
               >
@@ -222,7 +222,7 @@ export function WorkspaceMenu({
                       setOpen(false);
                       onPick(directory);
                     }}
-                    className="hover:bg-accent/60 flex w-full items-center gap-2 rounded px-2 py-1.5 text-left"
+                    className="chrome-sheen-row hover:bg-accent/60 flex w-full items-center gap-2 rounded px-2 py-1.5 text-left"
                   >
                     {project?.vcs ? (
                       <FolderGit2 className="text-muted-foreground size-3.5 shrink-0" />

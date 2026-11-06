@@ -57,6 +57,7 @@ export const AssistantTurn = memo(function AssistantTurn({
 }: AssistantTurnProps) {
   const [open, setOpen] = useState(false);
   const wasStreaming = useRef(streaming);
+  const [fresh] = useState(streaming);
   const [copied, setCopied] = useState(false);
   const [loadingSteps, setLoadingSteps] = useState(false);
   const last = messages[messages.length - 1];
@@ -130,6 +131,7 @@ export const AssistantTurn = memo(function AssistantTurn({
 
   return (
     <div className="px-1 py-3">
+      {fresh && <span aria-hidden="true" className="row-sheen-turn-line mb-2" />}
       <div className="mb-1.5 flex min-w-0 items-center gap-2 text-xs">
         <span className="bg-secondary text-secondary-foreground flex size-6 items-center justify-center rounded-full">
           <Bot className="size-3.5" />
@@ -140,12 +142,12 @@ export const AssistantTurn = memo(function AssistantTurn({
           <Button
             variant="ghost"
             size="xs"
-            className="text-muted-foreground shrink-0"
+            className={`row-sheen-copy text-muted-foreground shrink-0${copied ? " row-sheen-copy-on" : ""}`}
             onClick={onCopy}
             aria-label="Copy assistant reply"
           >
             {copied ? <Check /> : <Copy />}
-            {copied ? "Copied" : "Copy"}
+            <span>{copied ? "Copied" : "Copy"}</span>
           </Button>
         )}
         {last && (

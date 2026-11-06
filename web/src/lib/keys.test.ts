@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { shouldCaptureKey, type KeyEvent } from "./keys";
+import { isEditableTarget, shouldCaptureKey, type KeyEvent } from "./keys";
 
 const key = (value: string, overrides: Partial<KeyEvent> = {}): KeyEvent => ({
   key: value,
@@ -46,5 +46,13 @@ describe("shouldCaptureKey", () => {
 
   it("stays out of the way while an overlay is open", () => {
     expect(shouldCaptureKey(key("a"), target("plain"), true)).toBe(false);
+  });
+});
+
+describe("isEditableTarget", () => {
+  it("treats text fields as editable and everything else as not", () => {
+    expect(isEditableTarget(target("editable"))).toBe(true);
+    expect(isEditableTarget(target("plain"))).toBe(false);
+    expect(isEditableTarget(null)).toBe(false);
   });
 });

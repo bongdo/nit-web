@@ -1,4 +1,4 @@
-import { memo, useState } from "react";
+import { memo, useEffect, useRef, useState } from "react";
 import {
   AlertCircle,
   Check,
@@ -9,13 +9,16 @@ import {
 import type { ToolContent, ToolPart } from "../lib/types";
 import { toolSummary } from "../lib/activity";
 import { attachmentHref } from "../lib/attachments";
+import { cn } from "../lib/utils";
 import { AttachmentPreview } from "./Attachment";
 
 function StatusIcon({ status }: { status: ToolPart["state"]["status"] }) {
   if (status === "streaming" || status === "running") {
     return <Loader2 className="text-muted-foreground size-3.5 animate-spin" />;
   }
-  if (status === "completed") return <Check className="size-3.5 text-emerald-500" />;
+  if (status === "completed") {
+    return <Check className="row-sheen-tool-check size-3.5 text-emerald-500" />;
+  }
   if (status === "error") return <AlertCircle className="text-destructive size-3.5" />;
   return <Circle className="size-3.5" />;
 }
@@ -43,13 +46,33 @@ export const ToolCall = memo(function ToolCall({
 }) {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [settle, setSettle] = useState<"done" | "error" | null>(null);
   const { verb, target } = toolSummary(part, cwd);
   const status = part.state.status;
   const content = part.state.content ?? [];
+  const active = status === "running" || status === "streaming";
+  const wasActive = useRef(active);
+
+  useEffect(() => {
+    if (active) {
+      setSettle(null);
+      wasActive.current = true;
+      return;
+    }
+    if (wasActive.current && (status === "completed" || status === "error")) {
+      setSettle(status === "completed" ? "done" : "error");
+    }
+    wasActive.current = false;
+  }, [active, status]);
 
   return (
     <details
-      className="group"
+      className={cn(
+        "group",
+        active && "row-sheen-tool-live",
+        !active && settle === "done" && "row-sheen-tool-done",
+        !active && settle === "error" && "row-sheen-tool-error",
+      )}
       open={open}
       onToggle={(event) => {
         const next = (event.currentTarget as HTMLDetailsElement).open;

@@ -276,3 +276,15 @@ Why: one place owns auth and rate limiting, the password never reaches Caddy or 
 Rejected: keeping Caddy basic auth (no login page, no lockout), exposing the app or Caddy on `0.0.0.0`, using the host public IP with `nip.io` (80/7792 closed, 443 occupied), and a per-user account system (out of scope for one user).
 
 Cost: one shared password, in-memory sessions and lockout counters, and no 2FA. Restarting the app signs everyone out and clears blocks. Public access depends on Tailscale Funnel; a real domain would need DNS and a free TLS port.
+
+## 2026-11-06 — Tab belongs to text fields
+
+Context: Tab cycled chats globally, but the composer needs it for autocomplete: the /command palette and the spelling/grammar suggestions popup.
+
+Decision: the global Tab handler ignores events from inputs, textareas, selects and contenteditable elements. Inside the composer, Tab completes the selected /command or applies the first suggestion at the caret.
+
+Why: Tab in a text field is the user's autocomplete key, and the composer is where it matters. Chat cycling still has Alt+J/K and Tab everywhere outside a field.
+
+Rejected: keeping Tab global and letting the composer only handle the palette (the grammar popup would lose its key); dropping Tab cycling entirely.
+
+Cost: Tab in the sidebar search now moves focus instead of cycling chats. Replaces the Tab part of 2026-11-06 — Tab cycles chats.

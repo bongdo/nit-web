@@ -994,6 +994,11 @@ export const Composer = memo(function Composer({
                       setCommandIndex((current) => (current - 1 + matches.length) % matches.length);
                       return;
                     }
+                    if (event.key === "Tab" && selectedCommand) {
+                      event.preventDefault();
+                      updateValue(`/${selectedCommand.id}`);
+                      return;
+                    }
                     if (event.key === "Enter" && !event.shiftKey && selectedCommand) {
                       event.preventDefault();
                       runCommand(selectedCommand.id);
@@ -1004,6 +1009,12 @@ export const Composer = memo(function Composer({
                       setCommandDismissed(true);
                       return;
                     }
+                  }
+                  const firstSuggestion = visibleIssue?.suggestions[0];
+                  if (event.key === "Tab" && visibleIssue && firstSuggestion) {
+                    event.preventDefault();
+                    applySuggestion(visibleIssue, firstSuggestion);
+                    return;
                   }
                   if (event.key === "Escape" && visibleIssue) {
                     event.preventDefault();

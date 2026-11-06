@@ -33,6 +33,7 @@ export function HtmlPreview({
   const ref = useRef<HTMLIFrameElement>(null);
   const [height, setHeight] = useState(200);
   const [theme, setTheme] = useState(readTheme);
+  const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
     const observer = new MutationObserver(() => setTheme(readTheme()));
@@ -60,14 +61,25 @@ export function HtmlPreview({
     : `${doc}${RESIZE}`;
 
   return (
-    <iframe
-      ref={ref}
-      title={title}
-      srcDoc={withResize}
-      sandbox="allow-scripts allow-forms allow-modals"
-      referrerPolicy="no-referrer"
-      style={{ height: autoHeight ? height : undefined, background: theme.background }}
-      className={cn("w-full border-0", className)}
-    />
+    <div
+      className={cn(
+        "row-sheen-preview relative w-full overflow-hidden rounded-lg border border-border",
+        loaded ? "row-sheen-preview-ready" : "row-sheen-preview-loading",
+        className,
+      )}
+    >
+      {!loaded && <span aria-hidden="true" className="row-sheen-preview-scan" />}
+      <span aria-hidden="true" className="row-sheen-preview-trace" />
+      <iframe
+        ref={ref}
+        title={title}
+        srcDoc={withResize}
+        sandbox="allow-scripts allow-forms allow-modals"
+        referrerPolicy="no-referrer"
+        onLoad={() => setLoaded(true)}
+        style={{ height: autoHeight ? height : undefined, background: theme.background }}
+        className="row-sheen-preview-frame w-full border-0"
+      />
+    </div>
   );
 }

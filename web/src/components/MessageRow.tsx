@@ -182,12 +182,12 @@ export const MessageRow = memo(function MessageRow({
           <Button
             variant="ghost"
             size="xs"
-            className="text-muted-foreground shrink-0"
+            className={`row-sheen-copy text-muted-foreground shrink-0${copied ? " row-sheen-copy-on" : ""}`}
             onClick={onCopyReply}
             aria-label="Copy assistant reply"
           >
             {copied ? <Check /> : <Copy />}
-            {copied ? "Copied" : "Copy"}
+            <span>{copied ? "Copied" : "Copy"}</span>
           </Button>
         )}
         <Button

@@ -20,13 +20,31 @@ describe("TranscriptCache", () => {
     expect(cache.get("ses_2")?.messages).toEqual(messages("msg_2"));
   });
 
-  it("keeps a bounded number of entries", () => {
+  it("keeps a bounded number of entries when asked", () => {
     const cache = new TranscriptCache(1000, 2);
     cache.set("ses_1", transcript("msg_1"), 1);
     cache.set("ses_2", transcript("msg_2"), 1);
     cache.set("ses_3", transcript("msg_3"), 1);
     expect(cache.get("ses_1")).toBeUndefined();
     expect(cache.get("ses_3")).toBeDefined();
+  });
+
+  it("does not cap the entry count by default", () => {
+    const cache = new TranscriptCache(1000);
+    for (let index = 0; index < 40; index += 1) {
+      cache.set(`ses_${index}`, transcript(`msg_${index}`), 1);
+    }
+    expect(cache.get("ses_0")).toBeDefined();
+    expect(cache.get("ses_39")).toBeDefined();
+  });
+
+  it("treats only a transcript without an older cursor as complete", () => {
+    const cache = new TranscriptCache();
+    expect(cache.isComplete("ses_1")).toBe(false);
+    cache.set("ses_1", transcript("msg_1", "older"));
+    expect(cache.isComplete("ses_1")).toBe(false);
+    cache.set("ses_2", transcript("msg_2"));
+    expect(cache.isComplete("ses_2")).toBe(true);
   });
 
   it("refreshes recency on read", () => {

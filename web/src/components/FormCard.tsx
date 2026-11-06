@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Check, ChevronDown, Loader2, X } from "lucide-react";
 import type { FormField, FormInfo } from "../lib/types";
 import { api } from "../lib/api";
@@ -45,6 +45,14 @@ export function FormCard({
   const [busy, setBusy] = useState(false);
   const [open, setOpen] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [doneFor, setDoneFor] = useState<string | null>(null);
+  const done = doneFor === form.id;
+
+  useEffect(() => {
+    if (!done) return;
+    const timer = window.setTimeout(onDone, 550);
+    return () => window.clearTimeout(timer);
+  }, [done, onDone]);
 
   const set = (key: string, value: unknown) =>
     setValues((current) => ({ ...current, [key]: value }));
@@ -73,7 +81,7 @@ export function FormCard({
     setError(null);
     try {
       await api.replyForm(sessionID, form.id, answer);
-      onDone();
+      setDoneFor(form.id);
     } catch (cause) {
       const message = cause instanceof Error ? cause.message : "Could not submit the form.";
       setError(message);
@@ -98,7 +106,10 @@ export function FormCard({
   return (
     <div
       data-form-card
-      className="border-primary/30 bg-card mx-auto my-2 w-full max-w-3xl rounded-xl border p-3 shadow-sm"
+      className={cn(
+        "form-sheen-card border-primary/30 bg-card mx-auto my-2 w-full max-w-3xl rounded-xl border p-3 shadow-sm",
+        done ? "form-sheen-done" : "form-sheen-waiting",
+      )}
     >
       <button
         type="button"
@@ -136,7 +147,7 @@ export function FormCard({
             )}
 
             {field.type === "boolean" ? (
-              <label className="flex cursor-pointer items-center gap-2 text-[12px]">
+              <label className="form-sheen-option flex cursor-pointer items-center gap-2 rounded px-1.5 py-1 text-[12px]">
                 <input
                   type="checkbox"
                   checked={Boolean(values[field.key])}
@@ -155,7 +166,7 @@ export function FormCard({
                   return (
                     <label
                       key={option.value}
-                      className="hover:bg-accent/50 flex cursor-pointer items-start gap-2 rounded px-1.5 py-1 text-[12px]"
+                      className="form-sheen-option hover:bg-accent/50 flex cursor-pointer items-start gap-2 rounded px-1.5 py-1 text-[12px]"
                     >
                       <input
                         type="checkbox"
@@ -206,7 +217,7 @@ export function FormCard({
                     <label
                       key={option.value}
                       className={cn(
-                        "hover:bg-accent/50 flex cursor-pointer items-start gap-2 rounded px-1.5 py-1 text-[12px]",
+                        "form-sheen-option hover:bg-accent/50 flex cursor-pointer items-start gap-2 rounded px-1.5 py-1 text-[12px]",
                         current === option.value && "bg-accent/50",
                       )}
                     >
@@ -257,12 +268,16 @@ export function FormCard({
 
       {open && (
         <div className="mt-3 flex items-center justify-end gap-2">
-          <Button variant="ghost" size="sm" onClick={() => void cancel()} disabled={busy}>
+          <Button variant="ghost" size="sm" onClick={() => void cancel()} disabled={busy || done}>
             <X />
             Cancel
           </Button>
-          <Button size="sm" onClick={() => void submit()} disabled={busy}>
-            {busy ? <Loader2 className="animate-spin" /> : <Check />}
+          <Button size="sm" onClick={() => void submit()} disabled={busy || done}>
+            {busy ? (
+              <Loader2 className="animate-spin" />
+            ) : (
+              <Check className={done ? "form-sheen-check" : undefined} />
+            )}
             Answer
           </Button>
         </div>

@@ -1,7 +1,6 @@
 import type { Message } from "./types";
 
 const MAX_BYTES = 12 << 20;
-const MAX_ENTRIES = 30;
 
 export type CachedTranscript = {
   messages: Message[];
@@ -16,7 +15,7 @@ export class TranscriptCache {
 
   constructor(
     private maxBytes = MAX_BYTES,
-    private maxEntries = MAX_ENTRIES,
+    private maxEntries = Number.POSITIVE_INFINITY,
   ) {}
 
   get(id: string): CachedTranscript | undefined {
@@ -37,6 +36,11 @@ export class TranscriptCache {
     this.entries.set(id, { ...transcript, bytes });
     this.total += bytes;
     this.trim();
+  }
+
+  isComplete(id: string): boolean {
+    const entry = this.entries.get(id);
+    return entry !== undefined && entry.previous === null;
   }
 
   update(id: string, messages: Message[], deltaBytes: number) {

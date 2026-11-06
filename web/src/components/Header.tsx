@@ -1,4 +1,4 @@
-import { memo } from "react";
+import { memo, useEffect, useRef, useState } from "react";
 import {
   ArrowLeft,
   Bell,
@@ -27,6 +27,79 @@ function ThemeIcon({ theme }: { theme: Theme }) {
   if (theme === "light") return <Sun />;
   if (theme === "dark") return <Moon />;
   return <Monitor />;
+}
+
+function ContextMeter({ value, session }: { value: number; session?: string }) {
+  const previous = useRef<number | null>(null);
+  const scope = useRef(session);
+  const [sweep, setSweep] = useState(0);
+
+  useEffect(() => {
+    if (scope.current !== session) {
+      scope.current = session;
+      previous.current = value;
+      return;
+    }
+    const last = previous.current;
+    previous.current = value;
+    if (last !== null && last - value >= 8) setSweep((count) => count + 1);
+  }, [session, value]);
+
+  return (
+    <span
+      role="progressbar"
+      aria-label="Context used"
+      aria-valuemin={0}
+      aria-valuemax={100}
+      aria-valuenow={value}
+      className={cn(
+        "chrome-sheen-context bg-muted-foreground/20 relative inline-flex h-[3px] w-10 shrink-0 overflow-hidden rounded-full",
+        value > 80 && "chrome-sheen-context-hot",
+      )}
+    >
+      <span
+        className="chrome-sheen-context-fill h-full w-full rounded-full"
+        style={{ transform: `scaleX(${value / 100})` }}
+      />
+      {sweep > 0 && <span key={sweep} aria-hidden className="chrome-sheen-context-sweep" />}
+    </span>
+  );
+}
+
+function ModelChip({ label }: { label: string }) {
+  const shownRef = useRef(label);
+  const [shown, setShown] = useState(label);
+  const [previous, setPrevious] = useState<string | null>(null);
+  const [tick, setTick] = useState(0);
+
+  useEffect(() => {
+    const current = shownRef.current;
+    if (label === current) return;
+    shownRef.current = label;
+    setShown(label);
+    setPrevious(current);
+    setTick((count) => count + 1);
+    const timer = window.setTimeout(() => setPrevious(null), 260);
+    return () => window.clearTimeout(timer);
+  }, [label]);
+
+  return (
+    <span className="chrome-sheen-chip inline-block max-w-full min-w-0 truncate align-bottom">
+      {previous !== null && (
+        <span
+          key={`out-${tick}`}
+          aria-hidden
+          className="chrome-sheen-chip-out absolute inset-0 truncate"
+        >
+          · {previous}
+        </span>
+      )}
+      <span key={`in-${tick}`} className="chrome-sheen-chip-in block truncate">
+        · {shown}
+      </span>
+      {tick > 0 && <span key={`line-${tick}`} aria-hidden className="chrome-sheen-chip-line" />}
+    </span>
+  );
 }
 
 export const Header = memo(function Header({
@@ -81,6 +154,13 @@ export const Header = memo(function Header({
   const directory = session?.location?.directory ?? fallbackDirectory;
   const title = session?.title?.trim() || (session ? "New chat" : "nit-gui");
   const live = streamStatus === "online" && health?.ok;
+  const wasLive = useRef(Boolean(live));
+  const [reconnected, setReconnected] = useState(0);
+
+  useEffect(() => {
+    if (live && !wasLive.current) setReconnected((count) => count + 1);
+    wasLive.current = Boolean(live);
+  }, [live]);
 
   const pill = "border-border/60 bg-card/90 rounded-lg border shadow-sm backdrop-blur-2xl";
 
@@ -108,7 +188,7 @@ export const Header = memo(function Header({
         </Button>
       )}
 
-      <div className={cn(pill, "pointer-events-auto min-w-0 max-w-2xl px-3.5 py-1")}>
+      <div className={cn(pill, "pointer-events-auto min-w-0 max-w-2xl overflow-hidden px-3.5 py-1")}>
         <h1 className="truncate text-[13px] font-semibold leading-tight">{title}</h1>
         <div className="text-muted-foreground flex min-w-0 items-center gap-1 text-[10px] leading-tight">
           <Folder className="size-3 shrink-0" />
@@ -116,13 +196,12 @@ export const Header = memo(function Header({
             {directory ? basename(directory) : "no directory"}
           </span>
           {(agent || model) && (
-            <span className="truncate">
-              · {agent ?? "agent"} · {modelLabel(model, models) || "model"}
-            </span>
+            <ModelChip label={`${agent ?? "agent"} · ${modelLabel(model, models) || "model"}`} />
           )}
           {contextPercent != null && (
-            <span className="shrink-0" title="Context used">
-              · ctx {contextPercent}%
+            <span className="flex shrink-0 items-center gap-1" title="Context used">
+              <span>· ctx {contextPercent}%</span>
+              <ContextMeter value={contextPercent} session={session?.id} />
             </span>
           )}
           {(cost ?? 0) > 0 && (
@@ -153,12 +232,13 @@ export const Header = memo(function Header({
         <span
           className={cn(
             pill,
-            "inline-flex size-9 items-center justify-center",
+            "chrome-sheen-health inline-flex size-9 items-center justify-center",
             live
-              ? "text-emerald-500"
+              ? "text-success"
               : streamStatus === "connecting"
-                ? "text-amber-500"
+                ? "text-attention"
                 : "text-destructive",
+            !live && streamStatus !== "connecting" && "chrome-sheen-health-offline",
           )}
           title={
             live
@@ -174,6 +254,9 @@ export const Header = memo(function Header({
             <Wifi className="size-3.5" />
           ) : (
             <WifiOff className="size-3.5" />
+          )}
+          {reconnected > 0 && (
+            <span key={reconnected} aria-hidden className="chrome-sheen-health-sweep" />
           )}
         </span>
 

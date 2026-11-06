@@ -330,6 +330,8 @@ nspell worker. It is not implemented yet.
   `alt+j`/`alt+k`) next/previous chat in the sidebar order, `alt+←`/`alt+→`
   switches the scope This dir / Mine / All, `enter` send and `shift+enter`
   newline (in the composer), double `esc` stop.
+  In a text field `tab` belongs to the field: the composer completes the
+  selected `/command` and accepts the first spelling or grammar suggestion.
   `tab` is not hijacked while a dialog or an agent form is focused.
   Selecting text in the transcript shows a Quote button that drops it into the
   composer as a markdown quote.

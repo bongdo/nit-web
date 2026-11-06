@@ -39,6 +39,28 @@ function Skeleton() {
   );
 }
 
+function ErrorBanner({ error, onRetry }: { error: string; onRetry: () => void }) {
+  const [visible, setVisible] = useState(true);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => setVisible(false), 10000);
+    return () => window.clearTimeout(timer);
+  }, []);
+
+  if (!visible) return null;
+
+  return (
+    <div className="chrome-sheen-error text-destructive border-destructive/30 bg-destructive/5 relative mb-4 flex items-start gap-2 overflow-hidden rounded-lg border px-3 py-2 text-xs">
+      <CircleAlert className="mt-0.5 size-4 shrink-0" />
+      <span className="flex-1 whitespace-pre-wrap">{error}</span>
+      <Button variant="ghost" size="xs" onClick={onRetry}>
+        Retry
+      </Button>
+      <span aria-hidden className="chrome-sheen-error-progress" />
+    </div>
+  );
+}
+
 export function ChatView({
   session,
   messages,
@@ -103,6 +125,8 @@ export function ChatView({
     session: string;
   } | null>(null);
   const [showJump, setShowJump] = useState(false);
+  const [unseen, setUnseen] = useState(0);
+  const bottomCount = useRef(messages.length);
   const [quote, setQuote] = useState<{ text: string; x: number; y: number } | null>(null);
 
   const scrollToBottom = useCallback(() => {
@@ -110,6 +134,8 @@ export function ChatView({
     if (!element) return;
     element.scrollTop = element.scrollHeight;
     stick.current = true;
+    bottomCount.current = messagesRef.current.length;
+    setUnseen(0);
     setShowJump(false);
   }, []);
 
@@ -172,12 +198,19 @@ export function ChatView({
 
   useEffect(() => {
     stick.current = true;
+    bottomCount.current = messagesRef.current.length;
     scheduleScroll();
   }, [session?.id]);
 
   useEffect(() => {
-    if (stick.current) scheduleScroll();
-  }, [messages, running]);
+    if (stick.current) {
+      bottomCount.current = messages.length;
+      setUnseen(0);
+      scheduleScroll();
+      return;
+    }
+    setUnseen(Math.max(0, messages.length - bottomCount.current));
+  }, [messages, running, scheduleScroll]);
 
   useEffect(() => {
     if (!hasEarlier || loadingEarlier) return;
@@ -293,7 +326,12 @@ export function ChatView({
       <div className="relative flex min-h-0 flex-1 items-center justify-center overflow-y-auto px-6 py-10">
         <Scene variant={background} motion={motion} />
         <div className="relative max-w-md text-center">
-          <div className="bg-secondary text-secondary-foreground mx-auto mb-4 flex size-12 items-center justify-center rounded-2xl">
+          <div
+            className={cn(
+              "bg-secondary text-secondary-foreground mx-auto mb-4 flex size-12 items-center justify-center rounded-2xl",
+              motion === "animated" && "chrome-sheen-empty",
+            )}
+          >
             <Sparkles className="text-spark size-6" />
           </div>
           <h2 className="text-xl font-semibold tracking-tight">
@@ -357,6 +395,7 @@ export function ChatView({
           const nearBottom =
             element.scrollHeight - element.scrollTop - element.clientHeight < 140;
           stick.current = nearBottom;
+          if (nearBottom) bottomCount.current = messagesRef.current.length;
           setShowJump(!nearBottom);
           setQuote(null);
           if (earlierAnchor.current) earlierAnchor.current.top = element.scrollTop;
@@ -366,15 +405,7 @@ export function ChatView({
         }}
       >
         <div ref={contentRef} className="mx-auto w-full max-w-3xl px-4 pt-16 pb-6">
-          {error && (
-            <div className="text-destructive border-destructive/30 bg-destructive/5 mb-4 flex items-start gap-2 rounded-lg border px-3 py-2 text-xs">
-              <CircleAlert className="mt-0.5 size-4 shrink-0" />
-              <span className="flex-1 whitespace-pre-wrap">{error}</span>
-              <Button variant="ghost" size="xs" onClick={onRetry}>
-                Retry
-              </Button>
-            </div>
-          )}
+          {error && <ErrorBanner key={error} error={error} onRetry={onRetry} />}
 
           {messages.length === 0 && !error ? (
             <div className="flex flex-col items-center justify-center py-20 text-center">
@@ -408,11 +439,20 @@ export function ChatView({
           <Button
             variant="secondary"
             size="sm"
-            className={cn("pointer-events-auto shadow-md")}
+            className={cn(
+              "pointer-events-auto relative shadow-md",
+              motion === "animated" && "chrome-sheen-latest",
+            )}
             onClick={scrollToBottom}
+            aria-label={unseen > 0 ? `Jump to latest, ${unseen} new messages` : "Jump to latest"}
           >
             <ArrowDown />
             Latest
+            {unseen > 0 && (
+              <span className="bg-spark/15 text-spark ml-0.5 rounded-full px-1.5 py-0.5 text-[10px] tabular-nums">
+                {unseen > 99 ? "99+" : unseen}
+              </span>
+            )}
           </Button>
         </div>
       )}

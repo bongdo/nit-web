@@ -2,6 +2,23 @@ package server
 
 import "encoding/json"
 
+type lightToolState struct {
+	Status string          `json:"status"`
+	Error  json.RawMessage `json:"error,omitempty"`
+}
+
+type lightPart struct {
+	Type     string          `json:"type"`
+	ID       string          `json:"id,omitempty"`
+	Name     string          `json:"name,omitempty"`
+	Executed *bool           `json:"executed,omitempty"`
+	Time     json.RawMessage `json:"time,omitempty"`
+	Ordinal  *int            `json:"ordinal,omitempty"`
+	Text     *string         `json:"text,omitempty"`
+	State    *lightToolState `json:"state,omitempty"`
+	Light    bool            `json:"light,omitempty"`
+}
+
 func lightenTranscript(data []byte) ([]byte, error) {
 	var messages []json.RawMessage
 	if err := json.Unmarshal(data, &messages); err != nil {
@@ -54,56 +71,27 @@ func lightenMessage(raw []byte) (json.RawMessage, error) {
 }
 
 func lightenPart(raw []byte) (json.RawMessage, bool, error) {
-	var part map[string]json.RawMessage
+	var kind struct {
+		Type string `json:"type"`
+	}
+	if err := json.Unmarshal(raw, &kind); err != nil {
+		return nil, false, err
+	}
+	if kind.Type != "tool" && kind.Type != "reasoning" {
+		return raw, false, nil
+	}
+	var part lightPart
 	if err := json.Unmarshal(raw, &part); err != nil {
 		return nil, false, err
 	}
-	var kind string
-	if err := json.Unmarshal(part["type"], &kind); err != nil {
+	part.Light = true
+	if kind.Type == "reasoning" {
+		empty := ""
+		part.Text = &empty
+	}
+	encoded, err := json.Marshal(part)
+	if err != nil {
 		return nil, false, err
 	}
-	switch kind {
-	case "tool":
-		var state map[string]json.RawMessage
-		if err := json.Unmarshal(part["state"], &state); err != nil {
-			return nil, false, err
-		}
-		changed := false
-		for _, key := range []string{"content", "input", "metadata"} {
-			if _, ok := state[key]; ok {
-				delete(state, key)
-				changed = true
-			}
-		}
-		if !changed {
-			return raw, false, nil
-		}
-		encoded, err := json.Marshal(state)
-		if err != nil {
-			return nil, false, err
-		}
-		part["state"] = encoded
-		part["light"] = json.RawMessage("true")
-		encodedPart, err := json.Marshal(part)
-		if err != nil {
-			return nil, false, err
-		}
-		return encodedPart, true, nil
-	case "reasoning":
-		var text string
-		if err := json.Unmarshal(part["text"], &text); err != nil {
-			return nil, false, err
-		}
-		if text == "" {
-			return raw, false, nil
-		}
-		part["text"] = json.RawMessage(`""`)
-		part["light"] = json.RawMessage("true")
-		encodedPart, err := json.Marshal(part)
-		if err != nil {
-			return nil, false, err
-		}
-		return encodedPart, true, nil
-	}
-	return raw, false, nil
+	return encoded, true, nil
 }

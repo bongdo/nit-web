@@ -125,6 +125,7 @@ const ideas = {
   gravity: { label: "Gravity", hint: "сетка прогибается вокруг тяжёлых масс и курсора", draw: drawGravity, clear: true },
   glitch: { label: "Glitch", hint: "полосы сигнала рвутся и дёргаются у курсора", draw: drawGlitch, clear: true },
   nodes: { label: "Nodes", hint: "сеть узлов тянется к курсору и подсвечивает связи", draw: drawNodes, seed: seedNodes, clear: true },
+  fire: { label: "Fire", hint: "жар поднимается снизу, курсор поджигает сильнее", draw: drawFire, seed: seedFire, clear: true },
 };
 
 for (const [key, idea] of Object.entries(ideas)) {
@@ -290,11 +291,16 @@ function drawOrbit() {
     ctx.lineTo(p.x, p.y);
     ctx.stroke();
   }
-  const glow = ctx.createRadialGradient(cursor.x, cursor.y, 0, cursor.x, cursor.y, 100);
-  glow.addColorStop(0, alpha(colors[2], isDark() ? 0.28 : 0.16));
-  glow.addColorStop(1, alpha(colors[2], 0));
-  ctx.fillStyle = glow;
-  ctx.fillRect(cursor.x - 110, cursor.y - 110, 220, 220);
+  const halo = ctx.createRadialGradient(cursor.x, cursor.y, 0, cursor.x, cursor.y, 58);
+  halo.addColorStop(0, alpha(colors[2], isDark() ? 0.45 : 0.26));
+  halo.addColorStop(0.4, alpha(colors[2], isDark() ? 0.12 : 0.07));
+  halo.addColorStop(1, alpha(colors[2], 0));
+  ctx.fillStyle = halo;
+  ctx.fillRect(cursor.x - 58, cursor.y - 58, 116, 116);
+  ctx.fillStyle = isDark() ? "#f8fafc" : "#0f172a";
+  ctx.beginPath();
+  ctx.arc(cursor.x, cursor.y, 2.6, 0, Math.PI * 2);
+  ctx.fill();
   ctx.globalAlpha = 1;
 }
 
@@ -700,6 +706,111 @@ function drawNodes() {
   ctx.globalAlpha = 0.55;
   for (const n of nodes) ctx.fillRect(n.x - 1.4, n.y - 1.4, 2.8, 2.8);
   ctx.globalAlpha = 1;
+}
+
+const fire = { heat: null, next: null, canvas: null, octx: null, img: null };
+const FIRE_RAMP = [
+  [0, [90, 12, 0]],
+  [0.35, [190, 55, 8]],
+  [0.62, [240, 120, 20]],
+  [0.82, [250, 190, 60]],
+  [1, [255, 243, 200]],
+];
+const fireColor = (v) => {
+  let i = 1;
+  while (i < FIRE_RAMP.length - 1 && v > FIRE_RAMP[i][0]) i += 1;
+  const [a, ca] = FIRE_RAMP[i - 1];
+  const [b, cb] = FIRE_RAMP[i];
+  const k = Math.min(1, Math.max(0, (v - a) / (b - a)));
+  return [ca[0] + (cb[0] - ca[0]) * k, ca[1] + (cb[1] - ca[1]) * k, ca[2] + (cb[2] - ca[2]) * k];
+};
+const embers = [];
+function seedFire() {
+  if (!fire.heat) {
+    fire.heat = new Float32Array(FW * FH);
+    fire.next = new Float32Array(FW * FH);
+    fire.canvas = document.createElement("canvas");
+    fire.canvas.width = FW;
+    fire.canvas.height = FH;
+    fire.octx = fire.canvas.getContext("2d");
+    fire.img = fire.octx.createImageData(FW, FH);
+  }
+  fire.heat.fill(0);
+  embers.length = 0;
+  for (let i = 0; i < 46; i += 1) {
+    embers.push({
+      x: Math.random() * FW,
+      y: FH - Math.random() * 12,
+      vy: 0.25 + Math.random() * 0.8,
+      sway: Math.random() * 6.28,
+      life: Math.random() * 90,
+    });
+  }
+}
+function drawFire(t) {
+  const heat = fire.heat, next = fire.next;
+  for (let y = 0; y < FH - 1; y += 1) {
+    for (let x = 0; x < FW; x += 1) {
+      const row = (y + 1) * FW;
+      const left = heat[row + (x > 0 ? x - 1 : 0)];
+      const mid = heat[row + x];
+      const right = heat[row + (x < FW - 1 ? x + 1 : FW - 1)];
+      next[y * FW + x] = Math.max(0, (left + mid * 2 + right) * 0.25 * 0.958 + (Math.random() - 0.5) * 0.02);
+    }
+  }
+  const base = (FH - 1) * FW;
+  for (let x = 0; x < FW; x += 1) {
+    const wave = Math.sin(x * 0.23 + t * 2.4) * Math.sin(x * 0.08 - t * 1.2);
+    next[base + x] = 0.42 + wave * 0.3 + Math.random() * 0.2;
+  }
+  const px = (cursor.x / w) * FW;
+  const py = (cursor.y / h) * FH;
+  const reach = 5;
+  for (let y = Math.max(0, Math.floor(py - reach)); y <= Math.min(FH - 1, Math.ceil(py + reach)); y += 1) {
+    for (let x = Math.max(0, Math.floor(px - reach)); x <= Math.min(FW - 1, Math.ceil(px + reach)); x += 1) {
+      const d = Math.hypot(x - px, y - py);
+      if (d > reach) continue;
+      const i = y * FW + x;
+      next[i] = Math.min(1.15, next[i] + (1 - d / reach) * 0.55);
+    }
+  }
+  fire.heat = next;
+  fire.next = heat;
+
+  const data = fire.img.data;
+  for (let i = 0; i < FW * FH; i += 1) {
+    const v = fire.heat[i];
+    const o = i * 4;
+    if (v < 0.02) {
+      data[o + 3] = 0;
+      continue;
+    }
+    const [r, g, b] = fireColor(v);
+    data[o] = r;
+    data[o + 1] = g;
+    data[o + 2] = b;
+    data[o + 3] = Math.min(isDark() ? 0.8 : 0.5, v) * 255;
+  }
+  fire.octx.putImageData(fire.img, 0, 0);
+  ctx.imageSmoothingEnabled = true;
+  ctx.drawImage(fire.canvas, 0, 0, w, h);
+
+  const sx = w / FW, sy = h / FH;
+  ctx.globalCompositeOperation = "lighter";
+  ctx.fillStyle = alpha("#fbbf24", 0.7);
+  for (const e of embers) {
+    e.y -= e.vy;
+    e.x += Math.sin(e.sway + t * 2) * 0.12;
+    e.life -= 1;
+    if (e.y < -2 || e.life <= 0) {
+      e.x = Math.random() * FW;
+      e.y = FH - 2;
+      e.life = 40 + Math.random() * 90;
+      e.vy = 0.25 + Math.random() * 0.8;
+    }
+    ctx.fillRect(e.x * sx, e.y * sy, 1.6, 1.6);
+  }
+  ctx.globalCompositeOperation = "source-over";
 }
 
 const frame = (now) => {

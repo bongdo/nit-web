@@ -67,7 +67,7 @@ const hint = document.getElementById("hint");
 const themeButton = document.getElementById("theme");
 const media = matchMedia("(prefers-color-scheme: dark)");
 let forced = null;
-let mode = "ink";
+let mode = "fire";
 let w = 0, h = 0, raf = 0, started = performance.now(), painted = 0;
 
 const isDark = () => (forced ? forced === "dark" : media.matches);

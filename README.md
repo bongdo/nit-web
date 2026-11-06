@@ -71,8 +71,9 @@ The sidebar has three scopes:
 | `Mine` | all top-level chats with a primary agent, across workspaces. |
 | `All` | every top-level chat, including scripted roles, across workspaces. |
 
-Subagent sessions never appear in the sidebar. Open them from the parent chat's
-`N subagents` menu; the parent header also has `Back to parent`.
+Subagents are not chat rows. The sidebar has a collapsible `Subagents` section
+with a live running/total counter; the selected chat's `N subagents` menu opens
+the same transcripts, and the parent header has `Back to parent`.
 
 `New chat` does not create a session. The session is created in the current
 workspace on the first Send, so an empty draft never appears in the list.
@@ -219,7 +220,8 @@ OpenCode's plural resource paths are singular (`/api/session`, `/api/model`,
 
 ## Frontend behaviour
 
-- Sidebar: search, new session, title, directory, relative age, running dot.
+- Sidebar: search, new session, title, directory, relative age, running dot,
+  and a collapsible subagent list with a running/total counter.
 - Streaming text, reasoning, tool calls collapsed by default, code copy,
   GFM tables/task lists.
 - Composer: Enter sends, Shift+Enter adds a line, stop while streaming, token

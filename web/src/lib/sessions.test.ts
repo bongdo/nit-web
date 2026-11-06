@@ -3,6 +3,7 @@ import {
   groupSessions,
   isTechnical,
   listedSessions,
+  listedSubagents,
   mergeWaitingSessionIds,
   nextSessionId,
   pollSessionIds,
@@ -63,6 +64,26 @@ describe("sessions", () => {
       "visible",
       "hidden",
     ]);
+  });
+
+  it("lists subagents only under visible parents", () => {
+    const list = [
+      session({ id: "visible" }),
+      session({ id: "hidden", parentID: "visible" }),
+      session({ id: "child", parentID: "visible" }),
+      session({ id: "orphan", parentID: "missing" }),
+      session({ id: "other", parentID: "elsewhere" }),
+    ];
+    expect(
+      listedSubagents(list, new Set(["visible"]), new Set(["hidden"]), false).map(
+        (item) => item.id,
+      ),
+    ).toEqual(["child"]);
+    expect(
+      listedSubagents(list, new Set(["visible"]), new Set(["hidden"]), true).map(
+        (item) => item.id,
+      ),
+    ).toEqual(["hidden", "child"]);
   });
 
   it("nests children under their parent and leaves orphans as roots", () => {

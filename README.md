@@ -84,10 +84,13 @@ workspace on the first Send, so an empty draft never appears in the list.
   `/api/stt`; the transcript is appended to the existing input. It never sends
   and never clears what you typed. Transcription happens when you stop, not as
   a live stream.
-- Spelling is checked locally for Russian and English. Misspelled words get a
-  wavy underline; the `A` button lists suggestions and lets you ignore a word.
-  Nothing leaves the browser. Code blocks, inline code, URLs, paths, file names
-  and known project terms are skipped. Settings → Spelling turns it off.
+- Spelling is checked locally for Russian and English. Misspelled words are red
+  with a wavy underline; put the caret in a word (or click it) and a gray
+  `→ ...` chip shows replacements next to it. Click a suggestion to apply it,
+  or `ignore` to add the word to your dictionary. `Esc` hides the chip, and
+  Settings → Spelling turns the check off. Code blocks, inline code, URLs,
+  paths, file names and known project terms are skipped. Nothing leaves the
+  browser.
 - Hover a user message for Copy, Revert and Fork. Revert commits the revert and
   puts the message text back into the composer; Fork opens a new session before
   that message. The composer also has a fast `Undo` button for the last prompt.

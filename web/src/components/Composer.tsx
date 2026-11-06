@@ -227,8 +227,10 @@ export function Composer({
       setCaret(null);
       return;
     }
-    setCaret(area.selectionStart);
-    setDismissed(null);
+    const next = area.selectionStart;
+    const nextIssue = issueAtCaret(issues, next);
+    if (!nextIssue || issueKey(nextIssue) !== dismissed) setDismissed(null);
+    setCaret(next);
   };
 
   const onHintRect = useCallback((rect: HintRect | null) => {
@@ -750,7 +752,10 @@ export function Composer({
                 }}
                 onScroll={syncScroll}
                 onSelect={updateCaret}
-                onClick={updateCaret}
+                onClick={() => {
+                  setDismissed(null);
+                  updateCaret();
+                }}
                 onKeyUp={updateCaret}
                 onPaste={(event) => {
                   const files = Array.from(event.clipboardData.files);
@@ -782,10 +787,11 @@ export function Composer({
                       return;
                     }
                   }
-                  if (event.key === "Escape" && spellOpen) {
+                  if (event.key === "Escape" && visibleIssue) {
                     event.preventDefault();
                     event.stopPropagation();
-                    setSpellOpen(false);
+                    setDismissed(issueKey(visibleIssue));
+                    setHintRect(null);
                     return;
                   }
                   if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
@@ -795,7 +801,55 @@ export function Composer({
                   }
                 }}
               />
-              <ComposerHighlights ref={highlightRef} value={answerText} issues={issues} />
+              <ComposerHighlights
+                ref={highlightRef}
+                value={answerText}
+                issues={issues}
+                active={visibleIssue}
+                onRect={onHintRect}
+              />
+              {visibleIssue && hintRect && (
+                <div
+                  role="group"
+                  aria-label={`Spelling suggestions for ${visibleIssue.word}`}
+                  onMouseDown={(event) => event.preventDefault()}
+                  className="border-border bg-popover text-foreground absolute z-20 flex items-center gap-1 rounded-md border px-1.5 py-1 text-[11px] whitespace-nowrap shadow-lg"
+                  style={{
+                    left: Math.max(
+                      4,
+                      Math.min(
+                        hintRect.left + hintRect.width + 6,
+                        (ref.current?.clientWidth ?? 700) - 230,
+                      ),
+                    ),
+                    top: Math.max(0, hintRect.top - 2),
+                  }}
+                >
+                  <span className="text-muted-foreground">→</span>
+                  {visibleIssue.suggestions.length > 0 ? (
+                    visibleIssue.suggestions.slice(0, 3).map((suggestion) => (
+                      <button
+                        key={suggestion}
+                        type="button"
+                        onClick={() => applySuggestion(visibleIssue, suggestion)}
+                        className="text-muted-foreground hover:bg-accent hover:text-foreground rounded px-1 py-0.5"
+                      >
+                        {suggestion}
+                      </button>
+                    ))
+                  ) : (
+                    <span className="text-muted-foreground">no suggestions</span>
+                  )}
+                  <span className="text-border">·</span>
+                  <button
+                    type="button"
+                    onClick={() => ignoreWord(visibleIssue.word)}
+                    className="text-muted-foreground hover:text-foreground underline"
+                  >
+                    ignore
+                  </button>
+                </div>
+              )}
             </div>
           )}
           <div className="flex items-center gap-1 px-2.5 pb-2">
@@ -819,18 +873,6 @@ export function Composer({
                 aria-label="Attach files"
               >
                 <Paperclip />
-              </Button>
-            )}
-            {spellcheck && issues.length > 0 && (
-              <Button
-                variant={spellOpen ? "secondary" : "ghost"}
-                size="sm"
-                onClick={() => setSpellOpen((current) => !current)}
-                title={`Spelling · ${issues.length}`}
-                aria-label={`Spelling, ${issues.length} issue${issues.length === 1 ? "" : "s"}`}
-              >
-                <SpellCheck />
-                <span className="font-mono text-[11px]">{issues.length}</span>
               </Button>
             )}
             {!question && (

@@ -216,3 +216,15 @@ Why: a question is the user's input, so it belongs with user messages and final 
 Rejected: leaving questions in the steps panel (hidden), and rendering only the form (no answered-question history).
 
 Cost: question parts add a few KB to the light payload; they are never lazily loaded.
+
+## 2026-11-06 — Tab cycles chats
+
+Context: the previous entry rejected Tab because it carries keyboard focus. The user confirmed Tab is only used to reach the attach and dictation buttons in practice and asked for Tab to cycle chats.
+
+Decision: Tab and Shift+Tab select the next and previous chat in the sidebar order. The handler stands down while a dialog (settings, workspace picker) or an agent form has focus, so Tab still moves between their fields.
+
+Why: the composer is where the user sits, and cycling from there is one keystroke. Alt+J/K stays as the modifier-safe alternative.
+
+Rejected: hijacking Tab inside dialogs and forms (makes those screens unusable from the keyboard).
+
+Cost: header and composer controls are no longer reachable with Tab. Replaces the Tab part of 2026-11-05 — Chat shortcuts.

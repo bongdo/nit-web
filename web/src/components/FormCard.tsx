@@ -96,7 +96,10 @@ export function FormCard({
   };
 
   return (
-    <div className="border-primary/30 bg-card mx-auto my-2 w-full max-w-3xl rounded-xl border p-3 shadow-sm">
+    <div
+      data-form-card
+      className="border-primary/30 bg-card mx-auto my-2 w-full max-w-3xl rounded-xl border p-3 shadow-sm"
+    >
       <button
         type="button"
         aria-expanded={open}

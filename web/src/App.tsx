@@ -1343,7 +1343,7 @@ export default function App() {
           break;
         case "help":
           setBanner(
-            "Commands: /new /dir /compact /revert /fork /retry /theme /clear /help · Shortcuts: Alt+N new chat, Alt+J/K next/prev chat, Ctrl/⌘K search",
+            "Commands: /new /dir /compact /revert /fork /retry /theme /clear /help · Shortcuts: Alt+N new chat, Tab / Shift+Tab next/prev chat, Alt+J/K same, Ctrl/⌘K search",
           );
           break;
       }
@@ -1407,6 +1407,25 @@ export default function App() {
         if (nextId) selectSession(nextId);
         return;
       }
+      if (
+        event.key === "Tab" &&
+        !event.altKey &&
+        !event.metaKey &&
+        !event.ctrlKey &&
+        !pickerOpen &&
+        !settingsOpen &&
+        !(event.target instanceof Element && event.target.closest("[data-form-card]"))
+      ) {
+        if (cycleSessions.length === 0) return;
+        event.preventDefault();
+        const nextId = nextSessionId(
+          cycleSessions,
+          selectedIdRef.current,
+          event.shiftKey ? -1 : 1,
+        );
+        if (nextId) selectSession(nextId);
+        return;
+      }
       if (event.key === "Escape") {
         if (settingsOpen) {
           if (!event.repeat) setSettingsOpen(false);
@@ -1429,7 +1448,17 @@ export default function App() {
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [cycleSessions, isRunning, newChat, selectSession, settingsOpen, stop, swipe.close, swipe.open]);
+  }, [
+    cycleSessions,
+    isRunning,
+    newChat,
+    pickerOpen,
+    selectSession,
+    settingsOpen,
+    stop,
+    swipe.close,
+    swipe.open,
+  ]);
 
   if (booting) return <BootScreen />;
 

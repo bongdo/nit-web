@@ -250,9 +250,10 @@ OpenCode's plural resource paths are singular (`/api/session`, `/api/model`,
 - Settings → Background switches that canvas between `Animated` and `Static`.
   `Static` draws one frame and still repaints when the pointer moves. The default
   follows `prefers-reduced-motion`; the choice is stored in `localStorage`.
-- Shortcuts: `mod+k` search, `alt+n` new chat, `alt+j`/`alt+k` next/previous
-  chat in the sidebar order, `enter` send and `shift+enter` newline (in the
-  composer), double `esc` stop.
+- Shortcuts: `mod+k` search, `alt+n` new chat, `tab`/`shift+tab` (or
+  `alt+j`/`alt+k`) next/previous chat in the sidebar order, `enter` send and
+  `shift+enter` newline (in the composer), double `esc` stop.
+  `tab` is not hijacked while a dialog or an agent form is focused.
   Selecting text in the transcript shows a Quote button that drops it into the
   composer as a markdown quote.
 - Layout: persistent or hover-revealed sidebar at 1280px and 900px,

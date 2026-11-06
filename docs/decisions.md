@@ -312,3 +312,15 @@ Why: visible content should not depend on scroll timing, and a visible-only tran
 Rejected: keeping tool/reasoning stubs in the cache, and tail-first loading with earlier pages fetched on scroll.
 
 Cost: opening a long chat waits for one full visible request instead of a 50-message tail; steps are fetched again when opened and are not kept in the cache.
+
+## 2026-11-06 — Mobile: bottom navigation and a bottom sheet
+
+Context: on a phone the hamburger and subagent menu sat in the top bar, far from the thumb, and the session rail slid in from the left. The dimmed backdrop also sat below the composer, so taps reached the chat behind it. The animated background followed synthetic mouse events from taps.
+
+Decision: below `48rem` the header keeps only the title (and the parent back button). Chats, new chat, subagents, settings and theme move into a bottom bar inside the dock, and the subagent menu opens upward. The session rail becomes a bottom sheet that slides up over a full-height backdrop above the dock. The background scene tracks the pointer only when `(pointer: fine)` matches. The app uses `100dvh` and the viewport opts into `viewport-fit=cover` for the safe area.
+
+Why: the thumb reaches the bottom of the screen, the sheet keeps the chat visible above it, and a mobile tap must not move the desktop decoration or activate controls behind a modal.
+
+Rejected: keeping the desktop rail on mobile, a full-screen sessions page, and drag-to-dismiss on the sheet.
+
+Cost: mobile gets its own navigation surface and five bar buttons; the sheet has no swipe-down gesture, only the backdrop, Escape and session selection close it.

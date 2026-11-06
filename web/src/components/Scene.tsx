@@ -647,8 +647,8 @@ export function Scene({
       paint(still ? STILL_TIME : (performance.now() - started) / 1000);
     });
     theme.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
-    const finePointer = window.matchMedia("(pointer: fine)");
-    if (finePointer.matches) {
+    const tracksPointer = window.matchMedia("(pointer: fine)").matches;
+    if (tracksPointer) {
       window.addEventListener("mousemove", move);
       window.addEventListener("mouseleave", leave);
     }
@@ -661,7 +661,7 @@ export function Scene({
       cancelAnimationFrame(frame);
       observer.disconnect();
       theme.disconnect();
-      if (finePointer.matches) {
+      if (tracksPointer) {
         window.removeEventListener("mousemove", move);
         window.removeEventListener("mouseleave", leave);
       }

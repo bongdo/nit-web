@@ -1624,7 +1624,7 @@ export default function App() {
         aria-label="Chats"
         className={cn(
           "border-border bg-background fixed z-30 border-r",
-          "max-md:inset-x-0 max-md:top-auto max-md:bottom-0 max-md:z-50 max-md:h-[min(82dvh,42rem)] max-md:w-full max-md:overscroll-contain max-md:rounded-t-2xl max-md:border-t max-md:border-r-0 max-md:shadow-2xl",
+          "max-md:inset-x-0 max-md:top-auto max-md:bottom-0 max-md:z-50 max-md:h-[min(82dvh,42rem)] max-md:w-full max-md:overscroll-contain max-md:rounded-t-2xl max-md:border-t max-md:border-r-0 max-md:pb-[env(safe-area-inset-bottom)] max-md:shadow-2xl",
           "md:inset-y-0 md:left-0 md:w-[280px]",
           "ease-[cubic-bezier(0.32,0.72,0,1)] transition-[translate,opacity,width] duration-300 motion-reduce:transition-none",
           sidebarOpen ? "max-md:translate-y-0" : "max-md:translate-y-full",

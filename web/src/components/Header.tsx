@@ -224,35 +224,35 @@ export const Header = memo(function Header({
 
         <div className="hidden items-center gap-2 md:flex">
           <span
-          className={cn(
-            pill,
-            "chrome-sheen-health inline-flex size-9 items-center justify-center",
-            live
-              ? "text-success"
-              : streamStatus === "connecting"
-                ? "text-attention"
-                : "text-destructive",
-            !live && streamStatus !== "connecting" && "chrome-sheen-health-offline",
-          )}
-          title={
-            live
-              ? `Live · ${health?.server ?? ""}`
-              : streamStatus === "connecting"
-                ? "Connecting to event stream"
-                : (health?.error ?? "Service offline")
-          }
-        >
-          {streamStatus === "connecting" ? (
-            <Loader2 className="size-3.5 animate-spin" />
-          ) : live ? (
-            <Wifi className="size-3.5" />
-          ) : (
-            <WifiOff className="size-3.5" />
-          )}
-          {reconnected > 0 && (
-            <span key={reconnected} aria-hidden className="chrome-sheen-health-sweep" />
-          )}
-        </span>
+            className={cn(
+              pill,
+              "chrome-sheen-health inline-flex size-9 items-center justify-center",
+              live
+                ? "text-success"
+                : streamStatus === "connecting"
+                  ? "text-attention"
+                  : "text-destructive",
+              !live && streamStatus !== "connecting" && "chrome-sheen-health-offline",
+            )}
+            title={
+              live
+                ? `Live · ${health?.server ?? ""}`
+                : streamStatus === "connecting"
+                  ? "Connecting to event stream"
+                  : (health?.error ?? "Service offline")
+            }
+          >
+            {streamStatus === "connecting" ? (
+              <Loader2 className="size-3.5 animate-spin" />
+            ) : live ? (
+              <Wifi className="size-3.5" />
+            ) : (
+              <WifiOff className="size-3.5" />
+            )}
+            {reconnected > 0 && (
+              <span key={reconnected} aria-hidden className="chrome-sheen-health-sweep" />
+            )}
+          </span>
 
           <Button
             variant="ghost"

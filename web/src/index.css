@@ -95,9 +95,24 @@
     height: 100%;
   }
 
+  @supports (height: 100dvh) {
+    html,
+    body,
+    #root {
+      height: 100dvh;
+    }
+  }
+
   body {
     @apply bg-background text-foreground font-sans antialiased;
     overflow: hidden;
+  }
+
+  button,
+  select,
+  summary,
+  [role="button"] {
+    touch-action: manipulation;
   }
 
   button,

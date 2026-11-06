@@ -138,6 +138,8 @@ export function ChatView({
   messagesRef.current = messages;
   const anchors = useRef(new Map<string, ScrollAnchor>());
   const pendingRestore = useRef<string | null>(null);
+  const settle = useRef<{ id: string; anchor: ScrollAnchor } | null>(null);
+  const settleTop = useRef<number | null>(null);
   const earlierAnchor = useRef<{
     height: number;
     top: number;
@@ -181,6 +183,7 @@ export function ChatView({
     if (!element || !row) return false;
     element.scrollTop +=
       row.getBoundingClientRect().top - element.getBoundingClientRect().top - anchor.offset;
+    settleTop.current = element.scrollTop;
     return true;
   }, []);
 
@@ -265,9 +268,12 @@ export function ChatView({
     const anchor = anchors.current.get(id);
     if (anchor && !anchor.bottom && anchor.messageID && applyAnchor(anchor)) {
       stick.current = false;
+      settle.current = { id, anchor };
       setShowJump(true);
       return;
     }
+    settle.current = null;
+    settleTop.current = null;
     scrollToBottom();
   }, [applyAnchor, loading, scrollToBottom, session?.id]);
 
@@ -317,11 +323,16 @@ export function ChatView({
     const element = contentRef.current;
     if (!element || typeof ResizeObserver === "undefined") return;
     const observer = new ResizeObserver(() => {
-      if (stick.current) scheduleScroll();
+      if (stick.current) {
+        scheduleScroll();
+        return;
+      }
+      const current = settle.current;
+      if (current && current.id === (session?.id ?? null)) applyAnchor(current.anchor);
     });
     observer.observe(element);
     return () => observer.disconnect();
-  }, [session?.id, loading]);
+  }, [applyAnchor, session?.id, loading, scheduleScroll]);
 
   const rows = useMemo(() => {
     const items: ReactNode[] = [];
@@ -462,6 +473,10 @@ export function ChatView({
           setShowJump(!nearBottom);
           setQuote(null);
           if (earlierAnchor.current) earlierAnchor.current.top = element.scrollTop;
+          const programmatic =
+            settleTop.current !== null && Math.abs(element.scrollTop - settleTop.current) <= 2;
+          if (!programmatic) settle.current = null;
+          settleTop.current = null;
           if (session?.id) saveAnchor(session.id, nearBottom);
           if (needsEarlier(element.scrollTop, element.scrollHeight, element.clientHeight)) {
             requestEarlier();

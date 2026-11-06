@@ -19,6 +19,22 @@ const RESIZE = `<script>
 })();
 </script>`;
 
+const heights = new Map<string, number>();
+const HEIGHTS_LIMIT = 100;
+
+function cachedHeight(source: string): number {
+  return heights.get(source) ?? 200;
+}
+
+function rememberHeight(source: string, height: number) {
+  heights.delete(source);
+  heights.set(source, height);
+  if (heights.size > HEIGHTS_LIMIT) {
+    const oldest = heights.keys().next().value;
+    if (oldest !== undefined) heights.delete(oldest);
+  }
+}
+
 export function HtmlPreview({
   source,
   className,
@@ -31,9 +47,13 @@ export function HtmlPreview({
   autoHeight?: boolean;
 }) {
   const ref = useRef<HTMLIFrameElement>(null);
-  const [height, setHeight] = useState(200);
+  const [height, setHeight] = useState(() => cachedHeight(source));
   const [theme, setTheme] = useState(readTheme);
   const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    setHeight(cachedHeight(source));
+  }, [source]);
 
   useEffect(() => {
     const observer = new MutationObserver(() => setTheme(readTheme()));
@@ -49,14 +69,13 @@ export function HtmlPreview({
       if (event.source !== ref.current?.contentWindow) return;
       const data = event.data as { type?: string; height?: number } | null;
       if (data?.type !== "nit-html-height" || typeof data.height !== "number") return;
-      setHeight((current) => {
-        const next = Math.max(80, Math.min(1200, data.height ?? current));
-        return next === current ? current : next;
-      });
+      const next = Math.max(80, Math.min(1200, data.height));
+      rememberHeight(source, next);
+      setHeight(next);
     };
     window.addEventListener("message", onMessage);
     return () => window.removeEventListener("message", onMessage);
-  }, []);
+  }, [source]);
 
   const doc = htmlDocument(source, theme.dark, theme.background);
   const withResize = doc.includes("</body>")

@@ -1,23 +1,9 @@
 package server
 
-import "encoding/json"
-
-type lightToolState struct {
-	Status string          `json:"status"`
-	Error  json.RawMessage `json:"error,omitempty"`
-}
-
-type lightPart struct {
-	Type     string          `json:"type"`
-	ID       string          `json:"id,omitempty"`
-	Name     string          `json:"name,omitempty"`
-	Executed *bool           `json:"executed,omitempty"`
-	Time     json.RawMessage `json:"time,omitempty"`
-	Ordinal  *int            `json:"ordinal,omitempty"`
-	Text     *string         `json:"text,omitempty"`
-	State    *lightToolState `json:"state,omitempty"`
-	Light    bool            `json:"light,omitempty"`
-}
+import (
+	"encoding/json"
+	"strconv"
+)
 
 func lightenTranscript(data []byte) ([]byte, error) {
 	var messages []json.RawMessage
@@ -40,6 +26,15 @@ func lightenMessage(raw []byte) (json.RawMessage, error) {
 	if err := json.Unmarshal(raw, &message); err != nil {
 		return nil, err
 	}
+	var kind struct {
+		Type string `json:"type"`
+	}
+	if err := json.Unmarshal(raw, &kind); err != nil {
+		return nil, err
+	}
+	if kind.Type != "assistant" {
+		return raw, nil
+	}
 	content, ok := message["content"]
 	if !ok || len(content) == 0 || string(content) == "null" {
 		return raw, nil
@@ -48,54 +43,51 @@ func lightenMessage(raw []byte) (json.RawMessage, error) {
 	if err := json.Unmarshal(content, &parts); err != nil {
 		return nil, err
 	}
-	changed := false
-	for index, part := range parts {
-		trimmed, partChanged, err := lightenPart(part)
-		if err != nil {
+	kept := make([]json.RawMessage, 0, len(parts))
+	steps, tools, errors := 0, 0, 0
+	for _, part := range parts {
+		var partKind struct {
+			Type  string `json:"type"`
+			Name  string `json:"name"`
+			State struct {
+				Status string `json:"status"`
+			} `json:"state"`
+		}
+		if err := json.Unmarshal(part, &partKind); err != nil {
 			return nil, err
 		}
-		if partChanged {
-			parts[index] = trimmed
-			changed = true
+		if partKind.Type == "reasoning" {
+			steps++
+			continue
 		}
+		if partKind.Type == "tool" && partKind.Name != "question" {
+			steps++
+			tools++
+			if partKind.State.Status == "error" {
+				errors++
+			}
+			continue
+		}
+		kept = append(kept, part)
 	}
-	if !changed {
+	if steps == 0 {
 		return raw, nil
 	}
-	encoded, err := json.Marshal(parts)
+	encoded, err := json.Marshal(kept)
 	if err != nil {
 		return nil, err
 	}
 	message["content"] = encoded
+	message["steps"] = json.RawMessage(strconv.Itoa(steps))
+	if tools > 0 {
+		message["tools"] = json.RawMessage(strconv.Itoa(tools))
+	} else {
+		delete(message, "tools")
+	}
+	if errors > 0 {
+		message["errors"] = json.RawMessage(strconv.Itoa(errors))
+	} else {
+		delete(message, "errors")
+	}
 	return json.Marshal(message)
-}
-
-func lightenPart(raw []byte) (json.RawMessage, bool, error) {
-	var kind struct {
-		Type string `json:"type"`
-		Name string `json:"name"`
-	}
-	if err := json.Unmarshal(raw, &kind); err != nil {
-		return nil, false, err
-	}
-	if kind.Type != "tool" && kind.Type != "reasoning" {
-		return raw, false, nil
-	}
-	if kind.Name == "question" {
-		return raw, false, nil
-	}
-	var part lightPart
-	if err := json.Unmarshal(raw, &part); err != nil {
-		return nil, false, err
-	}
-	part.Light = true
-	if kind.Type == "reasoning" {
-		empty := ""
-		part.Text = &empty
-	}
-	encoded, err := json.Marshal(part)
-	if err != nil {
-		return nil, false, err
-	}
-	return encoded, true, nil
 }

@@ -622,6 +622,9 @@ func TestMessagesLight(t *testing.T) {
 			Type    string `json:"type"`
 			Text    string `json:"text"`
 			Summary string `json:"summary"`
+			Steps   int    `json:"steps"`
+			Tools   int    `json:"tools"`
+			Errors  int    `json:"errors"`
 			Content []struct {
 				Type  string         `json:"type"`
 				Text  string         `json:"text"`
@@ -639,34 +642,23 @@ func TestMessagesLight(t *testing.T) {
 	if body.Data[0].Text != "hello" || body.Data[2].Summary != "kept summary" {
 		t.Fatalf("user or compaction changed: %s", rec.Body)
 	}
+	if body.Data[1].Steps != 2 || body.Data[1].Tools != 1 || body.Data[1].Errors != 0 {
+		t.Fatalf("step counts = %+v: %s", body.Data[1], rec.Body)
+	}
 	parts := body.Data[1].Content
-	if len(parts) != 4 {
+	if len(parts) != 2 {
 		t.Fatalf("parts = %d: %s", len(parts), rec.Body)
 	}
-	if parts[0].Type != "reasoning" || parts[0].Text != "" || !parts[0].Light {
-		t.Fatalf("reasoning text survived: %+v", parts[0])
-	}
-	if parts[1].Type != "tool" || !parts[1].Light {
-		t.Fatalf("tool not marked light: %+v", parts[1])
-	}
-	for _, key := range []string{"content", "input", "metadata"} {
-		if _, ok := parts[1].State[key]; ok {
-			t.Fatalf("tool %s survived: %+v", key, parts[1].State)
-		}
-	}
-	if parts[1].State["status"] != "completed" {
-		t.Fatalf("tool status lost: %+v", parts[1].State)
-	}
-	if parts[2].Type != "tool" || parts[2].Light {
-		t.Fatalf("question marked light: %+v", parts[2])
+	if parts[0].Type != "tool" || parts[0].Light {
+		t.Fatalf("question marked light: %+v", parts[0])
 	}
 	for _, key := range []string{"input", "content", "metadata"} {
-		if _, ok := parts[2].State[key]; !ok {
-			t.Fatalf("question lost %s: %+v", key, parts[2].State)
+		if _, ok := parts[0].State[key]; !ok {
+			t.Fatalf("question lost %s: %+v", key, parts[0].State)
 		}
 	}
-	if parts[3].Type != "text" || len(parts[3].Text) != 300 {
-		t.Fatalf("answer changed: %+v", parts[3])
+	if parts[1].Type != "text" || len(parts[1].Text) != 300 {
+		t.Fatalf("answer changed: %+v", parts[1])
 	}
 }
 
@@ -736,21 +728,8 @@ func assertQuestionUnchanged(t *testing.T, parts map[string]map[string]any, orig
 
 func assertStrippedTool(t *testing.T, parts map[string]map[string]any, id string) {
 	t.Helper()
-	part, ok := parts[id]
-	if !ok {
-		t.Fatalf("tool %s missing", id)
-	}
-	if part["light"] != true {
-		t.Fatalf("tool %s not marked light: %v", id, part)
-	}
-	state, _ := part["state"].(map[string]any)
-	if state["status"] != "completed" {
-		t.Fatalf("tool %s lost status: %v", id, part)
-	}
-	for _, key := range []string{"input", "content", "metadata"} {
-		if _, ok := state[key]; ok {
-			t.Fatalf("tool %s kept %s: %v", id, key, part)
-		}
+	if part, ok := parts[id]; ok {
+		t.Fatalf("tool %s survived: %v", id, part)
 	}
 }
 
@@ -805,12 +784,21 @@ func TestMessagesLightKeepsQuestions(t *testing.T) {
 				assertStrippedTool(t, parts, id)
 			}
 			if tc.reasoning {
-				part, ok := parts["r1"]
-				if !ok {
-					t.Fatalf("reasoning missing: %s", rec.Body)
+				if part, ok := parts["r1"]; ok {
+					t.Fatalf("reasoning survived: %v", part)
 				}
-				if part["light"] != true || part["text"] != "" {
-					t.Fatalf("reasoning not stripped: %v", part)
+				var body struct {
+					Data []struct {
+						Steps  int `json:"steps"`
+						Tools  int `json:"tools"`
+						Errors int `json:"errors"`
+					} `json:"data"`
+				}
+				if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+					t.Fatal(err)
+				}
+				if len(body.Data) != 1 || body.Data[0].Steps != 2 || body.Data[0].Tools != 1 {
+					t.Fatalf("step counts = %+v: %s", body.Data, rec.Body)
 				}
 			}
 		})

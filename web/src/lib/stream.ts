@@ -78,16 +78,7 @@ export function lightMessages(messages: Message[]): Message[] {
       }
       content.push(part);
     }
-    if (steps === 0) {
-      if (message.steps === undefined && message.tools === undefined && message.errors === undefined) {
-        return message;
-      }
-      const next = { ...message };
-      delete next.steps;
-      delete next.tools;
-      delete next.errors;
-      return next;
-    }
+    if (steps === 0) return message;
     const next: Message = { ...message, content, steps };
     if (tools > 0) next.tools = tools;
     else delete next.tools;

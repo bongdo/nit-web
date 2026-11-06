@@ -300,3 +300,15 @@ Why: the light transcript is small (all 73 local chats are about 7 MB), and pref
 Rejected: fetching full transcripts on selection (delays first paint), prefetching running sessions (races with SSE and can cache a partial answer), and keeping a fixed chat count (evicts small chats for no reason).
 
 Cost: the app downloads the text of every chat after boot; a failed prefetch falls back to the tail and retries on the next session refresh; a chat over 10,000 messages still needs scroll paging.
+
+## 2026-11-06 — Visible-only cache and full transcript on open
+
+Context: the cache kept tool and reasoning stubs, while opening a chat still loaded only the newest 50 messages. Older user messages, answers and questions were reachable only by scrolling, and that earlier-page loading was unreliable.
+
+Decision: light mode now returns only the visible transcript: user messages, assistant text, question tools and compaction. Dropped reasoning and non-question tools become per-message `steps`, `tools` and `errors` counters. The cache stores only this visible form; tools and reasoning are never cached. Opening a chat fetches the full visible transcript with no `limit`, so all visible content is present without scrolling. Prefetch warms the same full visible transcript for other chats. The steps panel loads full messages on open and the cache strips them again on save.
+
+Why: visible content should not depend on scroll timing, and a visible-only transcript is about half the payload of the old light stubs.
+
+Rejected: keeping tool/reasoning stubs in the cache, and tail-first loading with earlier pages fetched on scroll.
+
+Cost: opening a long chat waits for one full visible request instead of a 50-message tail; steps are fetched again when opened and are not kept in the cache.

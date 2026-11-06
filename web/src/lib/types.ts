@@ -17,6 +17,8 @@ export type UserFile = {
   name?: string;
   description?: string;
   mime?: string;
+  data?: string;
+  bytes?: number;
 };
 
 export type FormOption = {
@@ -159,6 +161,7 @@ export type Model = {
   name: string;
   status: string;
   enabled: boolean;
+  capabilities?: { input?: string[] };
   variants: { id: string }[];
   cost: {
     input: number;

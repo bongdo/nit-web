@@ -386,8 +386,8 @@ func (s *Server) prompt(w http.ResponseWriter, r *http.Request) {
 		writeDecodeError(w, err)
 		return
 	}
-	if strings.TrimSpace(in.Text) == "" {
-		writeError(w, http.StatusBadRequest, "text is required")
+	if strings.TrimSpace(in.Text) == "" && len(in.Files) == 0 {
+		writeError(w, http.StatusBadRequest, "text or files are required")
 		return
 	}
 	for _, file := range in.Files {
@@ -578,13 +578,16 @@ func (s *Server) switchAgent(w http.ResponseWriter, r *http.Request) {
 }
 
 type modelOut struct {
-	ID         string `json:"id"`
-	ModelID    string `json:"modelID"`
-	ProviderID string `json:"providerID"`
-	Name       string `json:"name"`
-	Status     string `json:"status"`
-	Enabled    bool   `json:"enabled"`
-	Variants   []struct {
+	ID           string `json:"id"`
+	ModelID      string `json:"modelID"`
+	ProviderID   string `json:"providerID"`
+	Name         string `json:"name"`
+	Status       string `json:"status"`
+	Enabled      bool   `json:"enabled"`
+	Capabilities struct {
+		Input []string `json:"input"`
+	} `json:"capabilities"`
+	Variants []struct {
 		ID string `json:"id"`
 	} `json:"variants"`
 	Cost []struct {
@@ -658,9 +661,64 @@ func (s *Server) agents(w http.ResponseWriter, r *http.Request) {
 }
 
 const (
-	maxUploadBody = 25 << 20
+	maxUploadBody = 20 << 20
 	maxSTTBody    = 30 << 20
 )
+
+func uploadPrefix() string {
+	return filepath.Join(os.TempDir(), "nit-gui-")
+}
+
+func safeUploadName(name string) string {
+	name = filepath.Base(strings.TrimSpace(name))
+	if name == "" || name == "." || name == "/" {
+		name = "file"
+	}
+	ext := filepath.Ext(name)
+	stem := strings.TrimSuffix(name, ext)
+	var clean strings.Builder
+	for _, r := range stem {
+		switch {
+		case r >= 'a' && r <= 'z', r >= 'A' && r <= 'Z', r >= '0' && r <= '9', r == '.', r == '-', r == '_':
+			clean.WriteRune(r)
+		default:
+			clean.WriteByte('_')
+		}
+	}
+	stem = strings.Trim(clean.String(), "._-")
+	if stem == "" {
+		stem = "file"
+	}
+	if len(stem) > 80 {
+		stem = stem[:80]
+	}
+	for _, r := range ext {
+		if r != '.' && !(r >= 'a' && r <= 'z') && !(r >= 'A' && r <= 'Z') && !(r >= '0' && r <= '9') {
+			ext = ""
+			break
+		}
+	}
+	return stem + ext
+}
+
+func uploadedPath(raw string) (string, bool) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return "", false
+	}
+	if strings.HasPrefix(raw, "file://") {
+		parsed, err := url.Parse(raw)
+		if err != nil || (parsed.Host != "" && parsed.Host != "localhost") {
+			return "", false
+		}
+		raw = parsed.Path
+	}
+	path := filepath.Clean(raw)
+	if !strings.HasPrefix(path, uploadPrefix()) {
+		return "", false
+	}
+	return path, true
+}
 
 func (s *Server) upload(w http.ResponseWriter, r *http.Request) {
 	dir := strings.TrimSpace(r.URL.Query().Get("dir"))
@@ -690,7 +748,7 @@ func (s *Server) upload(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusServiceUnavailable, "opencode service not found")
 		return
 	}
-	path := filepath.Join(os.TempDir(), fmt.Sprintf("nit-gui-%d-%s", time.Now().UnixNano(), name))
+	path := filepath.Join(os.TempDir(), fmt.Sprintf("nit-gui-%d-%s", time.Now().UnixNano(), safeUploadName(name)))
 	saved, err := c.WriteFile(r.Context(), dir, path, data)
 	if err != nil {
 		s.upstreamError(w, err)
@@ -700,8 +758,8 @@ func (s *Server) upload(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) file(w http.ResponseWriter, r *http.Request) {
-	path := strings.TrimPrefix(strings.TrimSpace(r.URL.Query().Get("path")), "file://")
-	if !strings.HasPrefix(path, "/tmp/nit-gui-") {
+	path, ok := uploadedPath(r.URL.Query().Get("path"))
+	if !ok {
 		writeError(w, http.StatusForbidden, "only uploaded files are served")
 		return
 	}
@@ -720,6 +778,7 @@ func (s *Server) file(w http.ResponseWriter, r *http.Request) {
 	if contentType == "" {
 		contentType = "application/octet-stream"
 	}
+	w.Header().Set("X-Frame-Options", "SAMEORIGIN")
 	w.Header().Set("Content-Type", contentType)
 	w.Header().Set("Cache-Control", "private, max-age=3600")
 	if _, err := io.Copy(w, body.Body); err != nil {

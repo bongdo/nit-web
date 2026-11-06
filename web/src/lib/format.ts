@@ -73,7 +73,7 @@ export function modelLabel(model: ModelRef | null | undefined, models: Model[]):
 }
 
 export function fileUri(file: UserFile): string | undefined {
-  return file.uri ?? file.source?.uri;
+  return file.source?.uri ?? file.uri;
 }
 
 export function basename(path?: string): string {

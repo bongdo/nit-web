@@ -193,10 +193,13 @@ func (c *Client) WriteFile(ctx context.Context, dir, path string, data []byte) (
 }
 
 func (c *Client) ReadFile(ctx context.Context, path string) (*http.Response, error) {
-	relative := strings.TrimPrefix(path, "/")
+	segments := strings.Split(strings.TrimPrefix(path, "/"), "/")
+	for i := range segments {
+		segments[i] = url.PathEscape(segments[i])
+	}
 	query := url.Values{}
 	query.Set("location[directory]", "/")
-	target := c.BaseURL + "/api/fs/read/" + relative + "?" + query.Encode()
+	target := c.BaseURL + "/api/fs/read/" + strings.Join(segments, "/") + "?" + query.Encode()
 
 	send := func() (*http.Response, error) {
 		req, err := http.NewRequestWithContext(ctx, http.MethodGet, target, nil)

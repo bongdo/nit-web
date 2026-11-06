@@ -185,6 +185,39 @@ func TestUploadProxy(t *testing.T) {
 	}
 }
 
+func TestUploadSanitizesPathButKeepsDisplayName(t *testing.T) {
+	upstream := httptest.NewServer(auth(func(w http.ResponseWriter, r *http.Request) {
+		path := r.URL.Query().Get("path")
+		if strings.ContainsAny(filepath.Base(path), " #?%") {
+			t.Errorf("path is not URL-safe: %q", path)
+		}
+		fmt.Fprintf(w, `{"data":{"path":%q}}`, path)
+	}))
+	defer upstream.Close()
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost,
+		"http://127.0.0.1:7788/api/upload?dir=/home/ubuntu&name=a%20b%23c%3F.pdf",
+		strings.NewReader("hello"))
+	newHandler(t, upstream.URL).ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d: %s", rec.Code, rec.Body)
+	}
+	var body struct {
+		Path string `json:"path"`
+		Name string `json:"name"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.HasSuffix(body.Path, "-a_b_c.pdf") {
+		t.Fatalf("path = %q", body.Path)
+	}
+	if body.Name != "a b#c?.pdf" {
+		t.Fatalf("name = %q", body.Name)
+	}
+}
+
 func TestPromptFiles(t *testing.T) {
 	upstream := httptest.NewServer(auth(func(w http.ResponseWriter, r *http.Request) {
 		var body struct {
@@ -211,6 +244,45 @@ func TestPromptFiles(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	newHandler(t, upstream.URL).ServeHTTP(rec, req)
 	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d: %s", rec.Code, rec.Body)
+	}
+}
+
+func TestPromptAllowsFilesWithoutText(t *testing.T) {
+	upstream := httptest.NewServer(auth(func(w http.ResponseWriter, r *http.Request) {
+		var body struct {
+			Text  string `json:"text"`
+			Files []struct {
+				URI string `json:"uri"`
+			} `json:"files"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Fatal(err)
+		}
+		if body.Text != "" || len(body.Files) != 1 {
+			t.Errorf("body = %+v", body)
+		}
+		fmt.Fprint(w, `{"data":{"id":"msg_1"}}`)
+	}))
+	defer upstream.Close()
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "http://127.0.0.1:7788/api/sessions/ses_1/prompt",
+		strings.NewReader(`{"text":"","files":[{"uri":"file:///tmp/a.png","name":"a.png"}]}`))
+	req.Header.Set("Content-Type", "application/json")
+	newHandler(t, upstream.URL).ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d: %s", rec.Code, rec.Body)
+	}
+}
+
+func TestPromptRequiresTextOrFiles(t *testing.T) {
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "http://127.0.0.1:7788/api/sessions/ses_1/prompt",
+		strings.NewReader(`{"text":"  "}`))
+	req.Header.Set("Content-Type", "application/json")
+	newHandler(t, "http://127.0.0.1:1").ServeHTTP(rec, req)
+	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("status = %d: %s", rec.Code, rec.Body)
 	}
 }
@@ -296,6 +368,37 @@ func TestFileProxy(t *testing.T) {
 	}
 	if rec.Header().Get("Content-Type") != "image/png" {
 		t.Fatalf("content type = %q", rec.Header().Get("Content-Type"))
+	}
+}
+
+func TestFileProxyRejectsTraversal(t *testing.T) {
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet,
+		"http://127.0.0.1:7788/api/file?path=file:///tmp/nit-gui-../../etc/passwd", nil)
+	newHandler(t, "http://127.0.0.1:1").ServeHTTP(rec, req)
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("status = %d: %s", rec.Code, rec.Body)
+	}
+}
+
+func TestFileProxyAllowsFrameForPDFPreview(t *testing.T) {
+	upstream := httptest.NewServer(auth(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/fs/read/tmp/nit-gui-1-a%20b.pdf" && r.URL.Path != "/api/fs/read/tmp/nit-gui-1-a b.pdf" {
+			t.Errorf("path = %q", r.URL.Path)
+		}
+		fmt.Fprint(w, "%PDF")
+	}))
+	defer upstream.Close()
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet,
+		"http://127.0.0.1:7788/api/file?path=file:///tmp/nit-gui-1-a%20b.pdf", nil)
+	newHandler(t, upstream.URL).ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d: %s", rec.Code, rec.Body)
+	}
+	if rec.Header().Get("X-Frame-Options") != "SAMEORIGIN" {
+		t.Fatalf("x-frame-options = %q", rec.Header().Get("X-Frame-Options"))
 	}
 }
 

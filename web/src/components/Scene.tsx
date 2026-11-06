@@ -3,6 +3,12 @@ import { cn } from "../lib/utils";
 
 const GAP = 24;
 const STEP = 5;
+const sampling = (extentWidth: number) =>
+  extentWidth <= 1600
+    ? { step: STEP, gap: GAP }
+    : extentWidth <= 2400
+      ? { step: 7, gap: 28 }
+      : { step: 9, gap: 32 };
 const STILL_TIME = 6;
 const CURSOR_RADIUS = 150;
 const SPOTLIGHT_RADIUS = 290;
@@ -105,19 +111,21 @@ export function Scene({
       cx: number,
       cy: number,
       kind: SceneVariant,
-      gap = GAP,
+      gapScale = 1,
       shift = 0,
     ) => {
       const shape = shapeFor(kind, span, cx, cy, shift);
+      const { step, gap } = sampling(extentWidth);
+      const fieldGap = gap * gapScale;
       const radius = kind === "ripple" ? 240 : CURSOR_RADIUS;
-      const lines = Math.ceil(extentHeight / gap) + 2;
+      const lines = Math.ceil(extentHeight / fieldGap) + 2;
       for (let index = 0; index < lines; index += 1) {
-        const base = (index - 1) * gap;
+        const base = (index - 1) * fieldGap;
         const highlight = index % 9 === 0;
         context.strokeStyle = highlight ? accent : ink;
         context.globalAlpha = highlight ? 0.45 : 0.13;
         context.beginPath();
-        for (let x = -10; x <= extentWidth + 10; x += STEP) {
+        for (let x = -10; x <= extentWidth + 10; x += step) {
           const y = shape(x, base, index, time);
           if (x === -10) context.moveTo(x, y);
           else context.lineTo(x, y);
@@ -131,7 +139,7 @@ export function Scene({
         halo.addColorStop(0.5, accent);
         halo.addColorStop(1, "rgba(0,0,0,0)");
         for (let index = 0; index < lines; index += 1) {
-          const base = (index - 1) * gap;
+          const base = (index - 1) * fieldGap;
           const near = Math.exp(-((base - cy) ** 2) / 20000) * cursor.power;
           if (near < 0.04) continue;
           context.strokeStyle = halo;
@@ -139,7 +147,7 @@ export function Scene({
           context.beginPath();
           const from = Math.max(-10, cx - radius);
           const to = Math.min(extentWidth + 10, cx + radius);
-          for (let x = from; x <= to; x += STEP) {
+          for (let x = from; x <= to; x += step) {
             const y = shape(x, base, index, time);
             if (x === from) context.moveTo(x, y);
             else context.lineTo(x, y);
@@ -240,10 +248,10 @@ export function Scene({
         context.translate(width / 2, height / 2);
         context.rotate(-Math.PI / 4);
         context.translate(-size / 2, -size / 2);
-        drawField(time, size, size, width, localX, localY, "magnetic", GAP * Math.SQRT1_2);
+        drawField(time, size, size, width, localX, localY, "magnetic", Math.SQRT1_2);
         context.restore();
       } else {
-        drawField(time, width, height, WAVE_SPAN, cursor.x, cursor.y, chosen, GAP, originX);
+        drawField(time, width, height, WAVE_SPAN, cursor.x, cursor.y, chosen, 1, originX);
       }
 
       context.globalCompositeOperation = "destination-out";
@@ -276,7 +284,7 @@ export function Scene({
         pointer.x = pointerClient.x - rect.left;
         pointer.y = pointerClient.y - rect.top;
       }
-      const dpr = Math.min(window.devicePixelRatio || 1, chosen === "spotlight" ? 1.5 : 2);
+      const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
       canvas.width = Math.round(width * dpr);
       canvas.height = Math.round(height * dpr);
       context.setTransform(dpr, 0, 0, dpr, 0, 0);

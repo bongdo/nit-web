@@ -54,7 +54,6 @@ export const ComposerHighlights = forwardRef<
         key={`${issue.start}:${issue.end}`}
         ref={isActive ? activeRef : undefined}
         style={{
-          color: "var(--destructive)",
           textDecorationLine: "underline",
           textDecorationStyle: "wavy",
           textDecorationColor: "var(--destructive)",

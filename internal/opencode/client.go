@@ -43,6 +43,13 @@ type Client struct {
 }
 
 func New(ep Endpoint) *Client {
+	refresh := ep.Refresh
+	if refresh == nil {
+		refresh = func() (string, bool) {
+			pw := ReadPassword()
+			return pw, pw != ""
+		}
+	}
 	return &Client{
 		BaseURL:  strings.TrimRight(ep.URL, "/"),
 		Password: ep.Password,
@@ -53,10 +60,7 @@ func New(ep Endpoint) *Client {
 		StreamHTTP: &http.Client{
 			Transport: defaultTransport(),
 		},
-		refresh: func() (string, bool) {
-			pw := ReadPassword()
-			return pw, pw != ""
-		},
+		refresh: refresh,
 	}
 }
 

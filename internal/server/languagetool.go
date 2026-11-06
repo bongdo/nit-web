@@ -166,6 +166,27 @@ func (g *grammarChecker) health(ctx context.Context) error {
 	return nil
 }
 
+func (g *grammarChecker) available(ctx context.Context) (bool, string) {
+	if g.external {
+		if g.health(ctx) == nil {
+			return true, "LanguageTool (external)"
+		}
+		return false, "LanguageTool is not reachable"
+	}
+	if g.running() {
+		if g.health(ctx) == nil {
+			return true, "LanguageTool"
+		}
+		return false, "LanguageTool is not responding"
+	}
+	if bin := strings.TrimSpace(os.Getenv("NIT_GUI_LANGUAGETOOL")); bin == "" {
+		if _, err := exec.LookPath("languagetool-http-server"); err != nil {
+			return false, "not installed on the nit-gui host"
+		}
+	}
+	return true, "LanguageTool · starts on first use"
+}
+
 func (g *grammarChecker) prewarm() {
 	ctx, cancel := context.WithTimeout(context.Background(), 25*time.Second)
 	defer cancel()

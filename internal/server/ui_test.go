@@ -12,11 +12,11 @@ import (
 
 func uiTestServer(t *testing.T) *Server {
 	t.Helper()
-	store, err := uistate.Open(filepath.Join(t.TempDir(), "ui-state.json"))
+	store, err := uistate.Open(filepath.Join(t.TempDir(), "ui-state.json"), "local")
 	if err != nil {
 		t.Fatal(err)
 	}
-	return &Server{ui: store}
+	return &Server{ui: store, multi: singleProvider{}}
 }
 
 func jsonRequest(method, target, body string) *http.Request {
@@ -86,7 +86,7 @@ func TestUIStateHandlers(t *testing.T) {
 	if remove.Code != http.StatusOK {
 		t.Fatalf("remove status = %d", remove.Code)
 	}
-	state := s.ui.Snapshot()
+	state := s.ui.Snapshot("local")
 	if len(state.Hidden) != 0 || len(state.Status) != 0 {
 		t.Fatalf("state after remove = %+v", state)
 	}

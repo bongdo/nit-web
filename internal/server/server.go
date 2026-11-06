@@ -1238,6 +1238,31 @@ func (s *Server) stt(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"text": text})
 }
 
+func accurateSTTBinary() (string, error) {
+	if bin := strings.TrimSpace(os.Getenv("NIT_GUI_WHISPER")); bin != "" {
+		return bin, nil
+	}
+	return exec.LookPath("whisper-cli")
+}
+
+func accurateSTTModel() string {
+	if model := strings.TrimSpace(os.Getenv("NIT_GUI_WHISPER_MODEL")); model != "" {
+		return model
+	}
+	home, _ := os.UserHomeDir()
+	return filepath.Join(home, ".local/share/whisper/ggml-large-v3-turbo-q5_0.bin")
+}
+
+func accurateSTTAvailable() (bool, string) {
+	if _, err := accurateSTTBinary(); err != nil {
+		return false, "whisper-cli not installed"
+	}
+	if _, err := os.Stat(accurateSTTModel()); err != nil {
+		return false, "accurate model not installed"
+	}
+	return true, "accurate"
+}
+
 func transcribe(ctx context.Context, data []byte) (string, error) {
 	file, err := os.CreateTemp("", "nit-gui-stt-*.wav")
 	if err != nil {
@@ -1252,18 +1277,11 @@ func transcribe(ctx context.Context, data []byte) (string, error) {
 	if err := file.Close(); err != nil {
 		return "", err
 	}
-	bin := strings.TrimSpace(os.Getenv("NIT_GUI_WHISPER"))
-	if bin == "" {
-		bin, err = exec.LookPath("whisper-cli")
-		if err != nil {
-			return "", fmt.Errorf("whisper-cli not found on the nit-gui host")
-		}
+	bin, err := accurateSTTBinary()
+	if err != nil {
+		return "", fmt.Errorf("whisper-cli not found on the nit-gui host")
 	}
-	model := strings.TrimSpace(os.Getenv("NIT_GUI_WHISPER_MODEL"))
-	if model == "" {
-		home, _ := os.UserHomeDir()
-		model = filepath.Join(home, ".local/share/whisper/ggml-large-v3-turbo-q5_0.bin")
-	}
+	model := accurateSTTModel()
 	if _, err := os.Stat(model); err != nil {
 		return "", fmt.Errorf("whisper model not found: %s", model)
 	}

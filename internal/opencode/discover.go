@@ -19,6 +19,7 @@ var ErrNoService = errors.New("opencode service not found")
 type Endpoint struct {
 	URL      string
 	Password string
+	Refresh  func() (string, bool)
 }
 
 func Discover(ctx context.Context) (Endpoint, error) {
@@ -54,13 +55,7 @@ func serviceURL(ctx context.Context) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("%w: run `opencode service start`", ErrNoService)
 	}
-	for _, line := range strings.Split(string(out), "\n") {
-		line = strings.TrimSpace(line)
-		if strings.HasPrefix(line, "http://") || strings.HasPrefix(line, "https://") {
-			return line, nil
-		}
-	}
-	return "", fmt.Errorf("%w: unexpected `opencode service status` output", ErrNoService)
+	return parseServiceURL(string(out))
 }
 
 func normalizeServerURL(raw string) (string, error) {

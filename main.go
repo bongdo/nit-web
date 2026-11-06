@@ -29,7 +29,8 @@ func main() {
 		log.Error("frontend bundle missing", "error", err)
 		os.Exit(1)
 	}
-	provider := opencode.NewManager()
+	provider := opencode.NewRegistry()
+	defer provider.Close()
 	handler := server.New(provider, dist, log)
 
 	srv := &http.Server{

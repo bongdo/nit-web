@@ -127,10 +127,10 @@ func normalizeInstance(state InstanceState) InstanceState {
 func (s *Store) Snapshot(instance string) InstanceState {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	hidden := make([]string, len(s.state.Instances[instance].Hidden))
-	copy(hidden, s.state.Instances[instance].Hidden)
-	sort.Strings(hidden)
 	current := s.state.Instances[instance]
+	hidden := make([]string, len(current.Hidden))
+	copy(hidden, current.Hidden)
+	sort.Strings(hidden)
 	status := make(map[string]string, len(current.Status))
 	for id, value := range current.Status {
 		status[id] = value

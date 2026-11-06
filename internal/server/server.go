@@ -34,7 +34,7 @@ type ClientProvider interface {
 }
 
 type Server struct {
-	provider     ClientProvider
+	multi        MultiProvider
 	static       fs.FS
 	log          *slog.Logger
 	mux          *http.ServeMux
@@ -51,12 +51,16 @@ func New(provider ClientProvider, static fs.FS, log *slog.Logger) http.Handler {
 	if log == nil {
 		log = slog.Default()
 	}
-	ui, err := uistate.Open(uistate.DefaultPath())
+	multi, ok := provider.(MultiProvider)
+	if !ok {
+		multi = singleProvider{provider: provider}
+	}
+	ui, err := uistate.Open(uistate.DefaultPath(), multi.DefaultInstance())
 	if err != nil {
 		log.Warn("ui state load failed", "error", err)
 	}
 	s := &Server{
-		provider:     provider,
+		multi:        multi,
 		static:       static,
 		log:          log,
 		mux:          http.NewServeMux(),
@@ -104,6 +108,7 @@ func (s *Server) warm() {
 
 func (s *Server) routes() {
 	s.mux.HandleFunc("GET /api/health", s.health)
+	s.mux.HandleFunc("GET /api/instances", s.instances)
 	s.mux.HandleFunc("GET /api/config", s.config)
 	s.mux.HandleFunc("GET /api/projects", s.projects)
 	s.mux.HandleFunc("GET /api/sessions", s.sessions)
@@ -233,29 +238,70 @@ func forwardedHost(r *http.Request) string {
 	return r.Host
 }
 
-func (s *Server) client(ctx context.Context) (*opencode.Client, bool) {
-	c, err := s.provider.Client(ctx)
+func instanceID(r *http.Request) string {
+	if value := strings.TrimSpace(r.Header.Get("X-Nit-Instance")); value != "" {
+		return value
+	}
+	return strings.TrimSpace(r.URL.Query().Get("instance"))
+}
+
+func (s *Server) instanceName(r *http.Request) string {
+	if name := instanceID(r); name != "" {
+		return name
+	}
+	return s.multi.DefaultInstance()
+}
+
+func (s *Server) client(r *http.Request) (*opencode.Client, error) {
+	return s.multi.ClientFor(r.Context(), s.instanceName(r))
+}
+
+func (s *Server) withClient(w http.ResponseWriter, r *http.Request) (*opencode.Client, bool) {
+	c, err := s.client(r)
 	if err != nil {
+		if errors.Is(err, opencode.ErrUnknownInstance) {
+			writeError(w, http.StatusBadRequest, "unknown instance")
+			return nil, false
+		}
+		writeError(w, http.StatusServiceUnavailable, "opencode service not found")
 		return nil, false
 	}
 	return c, true
 }
 
+func (s *Server) drop(r *http.Request) {
+	s.multi.DropFor(s.instanceName(r))
+}
+
 func (s *Server) health(w http.ResponseWriter, r *http.Request) {
-	c, err := s.provider.Client(r.Context())
+	c, err := s.client(r)
 	if err != nil {
-		writeJSON(w, http.StatusOK, map[string]any{"ok": false, "error": err.Error()})
+		writeJSON(w, http.StatusOK, map[string]any{
+			"ok":       false,
+			"instance": s.instanceName(r),
+			"error":    err.Error(),
+		})
 		return
 	}
 	var info struct {
 		Version string `json:"version"`
 	}
 	if err := c.Do(r.Context(), http.MethodGet, "/api/info", nil, &info); err != nil {
-		s.provider.Drop()
-		writeJSON(w, http.StatusOK, map[string]any{"ok": false, "server": c.BaseURL, "error": err.Error()})
+		s.drop(r)
+		writeJSON(w, http.StatusOK, map[string]any{
+			"ok":       false,
+			"instance": s.instanceName(r),
+			"server":   c.BaseURL,
+			"error":    err.Error(),
+		})
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "server": c.BaseURL, "version": info.Version})
+	writeJSON(w, http.StatusOK, map[string]any{
+		"ok":       true,
+		"instance": s.instanceName(r),
+		"server":   c.BaseURL,
+		"version":  info.Version,
+	})
 }
 
 func (s *Server) sessions(w http.ResponseWriter, r *http.Request) {

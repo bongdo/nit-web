@@ -289,3 +289,36 @@ export function issueAtCaret(issues: SpellIssue[], caret: number | null): SpellI
   }
   return null;
 }
+
+export function grammarIssues(text: string, matches: GrammarMatch[]): SpellIssue[] {
+  const result: SpellIssue[] = [];
+  for (const match of matches) {
+    const start = Math.max(0, match.offset);
+    const end = Math.min(text.length, start + match.length);
+    if (end <= start) continue;
+    const word = text.slice(start, end);
+    const suggestions = Array.from(new Set(match.replacements))
+      .filter((item) => item.trim() && item !== word)
+      .slice(0, 5);
+    if (suggestions.length === 0) continue;
+    result.push({
+      start,
+      end,
+      word,
+      suggestions,
+      language: languageOf(word) ?? "en",
+      source: "grammar",
+      message: match.message,
+    });
+  }
+  return result;
+}
+
+export function mergeIssues(spelling: SpellIssue[], grammar: SpellIssue[]): SpellIssue[] {
+  const result = [...spelling];
+  for (const issue of grammar) {
+    if (result.some((existing) => existing.start < issue.end && issue.start < existing.end)) continue;
+    result.push(issue);
+  }
+  return result.sort((left, right) => left.start - right.start || right.end - left.end);
+}

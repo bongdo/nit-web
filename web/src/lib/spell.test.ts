@@ -2,9 +2,11 @@ import { describe, expect, it } from "vitest";
 import {
   applyIssue,
   findIssues,
+  grammarIssues,
   issueAtCaret,
   languageOf,
   maskCode,
+  mergeIssues,
   words,
   type SpellChecker,
 } from "./spell";
@@ -144,5 +146,34 @@ describe("spell", () => {
     expect(issueAtCaret(issues, 6)?.word).toBe("хочю");
     expect(issueAtCaret(issues, 7)).toBeNull();
     expect(issueAtCaret(issues, null)).toBeNull();
+  });
+
+  it("maps grammar matches and drops out-of-range ones", () => {
+    const text = "привет мир";
+    const issues = grammarIssues(text, [
+      { offset: 7, length: 3, message: "comma", ruleID: "A_NO_DA", replacements: ["мир!"] },
+      { offset: 20, length: 4, message: "gone", ruleID: "A_NO_DA", replacements: ["x"] },
+    ]);
+    expect(issues).toEqual([
+      {
+        start: 7,
+        end: 10,
+        word: "мир",
+        suggestions: ["мир!"],
+        language: "ru",
+        source: "grammar",
+        message: "comma",
+      },
+    ]);
+  });
+
+  it("prefers spelling issues when grammar matches overlap them", () => {
+    const spelling = findIssues("я хочю", ru, en);
+    const grammar = grammarIssues("я хочю", [
+      { offset: 2, length: 4, message: "overlap", ruleID: "X", replacements: ["хочу"] },
+    ]);
+    const merged = mergeIssues(spelling, grammar);
+    expect(merged).toHaveLength(1);
+    expect(merged[0].source).toBe("spell");
   });
 });

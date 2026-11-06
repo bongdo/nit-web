@@ -811,7 +811,8 @@ export function Composer({
               {visibleIssue && hintRect && (
                 <div
                   role="group"
-                  aria-label={`Spelling suggestions for ${visibleIssue.word}`}
+                  aria-label={`Suggestions for ${visibleIssue.word}`}
+                  title={visibleIssue.message}
                   onMouseDown={(event) => event.preventDefault()}
                   className="border-border bg-popover text-foreground absolute z-20 flex items-center gap-1 rounded-md border px-1.5 py-1 text-[11px] whitespace-nowrap shadow-lg"
                   style={{

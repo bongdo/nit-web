@@ -78,3 +78,6 @@ Options:
 The measured numbers do not justify replacing nspell for spelling alone. They
 do justify LanguageTool if grammar and real-word errors matter and the target
 host has at least 1.5 GB free RAM.
+
+Decision on 2026-11-06: hybrid, nspell for spelling plus an optional
+LanguageTool sidecar for grammar. See `docs/decisions.md`.

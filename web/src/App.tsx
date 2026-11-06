@@ -231,6 +231,7 @@ export default function App() {
       sessionRunning(sessions.find((session) => session.id === id)),
     [runningIds, sessions],
   );
+  const waitingIds = useMemo(() => waitingSessionIds(forms, selectedId), [forms, selectedId]);
   const runningNow = selectedId ? isRunning(selectedId) : false;
   const modelInfo =
     models.find(
@@ -931,8 +932,9 @@ export default function App() {
           showHidden ? sessions : sessions.filter((session) => !hiddenIds.has(session.id)),
           search,
         ),
+        waitingIds,
       ).map((row) => row.session),
-    [hiddenIds, search, sessions, showHidden],
+    [hiddenIds, search, sessions, showHidden, waitingIds],
   );
 
   const quoteSelection = useCallback((text: string) => {
@@ -1009,7 +1011,6 @@ export default function App() {
     : sessions.filter((session) => !hiddenIds.has(session.id));
   const hoverSidebar = sidebarMode === "hover";
   const questionForm = forms[0] && questionField(forms[0]) ? forms[0] : null;
-  const waitingIds = waitingSessionIds(forms, selectedId);
   const finishForm = () => {
     setForms((current) => current.slice(1));
     reloadSelected();

@@ -88,9 +88,13 @@ workspace on the first Send, so an empty draft never appears in the list.
   with a wavy underline; put the caret in a word (or click it) and a gray
   `→ ...` chip shows replacements next to it. Click a suggestion to apply it,
   or `ignore` to add the word to your dictionary. `Esc` hides the chip, and
-  Settings → Spelling turns the check off. Code blocks, inline code, URLs,
-  paths, file names and known project terms are skipped. Nothing leaves the
-  browser.
+  Settings → Spelling & grammar turns both checks off. Code blocks, inline
+  code, URLs, paths, file names and known project terms are skipped. Spelling
+  stays in the browser.
+- Grammar is optional: when a LanguageTool sidecar is configured, the same chip
+  also shows punctuation and real-word fixes (`too` → `to`) from the local
+  Java process. Without it, only spelling runs. The draft goes to that local
+  process, never to a cloud service.
 - Hover a user message for Copy, Revert and Fork. Revert commits the revert and
   puts the message text back into the composer; Fork opens a new session before
   that message. The composer also has a fast `Undo` button for the last prompt.
@@ -118,6 +122,10 @@ rewritten to loopback. Credentials in a server URL are discarded.
 | `NIT_GUI_PUBLIC_PORT` | Public Caddy port for `bin/frankfurt`, default `7792`. |
 | `NIT_GUI_PUBLIC_HOST` | Public host printed by `bin/frankfurt`, default `92.5.143.242`. |
 | `NIT_GUI_PUBLIC_PASSWORD` | Password for `bin/frankfurt`; otherwise reuse `/etc/caddy/Caddyfile`. |
+| `NIT_GUI_LANGUAGETOOL` | Path to `languagetool-http-server`; the app starts it lazily. |
+| `NIT_GUI_LANGUAGETOOL_URL` | Use an already running LanguageTool server instead of spawning one. |
+| `NIT_GUI_LANGUAGETOOL_PORT` | Spawned server port, default `8179`. |
+| `NIT_GUI_LANGUAGETOOL_JAVA_OPTS` | JVM options, default `-Xms256m -Xmx512m`. |
 | `--addr` | Listener address, default `127.0.0.1:7788`. |
 
 If the service is down, the GUI still starts and shows an offline screen with a
@@ -143,6 +151,7 @@ The browser only talks to these same-origin endpoints:
 | `POST /api/sessions/{id}/compact` | Compact the context. |
 | `POST /api/upload?dir=&name=` | Raw file body, written through OpenCode `/api/experimental/fs/write`. |
 | `POST /api/stt` | Raw 16 kHz mono WAV, transcribed by `whisper-cli`. |
+| `POST /api/grammar` | `{text}`; optional LanguageTool grammar/punctuation check. |
 | `POST /api/sessions/{id}/model` | Switch model `{model: {id, providerID, variant?}}`. |
 | `POST /api/sessions/{id}/agent` | Switch agent `{agent}`. |
 | `GET /api/models`, `GET /api/agents` | Pickers. |
@@ -248,6 +257,13 @@ shadcn/ui primitives are local source files (`Button`, `Input`, `Textarea`,
 `Badge`, `Select`), so they follow shadcn's shape without adding dependencies.
 The dictionary licenses are served from `web/public/licenses`.
 
+Grammar checking is optional and separate from the npm dependencies. It uses a
+LanguageTool 6.x HTTP server: either point `NIT_GUI_LANGUAGETOOL_URL` at a
+running `languagetool-http-server`, or set `NIT_GUI_LANGUAGETOOL` to its binary
+and the app starts it on the first grammar request. It needs Java 17 or newer,
+about 0.7 GB RSS after Russian and English are warm, and about 0.5 GB of disk
+for LanguageTool plus the JRE. Without it, the composer only checks spelling.
+
 ## Known limits
 
 - Sessions are listed up to OpenCode's newest 100. Search filters that window
@@ -264,6 +280,10 @@ The dictionary licenses are served from `web/public/licenses`.
   `to`), Russian `-тся/-ться` or punctuation. It loads about 4 MB of
   dictionaries in a worker; the first check can take a few seconds after start.
   Ignored words are kept in `nit-gui.spell-ignore` in `localStorage`.
+- Grammar is optional and slower: LanguageTool warms up on the first request
+  (3–4 s), then Russian checks take about 250 ms and English about 30–40 ms.
+  Capitalization and spelling rules are disabled so the composer does not
+  duplicate nspell; some Russian commas are still missed.
 - Uploaded files live under `/tmp` on the OpenCode host. Nothing cleans them up.
 - No syntax highlighting in code blocks; copy and HTML preview are implemented.
 - The HTML preview is a fixed-height iframe, not a full-window renderer.

@@ -84,3 +84,15 @@ Rejected: binding the Go server to `0.0.0.0` (no auth), adding app-level basic a
 
 Cost: a second Caddy process that does not survive reboot; plain HTTP without a secure context, so remote dictation needs an SSH tunnel or HTTPS; the public port must be opened in the OCI security list.
 
+
+## 2026-11-06 — Hybrid spelling and grammar
+
+Context: nspell catches typos in the browser instantly. LanguageTool catches real-word errors (`too`/`to`) and some punctuation, but the measured Russian check is about 250 ms and the process needs about 0.7 GB RSS.
+
+Decision: keep nspell for spelling and add an optional LanguageTool sidecar for grammar. The backend starts `languagetool-http-server` lazily or uses `NIT_GUI_LANGUAGETOOL_URL`; spelling and capitalization rules are disabled, the browser waits 700 ms before asking, and nspell wins when the two overlap. Without a sidecar the composer still checks spelling.
+
+Why: this keeps instant feedback for typos and adds the errors nspell cannot see, without a cloud service or an AI model.
+
+Rejected: LanguageTool only (slower Russian checks, loses instant feedback), nspell only (misses `too`/`to` and punctuation), an AI proofreader.
+
+Cost: about 0.7 GB RSS on the host running LanguageTool, a 3–4 s warm-up on the first grammar request, ~250 ms per Russian check, and a Java dependency. Grammar stays optional.

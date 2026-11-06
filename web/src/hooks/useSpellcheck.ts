@@ -1,10 +1,13 @@
 import { useEffect, useState } from "react";
-import type { SpellIssue } from "../lib/spell";
+import { api } from "../lib/api";
+import { grammarIssues, mergeIssues, type SpellIssue } from "../lib/spell";
 import { checkSpelling, preloadSpellcheck } from "../lib/spell-client";
 
+let grammarCooldownUntil = 0;
+
 export function useSpellcheck(text: string, enabled: boolean, ignore: string[]) {
-  const [issues, setIssues] = useState<SpellIssue[]>([]);
-  const [checking, setChecking] = useState(false);
+  const [spelling, setSpelling] = useState<SpellIssue[]>([]);
+  const [grammar, setGrammar] = useState<SpellIssue[]>([]);
 
   useEffect(() => {
     if (!enabled) return;
@@ -14,24 +17,18 @@ export function useSpellcheck(text: string, enabled: boolean, ignore: string[]) 
 
   useEffect(() => {
     if (!enabled || !text.trim()) {
-      setIssues([]);
-      setChecking(false);
+      setSpelling([]);
       return;
     }
     let alive = true;
-    setIssues([]);
-    setChecking(true);
+    setSpelling([]);
     const timer = window.setTimeout(() => {
       checkSpelling(text, ignore)
         .then((next) => {
-          if (!alive) return;
-          setIssues(next);
-          setChecking(false);
+          if (alive) setSpelling(next);
         })
         .catch(() => {
-          if (!alive) return;
-          setIssues([]);
-          setChecking(false);
+          if (alive) setSpelling([]);
         });
     }, 300);
     return () => {
@@ -40,5 +37,30 @@ export function useSpellcheck(text: string, enabled: boolean, ignore: string[]) 
     };
   }, [text, enabled, ignore]);
 
-  return { issues, checking };
+  useEffect(() => {
+    if (!enabled || !text.trim() || text.length > 8000 || Date.now() < grammarCooldownUntil) {
+      setGrammar([]);
+      return;
+    }
+    let alive = true;
+    setGrammar([]);
+    const timer = window.setTimeout(() => {
+      api
+        .grammar(text)
+        .then((matches) => {
+          grammarCooldownUntil = 0;
+          if (alive) setGrammar(grammarIssues(text, matches));
+        })
+        .catch(() => {
+          grammarCooldownUntil = Date.now() + 60_000;
+          if (alive) setGrammar([]);
+        });
+    }, 700);
+    return () => {
+      alive = false;
+      window.clearTimeout(timer);
+    };
+  }, [text, enabled]);
+
+  return { issues: mergeIssues(spelling, grammar) };
 }

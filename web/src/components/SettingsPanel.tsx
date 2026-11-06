@@ -188,13 +188,13 @@ export function SettingsPanel({
           </label>
 
           <label className="block space-y-1">
-            <span className="text-muted-foreground text-[11px]">Spelling</span>
+            <span className="text-muted-foreground text-[11px]">Spelling & grammar</span>
             <Select
               className="w-full"
               value={spellcheck ? "on" : "off"}
               onChange={(event) => onSpellcheck(event.target.value === "on")}
             >
-              <option value="on">On · Russian + English, offline</option>
+              <option value="on">On · RU + EN spelling, grammar if configured</option>
               <option value="off">Off</option>
             </Select>
           </label>

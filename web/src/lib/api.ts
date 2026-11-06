@@ -10,6 +10,7 @@ import type {
   Session,
   SessionList,
 } from "./types";
+import type { GrammarMatch } from "./spell";
 
 export class ApiError extends Error {
   status: number;
@@ -160,6 +161,14 @@ export const api = {
     });
     if (!response.ok) throw new ApiError(await errorText(response), response.status);
     return (await response.json()) as { text: string };
+  },
+  grammar: async (text: string) => {
+    const result = await request<{ matches: GrammarMatch[] }>("/api/grammar", {
+      method: "POST",
+      body: { text },
+      signal: AbortSignal.timeout(20_000),
+    });
+    return result.matches;
   },
   switchModel: (id: string, model: ModelRef) =>
     request<unknown>(`/api/sessions/${encodeURIComponent(id)}/model`, {

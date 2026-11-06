@@ -68,7 +68,12 @@ function SessionRow({
       >
         <div className="flex min-w-0 items-center gap-2">
           {depth > 0 ? (
-            <CornerDownRight className="text-muted-foreground size-3 shrink-0" />
+            <CornerDownRight
+              className={cn(
+                "size-3 shrink-0",
+                waiting ? "text-spark" : "text-muted-foreground",
+              )}
+            />
           ) : (
             <span
               className={cn(

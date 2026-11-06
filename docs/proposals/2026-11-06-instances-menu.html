@@ -230,7 +230,7 @@ function esc(value) {
 
 function renderFlow() {
   const inst = instances.find((item) => item.id === active);
-  const target = inst.state === "connected" ? inst.name : inst.name;
+  const target = inst.name;
   document.getElementById("flow").innerHTML = `
     <div class="node">
       <div class="top"><b>Browser</b><span class="req">required</span></div>

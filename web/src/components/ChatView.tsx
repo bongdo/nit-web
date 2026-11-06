@@ -1,4 +1,12 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import {
   ArrowDown,
   CircleAlert,
@@ -8,6 +16,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import type { Agent, Message, Model, Project, Session } from "../lib/types";
+import { EARLIER_THRESHOLD, needsEarlier } from "../lib/scroll";
 import { cn } from "../lib/utils";
 import { Button } from "./ui/button";
 import { AssistantTurn } from "./AssistantTurn";
@@ -85,6 +94,12 @@ export function ChatView({
   const contentRef = useRef<HTMLDivElement>(null);
   const stick = useRef(true);
   const scrollFrame = useRef<number | null>(null);
+  const earlierAnchor = useRef<{
+    height: number;
+    top: number;
+    first: string;
+    session: string;
+  } | null>(null);
   const [showJump, setShowJump] = useState(false);
   const [quote, setQuote] = useState<{ text: string; x: number; y: number } | null>(null);
 
@@ -103,6 +118,18 @@ export function ChatView({
       scrollToBottom();
     });
   }, [scrollToBottom]);
+
+  const requestEarlier = useCallback(() => {
+    const element = scrollRef.current;
+    if (!element || !hasEarlier || loadingEarlier) return;
+    earlierAnchor.current = {
+      height: element.scrollHeight,
+      top: element.scrollTop,
+      first: messages[0]?.id ?? "",
+      session: session?.id ?? "",
+    };
+    void onLoadEarlier();
+  }, [hasEarlier, loadingEarlier, messages, onLoadEarlier, session?.id]);
 
   useEffect(
     () => () => {
@@ -149,6 +176,34 @@ export function ChatView({
   useEffect(() => {
     if (stick.current) scheduleScroll();
   }, [messages, running]);
+
+  useEffect(() => {
+    if (!hasEarlier || loadingEarlier) return;
+    const element = scrollRef.current;
+    if (!element) return;
+    if (element.scrollHeight <= element.clientHeight + EARLIER_THRESHOLD) {
+      requestEarlier();
+    }
+  }, [hasEarlier, loadingEarlier, messages, requestEarlier]);
+
+  useLayoutEffect(() => {
+    const anchor = earlierAnchor.current;
+    const element = scrollRef.current;
+    if (!anchor || !element || loadingEarlier) return;
+    if ((session?.id ?? "") !== anchor.session) {
+      earlierAnchor.current = null;
+      return;
+    }
+    if ((messages[0]?.id ?? "") === anchor.first) {
+      earlierAnchor.current = null;
+      return;
+    }
+    earlierAnchor.current = null;
+    if (anchor.top > 0) {
+      const delta = element.scrollHeight - anchor.height;
+      if (delta > 0) element.scrollTop = anchor.top + delta;
+    }
+  }, [loadingEarlier, messages, session?.id]);
 
   useEffect(() => {
     const element = scrollRef.current;
@@ -282,6 +337,15 @@ export function ChatView({
 
   return (
     <div className="relative flex min-h-0 flex-1 flex-col">
+      {loadingEarlier && (
+        <div className="pointer-events-none absolute inset-x-0 top-2 z-10 flex justify-center">
+          <span className="bg-background/85 text-muted-foreground border-border flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] shadow-sm backdrop-blur">
+            <Loader2 className="size-3 animate-spin" />
+            Loading earlier…
+          </span>
+        </div>
+      )}
+
       <div
         ref={scrollRef}
         data-transcript
@@ -293,23 +357,13 @@ export function ChatView({
           stick.current = nearBottom;
           setShowJump(!nearBottom);
           setQuote(null);
+          if (earlierAnchor.current) earlierAnchor.current.top = element.scrollTop;
+          if (needsEarlier(element.scrollTop, element.scrollHeight, element.clientHeight)) {
+            requestEarlier();
+          }
         }}
       >
         <div ref={contentRef} className="mx-auto w-full max-w-3xl px-4 pt-16 pb-6">
-          {hasEarlier && (
-            <div className="flex justify-center pb-2">
-              <Button
-                variant="ghost"
-                size="xs"
-                onClick={onLoadEarlier}
-                disabled={loadingEarlier}
-              >
-                {loadingEarlier ? <Loader2 className="animate-spin" /> : null}
-                Load earlier messages
-              </Button>
-            </div>
-          )}
-
           {error && (
             <div className="text-destructive border-destructive/30 bg-destructive/5 mb-4 flex items-start gap-2 rounded-lg border px-3 py-2 text-xs">
               <CircleAlert className="mt-0.5 size-4 shrink-0" />

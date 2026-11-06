@@ -8,7 +8,8 @@ import {
 } from "lucide-react";
 import type { ToolContent, ToolPart } from "../lib/types";
 import { toolSummary } from "../lib/activity";
-import { attachmentHref, attachmentKind } from "../lib/attachments";
+import { attachmentHref } from "../lib/attachments";
+import { AttachmentPreview } from "./Attachment";
 
 function StatusIcon({ status }: { status: ToolPart["state"]["status"] }) {
   if (status === "streaming" || status === "running") {
@@ -26,28 +27,7 @@ function ContentItem({ content }: { content: ToolContent }) {
     : undefined;
   const name = content.name ?? source ?? "";
   if (content.type === "file" && href) {
-    if (attachmentKind({ name, mime: content.mime }) === "image") {
-      return (
-        <a href={href} target="_blank" rel="noreferrer noopener" className="block">
-          <img
-            src={href}
-            alt="Tool output"
-            loading="lazy"
-            className="border-border max-h-72 max-w-full rounded-md border object-contain"
-          />
-        </a>
-      );
-    }
-    return (
-      <a
-        href={href}
-        target="_blank"
-        rel="noreferrer noopener"
-        className="text-foreground underline underline-offset-4"
-      >
-        {name}
-      </a>
-    );
+    return <AttachmentPreview name={name} href={href} mime={content.mime} />;
   }
   return <span className="whitespace-pre-wrap">{content.text ?? source ?? ""}</span>;
 }

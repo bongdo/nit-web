@@ -240,3 +240,15 @@ Why: the keyboard gesture is faster than moving to a toast, and repeated sent wo
 Rejected: keeping the toast, learning a word after one send (would learn typos too), adding every declined form to a hand-written list forever.
 
 Cost: three sends are needed before a new project word is learned; the keyboard undo only works while the correction is recent. The personal dictionary stays in browser `localStorage`, so it is per browser.
+
+## 2026-11-06 — File cards, media players and type icons
+
+Context: attachments were rendered as an image, a PDF card or a bare link. Audio, video, archives and documents had no icon or player, and an assistant reply could not show files at all.
+
+Decision: one shared `AttachmentPreview` renders by file type: image/GIF inline, audio and video with native `controls`, PDF with a browser preview, and every other file as a download card with a type icon. The same component handles user attachments, tool output and local `/api/file` links in markdown. Audio and video responses are served inline; HTML, SVG and other active content stay downloads.
+
+Why: the browser already has media players and PDF viewing; the GUI only needs to pick the right element and icon. Reusing one component keeps message attachments, tool output and markdown attachments consistent.
+
+Rejected: a custom audio/video player (extra controls and state), rendering every markdown link as a file card (breaks ordinary links), adding an icon package (lucide already has the needed file icons).
+
+Cost: video seeking depends on the browser buffering the whole file because `/api/file` does not forward range requests yet; media links load when the message is rendered.

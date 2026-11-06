@@ -4,7 +4,6 @@ import {
   ArrowUp,
   Check,
   ChevronDown,
-  FileIcon,
   Loader2,
   Mic,
   Paperclip,
@@ -23,6 +22,7 @@ import { applyIssue, issueAtCaret, issueKey, maskedAt, safeAutoFix, type SpellIs
 import { useSpellcheck } from "../hooks/useSpellcheck";
 import { checkSpelling } from "../lib/spell-client";
 import { cn } from "../lib/utils";
+import { FileTypeIcon } from "./Attachment";
 import { COMPOSER_TEXT, ComposerHighlights, type HintRect } from "./ComposerHighlights";
 import { Button } from "./ui/button";
 import { Textarea } from "./ui/textarea";
@@ -854,7 +854,11 @@ export const Composer = memo(function Composer({
                     {item.preview ? (
                       <img src={item.preview} alt="" className="size-5 rounded object-cover" />
                     ) : (
-                      <FileIcon className="text-muted-foreground size-3.5" />
+                      <FileTypeIcon
+                        name={item.name}
+                        mime={item.mime}
+                        className="text-muted-foreground"
+                      />
                     )}
                     <span className="max-w-40 truncate">{item.name}</span>
                     <span className="text-muted-foreground">{formatBytes(item.size)}</span>

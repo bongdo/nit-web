@@ -15,3 +15,4 @@
 .agent/check.state
 .agent/digest.log
 .agent/digest.last
+/node_modules/

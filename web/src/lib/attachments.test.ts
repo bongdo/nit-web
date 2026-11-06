@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { attachmentHref, attachmentKind, attachmentWarning } from "./attachments";
+import {
+  attachmentHref,
+  attachmentKind,
+  attachmentNameFromHref,
+  attachmentWarning,
+  fileType,
+  isLocalFileHref,
+} from "./attachments";
 
 const model = (input: string[]) => ({ name: "Model", capabilities: { input } });
 
@@ -42,6 +49,28 @@ describe("attachments", () => {
         source: { uri: "file:///home/ubuntu/secret.pdf" },
       }),
     ).toBe("data:application/pdf;base64,UEJEUg==");
+  });
+
+  it("maps popular extensions to file types for icons and players", () => {
+    expect(fileType({ name: "photo.png" })).toBe("image");
+    expect(fileType({ name: "doc.pdf" })).toBe("pdf");
+    expect(fileType({ name: "track.mp3" })).toBe("audio");
+    expect(fileType({ name: "clip.mp4" })).toBe("video");
+    expect(fileType({ name: "bundle.zip" })).toBe("archive");
+    expect(fileType({ name: "data.csv" })).toBe("spreadsheet");
+    expect(fileType({ name: "slides.pptx" })).toBe("presentation");
+    expect(fileType({ name: "main.go" })).toBe("code");
+    expect(fileType({ name: "package.json" })).toBe("json");
+    expect(fileType({ name: "notes.md" })).toBe("document");
+    expect(fileType({ name: "server.pem" })).toBe("key");
+    expect(fileType({ name: "unknown" })).toBe("other");
+  });
+
+  it("recognizes local file links and derives the name", () => {
+    const href = "/api/file?path=file%3A%2F%2F%2Ftmp%2Fnit-gui-1-track.mp3";
+    expect(isLocalFileHref(href)).toBe(true);
+    expect(isLocalFileHref("https://example.com/a.mp3")).toBe(false);
+    expect(attachmentNameFromHref(href)).toBe("nit-gui-1-track.mp3");
   });
 
   it("warns when the model cannot read the attachment", () => {

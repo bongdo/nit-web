@@ -97,10 +97,15 @@ workspace on the first Send, so an empty draft never appears in the list.
   written to the OpenCode host through `/api/experimental/fs/write` and attached
   as `files: [{uri, name}]` on the next prompt. The limit is 20 MiB, matching
   OpenCode. You can send files without any text.
-- The transcript shows images inline, PDFs as a card with a browser PDF preview,
-  and every other file as a download link. Text, images and PDFs are the types
-  OpenCode forwards to the model; other files are uploaded but the model never
-  receives them, so the composer marks them with a warning.
+- The transcript shows images and GIFs inline, audio and video with native
+  players, PDFs as a card with a browser PDF preview, and every other file as a
+  download card. Cards use icons for images, PDF, audio, video, archives,
+  spreadsheets, presentations, documents, JSON, code and keys.
+- Local file links in assistant markdown (`/api/file?...`) get the same cards,
+  players and icons, so a reply can carry attachments too.
+- Text, images and PDFs are the types OpenCode forwards to the model; other files
+  are uploaded but the model never receives them, so the composer marks them
+  with a warning.
 - The selected model must accept the input type. The composer warns when the
   current model cannot read an image or PDF; pick a model whose capabilities
   include `image` or `pdf` (for example Gemini or Claude for PDFs).

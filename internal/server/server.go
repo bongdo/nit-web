@@ -890,7 +890,9 @@ func safeUploadName(name string) string {
 }
 
 func inlineFileType(contentType string) bool {
-	if strings.HasPrefix(contentType, "text/plain") {
+	if strings.HasPrefix(contentType, "text/plain") ||
+		strings.HasPrefix(contentType, "audio/") ||
+		strings.HasPrefix(contentType, "video/") {
 		return true
 	}
 	switch contentType {

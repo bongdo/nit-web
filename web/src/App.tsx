@@ -1055,6 +1055,10 @@ export default function App() {
         return;
       }
       if (event.key === "Escape") {
+        if (settingsOpen) {
+          if (!event.repeat) setSettingsOpen(false);
+          return;
+        }
         const id = selectedIdRef.current;
         if (!event.repeat && id && isRunning(id)) {
           const now = Date.now();
@@ -1071,7 +1075,7 @@ export default function App() {
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [cycleSessions, isRunning, newChat, selectSession, stop]);
+  }, [cycleSessions, isRunning, newChat, selectSession, settingsOpen, stop]);
 
   if (booting) return <BootScreen />;
 

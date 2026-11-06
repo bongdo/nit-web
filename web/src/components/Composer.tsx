@@ -644,7 +644,7 @@ export const Composer = memo(function Composer({
       return;
     setSubmitting(true);
     try {
-      await onSend(text, readyFiles, running ? "queue" : undefined);
+      await onSend(text, readyFiles, running ? "steer" : undefined);
       const misspelled = issues
         .filter((issue) => issue.source !== "grammar")
         .map((issue) => issue.word.toLowerCase());
@@ -1179,10 +1179,10 @@ export const Composer = memo(function Composer({
                     uploading ||
                     finishing
                   }
-                  aria-label={running ? "Queue message" : "Send"}
+                  aria-label={running ? "Steer message" : "Send"}
                 >
                   {submitting ? <Loader2 className="animate-spin" /> : <ArrowUp />}
-                  {running ? "Queue" : "Send"}
+                  {running ? "Steer" : "Send"}
                 </Button>
               )}
             </div>

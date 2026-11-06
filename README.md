@@ -271,7 +271,9 @@ nspell worker. It is not implemented yet.
 - Streaming text, reasoning, tool calls collapsed by default, code copy,
   GFM tables/task lists.
 - Composer: Enter sends, Shift+Enter adds a line, stop while streaming, token
-  and cost footer when OpenCode reports them.
+  and cost footer when OpenCode reports them. While the agent is running, a new
+  message is steered in at the next step boundary (after the current tool call)
+  instead of waiting for the whole run to finish.
 - The composer is a bottom dock overlay: growing it never resizes the transcript
   or the background canvas, and the transcript scrolls underneath it.
 - Model and agent pickers in the header; changes are applied to the current

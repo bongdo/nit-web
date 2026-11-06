@@ -5,26 +5,10 @@ import {
   ChevronRight,
   Circle,
   Loader2,
-  Wrench,
 } from "lucide-react";
 import type { ToolContent, ToolPart } from "../lib/types";
+import { toolSummary } from "../lib/activity";
 import { attachmentHref, attachmentKind } from "../lib/attachments";
-import { cn } from "../lib/utils";
-
-function summarize(input: unknown): string {
-  if (typeof input === "string") return input.replace(/\s+/g, " ").slice(0, 120);
-  if (input && typeof input === "object") {
-    const record = input as Record<string, unknown>;
-    if (typeof record.command === "string") return record.command.replace(/\s+/g, " ").slice(0, 120);
-    if (typeof record.path === "string") return record.path;
-    try {
-      return JSON.stringify(input).slice(0, 120);
-    } catch {
-      return "";
-    }
-  }
-  return "";
-}
 
 function StatusIcon({ status }: { status: ToolPart["state"]["status"] }) {
   if (status === "streaming" || status === "running") {
@@ -68,31 +52,33 @@ function ContentItem({ content }: { content: ToolContent }) {
   return <span className="whitespace-pre-wrap">{content.text ?? source ?? ""}</span>;
 }
 
-export const ToolCall = memo(function ToolCall({ part }: { part: ToolPart }) {
+export const ToolCall = memo(function ToolCall({
+  part,
+  cwd,
+}: {
+  part: ToolPart;
+  cwd?: string | null;
+}) {
   const [open, setOpen] = useState(false);
-  const summary = summarize(part.state.input);
+  const { verb, target } = toolSummary(part, cwd);
   const status = part.state.status;
   const content = part.state.content ?? [];
 
   return (
     <details
-      className="border-border bg-card/60 group my-2 overflow-hidden rounded-lg border"
+      className="group"
       open={open}
       onToggle={(event) => setOpen((event.currentTarget as HTMLDetailsElement).open)}
     >
-      <summary className="hover:bg-muted/40 flex cursor-pointer list-none items-center gap-2 px-3 py-2 text-xs [&::-webkit-details-marker]:hidden">
-        <ChevronRight className="text-muted-foreground size-3.5 transition-transform group-open:rotate-90" />
+      <summary className="hover:bg-muted/40 flex cursor-pointer list-none items-center gap-2 rounded px-2 py-1 text-[11px] [&::-webkit-details-marker]:hidden">
+        <ChevronRight className="text-muted-foreground size-3.5 shrink-0 transition-transform group-open:rotate-90" />
         <StatusIcon status={status} />
-        <Wrench className="text-muted-foreground size-3.5" />
-        <span className="font-mono font-medium">{part.name}</span>
-        {summary && (
-          <span className="text-muted-foreground truncate font-mono text-[11px]">{summary}</span>
+        <span className="shrink-0 font-medium">{verb}</span>
+        {target && (
+          <span className="text-muted-foreground min-w-0 flex-1 truncate font-mono">{target}</span>
         )}
-        <span className="text-muted-foreground ml-auto shrink-0 text-[10px] uppercase tracking-wide">
-          {status}
-        </span>
       </summary>
-      <div className="border-border space-y-2 border-t px-3 py-2.5 text-xs">
+      <div className="border-border mr-2 mb-1 ml-7 space-y-2 border-l-2 py-1 pl-3 text-xs">
         {part.state.input !== undefined && part.state.input !== "" && (
           <pre className="bg-muted/50 scrollbar-thin max-h-48 overflow-auto rounded-md p-2 font-mono text-[11px] whitespace-pre-wrap">
             {typeof part.state.input === "string"
@@ -111,7 +97,7 @@ export const ToolCall = memo(function ToolCall({ part }: { part: ToolPart }) {
           <p className="text-muted-foreground">No output</p>
         )}
         {part.state.error && (
-          <p className={cn("text-destructive whitespace-pre-wrap")}>
+          <p className="text-destructive whitespace-pre-wrap">
             {part.state.error.message ?? "Tool failed"}
           </p>
         )}

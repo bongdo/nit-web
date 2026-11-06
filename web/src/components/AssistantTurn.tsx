@@ -9,7 +9,8 @@ import {
   Loader2,
   Undo2,
 } from "lucide-react";
-import type { Agent, Message, Model } from "../lib/types";
+import type { Agent, Message, Model, ReasoningPart, ToolPart } from "../lib/types";
+import { activityLine } from "../lib/activity";
 import { copyText } from "../lib/clipboard";
 import { isPureHtml, looksLikeHtml } from "../lib/html";
 import { modelLabel, replyText } from "../lib/format";
@@ -33,6 +34,7 @@ export function AssistantTurn({
   messages,
   models,
   agents,
+  workspace,
   streaming,
   actionsDisabled,
   onRevert,
@@ -41,34 +43,48 @@ export function AssistantTurn({
   messages: Message[];
   models: Model[];
   agents: Agent[];
+  workspace?: string | null;
   streaming: boolean;
   actionsDisabled?: boolean;
   onRevert: (message: Message) => void;
   onFork: (message: Message) => void;
 }) {
-  const [open, setOpen] = useState(streaming);
+  const [open, setOpen] = useState(false);
   const wasStreaming = useRef(streaming);
   const [copied, setCopied] = useState(false);
   const last = messages[messages.length - 1];
   const content = messages.flatMap((message) => message.content ?? []);
-  const activity = content.filter((part) => part.type === "reasoning" || part.type === "tool");
+  const activity = content.filter(
+    (part): part is ReasoningPart | ToolPart =>
+      part.type === "tool" || (part.type === "reasoning" && part.text.trim() !== ""),
+  );
   const textParts = content.filter((part) => part.type === "text");
   const toolCount = activity.filter((part) => part.type === "tool").length;
+  const errorCount = activity.filter(
+    (part) => part.type === "tool" && part.state.status === "error",
+  ).length;
   const reply = messages.map(replyText).filter(Boolean).join("\n\n");
   const agent = agents.find((item) => item.id === last?.agent);
   const model = modelLabel(last?.model, models);
-  const summary = [
+  const current = activity[activity.length - 1];
+  const stats = [
     activity.length > 0 ? `${activity.length} steps` : "",
     toolCount > 0 ? `${toolCount} tools` : "",
+    errorCount > 0 ? `${errorCount} error${errorCount === 1 ? "" : "s"}` : "",
     durationLabel(messages),
   ]
     .filter(Boolean)
     .join(" · ");
+  const summary = streaming && current ? activityLine(current, workspace) : stats;
+  const liveStats = streaming
+    ? [activity.length > 0 ? `${activity.length} steps` : "", durationLabel(messages)]
+        .filter(Boolean)
+        .join(" · ")
+    : "";
 
   useEffect(() => {
     if (streaming) {
       wasStreaming.current = true;
-      setOpen(true);
       return;
     }
     if (wasStreaming.current) {
@@ -140,6 +156,7 @@ export function AssistantTurn({
           <div className="border-border bg-card/40 my-2 overflow-hidden rounded-lg border">
             <button
               type="button"
+              aria-expanded={open}
               onClick={() => setOpen((value) => !value)}
               className="hover:bg-accent/40 flex w-full items-center gap-2 px-2.5 py-1.5 text-left"
             >
@@ -147,10 +164,19 @@ export function AssistantTurn({
               {streaming ? (
                 <Loader2 className="size-3.5 animate-spin text-emerald-500" />
               ) : null}
-              <span className="text-muted-foreground text-[11px]">{summary}</span>
+              <span
+                className={`min-w-0 flex-1 truncate text-left text-[11px] ${
+                  streaming ? "text-foreground" : "text-muted-foreground"
+                }`}
+              >
+                {summary}
+              </span>
+              {liveStats && (
+                <span className="text-muted-foreground shrink-0 text-[10px]">{liveStats}</span>
+              )}
             </button>
             {open && (
-              <div className="border-border space-y-1 border-t p-2">
+              <div className="border-border border-t px-1.5 py-1">
                 {activity.map((part, index) =>
                   part.type === "reasoning" ? (
                     <Reasoning
@@ -159,7 +185,7 @@ export function AssistantTurn({
                       streaming={streaming && index === activity.length - 1}
                     />
                   ) : (
-                    <ToolCall key={`tool-${part.id ?? index}`} part={part} />
+                    <ToolCall key={`tool-${part.id ?? index}`} part={part} cwd={workspace} />
                   ),
                 )}
               </div>
@@ -184,7 +210,7 @@ export function AssistantTurn({
           );
         })}
 
-        {content.length === 0 && streaming && (
+        {textParts.length === 0 && activity.length === 0 && streaming && (
           <div className="text-muted-foreground py-2 text-xs">Waiting for the first token…</div>
         )}
         {last?.error && (

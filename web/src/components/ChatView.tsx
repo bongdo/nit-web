@@ -217,6 +217,7 @@ export function ChatView({
           messages={group}
           models={models}
           agents={agents}
+          workspace={workspace}
           streaming={Boolean(running && index === messages.length - 1)}
           actionsDisabled={running}
           onRevert={onRevert}

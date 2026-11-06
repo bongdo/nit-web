@@ -415,7 +415,7 @@ func (s *Server) messages(w http.ResponseWriter, r *http.Request) {
 		}
 	} else {
 		cursor := ""
-		for page := 0; page < 20; page++ {
+		for page := 0; page < 100; page++ {
 			path := fmt.Sprintf("/api/session/%s/message?order=asc&limit=100", url.PathEscape(id))
 			if cursor != "" {
 				path = fmt.Sprintf("/api/session/%s/message?limit=100&cursor=%s", url.PathEscape(id), url.QueryEscape(cursor))

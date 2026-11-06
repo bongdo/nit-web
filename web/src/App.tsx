@@ -20,7 +20,12 @@ import {
   lightMessages,
   normalizeMessages,
 } from "./lib/stream";
-import { mergeTail, prependMessages, TranscriptCache } from "./lib/transcripts";
+import {
+  mergeTail,
+  mergeTranscript,
+  prependMessages,
+  TranscriptCache,
+} from "./lib/transcripts";
 import {
   contextPercent,
   estimateCost,
@@ -435,7 +440,9 @@ export default function App() {
               const full = normalizeMessages(page.data);
               const existing = transcriptCache.get(session.id);
               transcriptCache.set(session.id, {
-                messages: lightMessages(existing ? mergeTail(full, existing.messages) : full),
+                messages: lightMessages(
+                  existing ? mergeTranscript(full, existing.messages) : full,
+                ),
                 previous: page.previous ?? null,
               });
               prefetchedAt.current.set(session.id, session.time.updated);

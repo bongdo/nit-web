@@ -1,6 +1,10 @@
 import {
   Fragment,
   memo,
+<<<<<<< ours
+=======
+  useCallback,
+>>>>>>> theirs
   useEffect,
   useLayoutEffect,
   useRef,
@@ -42,6 +46,7 @@ function SessionRow({
   runningSubagents = 0,
   expanded = false,
   showDirectory = true,
+  enterIndex,
   onClick,
   onToggle,
   onHide,
@@ -62,6 +67,7 @@ function SessionRow({
   runningSubagents?: number;
   expanded?: boolean;
   showDirectory?: boolean;
+  enterIndex?: number;
   onClick: () => void;
   onToggle?: () => void;
   onHide: () => void;
@@ -69,7 +75,12 @@ function SessionRow({
   onDelete: () => void;
 }) {
   const title = session.title?.trim() || (session.parentID ? "Subagent" : "New chat");
+<<<<<<< ours
   const doneHere = done && runningSubagents === 0;
+=======
+  const previousRunning = useRef(runningSubagents);
+  const [settling, setSettling] = useState(false);
+>>>>>>> theirs
   const state = waiting
     ? "session-waiting"
     : failed
@@ -78,8 +89,33 @@ function SessionRow({
         ? "session-done"
         : null;
   const hasSubagents = depth === 0 && subagentCount > 0;
+  useEffect(() => {
+    const wasRunning = previousRunning.current > 0;
+    previousRunning.current = runningSubagents;
+    if (!animated || !wasRunning || runningSubagents > 0) {
+      setSettling(false);
+      return;
+    }
+    setSettling(true);
+    const timer = window.setTimeout(() => setSettling(false), 900);
+    return () => window.clearTimeout(timer);
+  }, [runningSubagents, animated]);
   return (
+<<<<<<< ours
     <div data-session-row={session.id} className="group relative mx-1.5">
+=======
+    <div
+      className={cn("group relative", enterIndex !== undefined && "sidebar-sheen-enter")}
+      style={{
+        marginLeft: depth * 12,
+        width: depth > 0 ? `calc(100% - ${depth * 12}px)` : undefined,
+        animationDelay:
+          enterIndex !== undefined
+            ? `calc(var(--sidebar-sheen-step, 34ms) * ${enterIndex})`
+            : undefined,
+      }}
+    >
+>>>>>>> theirs
       <button
         type="button"
         data-session-id={session.id}
@@ -186,7 +222,10 @@ function SessionRow({
               ? `${runningSubagents} of ${subagentCount} subagents running`
               : `${subagentCount} subagents`
           }
-          className="text-muted-foreground hover:text-foreground absolute right-2 bottom-1.5 z-10 inline-flex items-center gap-0.5 rounded px-0.5 text-[10px]"
+          className={cn(
+            "text-muted-foreground hover:text-foreground sidebar-sheen-badge absolute right-2 bottom-1.5 z-10 inline-flex items-center gap-0.5 rounded px-0.5 text-[10px]",
+            settling && "sidebar-sheen-badge-settle",
+          )}
         >
           <ChevronRight
             className={cn("size-3 transition-transform", expanded && "rotate-90")}
@@ -341,6 +380,7 @@ export const Sidebar = memo(function Sidebar({
     list.sort((a, b) => rank(a) - rank(b) || b.time.updated - a.time.updated);
   }
   const animated = motion === "animated";
+<<<<<<< ours
   const runningGroupCount = visible.filter(({ session }) => rank(session) === 2).length;
   const runningStart = visible.findIndex(({ session }) => rank(session) === 2);
   const orderSignature = visible
@@ -396,6 +436,61 @@ export const Sidebar = memo(function Sidebar({
     );
     row?.scrollIntoView({ block: "nearest" });
   }, [expanded, selectedId, selectedRank]);
+=======
+  const listRef = useRef<HTMLDivElement | null>(null);
+  const tabsRef = useRef<HTMLDivElement | null>(null);
+  const tabRefs = useRef<Array<HTMLButtonElement | null>>([]);
+  const [activeLine, setActiveLine] = useState<number | null>(null);
+
+  const syncTab = useCallback(() => {
+    const container = tabsRef.current;
+    const tab = tabRefs.current[SCOPES.findIndex((item) => item.id === scope)];
+    if (!container || !tab) return;
+    container.style.setProperty("--sidebar-sheen-tab-x", `${tab.offsetLeft}px`);
+    container.style.setProperty("--sidebar-sheen-tab-w", `${tab.offsetWidth}px`);
+  }, [scope]);
+
+  useLayoutEffect(() => {
+    syncTab();
+  }, [syncTab, workspace]);
+
+  useEffect(() => {
+    const container = tabsRef.current;
+    if (!container || typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(syncTab);
+    observer.observe(container);
+    return () => observer.disconnect();
+  }, [syncTab]);
+
+  const lineTop = useRef<number | null>(null);
+  useLayoutEffect(() => {
+    const list = listRef.current;
+    const row =
+      list && selectedId
+        ? list.querySelector<HTMLElement>(`[data-session-id="${selectedId}"]`)
+        : null;
+    if (!list || !row) {
+      if (lineTop.current !== null) {
+        lineTop.current = null;
+        setActiveLine(null);
+      }
+      return;
+    }
+    let top = 0;
+    let element: HTMLElement | null = row;
+    while (element && element !== list) {
+      top += element.offsetTop;
+      element = element.offsetParent as HTMLElement | null;
+    }
+    if (lineTop.current === top) return;
+    lineTop.current = top;
+    setActiveLine(top);
+  });
+
+  useLayoutEffect(() => {
+    if (listRef.current) listRef.current.scrollTop = 0;
+  }, [workspace]);
+>>>>>>> theirs
 
   return (
     <div className="bg-card/40 flex h-full min-h-0 flex-col">
@@ -414,12 +509,20 @@ export const Sidebar = memo(function Sidebar({
           className="hover:bg-accent/60 -mx-1 min-w-0 flex-1 rounded-md px-1 py-0.5 text-left"
           title={workspace ?? "Choose a workspace"}
         >
-          <div className="truncate text-[13px] font-semibold leading-tight">
-            {workspace ? basename(workspace) : "No workspace"}
-          </div>
-          <div className="text-muted-foreground flex items-center gap-1 truncate text-[10px] leading-tight">
-            <FolderOpen className="size-3 shrink-0" />
-            <span className="truncate">{workspace ?? "Choose a directory"}</span>
+          <div
+            key={workspace ?? "none"}
+            className={cn(
+              "sidebar-sheen-workspace relative overflow-hidden rounded-sm",
+              animated && "sidebar-sheen-workspace-live",
+            )}
+          >
+            <div className="truncate text-[13px] font-semibold leading-tight">
+              {workspace ? basename(workspace) : "No workspace"}
+            </div>
+            <div className="text-muted-foreground flex items-center gap-1 truncate text-[10px] leading-tight">
+              <FolderOpen className="size-3 shrink-0" />
+              <span className="truncate">{workspace ?? "Choose a directory"}</span>
+            </div>
           </div>
         </button>
         {waitingCount > 0 && (
@@ -442,7 +545,9 @@ export const Sidebar = memo(function Sidebar({
       </div>
 
       <div className="px-3 pb-2">
-        <div className="relative">
+        <div
+          className={cn("sidebar-sheen-search relative", animated && "sidebar-sheen-search-live")}
+        >
           <Search className="text-muted-foreground pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2" />
           <Input
             ref={searchRef}
@@ -452,23 +557,52 @@ export const Sidebar = memo(function Sidebar({
             aria-label="Search chats"
             className="h-8 bg-background pr-14 pl-8 text-xs"
           />
-          <kbd className="border-border text-muted-foreground pointer-events-none absolute top-1/2 right-2 -translate-y-1/2 rounded border px-1 font-mono text-[9px]">
+          {search.trim() && (
+            <span
+              className={cn(
+                "sidebar-sheen-search-count text-muted-foreground absolute top-1/2 right-2 -translate-y-1/2 text-[9px] tabular-nums",
+                animated && "sidebar-sheen-search-count-in",
+              )}
+              title={`${visible.length} matching chats`}
+            >
+              {visible.length}
+            </span>
+          )}
+          <kbd
+            className={cn(
+              "border-border text-muted-foreground pointer-events-none absolute top-1/2 right-2 -translate-y-1/2 rounded border px-1 font-mono text-[9px] transition-opacity",
+              search.trim() && "opacity-0",
+            )}
+          >
             {modKey}
           </kbd>
         </div>
       </div>
 
-      <div className="bg-muted/50 mx-3 mb-2 flex rounded-md p-0.5" role="group" aria-label="Chat scope">
-        {SCOPES.map((item) => (
+      <div
+        ref={tabsRef}
+        className={cn(
+          "bg-muted/50 relative isolate mx-3 mb-2 flex rounded-md p-0.5",
+          animated && "sidebar-sheen-tabs",
+        )}
+        role="group"
+        aria-label="Chat scope"
+      >
+        <span aria-hidden className="sidebar-sheen-tab-glow" />
+        <span aria-hidden className="sidebar-sheen-tab-line" />
+        {SCOPES.map((item, index) => (
           <button
             key={item.id}
+            ref={(node) => {
+              tabRefs.current[index] = node;
+            }}
             type="button"
             aria-pressed={scope === item.id}
             onClick={() => onScope(item.id)}
             className={cn(
               "min-w-0 flex-1 truncate rounded px-1.5 py-1 text-[10px] font-medium transition-colors",
               scope === item.id
-                ? "bg-background text-foreground shadow-sm"
+                ? "text-foreground"
                 : "text-muted-foreground hover:text-foreground",
             )}
             title={
@@ -500,7 +634,20 @@ export const Sidebar = memo(function Sidebar({
         </Button>
       </div>
 
-      <div className="scrollbar-thin min-h-0 flex-1 overflow-y-auto px-2 pb-2">
+      <div
+        ref={listRef}
+        className="scrollbar-thin relative min-h-0 flex-1 overflow-y-auto px-2 pb-2"
+      >
+        {activeLine !== null && (
+          <span
+            aria-hidden
+            className={cn(
+              "sidebar-sheen-active-line",
+              animated && "sidebar-sheen-active-line-live",
+            )}
+            style={{ transform: `translateY(${activeLine}px)` }}
+          />
+        )}
         {loading && sessions.length === 0 ? (
           <div className="space-y-2 px-1 py-2">
             {[0, 1, 2, 3].map((item) => (
@@ -520,7 +667,14 @@ export const Sidebar = memo(function Sidebar({
                 : "No chats yet."}
           </div>
         ) : (
+<<<<<<< ours
           <div ref={listRef} className="relative space-y-0.5">
+=======
+          <div
+            key={workspace ?? "none"}
+            className={cn("space-y-0.5", animated && "sidebar-sheen-list")}
+          >
+>>>>>>> theirs
             {visible.map(({ session, depth }, index) => {
               const children = childrenByParent.get(session.id) ?? [];
               const runningChildren = children.filter((child) => isRunning(child.id)).length;
@@ -548,6 +702,7 @@ export const Sidebar = memo(function Sidebar({
                     animated={animated}
                     hidden={hiddenIds.has(session.id)}
                     now={now}
+                    enterIndex={animated ? Math.min(index, 8) : undefined}
                     showDirectory={scope !== "directory"}
                     subagentCount={children.length}
                     runningSubagents={runningChildren}
@@ -565,26 +720,30 @@ export const Sidebar = memo(function Sidebar({
                     onUnhide={() => onUnhide(session.id)}
                     onDelete={() => onDelete(session.id)}
                   />
-                  {open &&
-                    children.map((child) => (
-                      <SessionRow
-                        key={child.id}
-                        session={child}
-                        depth={depth + 1}
-                        active={child.id === selectedId}
-                        running={isRunning(child.id)}
-                        waiting={waitingIds.has(child.id)}
-                        failed={failedIds.has(child.id)}
-                        done={doneIds.has(child.id)}
-                        animated={animated}
-                        hidden={hiddenIds.has(child.id)}
-                        now={now}
-                        onClick={() => onSelect(child.id)}
-                        onHide={() => onHide(child.id)}
-                        onUnhide={() => onUnhide(child.id)}
-                        onDelete={() => onDelete(child.id)}
-                      />
-                    ))}
+                  {open && (
+                    <div className="sidebar-sheen-unfold space-y-0.5">
+                      {children.map((child, childIndex) => (
+                        <SessionRow
+                          key={child.id}
+                          session={child}
+                          depth={depth + 1}
+                          active={child.id === selectedId}
+                          running={isRunning(child.id)}
+                          waiting={waitingIds.has(child.id)}
+                          failed={failedIds.has(child.id)}
+                          done={doneIds.has(child.id)}
+                          animated={animated}
+                          hidden={hiddenIds.has(child.id)}
+                          now={now}
+                          enterIndex={animated ? Math.min(childIndex, 8) : undefined}
+                          onClick={() => onSelect(child.id)}
+                          onHide={() => onHide(child.id)}
+                          onUnhide={() => onUnhide(child.id)}
+                          onDelete={() => onDelete(child.id)}
+                        />
+                      ))}
+                    </div>
+                  )}
                 </Fragment>
               );
             })}

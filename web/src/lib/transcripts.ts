@@ -87,6 +87,14 @@ export function mergeTail(existing: Message[], tail: Message[]): Message[] {
   return [...base, ...tail];
 }
 
+export function mergeTranscript(base: Message[], current: Message[]): Message[] {
+  const currentById = new Map(current.map((message) => [message.id, message]));
+  const baseIds = new Set(base.map((message) => message.id));
+  const merged = base.map((message) => currentById.get(message.id) ?? message);
+  const extra = current.filter((message) => !baseIds.has(message.id));
+  return extra.length > 0 ? [...merged, ...extra] : merged;
+}
+
 export function prependMessages(existing: Message[], older: Message[]): Message[] {
   const ids = new Set(existing.map((message) => message.id));
   return [...older.filter((message) => !ids.has(message.id)), ...existing];

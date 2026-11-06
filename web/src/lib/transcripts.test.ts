@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { mergeTail, prependMessages, TranscriptCache } from "./transcripts";
+import { mergeTail, mergeTranscript, prependMessages, TranscriptCache } from "./transcripts";
 import type { Message } from "./types";
 
 const messages = (id: string): Message[] => [
@@ -96,6 +96,21 @@ describe("transcript merging", () => {
       old,
       tailMessage,
       next,
+    ]);
+  });
+
+  it("merges a full transcript with newer cached messages", () => {
+    const first = { id: "m1", type: "user", time: { created: 1 }, text: "old" } as Message;
+    const second = { id: "m2", type: "assistant", time: { created: 2 }, text: "old" } as Message;
+    const third = { id: "m3", type: "assistant", time: { created: 3 }, text: "new" } as Message;
+    const updated = { ...second, text: "updated" };
+    const local = { id: "local-1", type: "user", time: { created: 4 }, text: "local" } as Message;
+
+    expect(mergeTranscript([first, second, third], [updated, local])).toEqual([
+      first,
+      updated,
+      third,
+      local,
     ]);
   });
 

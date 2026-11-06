@@ -288,3 +288,15 @@ Why: Tab in a text field is the user's autocomplete key, and the composer is whe
 Rejected: keeping Tab global and letting the composer only handle the palette (the grammar popup would lose its key); dropping Tab cycling entirely.
 
 Cost: Tab in the sidebar search now moves focus instead of cycling chats. Replaces the Tab part of 2026-11-06 — Tab cycles chats.
+
+## 2026-11-06 — Prefetch full light transcripts before a chat is opened
+
+Context: the cache was filled only when a chat was selected, so a long chat still opened with a 50-message tail and loaded older pages on scroll.
+
+Decision: after the session list loads, fetch the full light transcript (`light=1`, no `limit`) for every non-running session in the background, newest first, two at a time. User messages, assistant text, questions and compaction are complete in the cache before the first open. Tool and reasoning payloads stay lazy and are fetched when a steps block or row is opened. The cache is bounded by 12 MiB only; the 30-chat cap is removed.
+
+Why: the light transcript is small (all 73 local chats are about 7 MB), and prefetching it makes switching instant without downloading tool output or reasoning.
+
+Rejected: fetching full transcripts on selection (delays first paint), prefetching running sessions (races with SSE and can cache a partial answer), and keeping a fixed chat count (evicts small chats for no reason).
+
+Cost: the app downloads the text of every chat after boot; a failed prefetch falls back to the tail and retries on the next session refresh; a chat over 10,000 messages still needs scroll paging.

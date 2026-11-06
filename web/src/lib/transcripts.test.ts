@@ -9,6 +9,7 @@ const messages = (id: string): Message[] => [
 const transcript = (id: string, previous: string | null = null) => ({
   messages: messages(id),
   previous,
+  complete: previous === null,
 });
 
 describe("TranscriptCache", () => {
@@ -45,6 +46,8 @@ describe("TranscriptCache", () => {
     expect(cache.isComplete("ses_1")).toBe(false);
     cache.set("ses_2", transcript("msg_2"));
     expect(cache.isComplete("ses_2")).toBe(true);
+    cache.set("ses_3", { messages: messages("msg_3"), previous: null, complete: false });
+    expect(cache.isComplete("ses_3")).toBe(false);
   });
 
   it("refreshes recency on read", () => {

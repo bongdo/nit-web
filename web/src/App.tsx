@@ -267,6 +267,7 @@ export default function App() {
   const [historyCursor, setHistoryCursor] = useState<string | null>(null);
   const historyCursorRef = useRef(historyCursor);
   historyCursorRef.current = historyCursor;
+  const earlierFailedRef = useRef(false);
   const [loadingEarlier, setLoadingEarlier] = useState(false);
   const loadingEarlierRef = useRef(false);
   const loadedIdRef = useRef<string | null>(null);
@@ -444,6 +445,7 @@ export default function App() {
                   existing ? mergeTranscript(full, existing.messages) : full,
                 ),
                 previous: page.previous ?? null,
+                complete: page.previous === null,
               });
               prefetchedAt.current.set(session.id, session.time.updated);
             } catch {
@@ -653,6 +655,7 @@ export default function App() {
 
   useEffect(() => {
     if (!health?.ok || sessionsLoading || sessions.length === 0) return;
+    if (selectedId && messagesLoading) return;
     if (prefetchTimer.current !== null) window.clearTimeout(prefetchTimer.current);
     prefetchTimer.current = window.setTimeout(() => {
       prefetchTimer.current = null;
@@ -664,7 +667,7 @@ export default function App() {
         prefetchTimer.current = null;
       }
     };
-  }, [health?.ok, prefetchTranscripts, selectedId, sessions, sessionsLoading]);
+  }, [health?.ok, messagesLoading, prefetchTranscripts, selectedId, sessions, sessionsLoading]);
 
   useEffect(() => {
     if (streamFrame.current !== null) {
@@ -717,7 +720,12 @@ export default function App() {
         const changed = current.filter((message) => before.get(message.id) !== message);
         const base = force ? mergeTail(current, tail) : tail;
         const next = changed.length > 0 ? mergeTail(base, changed) : base;
-        transcriptCache.set(selectedId, { messages: lightMessages(next), previous: cursor });
+        transcriptCache.set(selectedId, {
+          messages: lightMessages(next),
+          previous: cursor,
+          complete: cursor === null,
+        });
+        earlierFailedRef.current = false;
         loadedIdRef.current = selectedId;
         setMessages(next);
         setHistoryCursor(cursor);
@@ -777,6 +785,7 @@ export default function App() {
     transcriptCache.set(current, {
       messages: lightMessages(latest),
       previous: historyCursorRef.current,
+      complete: historyCursorRef.current === null && !earlierFailedRef.current,
     });
   }, [transcriptCache]);
 
@@ -785,6 +794,7 @@ export default function App() {
     if (id !== current) {
       saveCurrentTranscript();
       const cached = id ? transcriptCache.get(id) : undefined;
+      earlierFailedRef.current = false;
       loadedIdRef.current = cached && id ? id : null;
       setMessages(cached?.messages ?? []);
       setHistoryCursor(cached?.previous ?? null);
@@ -859,10 +869,12 @@ export default function App() {
       if (selectedIdRef.current !== id) return;
       const older = normalizeMessages(page.data);
       const previous = page.previous ?? null;
+      earlierFailedRef.current = false;
       historyCursorRef.current = previous;
       setHistoryCursor(previous);
       setMessages((current) => prependMessages(current, older));
     } catch (error) {
+      earlierFailedRef.current = true;
       historyCursorRef.current = null;
       setHistoryCursor(null);
       setBanner(messageOf(error));

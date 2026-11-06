@@ -1,10 +1,7 @@
 import {
   Fragment,
   memo,
-<<<<<<< ours
-=======
   useCallback,
->>>>>>> theirs
   useEffect,
   useLayoutEffect,
   useRef,
@@ -75,12 +72,9 @@ function SessionRow({
   onDelete: () => void;
 }) {
   const title = session.title?.trim() || (session.parentID ? "Subagent" : "New chat");
-<<<<<<< ours
   const doneHere = done && runningSubagents === 0;
-=======
   const previousRunning = useRef(runningSubagents);
   const [settling, setSettling] = useState(false);
->>>>>>> theirs
   const state = waiting
     ? "session-waiting"
     : failed
@@ -101,21 +95,16 @@ function SessionRow({
     return () => window.clearTimeout(timer);
   }, [runningSubagents, animated]);
   return (
-<<<<<<< ours
-    <div data-session-row={session.id} className="group relative mx-1.5">
-=======
     <div
-      className={cn("group relative", enterIndex !== undefined && "sidebar-sheen-enter")}
+      data-session-row={session.id}
+      className={cn("group relative mx-1.5", enterIndex !== undefined && "sidebar-sheen-enter")}
       style={{
-        marginLeft: depth * 12,
-        width: depth > 0 ? `calc(100% - ${depth * 12}px)` : undefined,
         animationDelay:
           enterIndex !== undefined
             ? `calc(var(--sidebar-sheen-step, 34ms) * ${enterIndex})`
             : undefined,
       }}
     >
->>>>>>> theirs
       <button
         type="button"
         data-session-id={session.id}
@@ -380,7 +369,6 @@ export const Sidebar = memo(function Sidebar({
     list.sort((a, b) => rank(a) - rank(b) || b.time.updated - a.time.updated);
   }
   const animated = motion === "animated";
-<<<<<<< ours
   const runningGroupCount = visible.filter(({ session }) => rank(session) === 2).length;
   const runningStart = visible.findIndex(({ session }) => rank(session) === 2);
   const orderSignature = visible
@@ -393,54 +381,16 @@ export const Sidebar = memo(function Sidebar({
       return `${session.id}[${kids}]`;
     })
     .join("|");
-  const listRef = useRef<HTMLDivElement>(null);
+  const listRef = useRef<HTMLDivElement | null>(null);
+  const tabsRef = useRef<HTMLDivElement | null>(null);
+  const tabRefs = useRef<Array<HTMLButtonElement | null>>([]);
+  const [activeLine, setActiveLine] = useState<number | null>(null);
   const positions = useRef(new Map<string, number>());
   const lastOrder = useRef("");
   const selectedSession = selectedId
     ? ([...sessions, ...subagents].find((session) => session.id === selectedId) ?? null)
     : null;
   const selectedRank = selectedSession ? rank(selectedSession) : null;
-
-  useLayoutEffect(() => {
-    const container = listRef.current;
-    if (!container || orderSignature === lastOrder.current) return;
-    const rows = Array.from(container.querySelectorAll<HTMLElement>("[data-session-row]"));
-    const next = new Map<string, number>();
-    for (const row of rows) {
-      const id = row.dataset.sessionRow;
-      if (id) next.set(id, row.offsetTop);
-    }
-    if (lastOrder.current && animated) {
-      for (const row of rows) {
-        const id = row.dataset.sessionRow;
-        if (!id) continue;
-        const before = positions.current.get(id);
-        const after = next.get(id);
-        if (before === undefined || after === undefined) continue;
-        const delta = before - after;
-        if (Math.abs(delta) < 1 || typeof row.animate !== "function") continue;
-        row.animate(
-          [{ transform: `translateY(${delta}px)` }, { transform: "translateY(0)" }],
-          { duration: 320, easing: "cubic-bezier(0.22, 0.7, 0.2, 1)" },
-        );
-      }
-    }
-    positions.current = next;
-    lastOrder.current = orderSignature;
-  }, [animated, orderSignature]);
-
-  useEffect(() => {
-    if (!selectedId || selectedRank === null) return;
-    const row = listRef.current?.querySelector<HTMLElement>(
-      `[data-session-row="${selectedId}"]`,
-    );
-    row?.scrollIntoView({ block: "nearest" });
-  }, [expanded, selectedId, selectedRank]);
-=======
-  const listRef = useRef<HTMLDivElement | null>(null);
-  const tabsRef = useRef<HTMLDivElement | null>(null);
-  const tabRefs = useRef<Array<HTMLButtonElement | null>>([]);
-  const [activeLine, setActiveLine] = useState<number | null>(null);
 
   const syncTab = useCallback(() => {
     const container = tabsRef.current;
@@ -488,9 +438,46 @@ export const Sidebar = memo(function Sidebar({
   });
 
   useLayoutEffect(() => {
+    positions.current = new Map();
+    lastOrder.current = "";
     if (listRef.current) listRef.current.scrollTop = 0;
   }, [workspace]);
->>>>>>> theirs
+
+  useLayoutEffect(() => {
+    const container = listRef.current;
+    if (!container || orderSignature === lastOrder.current) return;
+    const rows = Array.from(container.querySelectorAll<HTMLElement>("[data-session-row]"));
+    const next = new Map<string, number>();
+    for (const row of rows) {
+      const id = row.dataset.sessionRow;
+      if (id) next.set(id, row.offsetTop);
+    }
+    if (lastOrder.current && animated) {
+      for (const row of rows) {
+        const id = row.dataset.sessionRow;
+        if (!id) continue;
+        const before = positions.current.get(id);
+        const after = next.get(id);
+        if (before === undefined || after === undefined) continue;
+        const delta = before - after;
+        if (Math.abs(delta) < 1 || typeof row.animate !== "function") continue;
+        row.animate(
+          [{ transform: `translateY(${delta}px)` }, { transform: "translateY(0)" }],
+          { duration: 320, easing: "cubic-bezier(0.22, 0.7, 0.2, 1)" },
+        );
+      }
+    }
+    positions.current = next;
+    lastOrder.current = orderSignature;
+  }, [animated, orderSignature]);
+
+  useEffect(() => {
+    if (!selectedId || selectedRank === null) return;
+    const row = listRef.current?.querySelector<HTMLElement>(
+      `[data-session-row="${selectedId}"]`,
+    );
+    row?.scrollIntoView({ block: "nearest" });
+  }, [expanded, selectedId, selectedRank]);
 
   return (
     <div className="bg-card/40 flex h-full min-h-0 flex-col">
@@ -667,14 +654,10 @@ export const Sidebar = memo(function Sidebar({
                 : "No chats yet."}
           </div>
         ) : (
-<<<<<<< ours
-          <div ref={listRef} className="relative space-y-0.5">
-=======
           <div
             key={workspace ?? "none"}
-            className={cn("space-y-0.5", animated && "sidebar-sheen-list")}
+            className={cn("relative space-y-0.5", animated && "sidebar-sheen-list")}
           >
->>>>>>> theirs
             {visible.map(({ session, depth }, index) => {
               const children = childrenByParent.get(session.id) ?? [];
               const runningChildren = children.filter((child) => isRunning(child.id)).length;

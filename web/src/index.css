@@ -1738,3 +1738,246 @@
   }
 }
 
+      opacity: 0;
+      transform: translateX(120%);
+    }
+    100% {
+      opacity: 0;
+      transform: translateX(120%);
+    }
+  }
+
+  @keyframes session-breathe {
+    0%,
+    100% {
+      box-shadow: inset 0 0 14px color-mix(in oklab, var(--sweep) 7%, transparent);
+    }
+    50% {
+      box-shadow: inset 0 0 28px color-mix(in oklab, var(--sweep) 20%, transparent);
+    }
+  }
+
+  @keyframes waiting-dot {
+    0%,
+    100% {
+      opacity: 1;
+      transform: scale(1);
+    }
+    50% {
+      opacity: 0.55;
+      transform: scale(0.8);
+    }
+  }
+
+  .compaction-enter .compaction-line {
+    transform-origin: center;
+    animation: compaction-line 520ms cubic-bezier(0.22, 0.7, 0.2, 1) both;
+  }
+
+  .compaction-enter .compaction-pill {
+    animation: compaction-pill 420ms cubic-bezier(0.22, 0.7, 0.2, 1) 140ms both;
+  }
+
+  .compaction-enter .compaction-pill::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: linear-gradient(
+      100deg,
+      transparent 25%,
+      color-mix(in oklab, var(--spark) 24%, transparent) 50%,
+      transparent 75%
+    );
+    pointer-events: none;
+    transform: translateX(-120%);
+    animation: compaction-sweep 950ms ease-out 600ms both;
+  }
+
+  .compaction-busy.compaction-pill::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: linear-gradient(
+      100deg,
+      transparent 20%,
+      color-mix(in oklab, var(--spark) 20%, transparent) 50%,
+      transparent 80%
+    );
+    pointer-events: none;
+    transform: translateX(-120%);
+    animation: compaction-sweep 1.5s ease-in-out infinite;
+  }
+
+  .compaction-busy .compaction-tile {
+    animation: compaction-breathe 1.6s ease-in-out infinite;
+  }
+
+  .compaction-dot {
+    animation: compaction-blink 1.2s ease-in-out infinite;
+  }
+
+  @keyframes compaction-line {
+    from {
+      opacity: 0;
+      transform: scaleX(0);
+    }
+    to {
+      opacity: 1;
+      transform: scaleX(1);
+    }
+  }
+
+  @keyframes compaction-pill {
+    from {
+      opacity: 0;
+      transform: translateY(5px) scale(0.96);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  @keyframes compaction-sweep {
+    from {
+      transform: translateX(-120%);
+    }
+    to {
+      transform: translateX(120%);
+    }
+  }
+
+  @keyframes compaction-breathe {
+    0%,
+    100% {
+      box-shadow: 0 0 0 0 transparent;
+    }
+    50% {
+      box-shadow: 0 0 0 4px color-mix(in oklab, var(--spark) 14%, transparent);
+    }
+  }
+
+  @keyframes compaction-blink {
+    0%,
+    100% {
+      opacity: 0.35;
+    }
+    50% {
+      opacity: 1;
+    }
+  }
+
+  @keyframes sidebar-sheen-rise {
+    from {
+      opacity: 0;
+      transform: translateY(4px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes sidebar-sheen-fade {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+
+  @keyframes sidebar-sheen-sweep {
+    from {
+      transform: translateX(-120%);
+    }
+    to {
+      transform: translateX(120%);
+    }
+  }
+
+  @keyframes sidebar-sheen-badge-settle {
+    0% {
+      color: var(--success);
+      transform: scale(0.94);
+    }
+    60% {
+      color: var(--success);
+      transform: scale(1.02);
+    }
+    100% {
+      transform: scale(1);
+    }
+  }
+
+  @keyframes sidebar-sheen-path {
+    0% {
+      opacity: 0;
+      transform: translateX(-120%);
+    }
+    22% {
+      opacity: 1;
+    }
+    52% {
+      opacity: 0;
+      transform: translateX(120%);
+    }
+    100% {
+      opacity: 0;
+      transform: translateX(120%);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .sidebar-sheen-active-line-live,
+    .sidebar-sheen-tabs .sidebar-sheen-tab-glow,
+    .sidebar-sheen-tabs .sidebar-sheen-tab-line,
+    .sidebar-sheen-search-live::after {
+      transition: none;
+    }
+
+    .sidebar-sheen-enter,
+    .sidebar-sheen-workspace-live::after,
+    .sidebar-sheen-badge-settle,
+    .sidebar-sheen-badge-settle::after,
+    .sidebar-sheen-search-count-in {
+      animation: none;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .session-state-live,
+    .session-state-live::before,
+    .session-state-live::after,
+    .waiting-dot,
+    .compaction-enter .compaction-line,
+    .compaction-enter .compaction-pill,
+    .compaction-enter .compaction-pill::after,
+    .compaction-busy.compaction-pill::after,
+    .compaction-busy .compaction-tile,
+    .compaction-dot {
+      animation: none;
+    }
+  }
+}
+
+@media (min-width: 48rem) {
+  .swipe-sidebar {
+    translate: calc((var(--sidebar-swipe, 0) - 1) * 100%);
+    transition: translate 200ms cubic-bezier(0.32, 0.72, 0, 1);
+    will-change: translate;
+  }
+
+  .swipe-sidebar[data-dragging] {
+    transition: none;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .swipe-sidebar {
+      transition: none;
+    }
+  }
+}
+

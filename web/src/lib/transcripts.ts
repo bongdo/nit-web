@@ -5,6 +5,7 @@ const MAX_BYTES = 12 << 20;
 export type CachedTranscript = {
   messages: Message[];
   previous: string | null;
+  complete?: boolean;
 };
 
 type Entry = CachedTranscript & { bytes: number };
@@ -39,8 +40,7 @@ export class TranscriptCache {
   }
 
   isComplete(id: string): boolean {
-    const entry = this.entries.get(id);
-    return entry !== undefined && entry.previous === null;
+    return this.entries.get(id)?.complete === true;
   }
 
   update(id: string, messages: Message[], deltaBytes: number) {
@@ -49,7 +49,12 @@ export class TranscriptCache {
     this.delete(id);
     const bytes = entry.bytes + Math.max(0, deltaBytes);
     if (bytes > this.maxBytes) return;
-    this.entries.set(id, { messages, previous: entry.previous, bytes });
+    this.entries.set(id, {
+      messages,
+      previous: entry.previous,
+      complete: entry.complete,
+      bytes,
+    });
     this.total += bytes;
     this.trim();
   }

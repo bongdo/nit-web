@@ -3,7 +3,6 @@ package server
 import (
 	"context"
 	"net/http"
-	"net/url"
 	"os"
 	"strings"
 	"time"
@@ -59,8 +58,8 @@ func (s *Server) instanceInfo(ctx context.Context, spec opencode.InstanceSpec, p
 	out := instanceOut{
 		ID:               spec.Name,
 		Name:             spec.Name,
-		Transport:        instanceTransport(spec),
-		Detail:           instanceDetail(spec),
+		Transport:        s.multi.Transport(spec.Name),
+		Detail:           s.multi.Detail(spec.Name),
 		State:            "unknown",
 		DefaultDirectory: spec.Dir,
 	}
@@ -132,27 +131,4 @@ func (s *Server) grammarCapability(ctx context.Context) capabilityOut {
 	return capabilityOut{ID: "grammar", Label: "Grammar", Owner: "nit-gui", State: state, Detail: detail}
 }
 
-func instanceTransport(spec opencode.InstanceSpec) string {
-	if spec.SSH != "" {
-		return "ssh"
-	}
-	if spec.URL != "" && spec.URL != "auto" {
-		return "url"
-	}
-	return "local"
-}
 
-func instanceDetail(spec opencode.InstanceSpec) string {
-	if spec.SSH != "" {
-		return "ssh " + spec.SSH
-	}
-	if spec.URL != "" && spec.URL != "auto" {
-		u, err := url.Parse(spec.URL)
-		if err != nil {
-			return spec.URL
-		}
-		u.User = nil
-		return strings.TrimRight(u.String(), "/")
-	}
-	return "local"
-}

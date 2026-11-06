@@ -79,6 +79,7 @@ export const Composer = memo(function Composer({
   typingBlocked,
   drawerOpen,
   draftKey,
+  instance,
   draft,
   insert,
   commands,
@@ -103,6 +104,7 @@ export const Composer = memo(function Composer({
   typingBlocked?: boolean;
   drawerOpen?: boolean;
   draftKey: string;
+  instance: string;
   draft?: { text: string; id: number } | null;
   insert?: { text: string; id: number } | null;
   commands: ComposerCommand[];
@@ -167,14 +169,14 @@ export const Composer = memo(function Composer({
       hydratedRef.current = true;
       setHydrated(true);
       saveDraftState(draftKey, resolved, Date.now());
-      if (!resolved) void api.setDraft(draftKey, "").catch(() => {});
+      if (!resolved) void api.setDraft(draftKey, "", instance).catch(() => {});
     }
   };
 
   useEffect(() => {
     let cancelled = false;
     const local: DraftState = loadDraftState(draftKey);
-    api.draft(draftKey)
+    api.draft(draftKey, instance)
       .then((remote) => {
         if (cancelled) return;
         if (!editedRef.current) {
@@ -183,7 +185,7 @@ export const Composer = memo(function Composer({
             setText(remote.text);
             saveDraftState(draftKey, remote.text, remote.updatedAt);
           } else if (local.text && local.updatedAt > remote.updatedAt) {
-            void api.setDraft(draftKey, local.text).catch(() => {});
+            void api.setDraft(draftKey, local.text, instance).catch(() => {});
           }
         }
         hydratedRef.current = true;
@@ -193,26 +195,26 @@ export const Composer = memo(function Composer({
     return () => {
       cancelled = true;
     };
-  }, [draftKey]);
+  }, [draftKey, instance]);
 
   useEffect(() => {
     if (!hydrated || question) return;
     const timer = window.setTimeout(() => {
       const text = valueRef.current;
       saveDraftState(draftKey, text, Date.now());
-      void api.setDraft(draftKey, text).catch(() => {});
+      void api.setDraft(draftKey, text, instance).catch(() => {});
     }, 700);
     return () => window.clearTimeout(timer);
-  }, [value, hydrated, draftKey, question]);
+  }, [value, hydrated, draftKey, instance, question]);
 
   useEffect(
     () => () => {
       if (questionRef.current || !hydratedRef.current) return;
       const text = valueRef.current;
       saveDraftState(draftKey, text, Date.now());
-      void api.setDraft(draftKey, text).catch(() => {});
+      void api.setDraft(draftKey, text, instance).catch(() => {});
     },
-    [draftKey],
+    [draftKey, instance],
   );
 
   const { issues } = useSpellcheck(

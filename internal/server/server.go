@@ -41,6 +41,8 @@ type MultiProvider interface {
 	ConfigError() string
 	Connected(string) bool
 	LastError(string) string
+	Transport(string) string
+	Detail(string) string
 }
 
 type singleProvider struct {
@@ -68,6 +70,8 @@ func (p singleProvider) DefaultInstance() string { return "local" }
 func (p singleProvider) ConfigError() string     { return "" }
 func (p singleProvider) Connected(string) bool   { return true }
 func (p singleProvider) LastError(string) string { return "" }
+func (p singleProvider) Transport(string) string { return "local" }
+func (p singleProvider) Detail(string) string    { return "local" }
 
 type Server struct {
 	multi        MultiProvider
@@ -115,7 +119,27 @@ func New(provider ClientProvider, static fs.FS, log *slog.Logger) http.Handler {
 	}
 	s.routes()
 	go s.warm()
-	return s.middleware(s.auth.wrap(s.mux))
+	return s.middleware(s.auth.wrap(s.instanceGuard(s.mux)))
+}
+
+func (s *Server) instanceGuard(next http.Handler) http.Handler {
+	known := make(map[string]struct{}, len(s.multi.Instances()))
+	for _, spec := range s.multi.Instances() {
+		known[spec.Name] = struct{}{}
+	}
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !strings.HasPrefix(r.URL.Path, "/api/") || r.URL.Path == "/api/instances" {
+			next.ServeHTTP(w, r)
+			return
+		}
+		if name := instanceID(r); name != "" {
+			if _, ok := known[name]; !ok {
+				writeError(w, http.StatusBadRequest, "unknown instance")
+				return
+			}
+		}
+		next.ServeHTTP(w, r)
+	})
 }
 
 func (s *Server) warm() {

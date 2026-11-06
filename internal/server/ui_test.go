@@ -102,3 +102,32 @@ func TestUIStateRejectsInvalid(t *testing.T) {
 		t.Fatalf("invalid status code = %d", rec.Code)
 	}
 }
+
+func TestUIStateIsIsolatedPerInstance(t *testing.T) {
+	s := uiTestServer(t)
+
+	hide := func(instance string) {
+		request := jsonRequest(http.MethodPost, "/api/ui/hidden", `{"ids":["ses_a"],"hidden":true}`)
+		request.Header.Set("X-Nit-Instance", instance)
+		rec := httptest.NewRecorder()
+		s.setHidden(rec, request)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("hidden %s = %d: %s", instance, rec.Code, rec.Body)
+		}
+	}
+	list := func(instance string) string {
+		request := httptest.NewRequest(http.MethodGet, "/api/ui", nil)
+		request.Header.Set("X-Nit-Instance", instance)
+		rec := httptest.NewRecorder()
+		s.uiState(rec, request)
+		return rec.Body.String()
+	}
+
+	hide("alpha")
+	if body := list("beta"); strings.Contains(body, `"ses_a"`) {
+		t.Fatalf("beta leaked alpha state: %s", body)
+	}
+	if body := list("alpha"); !strings.Contains(body, `"hidden":["ses_a"]`) {
+		t.Fatalf("alpha lost its state: %s", body)
+	}
+}

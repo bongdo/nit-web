@@ -1312,6 +1312,10 @@ func (p *multiProvider) Connected(string) bool { return true }
 
 func (p *multiProvider) LastError(string) string { return "" }
 
+func (p *multiProvider) Transport(string) string { return "local" }
+
+func (p *multiProvider) Detail(name string) string { return name }
+
 func newMultiHandler(t *testing.T, provider *multiProvider) http.Handler {
 	t.Helper()
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
@@ -1399,7 +1403,7 @@ func TestInstancesAndRouting(t *testing.T) {
 	request = httptest.NewRequest(http.MethodGet, "http://127.0.0.1:7788/api/health", nil)
 	request.Header.Set("X-Nit-Instance", "missing")
 	handler.ServeHTTP(unknown, request)
-	if unknown.Code != http.StatusOK || !strings.Contains(unknown.Body.String(), `"ok":false`) {
+	if unknown.Code != http.StatusBadRequest {
 		t.Fatalf("unknown instance health = %d: %s", unknown.Code, unknown.Body)
 	}
 }

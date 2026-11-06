@@ -57,6 +57,7 @@ import {
   type Scope,
 } from "./lib/sessions";
 import { cn } from "./lib/utils";
+import { instanceScopedKey } from "./lib/instances";
 import { useAttention } from "./hooks/useAttention";
 import { useTheme, type Theme } from "./hooks/useTheme";
 import { useEventStream } from "./hooks/useEventStream";
@@ -137,6 +138,7 @@ const COMMANDS: ComposerCommand[] = [
   { id: "new", label: "/new", description: "Start a new chat in this workspace" },
   { id: "dir", label: "/dir", description: "Switch workspace" },
   { id: "settings", label: "/settings", description: "Model, agent, theme" },
+  { id: "instances", label: "/instances", description: "Switch OpenCode instance" },
   { id: "compact", label: "/compact", description: "Compact this session's context" },
   { id: "revert", label: "/revert", description: "Revert the last message and edit it" },
   { id: "fork", label: "/fork", description: "Fork before the last message" },
@@ -146,7 +148,20 @@ const COMMANDS: ComposerCommand[] = [
   { id: "help", label: "/help", description: "Show command help" },
 ];
 
-export default function App() {
+export default function App({
+  instance,
+  defaultInstance,
+  defaultDirectory,
+  onOpenInstances,
+}: {
+  instance: string;
+  defaultInstance: string;
+  defaultDirectory?: string;
+  onOpenInstances: () => void;
+}) {
+  const workspaceKey = instanceScopedKey("nit-gui.workspace", instance, defaultInstance);
+  const sessionKey = instanceScopedKey("nit-gui.session", instance, defaultInstance);
+  const recentKey = instanceScopedKey("nit-gui.recent", instance, defaultInstance);
   const { theme, setTheme } = useTheme();
   const [health, setHealth] = useState<Health | null>(null);
   const healthRef = useRef<Health | null>(null);
@@ -155,14 +170,15 @@ export default function App() {
   const [agents, setAgents] = useState<Agent[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [workspace, setWorkspaceState] = useState<string | null>(() => {
-    const stored = localStorage.getItem("nit-gui.workspace");
-    return stored && stored.startsWith("/") ? stored : null;
+    const stored = localStorage.getItem(workspaceKey);
+    if (stored && stored.startsWith("/")) return stored;
+    return defaultDirectory && defaultDirectory.startsWith("/") ? defaultDirectory : null;
   });
   const workspaceRef = useRef(workspace);
   workspaceRef.current = workspace;
   const [recent, setRecent] = useState<string[]>(() => {
     try {
-      const value = JSON.parse(localStorage.getItem("nit-gui.recent") ?? "[]");
+      const value = JSON.parse(localStorage.getItem(recentKey) ?? "[]");
       return Array.isArray(value) ? value.filter((item) => typeof item === "string") : [];
     } catch {
       return [];
@@ -223,7 +239,7 @@ export default function App() {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [sessionsLoading, setSessionsLoading] = useState(true);
   const [selectedId, setSelectedIdState] = useState<string | null>(() =>
-    localStorage.getItem("nit-gui.session"),
+    localStorage.getItem(sessionKey),
   );
   const selectedIdRef = useRef(selectedId);
   selectedIdRef.current = selectedId;
@@ -356,6 +372,8 @@ export default function App() {
   backgroundWaitingRef.current = backgroundWaitingIds;
   const selectedSession = sessions.find((session) => session.id === selectedId) ?? null;
   const composerKey = selectedId ?? `new:${workspace ?? ""}`;
+  const composerDraftKey =
+    instance === defaultInstance ? composerKey : `${instance}:${composerKey}`;
   const parentSession = selectedSession?.parentID
     ? (sessions.find((session) => session.id === selectedSession.parentID) ?? null)
     : null;
@@ -848,14 +866,14 @@ export default function App() {
     if (!sessions.some((session) => session.id === selectedId)) {
       transcriptCache.delete(selectedId);
       setSelectedIdState(null);
-      localStorage.removeItem("nit-gui.session");
+      localStorage.removeItem(sessionKey);
     }
   }, [sessions, sessionsLoading, selectedId]);
 
   useEffect(() => {
     if (!selectedId || showHidden || !hiddenIds.has(selectedId)) return;
     setSelectedIdState(null);
-    localStorage.removeItem("nit-gui.session");
+    localStorage.removeItem(sessionKey);
   }, [hiddenIds, selectedId, showHidden]);
 
   const saveCurrentTranscript = useCallback(() => {
@@ -892,8 +910,8 @@ export default function App() {
       loadingEarlierRef.current = false;
     }
     setSelectedIdState(id);
-    if (id) localStorage.setItem("nit-gui.session", id);
-    else localStorage.removeItem("nit-gui.session");
+    if (id) localStorage.setItem(sessionKey, id);
+    else localStorage.removeItem(sessionKey);
     setSidebarOpen(false);
     swipe.close();
   }, [saveCurrentTranscript, swipe.close]);
@@ -927,17 +945,17 @@ export default function App() {
     saveCurrentTranscript();
     const value = directory.trim().replace(/\/+$/, "") || "/";
     setWorkspaceState(value);
-    localStorage.setItem("nit-gui.workspace", value);
+    localStorage.setItem(workspaceKey, value);
     setRecent((previous) => {
       const next = [value, ...previous.filter((item) => item !== value)].slice(0, 8);
-      localStorage.setItem("nit-gui.recent", JSON.stringify(next));
+      localStorage.setItem(recentKey, JSON.stringify(next));
       return next;
     });
     setScopeState("directory");
     localStorage.setItem("nit-gui.scope", "directory");
     setSelectedIdState(null);
     setSceneEpoch((epoch) => epoch + 1);
-    localStorage.removeItem("nit-gui.session");
+    localStorage.removeItem(sessionKey);
     loadedIdRef.current = null;
     setMessages([]);
     setMessagesLoading(false);
@@ -1356,7 +1374,7 @@ export default function App() {
           ]);
           setRunningIds((previous) => ({ ...previous, [session.id]: false }));
           setSelectedIdState(session.id);
-          localStorage.setItem("nit-gui.session", session.id);
+          localStorage.setItem(sessionKey, session.id);
           loadedIdRef.current = session.id;
           setMessages([]);
           setHistoryCursor(null);
@@ -1572,6 +1590,9 @@ export default function App() {
         case "settings":
           setSettingsOpen(true);
           break;
+        case "instances":
+          onOpenInstances();
+          break;
         case "compact":
           void compactSession();
           break;
@@ -1589,12 +1610,12 @@ export default function App() {
           break;
         case "help":
           setBanner(
-            "Commands: /new /dir /compact /revert /fork /retry /theme /clear /help · Shortcuts: Alt+N new chat, Alt+J/K or Ctrl+Tab/Shift+Ctrl+Tab next/prev chat (Tab in a text field completes /commands and accepts the highlighted suggestion), Alt+←/→ this dir / mine / all, Ctrl/⌘K search",
+            "Commands: /new /dir /instances /compact /revert /fork /retry /theme /clear /help · Shortcuts: Alt+N new chat, Alt+J/K or Ctrl+Tab/Shift+Ctrl+Tab next/prev chat (Tab in a text field completes /commands and accepts the highlighted suggestion), Alt+←/→ this dir / mine / all, Ctrl/⌘K search",
           );
           break;
       }
     },
-    [compactSession, forkAt, lastUser, newChat, retryLast, revertLast],
+    [compactSession, forkAt, lastUser, newChat, onOpenInstances, retryLast, revertLast],
   );
   const runCommandRef = useRef(runCommand);
   runCommandRef.current = runCommand;

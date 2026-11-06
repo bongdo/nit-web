@@ -286,7 +286,7 @@ func (r *Registry) connectSSH(ctx context.Context, spec InstanceSpec) (Endpoint,
 	if err != nil {
 		return Endpoint{}, nil, err
 	}
-	t := &sshTunnel{host: host, local: local, remotePort: port}
+	t := &sshTunnel{}
 	t.cmd = exec.CommandContext(r.ctx, "ssh", "-N", "-o", "ExitOnForwardFailure=yes",
 		"-L", fmt.Sprintf("127.0.0.1:%d:127.0.0.1:%s", local, port), host)
 	if err := t.cmd.Start(); err != nil {
@@ -491,10 +491,7 @@ func waitPort(ctx context.Context, port int, timeout time.Duration) error {
 }
 
 type sshTunnel struct {
-	cmd        *exec.Cmd
-	host       string
-	local      int
-	remotePort string
+	cmd *exec.Cmd
 }
 
 func (t *sshTunnel) Close() error {

@@ -21,6 +21,7 @@ export function SettingsPanel({
   motion,
   background,
   sidebarMode,
+  instance,
   onModel,
   onAgent,
   onTheme,
@@ -30,6 +31,7 @@ export function SettingsPanel({
   onMotion,
   onBackground,
   onSidebar,
+  onInstances,
   onClose,
 }: {
   models: Model[];
@@ -44,6 +46,7 @@ export function SettingsPanel({
   motion: "animated" | "static";
   background: SceneSetting;
   sidebarMode: "button" | "hover" | "swipe";
+  instance: string;
   onModel: (model: ModelRef) => void;
   onAgent: (agent: string) => void;
   onTheme: (theme: Theme) => void;
@@ -53,6 +56,7 @@ export function SettingsPanel({
   onMotion: (mode: "animated" | "static") => void;
   onBackground: (mode: SceneSetting) => void;
   onSidebar: (mode: "button" | "hover" | "swipe") => void;
+  onInstances: () => void;
   onClose: () => void;
 }) {
   const providers = Array.from(new Set(models.map((item) => item.providerID)));
@@ -270,12 +274,17 @@ export function SettingsPanel({
         </div>
 
         <div className="border-border flex items-center justify-between gap-3 border-t px-4 py-3">
-          <span className="text-muted-foreground text-xs">Private Frankfurt instance</span>
-          <form method="post" action={appPath("/auth/logout")}>
-            <Button type="submit" variant="outline" size="sm">
-              Sign out
+          <span className="text-muted-foreground truncate text-xs">nit-gui · {instance}</span>
+          <div className="flex shrink-0 items-center gap-2">
+            <Button variant="outline" size="sm" onClick={onInstances}>
+              Instances
             </Button>
-          </form>
+            <form method="post" action={appPath("/auth/logout")}>
+              <Button type="submit" variant="outline" size="sm">
+                Sign out
+              </Button>
+            </form>
+          </div>
         </div>
       </div>
     </div>

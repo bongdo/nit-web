@@ -229,6 +229,18 @@ Rejected: hijacking Tab inside dialogs and forms (makes those screens unusable f
 
 Cost: header and composer controls are no longer reachable with Tab. Replaces the Tab part of 2026-11-05 — Chat shortcuts.
 
+## 2026-11-06 — Ctrl+Tab cycles chats
+
+Context: bare Tab stole keyboard focus from the composer and from header controls, so the user asked to limit chat cycling to Ctrl+Tab.
+
+Decision: Ctrl+Tab and Shift+Ctrl+Tab select the next and previous chat. Alt+J/K stays. Plain Tab goes back to normal focus movement and command completion.
+
+Why: a modifier makes the intent explicit and leaves Tab usable inside text fields and dialogs.
+
+Rejected: keeping both bindings (Tab keeps breaking focus) and meta+Tab (taken by the OS).
+
+Cost: Ctrl+Tab is reserved by desktop browsers, so the shortcut works only where the page can capture it. Replaces 2026-11-06 — Tab cycles chats.
+
 ## 2026-11-06 — Keyboard-only undo and learning dictionary
 
 Context: the `↶ word` toast added visual noise. The user wants a keyboard-only way to reject an auto-fix and wants project words such as `субагенты` to stop being flagged.

@@ -35,7 +35,6 @@ import {
   sessionRunning,
 } from "./lib/format";
 import { questionField } from "./lib/forms";
-import { isEditableTarget } from "./lib/keys";
 import {
   groupSessions,
   listedSessions,
@@ -1564,7 +1563,7 @@ export default function App() {
           break;
         case "help":
           setBanner(
-            "Commands: /new /dir /compact /revert /fork /retry /theme /clear /help · Shortcuts: Alt+N new chat, Alt+J/K or Tab/Shift+Tab next/prev chat (Tab in a text field completes /commands and accepts the highlighted suggestion), Alt+←/→ this dir / mine / all, Ctrl/⌘K search",
+            "Commands: /new /dir /compact /revert /fork /retry /theme /clear /help · Shortcuts: Alt+N new chat, Alt+J/K or Ctrl+Tab/Shift+Ctrl+Tab next/prev chat (Tab in a text field completes /commands and accepts the highlighted suggestion), Alt+←/→ this dir / mine / all, Ctrl/⌘K search",
           );
           break;
       }
@@ -1608,7 +1607,6 @@ export default function App() {
     const onKeyDown = (event: KeyboardEvent) => {
       const mod = event.metaKey || event.ctrlKey;
       const key = event.key.toLowerCase();
-      const target = event.target instanceof Element ? event.target : null;
       if (mod && key === "k") {
         event.preventDefault();
         setSidebarOpen(true);
@@ -1637,18 +1635,7 @@ export default function App() {
         if (next) changeScope(next.id);
         return;
       }
-      if (
-        event.key === "Tab" &&
-        !event.altKey &&
-        !event.metaKey &&
-        !event.ctrlKey &&
-        !isEditableTarget(target) &&
-        !pickerOpen &&
-        !settingsOpen &&
-        !themeOpen &&
-        !(target && target.closest("[data-form-card]")) &&
-        !(target && target.closest("[data-transcript]"))
-      ) {
+      if (event.ctrlKey && event.key === "Tab") {
         if (cycleSessions.length === 0) return;
         event.preventDefault();
         const nextId = nextSessionId(
@@ -1690,7 +1677,6 @@ export default function App() {
     cycleSessions,
     isRunning,
     newChat,
-    pickerOpen,
     selectSession,
     settingsOpen,
     stop,

@@ -33,6 +33,7 @@ function SessionRow({
   subagentCount = 0,
   runningSubagents = 0,
   expanded = false,
+  showDirectory = true,
   onClick,
   onToggle,
   onHide,
@@ -52,6 +53,7 @@ function SessionRow({
   subagentCount?: number;
   runningSubagents?: number;
   expanded?: boolean;
+  showDirectory?: boolean;
   onClick: () => void;
   onToggle?: () => void;
   onHide: () => void;
@@ -77,19 +79,6 @@ function SessionRow({
         width: depth > 0 ? `calc(100% - ${depth * 12}px)` : undefined,
       }}
     >
-      {hasSubagents && (
-        <button
-          type="button"
-          onClick={onToggle}
-          aria-expanded={expanded}
-          aria-label={expanded ? "Hide subagents" : "Show subagents"}
-          className="text-muted-foreground hover:text-foreground absolute top-1.5 left-1 z-10 flex size-4 items-center justify-center rounded"
-        >
-          <ChevronRight
-            className={cn("size-3 transition-transform", expanded && "rotate-90")}
-          />
-        </button>
-      )}
       <button
         type="button"
         data-session-id={session.id}
@@ -97,7 +86,6 @@ function SessionRow({
         className={cn(
           "flex w-full flex-col gap-1 rounded-lg px-2.5 py-2 text-left transition-colors",
           depth > 0 && "py-1.5",
-          hasSubagents && "pl-6",
           hidden && "opacity-60",
           state && cn("session-state", state, animated && "session-state-live"),
           active ? "bg-accent text-accent-foreground" : "hover:bg-accent/60",
@@ -129,22 +117,6 @@ function SessionRow({
             />
           )}
           <span className="min-w-0 flex-1 truncate text-[13px] font-medium">{title}</span>
-          {hasSubagents && (
-            <span
-              className={cn(
-                "inline-flex shrink-0 items-center gap-0.5 text-[10px]",
-                runningSubagents > 0 ? "text-emerald-500" : "text-muted-foreground",
-              )}
-              title={
-                runningSubagents > 0
-                  ? `${runningSubagents} of ${subagentCount} subagents running`
-                  : `${subagentCount} subagents`
-              }
-            >
-              <GitBranch className="size-3" />
-              {runningSubagents > 0 ? `${runningSubagents}/${subagentCount}` : subagentCount}
-            </span>
-          )}
           <span
             className={cn(
               "shrink-0 text-[10px] transition-opacity group-hover:opacity-0",
@@ -166,18 +138,51 @@ function SessionRow({
           </span>
         </div>
         {depth === 0 ? (
-          <div className="text-muted-foreground flex min-w-0 items-center gap-1 pl-3.5 text-[10px]">
-            <Folder className="size-3 shrink-0" />
-            <span className="truncate" title={session.location?.directory}>
-              {basename(session.location?.directory) || "unknown"}
-            </span>
-          </div>
+          (showDirectory || hasSubagents) && (
+            <div
+              className={cn(
+                "text-muted-foreground flex min-h-3 min-w-0 items-center gap-1 pl-3.5 text-[10px]",
+                hasSubagents && "pr-16",
+              )}
+            >
+              {showDirectory && (
+                <>
+                  <Folder className="size-3 shrink-0" />
+                  <span className="truncate" title={session.location?.directory}>
+                    {basename(session.location?.directory) || "unknown"}
+                  </span>
+                </>
+              )}
+            </div>
+          )
         ) : session.agent ? (
           <div className="text-muted-foreground truncate pl-3.5 text-[10px]">
             {session.agent}
           </div>
         ) : null}
       </button>
+      {hasSubagents && (
+        <button
+          type="button"
+          onClick={onToggle}
+          aria-expanded={expanded}
+          aria-label={expanded ? "Hide subagents" : "Show subagents"}
+          title={
+            runningSubagents > 0
+              ? `${runningSubagents} of ${subagentCount} subagents running`
+              : `${subagentCount} subagents`
+          }
+          className="text-muted-foreground hover:text-foreground absolute right-2 bottom-1.5 z-10 inline-flex items-center gap-0.5 rounded px-0.5 text-[10px]"
+        >
+          <ChevronRight
+            className={cn("size-3 transition-transform", expanded && "rotate-90")}
+          />
+          <GitBranch className="size-3" />
+          <span className={cn(runningSubagents > 0 && "text-emerald-500")}>
+            {runningSubagents > 0 ? `${runningSubagents}/${subagentCount}` : subagentCount}
+          </span>
+        </button>
+      )}
       <div className="absolute top-1 right-1 hidden items-center gap-0.5 group-hover:flex">
         {hidden ? (
           <Button
@@ -381,20 +386,20 @@ export const Sidebar = memo(function Sidebar({
             aria-pressed={scope === item.id}
             onClick={() => onScope(item.id)}
             className={cn(
-              "flex-1 rounded px-1.5 py-1 text-[10px] font-medium transition-colors",
+              "min-w-0 flex-1 truncate rounded px-1.5 py-1 text-[10px] font-medium transition-colors",
               scope === item.id
                 ? "bg-background text-foreground shadow-sm"
                 : "text-muted-foreground hover:text-foreground",
             )}
             title={
               item.id === "directory"
-                ? "Chats in this workspace"
+                ? (workspace ?? "Chats in this workspace")
                 : item.id === "mine"
                   ? "Your chats, every workspace"
                   : "Every top-level chat, every workspace"
             }
           >
-            {item.label}
+            {item.id === "directory" && workspace ? basename(workspace) : item.label}
           </button>
         ))}
       </div>
@@ -453,6 +458,7 @@ export const Sidebar = memo(function Sidebar({
                     animated={animated}
                     hidden={hiddenIds.has(session.id)}
                     now={now}
+                    showDirectory={scope !== "directory"}
                     subagentCount={children.length}
                     runningSubagents={runningChildren}
                     expanded={open}

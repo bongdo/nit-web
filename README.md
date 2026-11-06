@@ -75,9 +75,10 @@ The sidebar has three scopes:
 | `Mine` | all top-level chats with a primary agent, across workspaces. |
 | `All` | every top-level chat, including scripted roles, across workspaces. |
 
-Each chat row shows its own subagent counter and expands only that chat's
-subagents. The selected chat's `N subagents` menu opens the same transcripts,
-and the parent header has `Back to parent`.
+Each chat row shows its own subagent counter on the directory line and expands
+only that chat's subagents. In the `This dir` scope the tab shows the workspace
+name and the card omits the directory. The selected chat's `N subagents` menu
+opens the same transcripts, and the parent header has `Back to parent`.
 
 `New chat` does not create a session. The session is created in the current
 workspace on the first Send, so an empty draft never appears in the list.

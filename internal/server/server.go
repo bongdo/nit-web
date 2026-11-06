@@ -194,6 +194,9 @@ func (s *Server) allowedOrigin(r *http.Request) bool {
 	if origin == "" {
 		return true
 	}
+	if origin == "null" {
+		return r.Method == http.MethodPost && (r.URL.Path == "/auth" || r.URL.Path == s.basePath+"/auth")
+	}
 	u, err := url.Parse(origin)
 	if err != nil || (u.Scheme != "http" && u.Scheme != "https") {
 		return false

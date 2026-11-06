@@ -150,6 +150,20 @@ func TestAllowedOriginPublicHost(t *testing.T) {
 	}
 }
 
+func TestAllowedOriginNull(t *testing.T) {
+	s := &Server{basePath: "/nit"}
+	login := httptest.NewRequest(http.MethodPost, "http://127.0.0.1:7791/auth", nil)
+	login.Header.Set("Origin", "null")
+	if !s.allowedOrigin(login) {
+		t.Fatal("null origin rejected on the login form")
+	}
+	api := httptest.NewRequest(http.MethodPost, "http://127.0.0.1:7791/api/prompt", nil)
+	api.Header.Set("Origin", "null")
+	if s.allowedOrigin(api) {
+		t.Fatal("null origin accepted on the API")
+	}
+}
+
 func TestAuthBasePath(t *testing.T) {
 	gate := testAuthGate(t)
 	gate.base = "/nit"

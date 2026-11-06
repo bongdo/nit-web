@@ -17,6 +17,7 @@ import { isPureHtml, looksLikeHtml } from "../lib/html";
 import { formatBytes, modelLabel, replyText } from "../lib/format";
 import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
+import { CompactionRow } from "./Compaction";
 import { HtmlMessagePreview } from "./HtmlMessagePreview";
 import { Markdown } from "./Markdown";
 import { Reasoning } from "./Reasoning";
@@ -105,6 +106,7 @@ export const MessageRow = memo(function MessageRow({
   agents,
   streaming,
   actionsDisabled,
+  autoOpen,
   onRevert,
   onFork,
 }: {
@@ -113,6 +115,7 @@ export const MessageRow = memo(function MessageRow({
   agents: Agent[];
   streaming: boolean;
   actionsDisabled?: boolean;
+  autoOpen?: boolean;
   onRevert: (message: Message) => void;
   onFork: (message: Message) => void;
 }) {
@@ -189,18 +192,7 @@ export const MessageRow = memo(function MessageRow({
   }
 
   if (message.type === "compaction") {
-    return (
-      <details className="border-border bg-card/50 my-3 rounded-lg border px-3 py-2 text-xs">
-        <summary className="text-muted-foreground cursor-pointer list-none">
-          Context compacted{message.reason ? ` (${message.reason})` : ""}
-        </summary>
-        {message.summary && (
-          <div className="markdown text-muted-foreground mt-2 border-l-2 pl-3">
-            <Markdown text={message.summary} />
-          </div>
-        )}
-      </details>
-    );
+    return <CompactionRow message={message} autoOpen={autoOpen} />;
   }
 
   if (message.type === "idle") {

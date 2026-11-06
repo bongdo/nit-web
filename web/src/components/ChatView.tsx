@@ -11,6 +11,7 @@ import type { Agent, Message, Model, Project, Session } from "../lib/types";
 import { cn } from "../lib/utils";
 import { Button } from "./ui/button";
 import { AssistantTurn } from "./AssistantTurn";
+import { CompactionBusy } from "./Compaction";
 import { MessageRow } from "./MessageRow";
 import { Scene, type SceneSetting } from "./Scene";
 import { WorkspaceMenu } from "./WorkspacePicker";
@@ -34,6 +35,8 @@ export function ChatView({
   messages,
   loading,
   running,
+  compacting,
+  freshCompaction,
   error,
   models,
   agents,
@@ -53,6 +56,8 @@ export function ChatView({
   messages: Message[];
   loading: boolean;
   running: boolean;
+  compacting: boolean;
+  freshCompaction: boolean;
   error: string | null;
   models: Model[];
   agents: Agent[];
@@ -159,6 +164,13 @@ export function ChatView({
 
   const rows = useMemo(() => {
     const items: ReactNode[] = [];
+    let lastCompactionId: string | null = null;
+    for (let index = messages.length - 1; index >= 0; index -= 1) {
+      if (messages[index].type === "compaction") {
+        lastCompactionId = messages[index].id;
+        break;
+      }
+    }
     for (let index = 0; index < messages.length; index += 1) {
       const message = messages[index];
       if (message.type === "assistant") {
@@ -189,6 +201,7 @@ export function ChatView({
           models={models}
           agents={agents}
           actionsDisabled={running}
+          autoOpen={freshCompaction && message.id === lastCompactionId}
           onRevert={onRevert}
           onFork={onFork}
           streaming={false}
@@ -196,7 +209,7 @@ export function ChatView({
       );
     }
     return items;
-  }, [agents, messages, models, onFork, onRevert, running, workspace]);
+  }, [agents, freshCompaction, messages, models, onFork, onRevert, running, workspace]);
 
   if (!session) {
     return (
@@ -241,7 +254,11 @@ export function ChatView({
   }
 
   const lastAssistant = [...messages].reverse().find((message) => message.type === "assistant");
-  const waiting = running && (!lastAssistant || messages[messages.length - 1]?.type === "user");
+  const runningCompaction = messages.some(
+    (message) => message.type === "compaction" && message.status === "running",
+  );
+  const waiting =
+    running && !compacting && (!lastAssistant || messages[messages.length - 1]?.type === "user");
 
   return (
     <div className="relative flex min-h-0 flex-1 flex-col">
@@ -282,6 +299,8 @@ export function ChatView({
           ) : (
             rows
           )}
+
+          {compacting && !runningCompaction && <CompactionBusy />}
 
           {waiting && (
             <div className="text-muted-foreground flex items-center gap-2 px-1 py-4 text-xs">

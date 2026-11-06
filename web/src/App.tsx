@@ -201,6 +201,8 @@ export default function App() {
   const [messageEpoch, setMessageEpoch] = useState(0);
   const [transcriptError, setTranscriptError] = useState<string | null>(null);
   const [runningIds, setRunningIds] = useState<Record<string, boolean>>({});
+  const [compactingSessions, setCompactingSessions] = useState<Set<string>>(() => new Set());
+  const [freshCompaction, setFreshCompaction] = useState<string | null>(null);
   const [banner, setBanner] = useState<string | null>(null);
   const [booting, setBooting] = useState(true);
   const [search, setSearch] = useState("");
@@ -735,6 +737,24 @@ export default function App() {
   const reloadSelected = useCallback(() => {
     if (!selectedIdRef.current) return;
     setMessageEpoch((value) => value + 1);
+  }, []);
+
+  const markCompacting = useCallback((sessionID: string) => {
+    setCompactingSessions((previous) => {
+      if (previous.has(sessionID)) return previous;
+      const next = new Set(previous);
+      next.add(sessionID);
+      return next;
+    });
+  }, []);
+
+  const clearCompacting = useCallback((sessionID: string) => {
+    setCompactingSessions((previous) => {
+      if (!previous.has(sessionID)) return previous;
+      const next = new Set(previous);
+      next.delete(sessionID);
+      return next;
+    });
   }, []);
 
   const openPicker = useCallback(() => setPickerOpen(true), []);

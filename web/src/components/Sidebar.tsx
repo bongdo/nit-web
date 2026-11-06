@@ -610,7 +610,7 @@ export const Sidebar = memo(function Sidebar({
                   />
                   {open && (
                     <div className="space-y-0.5">
-                      {children.map((child, childIndex) => (
+                      {children.map((child) => (
                         <SessionRow
                           key={child.id}
                           session={child}

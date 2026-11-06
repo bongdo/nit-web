@@ -15,7 +15,7 @@ import {
   WifiOff,
 } from "lucide-react";
 import type { Health, Model, ModelRef, Session } from "../lib/types";
-import type { Theme } from "../hooks/useTheme";
+import { themeLabel, type Theme } from "../lib/themes";
 import type { StreamStatus } from "../hooks/useEventStream";
 import { basename, formatCost, modelLabel } from "../lib/format";
 import { cn } from "../lib/utils";

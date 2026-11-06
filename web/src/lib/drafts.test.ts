@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { draftStorageKey, loadDraft, saveDraft } from "./drafts";
+import {
+  draftStorageKey,
+  draftUpdatedKey,
+  loadDraft,
+  loadDraftState,
+  saveDraft,
+  saveDraftState,
+} from "./drafts";
 
 function memoryStorage() {
   const values = new Map<string, string>();
@@ -27,5 +34,15 @@ describe("drafts", () => {
     saveDraft("ses_a", "", storage);
     expect(loadDraft("ses_a", storage)).toBe("");
     expect(storage.has(draftStorageKey("ses_a"))).toBe(false);
+    expect(storage.has(draftUpdatedKey("ses_a"))).toBe(false);
+  });
+
+  it("keeps the local timestamp for server conflict resolution", () => {
+    const storage = memoryStorage();
+    saveDraftState("ses_a", "long prompt", 1234, storage);
+    expect(loadDraftState("ses_a", storage)).toEqual({
+      text: "long prompt",
+      updatedAt: 1234,
+    });
   });
 });

@@ -10,8 +10,11 @@
         const stored = localStorage.getItem("nit-gui.theme") || "system";
         const dark =
           stored === "dark" ||
+          ["nord", "gruvbox", "dracula", "ember"].includes(stored) ||
           (stored === "system" && matchMedia("(prefers-color-scheme: dark)").matches);
         document.documentElement.classList.toggle("dark", dark);
+        document.documentElement.dataset.theme =
+          stored === "system" ? (dark ? "dark" : "light") : stored;
       })();
     </script>
   </head>

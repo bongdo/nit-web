@@ -69,11 +69,12 @@ function SessionRow({
   onDelete: () => void;
 }) {
   const title = session.title?.trim() || (session.parentID ? "Subagent" : "New chat");
+  const doneHere = done && runningSubagents === 0;
   const state = waiting
     ? "session-waiting"
     : failed
       ? "session-failed"
-      : done
+      : doneHere
         ? "session-done"
         : null;
   const hasSubagents = depth === 0 && subagentCount > 0;
@@ -108,12 +109,18 @@ function SessionRow({
                   ? cn("bg-spark ring-spark/30 ring-2", animated && "waiting-dot")
                   : running
                     ? "animate-pulse bg-emerald-500"
-                    : done
+                    : doneHere
                       ? "bg-success ring-success/20 ring-2"
                       : "bg-border",
               )}
               title={
-                waiting ? "Waiting for your answer" : running ? "Running" : done ? "Done" : "Idle"
+                waiting
+                  ? "Waiting for your answer"
+                  : running
+                    ? "Running"
+                    : doneHere
+                      ? "Done"
+                      : "Idle"
               }
             />
           )}
@@ -128,7 +135,13 @@ function SessionRow({
                   : "text-muted-foreground",
             )}
             title={
-              waiting ? "Waiting for your answer" : running ? "Running" : done ? "Done" : undefined
+              waiting
+                ? "Waiting for your answer"
+                : running
+                  ? "Running"
+                  : doneHere
+                    ? "Done"
+                    : undefined
             }
           >
             {waiting
@@ -382,7 +395,7 @@ export const Sidebar = memo(function Sidebar({
       `[data-session-row="${selectedId}"]`,
     );
     row?.scrollIntoView({ block: "nearest" });
-  }, [selectedId, selectedRank]);
+  }, [expanded, selectedId, selectedRank]);
 
   return (
     <div className="bg-card/40 flex h-full min-h-0 flex-col">

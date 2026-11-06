@@ -596,7 +596,13 @@ export function Scene({
       paint((now - started) / 1000);
     };
 
-    const move = (event: MouseEvent) => {
+    const move = (event: PointerEvent) => {
+      if (
+        event.pointerType !== "mouse" ||
+        !window.matchMedia("(min-width: 48rem)").matches
+      ) {
+        return;
+      }
       const rect = canvas.getBoundingClientRect();
       pointerClient.x = event.clientX;
       pointerClient.y = event.clientY;
@@ -652,7 +658,7 @@ export function Scene({
     });
     const tracksPointer = window.matchMedia("(pointer: fine)").matches;
     if (tracksPointer) {
-      window.addEventListener("mousemove", move);
+      window.addEventListener("pointermove", move);
       window.addEventListener("mouseleave", leave);
     }
     document.addEventListener("visibilitychange", visibility);
@@ -665,7 +671,7 @@ export function Scene({
       observer.disconnect();
       theme.disconnect();
       if (tracksPointer) {
-        window.removeEventListener("mousemove", move);
+        window.removeEventListener("pointermove", move);
         window.removeEventListener("mouseleave", leave);
       }
       document.removeEventListener("visibilitychange", visibility);

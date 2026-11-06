@@ -61,7 +61,7 @@ export function Header({
   streamStatus: StreamStatus;
   theme: Theme;
   collapsed: boolean;
-  sidebarMode: "button" | "hover";
+  sidebarMode: "button" | "hover" | "swipe";
   subagents: Session[];
   parent?: Session | null;
   onOpenSubagent: (session: Session) => void;
@@ -88,7 +88,7 @@ export function Header({
       >
         <Menu />
       </Button>
-      {sidebarMode === "button" && (
+      {sidebarMode !== "hover" && (
         <Button
           variant="ghost"
           size="icon-sm"

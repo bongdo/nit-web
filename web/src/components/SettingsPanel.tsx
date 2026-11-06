@@ -41,7 +41,7 @@ export function SettingsPanel({
   autofix: boolean;
   motion: "animated" | "static";
   background: SceneSetting;
-  sidebarMode: "button" | "hover";
+  sidebarMode: "button" | "hover" | "swipe";
   onModel: (model: ModelRef) => void;
   onAgent: (agent: string) => void;
   onTheme: (theme: Theme) => void;
@@ -50,7 +50,7 @@ export function SettingsPanel({
   onAutofix: (value: boolean) => void;
   onMotion: (mode: "animated" | "static") => void;
   onBackground: (mode: SceneSetting) => void;
-  onSidebar: (mode: "button" | "hover") => void;
+  onSidebar: (mode: "button" | "hover" | "swipe") => void;
   onClose: () => void;
 }) {
   const providers = Array.from(new Set(models.map((item) => item.providerID)));
@@ -172,10 +172,13 @@ export function SettingsPanel({
             <Select
               className="w-full"
               value={sidebarMode}
-              onChange={(event) => onSidebar(event.target.value as "button" | "hover")}
+              onChange={(event) =>
+                onSidebar(event.target.value as "button" | "hover" | "swipe")
+              }
             >
               <option value="button">Button</option>
               <option value="hover">Hover at the left edge</option>
+              <option value="swipe">Swipe on the touchpad</option>
             </Select>
           </label>
 

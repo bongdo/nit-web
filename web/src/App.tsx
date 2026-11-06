@@ -145,7 +145,8 @@ export default function App() {
     return stored === "hover" || stored === "swipe" ? stored : "button";
   });
   const [sidebarHovered, setSidebarHovered] = useState(false);
-  const swipe = useSidebarSwipe(sidebarMode === "swipe");
+  const swipeMode = sidebarMode === "swipe";
+  const swipe = useSidebarSwipe(swipeMode);
   const [dictationMode, setDictationMode] = useState<"fast" | "accurate">(() =>
     localStorage.getItem("nit-gui.dictation") === "accurate" ? "accurate" : "fast",
   );
@@ -594,12 +595,16 @@ export default function App() {
   }, [selectSession]);
 
   const toggleSidebar = useCallback(() => {
+    if (sidebarMode === "swipe") {
+      swipe.toggle();
+      return;
+    }
     setCollapsed((current) => {
       const next = !current;
       localStorage.setItem("nit-gui.collapsed", next ? "1" : "0");
       return next;
     });
-  }, []);
+  }, [sidebarMode, swipe.toggle]);
 
   const openHoverSidebar = useCallback(() => {
     if (hoverTimer.current !== null) window.clearTimeout(hoverTimer.current);
@@ -1042,6 +1047,7 @@ export default function App() {
       if (mod && key === "k") {
         event.preventDefault();
         setSidebarOpen(true);
+        swipe.open();
         window.setTimeout(() => searchRef.current?.focus(), 0);
         return;
       }
@@ -1075,11 +1081,12 @@ export default function App() {
         }
         setSidebarOpen(false);
         setSidebarHovered(false);
+        swipe.close();
       }
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [cycleSessions, isRunning, newChat, selectSession, settingsOpen, stop]);
+  }, [cycleSessions, isRunning, newChat, selectSession, settingsOpen, stop, swipe.close, swipe.open]);
 
   if (booting) return <BootScreen />;
 
@@ -1130,20 +1137,29 @@ export default function App() {
         </button>
       )}
       <aside
+        ref={swipe.ref}
         onPointerEnter={hoverSidebar ? openHoverSidebar : undefined}
         onPointerLeave={hoverSidebar ? closeHoverSidebar : undefined}
         className={cn(
           "border-border bg-background fixed inset-y-0 left-0 z-30 w-[280px] border-r",
           "ease-[cubic-bezier(0.32,0.72,0,1)] transition-[translate,opacity,width] duration-300 motion-reduce:transition-none",
-          sidebarOpen ? "translate-x-0 shadow-xl" : "-translate-x-full",
+          swipeMode
+            ? sidebarOpen
+              ? "max-md:translate-x-0 max-md:shadow-xl"
+              : "max-md:-translate-x-full"
+            : sidebarOpen
+              ? "translate-x-0 shadow-xl"
+              : "-translate-x-full",
           hoverSidebar
             ? sidebarHovered
               ? "md:z-40 md:translate-x-0 md:opacity-100 md:shadow-2xl"
               : "md:z-40 md:-translate-x-full md:opacity-0 md:shadow-2xl"
-            : cn(
-                "md:static md:z-auto md:translate-x-0",
-                collapsed ? "md:w-0 md:overflow-hidden md:border-r-0" : "md:w-[280px] lg:w-[300px]",
-              ),
+            : swipeMode
+              ? "swipe-sidebar md:z-40 md:shadow-2xl"
+              : cn(
+                  "md:static md:z-auto md:translate-x-0",
+                  collapsed ? "md:w-0 md:overflow-hidden md:border-r-0" : "md:w-[280px] lg:w-[300px]",
+                ),
         )}
       >
         <div
@@ -1204,7 +1220,7 @@ export default function App() {
           health={health}
           streamStatus={streamStatus}
           theme={theme}
-          collapsed={collapsed}
+          collapsed={swipeMode ? !swipe.opened : collapsed}
           sidebarMode={sidebarMode}
           subagents={subagents}
           parent={parentSession}

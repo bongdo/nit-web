@@ -336,12 +336,33 @@
     z-index: 1;
   }
 
+  .session-state::after {
+    content: "";
+    position: absolute;
+    inset: 12%;
+    z-index: 0;
+    pointer-events: none;
+    border-radius: inherit;
+    background: radial-gradient(
+      circle at 50% 120%,
+      transparent 40%,
+      color-mix(in oklab, var(--sweep) 42%, transparent) 52%,
+      transparent 64%
+    );
+    transform-origin: 50% 120%;
+    opacity: 0;
+  }
+
   .session-state-live {
     animation: session-breathe 3.2s ease-in-out infinite;
   }
 
   .session-state-live::before {
     animation: session-shift 3.2s cubic-bezier(0.45, 0, 0.25, 1) infinite;
+  }
+
+  .session-state-live::after {
+    animation: session-ripple 3.2s ease-out infinite;
   }
 
   .session-waiting {
@@ -366,6 +387,17 @@
     }
     to {
       transform: translateX(35%);
+    }
+  }
+
+  @keyframes session-ripple {
+    from {
+      transform: scale(0.45);
+      opacity: 0.7;
+    }
+    to {
+      transform: scale(1.6);
+      opacity: 0;
     }
   }
 
@@ -494,6 +526,7 @@
   @media (prefers-reduced-motion: reduce) {
     .session-state-live,
     .session-state-live::before,
+    .session-state-live::after,
     .waiting-dot,
     .compaction-enter .compaction-line,
     .compaction-enter .compaction-pill,

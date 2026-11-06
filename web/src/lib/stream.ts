@@ -75,6 +75,16 @@ export function lightenEvent(event: StreamEvent): StreamEvent | null {
   }
 }
 
+export function lightStepIDs(messages: Message[]): string[] {
+  return messages
+    .filter((message) =>
+      (message.content ?? []).some(
+        (part) => (part.type === "tool" || part.type === "reasoning") && part.light,
+      ),
+    )
+    .map((message) => message.id);
+}
+
 function deltaKey(event: StreamEvent): string {
   if (
     event.type !== "session.text.delta" &&

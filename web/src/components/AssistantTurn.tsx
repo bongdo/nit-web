@@ -12,6 +12,7 @@ import {
 import type { Agent, Message, Model, ReasoningPart, ToolPart } from "../lib/types";
 import { activityLine } from "../lib/activity";
 import { copyText } from "../lib/clipboard";
+import { lightStepIDs } from "../lib/stream";
 import { isPureHtml, looksLikeHtml } from "../lib/html";
 import { modelLabel, replyText } from "../lib/format";
 import { Button } from "./ui/button";
@@ -113,21 +114,13 @@ export const AssistantTurn = memo(function AssistantTurn({
 
   const loadSteps = () => {
     if (!onLoadMessage) return;
-    const ids = new Set<string>();
-    for (const message of messages) {
-      if (streaming && message.id === last?.id) continue;
-      if (
-        (message.content ?? []).some(
-          (part) => (part.type === "tool" || part.type === "reasoning") && part.light,
-        )
-      ) {
-        ids.add(message.id);
-      }
-    }
-    if (ids.size === 0) return;
+    const ids = lightStepIDs(messages).filter(
+      (id) => !(streaming && id === last?.id),
+    );
+    if (ids.length === 0) return;
     setLoadingSteps(true);
     Promise.allSettled(
-      [...ids].map((id) => Promise.resolve(onLoadMessage(id))),
+      ids.map((id) => Promise.resolve().then(() => onLoadMessage(id))),
     ).finally(() => setLoadingSteps(false));
   };
 

@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
   AlertTriangle,
   ArrowUp,
@@ -266,7 +266,7 @@ export const Composer = memo(function Composer({
     area.style.height = `${Math.min(area.scrollHeight, 200)}px`;
   }, [value]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const area = ref.current;
     const layer = highlightRef.current;
     if (!area || !layer) return;

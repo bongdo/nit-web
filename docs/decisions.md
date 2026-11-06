@@ -192,3 +192,15 @@ Why: the prefetch hides the network latency behind the user's own scrolling, and
 Rejected: keeping the button as a fallback (it breaks the flow), loading the entire history at once (wasteful), and relying on browser scroll anchoring (the transcript disables it for streaming).
 
 Cost: one extra page request when the user approaches the top; a short transcript may auto-load a few pages until it fills the viewport.
+
+## 2026-11-06 — Steps load only when the user opens them
+
+Context: the light transcript still carried tool input, metadata and a reasoning preview, so the steps block showed targets without being opened and still paid for data the user rarely looks at.
+
+Decision: light mode keeps only the fact of a step: tool id, name, status, time and error, plus an empty reasoning stub. Tool input/output/metadata and reasoning text are removed. Opening the steps block fetches the full messages for that turn in parallel; opening an individual tool or thought remains a per-row fallback. User messages, assistant text parts, forms/questions and compaction summaries stay full.
+
+Why: the steps block is closed by default, so its data should cost nothing until opened. The heaviest local tail dropped to about 74 KB, while every user message and final answer is guaranteed to be present.
+
+Rejected: keeping input previews (contradicts the request), loading the full transcript on panel open (wasteful), and per-row-only loading (the opened steps list would show bare verbs without targets).
+
+Cost: opening steps triggers one request per assistant message in the turn; a failed row can be retried by opening it.

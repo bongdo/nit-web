@@ -4,6 +4,7 @@ import {
   coalesceEvents,
   lightenEvent,
   lightMessages,
+  lightStepIDs,
   normalizeMessages,
 } from "./stream";
 import type { Message, StreamEvent, ToolPart } from "./types";
@@ -181,14 +182,14 @@ describe("light transcripts", () => {
     ];
     const light = lightMessages(messages);
     const parts = light[0].content ?? [];
-    expect(parts[0]).toMatchObject({ type: "reasoning", light: true });
-    expect((parts[0] as { text: string }).text).toHaveLength(240);
+    expect(parts[0]).toMatchObject({ type: "reasoning", text: "", light: true });
     expect(parts[1]).toMatchObject({ type: "tool", light: true });
-    expect((parts[1] as ToolPart).state.content).toEqual([]);
+    expect((parts[1] as ToolPart).state.content).toBeUndefined();
+    expect((parts[1] as ToolPart).state.input).toBeUndefined();
     expect(parts[2]).toMatchObject({ type: "text", text: "answer" });
   });
 
-  it("keeps a short tool preview in cached events", () => {
+  it("drops tool output from cached events", () => {
     const next = lightenEvent(
       event("session.tool.success", {
         assistantMessageID: "msg_1",
@@ -197,8 +198,21 @@ describe("light transcripts", () => {
       }),
     );
     expect(next?.data.light).toBe(true);
-    const content = next?.data.content as { type: string; text: string }[];
-    expect(content[0].text).toHaveLength(240);
+    expect(next?.data.content).toEqual([]);
+  });
+
+  it("keeps a light reasoning stub without its text", () => {
+    const next = lightenEvent(
+      event("session.reasoning.ended", {
+        assistantMessageID: "msg_1",
+        ordinal: 0,
+        text: "thinking",
+      }),
+    );
+    expect(next?.data.text).toBe("");
+    const messages = applyEvent([], next as StreamEvent);
+    const part = messages[0].content?.[0] as { type: string; text: string; light?: boolean };
+    expect(part).toMatchObject({ type: "reasoning", text: "", light: true });
   });
 
   it("drops reasoning deltas from the cache", () => {
@@ -210,6 +224,22 @@ describe("light transcripts", () => {
         }),
       ),
     ).toBeNull();
+  });
+
+  it("lists messages whose steps are still light", () => {
+    const light = {
+      id: "m1",
+      type: "assistant",
+      time: { created: 1 },
+      content: [{ type: "tool", id: "t1", name: "read", light: true, state: { status: "completed" } }],
+    } as Message;
+    const full = {
+      id: "m2",
+      type: "assistant",
+      time: { created: 2 },
+      content: [{ type: "tool", id: "t2", name: "read", state: { status: "completed" } }],
+    } as Message;
+    expect(lightStepIDs([light, full])).toEqual(["m1"]);
   });
 
   it("marks a light tool as loaded when the full event arrives", () => {

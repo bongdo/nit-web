@@ -7,6 +7,15 @@ import (
 	"testing"
 )
 
+func TestRedactorJSONSkipsCleanBodies(t *testing.T) {
+	client := New(Endpoint{URL: "http://127.0.0.1", Password: "s3cret"})
+	raw := []byte(`{"text":"hello","nested":{"count":3},"list":[1,2,3]}`)
+
+	if out := client.Redactor().JSON(raw); string(out) != string(raw) {
+		t.Fatalf("clean body changed: %s", out)
+	}
+}
+
 func TestRedactorJSONKeepsEscapedValuesValid(t *testing.T) {
 	password := `p"a\ss-w0rd`
 	basic := "opencode:" + password

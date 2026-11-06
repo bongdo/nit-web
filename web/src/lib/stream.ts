@@ -24,6 +24,37 @@ export function normalizeMessages(messages: Message[]): Message[] {
   });
 }
 
+function deltaKey(event: StreamEvent): string {
+  if (
+    event.type !== "session.text.delta" &&
+    event.type !== "session.reasoning.delta" &&
+    event.type !== "session.tool.input.delta"
+  ) {
+    return "";
+  }
+  const data = event.data ?? {};
+  const messageID = str(data.assistantMessageID);
+  if (!messageID) return "";
+  return `${event.type}|${messageID}|${num(data.ordinal) ?? 0}|${str(data.id)}`;
+}
+
+export function coalesceEvents(events: StreamEvent[]): StreamEvent[] {
+  const out: StreamEvent[] = [];
+  for (const event of events) {
+    const key = deltaKey(event);
+    const last = out[out.length - 1];
+    if (key && last && deltaKey(last) === key) {
+      out[out.length - 1] = {
+        ...last,
+        data: { ...last.data, delta: str(last.data.delta) + str(event.data.delta) },
+      };
+      continue;
+    }
+    out.push(event);
+  }
+  return out;
+}
+
 function updateMessage(
   messages: Message[],
   id: string,

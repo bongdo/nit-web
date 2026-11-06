@@ -253,17 +253,9 @@ function drawHalftone(t) {
 
 const parts = [];
 const PART_COUNT = 520;
-const respawn = (p, anywhere = false) => {
-  if (anywhere) {
-    p.x = Math.random() * w;
-    p.y = Math.random() * h;
-  } else {
-    const edge = Math.floor(Math.random() * 4);
-    if (edge === 0) { p.x = Math.random() * w; p.y = -4; }
-    else if (edge === 1) { p.x = w + 4; p.y = Math.random() * h; }
-    else if (edge === 2) { p.x = Math.random() * w; p.y = h + 4; }
-    else { p.x = -4; p.y = Math.random() * h; }
-  }
+const respawn = (p) => {
+  p.x = Math.random() * w;
+  p.y = Math.random() * h;
   p.px = p.x; p.py = p.y;
   p.life = 60 + Math.floor(Math.random() * 150);
   return p;
@@ -271,7 +263,7 @@ const respawn = (p, anywhere = false) => {
 const seedParts = () => {
   parts.length = 0;
   for (let i = 0; i < PART_COUNT; i += 1) {
-    parts.push(respawn({ x: Math.random() * w, y: Math.random() * h, px: 0, py: 0, life: 0 }, true));
+    parts.push(respawn({ x: 0, y: 0, px: 0, py: 0, life: 0 }));
     parts[i].life = Math.floor(Math.random() * 210);
   }
 };
@@ -288,7 +280,6 @@ function drawFlow(t) {
     const d2 = dx * dx + dy * dy;
     const v = d2 < R * R ? Math.exp(-d2 / (R * R * 0.5)) : 0;
     const d = Math.sqrt(d2) || 1;
-    const phase = Math.sin(p.x * 0.006 + t * 0.2) * Math.cos(p.y * 0.008 - t * 0.15);
     let ax = -Math.sin(p.x * 0.006 + t * 0.2) * Math.sin(p.y * 0.008 - t * 0.15) * 0.008;
     let ay = -Math.cos(p.x * 0.006 + t * 0.2) * Math.cos(p.y * 0.008 - t * 0.15) * 0.006;
     let vx = ax * (1 - v) + (-dy / d) * v * 0.9;
@@ -300,7 +291,7 @@ function drawFlow(t) {
     p.x += (vx / vl) * speed;
     p.y += (vy / vl) * speed;
     if (p.life <= 0 || p.x < -20 || p.x > w + 20 || p.y < -20 || p.y > h + 20) {
-      respawn(p, true);
+      respawn(p);
       continue;
     }
     ctx.strokeStyle = v > 0.35 ? accent() : ink();

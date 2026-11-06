@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { applyEvent, normalizeMessages } from "./stream";
+import { applyEvent, coalesceEvents, normalizeMessages } from "./stream";
 import type { Message, StreamEvent, ToolPart } from "./types";
 
 function event(type: string, data: Record<string, unknown>, created = 1_000): StreamEvent {
@@ -114,6 +114,38 @@ describe("applyEvent", () => {
       sessionID: "ses_1",
       cost: 1,
     }))).toBe(existing);
+  });
+});
+
+describe("coalesceEvents", () => {
+  it("merges adjacent deltas of the same part", () => {
+    const merged = coalesceEvents([
+      event("session.text.delta", { assistantMessageID: "msg_1", ordinal: 0, delta: "Hel" }),
+      event("session.text.delta", { assistantMessageID: "msg_1", ordinal: 0, delta: "lo" }),
+      event("session.reasoning.delta", { assistantMessageID: "msg_1", ordinal: 0, delta: "why" }),
+    ]);
+    expect(merged).toHaveLength(2);
+    expect(merged[0].data.delta).toBe("Hello");
+    expect(merged[1].data.delta).toBe("why");
+  });
+
+  it("keeps deltas for different parts apart", () => {
+    const merged = coalesceEvents([
+      event("session.text.delta", { assistantMessageID: "msg_1", ordinal: 0, delta: "a" }),
+      event("session.text.delta", { assistantMessageID: "msg_1", ordinal: 1, delta: "b" }),
+      event("session.tool.input.delta", { assistantMessageID: "msg_1", id: "call_1", delta: "c" }),
+      event("session.tool.input.delta", { assistantMessageID: "msg_1", id: "call_2", delta: "d" }),
+    ]);
+    expect(merged.map((item) => item.data.delta)).toEqual(["a", "b", "c", "d"]);
+  });
+
+  it("does not merge across other events", () => {
+    const merged = coalesceEvents([
+      event("session.text.delta", { assistantMessageID: "msg_1", ordinal: 0, delta: "a" }),
+      event("session.step.started", { assistantMessageID: "msg_1" }),
+      event("session.text.delta", { assistantMessageID: "msg_1", ordinal: 0, delta: "b" }),
+    ]);
+    expect(merged).toHaveLength(3);
   });
 });
 

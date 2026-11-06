@@ -352,7 +352,7 @@ func (s *Server) messages(w http.ResponseWriter, r *http.Request) {
 			env.Data[i] = redactor.JSON(item)
 		}
 		data = append(data, env.Data...)
-		if env.Cursor.Next == nil || *env.Cursor.Next == "" {
+		if len(env.Data) == 0 || env.Cursor.Next == nil || *env.Cursor.Next == "" {
 			break
 		}
 		cursor = *env.Cursor.Next

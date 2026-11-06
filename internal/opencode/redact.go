@@ -47,6 +47,9 @@ func (r *Redactor) JSON(body []byte) []byte {
 	if r == nil || len(r.needles) == 0 || len(body) == 0 {
 		return body
 	}
+	if !r.present(body) {
+		return body
+	}
 	dec := json.NewDecoder(bytes.NewReader(body))
 	dec.UseNumber()
 	var value any
@@ -58,6 +61,15 @@ func (r *Redactor) JSON(body []byte) []byte {
 		return r.Bytes(body)
 	}
 	return out
+}
+
+func (r *Redactor) present(body []byte) bool {
+	for _, needle := range r.needles {
+		if bytes.Contains(body, []byte(needle)) {
+			return true
+		}
+	}
+	return false
 }
 
 func (r *Redactor) value(value any) any {

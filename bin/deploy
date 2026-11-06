@@ -152,6 +152,7 @@ deploy_frankfurt() {
 }
 
 :$public_port {
+	encode zstd gzip
 	basicauth {
 		$auth_user $auth_hash
 	}

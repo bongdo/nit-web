@@ -97,9 +97,9 @@ export function lightStepIDs(messages: Message[]): string[] {
     .filter((message) =>
       (message.content ?? []).some(
         (part) =>
-          part.light &&
           (part.type === "reasoning" ||
-            (part.type === "tool" && part.name !== "question")),
+            (part.type === "tool" && part.name !== "question")) &&
+          part.light,
       ),
     )
     .map((message) => message.id);

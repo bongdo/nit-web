@@ -59,7 +59,15 @@ function SessionRow({
   onDelete: () => void;
 }) {
   const title = session.title?.trim() || (session.parentID ? "Subagent" : "New chat");
-  const state = waiting ? "session-waiting" : failed ? "session-failed" : done ? "session-done" : null;
+  const state = waiting
+    ? "session-waiting"
+    : failed
+      ? "session-failed"
+      : running
+        ? "session-running"
+        : done
+          ? "session-done"
+          : null;
   const hasSubagents = depth === 0 && subagentCount > 0;
   return (
     <div
@@ -111,9 +119,13 @@ function SessionRow({
                   ? cn("bg-spark ring-spark/30 ring-2", animated && "waiting-dot")
                   : running
                     ? "animate-pulse bg-emerald-500"
-                    : "bg-border",
+                    : done
+                      ? "bg-success ring-success/20 ring-2"
+                      : "bg-border",
               )}
-              title={waiting ? "Waiting for your answer" : running ? "Running" : "Idle"}
+              title={
+                waiting ? "Waiting for your answer" : running ? "Running" : done ? "Done" : "Idle"
+              }
             />
           )}
           <span className="min-w-0 flex-1 truncate text-[13px] font-medium">{title}</span>
@@ -142,7 +154,9 @@ function SessionRow({
                   ? "text-emerald-500"
                   : "text-muted-foreground",
             )}
-            title={waiting ? "Waiting for your answer" : running ? "Running" : undefined}
+            title={
+              waiting ? "Waiting for your answer" : running ? "Running" : done ? "Done" : undefined
+            }
           >
             {waiting
               ? "Waiting for your answer"

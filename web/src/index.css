@@ -74,6 +74,8 @@
   --color-input: var(--input);
   --color-ring: var(--ring);
   --color-spark: var(--spark);
+  --color-attention: var(--attention);
+  --color-success: var(--success);
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
@@ -303,14 +305,16 @@
 
   .session-state {
     --sweep: var(--attention);
+    --pulse: 3.2s;
+    --glint: 5s;
     position: relative;
     overflow: hidden;
     background-image: radial-gradient(
       130% 170% at 50% 120%,
-      color-mix(in oklab, var(--sweep) 18%, transparent),
+      color-mix(in oklab, var(--sweep) 13%, transparent),
       transparent 70%
     );
-    box-shadow: inset 0 0 18px color-mix(in oklab, var(--sweep) 12%, transparent);
+    box-shadow: inset 0 0 18px color-mix(in oklab, var(--sweep) 10%, transparent);
   }
 
   .session-state::before {
@@ -327,8 +331,25 @@
       transparent 64%
     );
     filter: blur(18px);
-    opacity: 0.75;
+    opacity: 0.55;
     transform: translateX(-35%);
+  }
+
+  .session-state::after {
+    content: "";
+    position: absolute;
+    inset: 0 -60%;
+    z-index: 0;
+    pointer-events: none;
+    background: linear-gradient(
+      100deg,
+      transparent 42%,
+      color-mix(in oklab, var(--sweep) 60%, transparent) 48%,
+      color-mix(in oklab, var(--sweep) 20%, transparent) 52%,
+      transparent 58%
+    );
+    opacity: 0;
+    transform: translateX(-120%);
   }
 
   .session-state > * {
@@ -337,23 +358,39 @@
   }
 
   .session-state-live {
-    animation: session-breathe 3.2s ease-in-out infinite;
+    animation: session-breathe var(--pulse) ease-in-out infinite;
   }
 
   .session-state-live::before {
-    animation: session-shift 3.2s cubic-bezier(0.45, 0, 0.25, 1) infinite;
+    animation: session-shift var(--pulse) cubic-bezier(0.45, 0, 0.25, 1) infinite;
+  }
+
+  .session-state-live::after {
+    animation: session-glint var(--glint) cubic-bezier(0.22, 0.7, 0.2, 1) infinite;
   }
 
   .session-waiting {
     --sweep: var(--attention);
+    --pulse: 2.8s;
+    --glint: 3s;
   }
 
   .session-failed {
     --sweep: var(--destructive);
+    --pulse: 4.4s;
+    --glint: 5.6s;
+  }
+
+  .session-running {
+    --sweep: var(--success);
+    --pulse: 3.6s;
+    --glint: 4.2s;
   }
 
   .session-done {
     --sweep: var(--success);
+    --pulse: 5s;
+    --glint: 6.4s;
   }
 
   .waiting-dot {
@@ -369,13 +406,32 @@
     }
   }
 
+  @keyframes session-glint {
+    0%,
+    10% {
+      opacity: 0;
+      transform: translateX(-120%);
+    }
+    18% {
+      opacity: 1;
+    }
+    36% {
+      opacity: 0;
+      transform: translateX(120%);
+    }
+    100% {
+      opacity: 0;
+      transform: translateX(120%);
+    }
+  }
+
   @keyframes session-breathe {
     0%,
     100% {
-      box-shadow: inset 0 0 14px color-mix(in oklab, var(--sweep) 8%, transparent);
+      box-shadow: inset 0 0 14px color-mix(in oklab, var(--sweep) 7%, transparent);
     }
     50% {
-      box-shadow: inset 0 0 28px color-mix(in oklab, var(--sweep) 24%, transparent);
+      box-shadow: inset 0 0 28px color-mix(in oklab, var(--sweep) 20%, transparent);
     }
   }
 
@@ -494,6 +550,7 @@
   @media (prefers-reduced-motion: reduce) {
     .session-state-live,
     .session-state-live::before,
+    .session-state-live::after,
     .waiting-dot,
     .compaction-enter .compaction-line,
     .compaction-enter .compaction-pill,

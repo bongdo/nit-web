@@ -447,7 +447,7 @@ describe("light transcripts", () => {
     }
   });
 
-  it("clears a stale light flag on a question", () => {
+  it("clears a stale light flag when a question event arrives", () => {
     const question = questionTool("q1", {
       status: "completed",
       input: { questions: [{ question: "Pick" }] },
@@ -461,6 +461,7 @@ describe("light transcripts", () => {
       id: "q1",
       content: [{ type: "text", text: "User answered: A" }],
       metadata: { answers: [["A"]] },
+      light: true,
     });
     expect(lightenEvent(success, cached)).toBe(success);
     const part = applyEvent(cached, success)[0].content?.[0] as ToolPart;
@@ -483,6 +484,45 @@ describe("light transcripts", () => {
       content: [{ type: "tool", id: "t2", name: "read", state: { status: "completed" } }],
     } as Message;
     expect(lightStepIDs([light, full])).toEqual(["m1"]);
+  });
+
+  it("does not list a question-only message as a lazy step", () => {
+    const question = questionTool("q1", {
+      status: "completed",
+      input: { questions: [{ question: "Pick" }] },
+      content: [{ type: "text", text: "User answered: A" }],
+      metadata: { answers: [["A"]] },
+    });
+    question.light = true;
+    const messages: Message[] = [
+      {
+        id: "m1",
+        type: "assistant",
+        time: { created: 1 },
+        content: [question],
+      },
+      {
+        id: "m2",
+        type: "assistant",
+        time: { created: 2 },
+        content: [{ type: "reasoning", text: "", light: true }],
+      },
+      {
+        id: "m3",
+        type: "assistant",
+        time: { created: 3 },
+        content: [
+          {
+            type: "tool",
+            id: "t1",
+            name: "read",
+            light: true,
+            state: { status: "completed" },
+          },
+        ],
+      },
+    ];
+    expect(lightStepIDs(messages)).toEqual(["m2", "m3"]);
   });
 
   it("marks a light tool as loaded when the full event arrives", () => {

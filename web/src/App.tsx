@@ -1128,6 +1128,7 @@ export default function App() {
   const closePicker = useCallback(() => setPickerOpen(false), []);
   const openSettings = useCallback(() => setSettingsOpen(true), []);
   const closeSettings = useCallback(() => setSettingsOpen(false), []);
+  const openTheme = useCallback(() => setThemeOpen(true), []);
   const closeTheme = useCallback(() => setThemeOpen(false), []);
   const openSidebar = useCallback(() => setSidebarOpen(true), []);
   const toggleHidden = useCallback(() => setShowHidden((value) => !value), []);
@@ -1772,6 +1773,8 @@ export default function App() {
             selectedId={selectedId}
             loading={sessionsLoading}
             health={health}
+            streamStatus={streamStatus}
+            theme={theme}
             search={search}
             searchRef={searchRef}
             hiddenIds={hiddenIds}
@@ -1792,6 +1795,7 @@ export default function App() {
             }}
             notify={notifications}
             onNotify={() => void toggleNotify()}
+            onTheme={openTheme}
             isRunning={isRunning}
             waitingIds={waitingIds}
             failedIds={failedIds}
@@ -1821,8 +1825,6 @@ export default function App() {
           contextPercent={shownContext}
           cost={shownCost}
           estimatedCost={sessionCost === 0 && estimated > 0}
-          health={health}
-          streamStatus={streamStatus}
           collapsed={swipeMode ? !swipe.opened : collapsed}
           sidebarMode={sidebarMode}
           subagents={subagents}

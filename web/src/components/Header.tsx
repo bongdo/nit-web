@@ -1,15 +1,6 @@
 import { memo, useEffect, useRef, useState } from "react";
-import {
-  ArrowLeft,
-  Folder,
-  Loader2,
-  PanelLeftClose,
-  PanelLeftOpen,
-  Wifi,
-  WifiOff,
-} from "lucide-react";
-import type { Health, Model, ModelRef, Session } from "../lib/types";
-import type { StreamStatus } from "../hooks/useEventStream";
+import { ArrowLeft, Folder, PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import type { Model, ModelRef, Session } from "../lib/types";
 import { basename, formatCost, modelLabel } from "../lib/format";
 import { cn } from "../lib/utils";
 import { Button } from "./ui/button";
@@ -87,8 +78,6 @@ function ModelChip({ label }: { label: string }) {
   );
 }
 
-const pill = "border-border/60 bg-card/90 rounded-lg border shadow-sm backdrop-blur-2xl";
-
 export function SessionPill({
   session,
   directory: fallbackDirectory,
@@ -113,7 +102,7 @@ export function SessionPill({
   const directory = session?.location?.directory ?? fallbackDirectory;
   const title = session?.title?.trim() || (session ? "New chat" : "nit-gui");
   return (
-    <div className={cn(pill, "min-w-0 overflow-hidden px-3.5 py-1", className)}>
+    <div className={cn("min-w-0 overflow-hidden px-1 py-1", className)}>
       <h1 className="truncate text-[13px] font-semibold leading-tight">{title}</h1>
       <div className="text-muted-foreground flex min-w-0 items-center gap-1 text-[10px] leading-tight">
         <Folder className="size-3 shrink-0" />
@@ -149,8 +138,6 @@ export const Header = memo(function Header({
   contextPercent,
   cost,
   estimatedCost,
-  health,
-  streamStatus,
   collapsed,
   sidebarMode,
   subagents,
@@ -167,8 +154,6 @@ export const Header = memo(function Header({
   contextPercent?: number | null;
   cost?: number;
   estimatedCost?: boolean;
-  health: Health | null;
-  streamStatus: StreamStatus;
   collapsed: boolean;
   sidebarMode: "button" | "hover" | "swipe";
   subagents: Session[];
@@ -177,31 +162,13 @@ export const Header = memo(function Header({
   onBack: () => void;
   onToggleSidebar: () => void;
 }) {
-  const live = streamStatus === "online" && health?.ok;
-  const wasLive = useRef(Boolean(live));
-  const booted = useRef(false);
-  const [reconnected, setReconnected] = useState(0);
-  const liveTitle = ["Live", health?.version && `OpenCode ${health.version}`, health?.server]
-    .filter(Boolean)
-    .join(" · ");
-
-  useEffect(() => {
-    if (!booted.current) {
-      booted.current = true;
-      wasLive.current = Boolean(live);
-      return;
-    }
-    if (live && !wasLive.current) setReconnected((count) => count + 1);
-    wasLive.current = Boolean(live);
-  }, [live]);
-
   return (
-    <header className="pointer-events-none absolute inset-x-0 top-0 z-10 flex items-center gap-2 px-2.5 py-2">
+    <header className="from-background via-background/80 pointer-events-none absolute inset-x-0 top-0 z-10 flex items-center gap-2 bg-gradient-to-b to-transparent px-2.5 pt-2 pb-5">
       {sidebarMode !== "hover" && (
         <Button
           variant="ghost"
           size="icon-sm"
-          className={cn(pill, "pointer-events-auto hidden size-9 md:inline-flex")}
+          className="pointer-events-auto hidden size-9 md:inline-flex"
           onClick={onToggleSidebar}
           title={collapsed ? "Show chats" : "Hide chats"}
           aria-label={collapsed ? "Show chats" : "Hide chats"}
@@ -224,13 +191,7 @@ export const Header = memo(function Header({
 
       <div className="pointer-events-auto ml-auto flex shrink-0 items-center gap-2">
         {parent && (
-          <Button
-            variant="ghost"
-            size="sm"
-            className={cn(pill, "h-9")}
-            onClick={onBack}
-            title="Back to parent"
-          >
+          <Button variant="ghost" size="sm" className="h-9" onClick={onBack} title="Back to parent">
             <ArrowLeft />
             Parent
           </Button>
@@ -239,42 +200,9 @@ export const Header = memo(function Header({
           <SubagentMenu
             sessions={subagents}
             onOpen={onOpenSubagent}
-            className={cn(pill, "hidden md:inline-flex")}
+            className="hidden md:inline-flex"
           />
         )}
-
-        <div className="hidden items-center gap-2 md:flex">
-          <span
-            className={cn(
-              pill,
-              "chrome-sheen-health inline-flex size-9 items-center justify-center",
-              live
-                ? "text-success"
-                : streamStatus === "connecting"
-                  ? "text-attention"
-                  : "text-destructive",
-              !live && streamStatus !== "connecting" && "chrome-sheen-health-offline",
-            )}
-            title={
-              live
-                ? liveTitle
-                : streamStatus === "connecting"
-                  ? "Connecting to event stream"
-                  : (health?.error ?? "Service offline")
-            }
-          >
-            {streamStatus === "connecting" ? (
-              <Loader2 className="size-3.5 animate-spin" />
-            ) : live ? (
-              <Wifi className="size-3.5" />
-            ) : (
-              <WifiOff className="size-3.5" />
-            )}
-            {reconnected > 0 && (
-              <span key={reconnected} aria-hidden className="chrome-sheen-health-sweep" />
-            )}
-          </span>
-        </div>
       </div>
     </header>
   );

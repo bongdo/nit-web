@@ -18,17 +18,31 @@ import {
   FolderOpen,
   GitBranch,
   MessageSquare,
+  Monitor,
+  Moon,
+  Palette,
   Plus,
   Search,
   Settings,
+  Sun,
   Trash2,
 } from "lucide-react";
 import type { Health, Session } from "../lib/types";
+import type { StreamStatus } from "../hooks/useEventStream";
+import { themeLabel, type Theme } from "../lib/themes";
 import { basename, filterSessions, formatRelative } from "../lib/format";
 import { SCOPES, groupSessions, type Scope } from "../lib/sessions";
 import { cn } from "../lib/utils";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
+import { ConnectionStatus } from "./ConnectionStatus";
+
+function ThemeIcon({ theme }: { theme: Theme }) {
+  if (theme === "light") return <Sun />;
+  if (theme === "dark") return <Moon />;
+  if (theme === "system") return <Monitor />;
+  return <Palette />;
+}
 
 function SessionRow({
   session,
@@ -263,6 +277,8 @@ export const Sidebar = memo(function Sidebar({
   selectedId,
   loading,
   health,
+  streamStatus,
+  theme,
   search,
   searchRef,
   hiddenIds,
@@ -280,6 +296,7 @@ export const Sidebar = memo(function Sidebar({
   onSettings,
   notify,
   onNotify,
+  onTheme,
   isRunning,
   waitingIds,
   failedIds,
@@ -293,6 +310,8 @@ export const Sidebar = memo(function Sidebar({
   selectedId: string | null;
   loading: boolean;
   health: Health | null;
+  streamStatus: StreamStatus;
+  theme: Theme;
   search: string;
   searchRef: RefObject<HTMLInputElement | null>;
   hiddenIds: Set<string>;
@@ -310,6 +329,7 @@ export const Sidebar = memo(function Sidebar({
   onSettings: () => void;
   notify: boolean;
   onNotify: () => void;
+  onTheme: () => void;
   isRunning: (id: string) => boolean;
   waitingIds: Set<string>;
   failedIds: Set<string>;
@@ -647,7 +667,17 @@ export const Sidebar = memo(function Sidebar({
         )}
       </div>
 
-      <div className="border-border text-muted-foreground flex items-center gap-1 border-t px-2 py-1.5 text-[10px]">
+      <div className="border-border text-muted-foreground flex items-center gap-0.5 border-t px-1.5 py-1.5 text-[10px]">
+        <ConnectionStatus health={health} streamStatus={streamStatus} />
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          onClick={onTheme}
+          title={`Theme: ${themeLabel(theme)}`}
+          aria-label={`Theme: ${themeLabel(theme)}`}
+        >
+          <ThemeIcon theme={theme} />
+        </Button>
         <Button
           variant="ghost"
           size="icon-sm"
@@ -679,7 +709,7 @@ export const Sidebar = memo(function Sidebar({
           </button>
         )}
         <span
-          className={cn("font-mono", hiddenCount === 0 && "ml-auto")}
+          className={cn("pr-1 font-mono", hiddenCount === 0 && "ml-auto")}
           title={`${sessions.length} chats`}
         >
           {sessions.length}

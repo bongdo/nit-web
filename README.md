@@ -39,6 +39,10 @@ Dictation needs a secure context, so `http://<public-or-tailnet-ip>` cannot use
 the microphone. Use an SSH tunnel to `127.0.0.1:7792` or put HTTPS in front
 (Tailscale Serve/Funnel) when dictation matters.
 
+See [`docs/background-services.md`](docs/background-services.md) for the full
+list of background processes, ports, memory, startup order and the public-link
+security checklist.
+
 ```sh
 ./bin/check
 ```

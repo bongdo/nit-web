@@ -245,9 +245,10 @@ function drawGold(t) {
       top.push([x, base + Math.sin(x * f + t * speed + phase) * amp + goldLift(x, base)]);
     }
     const grad = ctx.createLinearGradient(0, base, 0, base + thick);
-    grad.addColorStop(0, goldTone(isDark() ? 0.1 : 0.06));
-    grad.addColorStop(0.45, goldTone(isDark() ? 0.02 : 0.02));
-    grad.addColorStop(1, goldTone(isDark() ? 0.07 : 0.04));
+    grad.addColorStop(0, goldTone(isDark() ? 0.13 : 0.08));
+    grad.addColorStop(0.3, goldTone(isDark() ? 0.03 : 0.02));
+    grad.addColorStop(0.75, goldTone(isDark() ? 0.01 : 0.01));
+    grad.addColorStop(1, goldTone(isDark() ? 0.09 : 0.05));
     ctx.fillStyle = grad;
     ctx.beginPath();
     for (const [x, y] of top) {
@@ -258,7 +259,7 @@ function drawGold(t) {
     }
     ctx.closePath();
     ctx.fill();
-    for (const [width, a] of [[7, 0.05], [3, 0.16], [1, 0.66]]) {
+    for (const [width, a] of [[9, 0.05], [3.5, 0.2], [1, 0.68]]) {
       ctx.lineWidth = width;
       ctx.strokeStyle = goldTone(isDark() ? a : a * 0.7);
       ctx.beginPath();

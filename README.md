@@ -30,6 +30,9 @@ from `/etc/caddy/Caddyfile`; set `NIT_GUI_PUBLIC_PASSWORD` to use another
 password. The public port must be open in the OCI security list. The tailnet URL
 works without opening it. The listener is plain HTTP: basic auth protects access,
 not the password in transit, so prefer the tailnet URL for anything private.
+Dictation needs a secure context, so `http://<public-or-tailnet-ip>` cannot use
+the microphone. Use an SSH tunnel to `127.0.0.1:7792` or put HTTPS in front
+(Tailscale Serve/Funnel) when dictation matters.
 
 ```sh
 ./bin/check

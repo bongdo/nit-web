@@ -168,6 +168,7 @@ EOF
     echo "deploy: tailnet http://$tailnet_ip:$public_port/"
   fi
   echo "deploy: open tcp/$public_port in the OCI security list for public access"
+  echo "deploy: dictation needs https or a local tunnel to 127.0.0.1:$public_port"
 }
 
 case "$target" in

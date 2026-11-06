@@ -344,8 +344,8 @@
     background: linear-gradient(
       100deg,
       transparent 42%,
-      color-mix(in oklab, var(--sweep) 60%, transparent) 48%,
-      color-mix(in oklab, var(--sweep) 20%, transparent) 52%,
+      color-mix(in oklab, white 55%, var(--sweep)) 48%,
+      color-mix(in oklab, white 18%, var(--sweep)) 52%,
       transparent 58%
     );
     opacity: 0;

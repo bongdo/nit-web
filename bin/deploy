@@ -104,6 +104,19 @@ deploy_frankfurt() {
   mkdir -p "$run_dir"
   go build -trimpath -o "$bin" .
   stop "$bin --addr 127.0.0.1:$port"
+
+  if [ -z "${NIT_GUI_LANGUAGETOOL_URL:-}" ] && {
+    [ -n "${NIT_GUI_LANGUAGETOOL:-}" ] ||
+      command -v languagetool-http-server >/dev/null 2>&1 ||
+      command -v nix >/dev/null 2>&1
+  }; then
+    local grammar_port="${NIT_GUI_LANGUAGETOOL_PORT:-8180}"
+    if NIT_GUI_LANGUAGETOOL_PORT="$grammar_port" "$PWD/bin/languagetool" >/dev/null 2>&1; then
+      export NIT_GUI_LANGUAGETOOL_URL="http://127.0.0.1:$grammar_port"
+      unset NIT_GUI_LANGUAGETOOL
+    fi
+  fi
+
   NIT_GUI_ALLOWED_HOSTS="$allowed" setsid "$bin" --addr "127.0.0.1:$port" >"$run_dir/nit-gui.log" 2>&1 < /dev/null &
 
   local ready=0

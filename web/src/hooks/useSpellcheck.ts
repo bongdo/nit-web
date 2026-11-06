@@ -55,7 +55,7 @@ export function useSpellcheck(text: string, enabled: boolean, ignore: string[]) 
           grammarCooldownUntil = Date.now() + 60_000;
           if (alive) setGrammar([]);
         });
-    }, 700);
+    }, 450);
     return () => {
       alive = false;
       window.clearTimeout(timer);

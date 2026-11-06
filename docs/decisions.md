@@ -96,3 +96,15 @@ Why: this keeps instant feedback for typos and adds the errors nspell cannot see
 Rejected: LanguageTool only (slower Russian checks, loses instant feedback), nspell only (misses `too`/`to` and punctuation), an AI proofreader.
 
 Cost: about 0.7 GB RSS on the host running LanguageTool, a 3–4 s warm-up on the first grammar request, ~250 ms per Russian check, and a Java dependency. Grammar stays optional.
+
+## 2026-11-06 — Warm grammar and dictation at startup
+
+Context: LanguageTool took 4–6 s on the first grammar request, and the fast dictation server started only when the microphone was first used. The user wants the shortest possible wait.
+
+Decision: the Go server starts LanguageTool and `whisper-server` in background goroutines at startup. LanguageTool can also run as a detached sidecar through `bin/languagetool`; the app then uses `NIT_GUI_LANGUAGETOOL_URL` and survives app restarts. Fast dictation uses `NIT_GUI_WHISPER_SERVER` and the small model.
+
+Why: the user pays the warmup once when the app starts, not on every first action. A detached sidecar also removes the cold start across deploys.
+
+Rejected: starting LanguageTool lazily (the old 5–10 s first check), starting it synchronously before serving (the app would take seconds to open), keeping fast dictation lazy.
+
+Cost: LanguageTool uses about 0.6–0.7 GB and fast dictation loads its model at boot; if the binaries or models are missing, warmup is skipped and the feature falls back silently. The external sidecar has no supervisor unless it is run under systemd.

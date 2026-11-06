@@ -60,7 +60,32 @@ func New(provider ClientProvider, static fs.FS, log *slog.Logger) http.Handler {
 		}
 	}
 	s.routes()
+	go s.warm()
 	return s.middleware(s.mux)
+}
+
+func (s *Server) warm() {
+	if os.Getenv("NIT_GUI_WARM") == "0" {
+		return
+	}
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+		defer cancel()
+		if err := s.grammar.ensure(ctx); err != nil {
+			s.log.Debug("grammar warmup skipped", "error", err)
+			return
+		}
+		s.log.Info("grammar ready", "url", s.grammar.url)
+	}()
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+		defer cancel()
+		if err := s.fast.ensure(ctx); err != nil {
+			s.log.Debug("fast stt warmup skipped", "error", err)
+			return
+		}
+		s.log.Info("fast stt ready")
+	}()
 }
 
 func (s *Server) routes() {

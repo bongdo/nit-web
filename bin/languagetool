@@ -1,0 +1,41 @@
+#!/usr/bin/env bash
+set -euo pipefail
+cd "$(dirname "$0")/.."
+
+port="${NIT_GUI_LANGUAGETOOL_PORT:-8179}"
+bin="${NIT_GUI_LANGUAGETOOL:-}"
+if [ -z "$bin" ]; then
+  bin="$(command -v languagetool-http-server || true)"
+fi
+if [ -z "$bin" ] && command -v nix >/dev/null 2>&1; then
+  bin="$(nix build --no-link --print-out-paths nixpkgs#languagetool 2>/dev/null | tail -1)/bin/languagetool-http-server"
+fi
+if [ -z "$bin" ] || [ ! -x "$bin" ]; then
+  echo "languagetool: set NIT_GUI_LANGUAGETOOL or install languagetool-http-server" >&2
+  exit 1
+fi
+
+if curl -fsS "http://127.0.0.1:$port/v2/languages" >/dev/null 2>&1; then
+  echo "languagetool: already running on $port"
+  exit 0
+fi
+
+mkdir -p .cache
+options="${NIT_GUI_LANGUAGETOOL_JAVA_OPTS:--Xms256m -Xmx512m}"
+JAVA_TOOL_OPTIONS="$options" setsid "$bin" --port "$port" >.cache/languagetool.log 2>&1 < /dev/null &
+
+for _ in $(seq 1 150); do
+  if curl -fsS "http://127.0.0.1:$port/v2/languages" >/dev/null 2>&1; then
+    curl -fsS -X POST "http://127.0.0.1:$port/v2/check" \
+      --data-urlencode "text=тест" --data "language=ru-RU" >/dev/null 2>&1 || true
+    curl -fsS -X POST "http://127.0.0.1:$port/v2/check" \
+      --data-urlencode "text=test" --data "language=en-US" >/dev/null 2>&1 || true
+    echo "languagetool: http://127.0.0.1:$port"
+    exit 0
+  fi
+  sleep 0.2
+done
+
+echo "languagetool: did not start on $port" >&2
+tail -20 .cache/languagetool.log >&2 || true
+exit 1

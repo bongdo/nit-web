@@ -126,6 +126,8 @@ rewritten to loopback. Credentials in a server URL are discarded.
 | `NIT_GUI_LANGUAGETOOL_URL` | Use an already running LanguageTool server instead of spawning one. |
 | `NIT_GUI_LANGUAGETOOL_PORT` | Spawned server port, default `8179`. |
 | `NIT_GUI_LANGUAGETOOL_JAVA_OPTS` | JVM options, default `-Xms256m -Xmx512m`. |
+| `NIT_GUI_WHISPER_SERVER` | Fast dictation server binary, default `whisper-server` on `PATH`. |
+| `NIT_GUI_WARM` | Set to `0` to skip eager LanguageTool and fast-dictation warmup. |
 | `--addr` | Listener address, default `127.0.0.1:7788`. |
 
 If the service is down, the GUI still starts and shows an offline screen with a
@@ -264,6 +266,19 @@ and the app starts it on the first grammar request. It needs Java 17 or newer,
 about 0.7 GB RSS after Russian and English are warm, and about 0.5 GB of disk
 for LanguageTool plus the JRE. Without it, the composer only checks spelling.
 
+The app warms both LanguageTool and fast dictation at startup, so the first
+check in a running app is not a cold start. To keep LanguageTool alive across
+app restarts as well, start it separately:
+
+```sh
+NIT_GUI_LANGUAGETOOL=/path/to/languagetool-http-server bin/languagetool
+NIT_GUI_LANGUAGETOOL_URL=http://127.0.0.1:8179 bin/frankfurt
+```
+
+`bin/languagetool` detaches the server, waits for `/v2/languages`, and warms
+Russian and English before returning. Set `NIT_GUI_WARM=0` to skip the app's
+own startup warmup.
+
 ## Known limits
 
 - Sessions are listed up to OpenCode's newest 100. Search filters that window
@@ -272,10 +287,14 @@ for LanguageTool plus the JRE. Without it, the composer only checks spelling.
   Longer sessions are truncated at 2000 messages.
 - No permission prompt UI, form/question UI, session deletion, shell panel, PTY
   or VCS panel yet.
-- Dictation is transcribe-on-stop, not a live stream. It needs `whisper-cli` and
-  `~/.local/share/whisper/ggml-large-v3-turbo-q5_0.bin` on the host that runs
-  nit-gui; override with `NIT_GUI_WHISPER`, `NIT_GUI_WHISPER_MODEL` and
-  `NIT_GUI_STT_LANG`.
+- Dictation has two modes. Fast needs `whisper-server` (override with
+  `NIT_GUI_WHISPER_SERVER`) and
+  `~/.local/share/whisper/ggml-small-q5_1.bin` (override with
+  `NIT_GUI_STT_FAST_MODEL`); the server warms at app startup and transcribes
+  segments while you record. Accurate needs `whisper-cli` and
+  `~/.local/share/whisper/ggml-large-v3-turbo-q5_0.bin`; it runs one pass when
+  you stop. Override the accurate model with `NIT_GUI_WHISPER_MODEL` and the
+  language with `NIT_GUI_STT_LANG`.
 - Spelling is spellcheck only: nspell does not catch real-word errors (`too` vs
   `to`), Russian `-тся/-ться` or punctuation. It loads about 4 MB of
   dictionaries in a worker; the first check can take a few seconds after start.

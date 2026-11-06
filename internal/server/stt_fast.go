@@ -69,9 +69,13 @@ func (f *fastSTT) ensure(ctx context.Context) error {
 	if _, err := os.Stat(model); err != nil {
 		return fmt.Errorf("fast whisper model not found: %s", model)
 	}
-	bin, err := exec.LookPath("whisper-server")
-	if err != nil {
-		return fmt.Errorf("whisper-server not found")
+	bin := strings.TrimSpace(os.Getenv("NIT_GUI_WHISPER_SERVER"))
+	if bin == "" {
+		var err error
+		bin, err = exec.LookPath("whisper-server")
+		if err != nil {
+			return fmt.Errorf("whisper-server not found")
+		}
 	}
 	cmd := exec.Command(bin,
 		"-m", model,

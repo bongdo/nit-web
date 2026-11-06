@@ -122,6 +122,7 @@ export const Composer = memo(function Composer({
   const valueRef = useRef(value);
   valueRef.current = value;
   const [hydrated, setHydrated] = useState(false);
+  const hydratedRef = useRef(false);
   const editedRef = useRef(false);
   const [submitting, setSubmitting] = useState(false);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
@@ -163,6 +164,8 @@ export const Composer = memo(function Composer({
     setText(resolved);
     if (!question) {
       editedRef.current = true;
+      hydratedRef.current = true;
+      setHydrated(true);
       saveDraftState(draftKey, resolved, Date.now());
       if (!resolved) void api.setDraft(draftKey, "").catch(() => {});
     }
@@ -183,11 +186,10 @@ export const Composer = memo(function Composer({
             void api.setDraft(draftKey, local.text).catch(() => {});
           }
         }
+        hydratedRef.current = true;
         setHydrated(true);
       })
-      .catch(() => {
-        if (!cancelled) setHydrated(true);
-      });
+      .catch(() => {});
     return () => {
       cancelled = true;
     };
@@ -205,7 +207,7 @@ export const Composer = memo(function Composer({
 
   useEffect(
     () => () => {
-      if (questionRef.current) return;
+      if (questionRef.current || !hydratedRef.current) return;
       const text = valueRef.current;
       saveDraftState(draftKey, text, Date.now());
       void api.setDraft(draftKey, text).catch(() => {});

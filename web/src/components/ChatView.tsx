@@ -222,7 +222,6 @@ export function ChatView({
   }, [
     agents,
     freshCompaction,
-    lastCompactionId,
     messages,
     models,
     onFork,

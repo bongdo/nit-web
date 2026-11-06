@@ -109,6 +109,7 @@ export const MessageRow = memo(function MessageRow({
   autoOpen,
   onRevert,
   onFork,
+  onLoadMessage,
 }: {
   message: Message;
   models: Model[];
@@ -118,6 +119,7 @@ export const MessageRow = memo(function MessageRow({
   autoOpen?: boolean;
   onRevert: (message: Message) => void;
   onFork: (message: Message) => void;
+  onLoadMessage?: (messageID: string) => void;
 }) {
   const [copied, setCopied] = useState(false);
 
@@ -280,17 +282,22 @@ export const MessageRow = memo(function MessageRow({
       </div>
       <div className="min-w-0 pl-8">
         {content.map((part, index) => {
+          const onLoad =
+            onLoadMessage && !streaming && "light" in part && part.light
+              ? () => onLoadMessage(message.id)
+              : undefined;
           if (part.type === "reasoning") {
             return (
               <Reasoning
                 key={`reasoning-${part.ordinal ?? index}`}
                 part={part}
                 streaming={streaming && index === lastIndex}
+                onLoad={onLoad}
               />
             );
           }
           if (part.type === "tool") {
-            return <ToolCall key={`tool-${part.id}`} part={part} />;
+            return <ToolCall key={`tool-${part.id}`} part={part} onLoad={onLoad} />;
           }
           const pureHtml = isPureHtml(part.text);
           return (

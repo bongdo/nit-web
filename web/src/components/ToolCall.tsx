@@ -55,11 +55,14 @@ function ContentItem({ content }: { content: ToolContent }) {
 export const ToolCall = memo(function ToolCall({
   part,
   cwd,
+  onLoad,
 }: {
   part: ToolPart;
   cwd?: string | null;
+  onLoad?: () => void | Promise<void>;
 }) {
   const [open, setOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
   const { verb, target } = toolSummary(part, cwd);
   const status = part.state.status;
   const content = part.state.content ?? [];
@@ -68,7 +71,13 @@ export const ToolCall = memo(function ToolCall({
     <details
       className="group"
       open={open}
-      onToggle={(event) => setOpen((event.currentTarget as HTMLDetailsElement).open)}
+      onToggle={(event) => {
+        const next = (event.currentTarget as HTMLDetailsElement).open;
+        setOpen(next);
+        if (!next || !part.light || !onLoad || loading) return;
+        setLoading(true);
+        Promise.resolve(onLoad()).finally(() => setLoading(false));
+      }}
     >
       <summary className="hover:bg-muted/40 flex cursor-pointer list-none items-center gap-2 rounded px-2 py-1 text-[11px] [&::-webkit-details-marker]:hidden">
         <ChevronRight className="text-muted-foreground size-3.5 shrink-0 transition-transform group-open:rotate-90" />
@@ -93,8 +102,12 @@ export const ToolCall = memo(function ToolCall({
             ))}
           </div>
         )}
-        {status === "completed" && content.length === 0 && (
+        {loading && <p className="text-muted-foreground">Loading output…</p>}
+        {status === "completed" && content.length === 0 && !part.light && (
           <p className="text-muted-foreground">No output</p>
+        )}
+        {status === "completed" && content.length === 0 && part.light && !loading && (
+          <p className="text-muted-foreground">Open to load output</p>
         )}
         {part.state.error && (
           <p className="text-destructive whitespace-pre-wrap">

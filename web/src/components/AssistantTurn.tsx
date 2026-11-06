@@ -187,17 +187,28 @@ export const AssistantTurn = memo(function AssistantTurn({
             </button>
             {open && (
               <div className="border-border border-t px-1.5 py-1">
-                {activity.map((part, index) =>
-                  part.type === "reasoning" ? (
+                {activity.map((part, index) => {
+                  const owner = owners.get(part);
+                  const onLoad =
+                    onLoadMessage && part.light && owner && !(streaming && owner.id === last?.id)
+                      ? () => onLoadMessage(owner.id)
+                      : undefined;
+                  return part.type === "reasoning" ? (
                     <Reasoning
                       key={`reasoning-${index}`}
                       part={part}
                       streaming={streaming && index === activity.length - 1}
+                      onLoad={onLoad}
                     />
                   ) : (
-                    <ToolCall key={`tool-${part.id ?? index}`} part={part} cwd={workspace} />
-                  ),
-                )}
+                    <ToolCall
+                      key={`tool-${part.id ?? index}`}
+                      part={part}
+                      cwd={workspace}
+                      onLoad={onLoad}
+                    />
+                  );
+                })}
               </div>
             )}
           </div>
@@ -244,6 +255,7 @@ function sameTurn(left: AssistantTurnProps, right: AssistantTurnProps): boolean 
     left.agents === right.agents &&
     left.onRevert === right.onRevert &&
     left.onFork === right.onFork &&
+    left.onLoadMessage === right.onLoadMessage &&
     sameMessages(left.messages, right.messages)
   );
 }

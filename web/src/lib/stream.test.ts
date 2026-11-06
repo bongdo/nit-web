@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { applyEvent, coalesceEvents, normalizeMessages } from "./stream";
+import {
+  applyEvent,
+  coalesceEvents,
+  lightenEvent,
+  lightMessages,
+  normalizeMessages,
+} from "./stream";
 import type { Message, StreamEvent, ToolPart } from "./types";
 
 function event(type: string, data: Record<string, unknown>, created = 1_000): StreamEvent {
@@ -146,6 +152,86 @@ describe("coalesceEvents", () => {
       event("session.text.delta", { assistantMessageID: "msg_1", ordinal: 0, delta: "b" }),
     ]);
     expect(merged).toHaveLength(3);
+  });
+});
+
+describe("light transcripts", () => {
+  it("strips tool content and trims reasoning", () => {
+    const long = "r".repeat(400);
+    const messages: Message[] = [
+      {
+        id: "m1",
+        type: "assistant",
+        time: { created: 1 },
+        content: [
+          { type: "reasoning", text: long, ordinal: 0 },
+          {
+            type: "tool",
+            id: "t1",
+            name: "read",
+            state: {
+              status: "completed",
+              input: { filePath: "/tmp/a" },
+              content: [{ type: "text", text: "output" }],
+            },
+          },
+          { type: "text", text: "answer", ordinal: 0 },
+        ],
+      },
+    ];
+    const light = lightMessages(messages);
+    const parts = light[0].content ?? [];
+    expect(parts[0]).toMatchObject({ type: "reasoning", light: true });
+    expect((parts[0] as { text: string }).text).toHaveLength(240);
+    expect(parts[1]).toMatchObject({ type: "tool", light: true });
+    expect((parts[1] as ToolPart).state.content).toEqual([]);
+    expect(parts[2]).toMatchObject({ type: "text", text: "answer" });
+  });
+
+  it("keeps a short tool preview in cached events", () => {
+    const event = lightenEvent(
+      eventOf("session.tool.success", {
+        assistantMessageID: "msg_1",
+        id: "t1",
+        content: [{ type: "text", text: "x".repeat(400) }],
+      }),
+    );
+    expect(event?.data.light).toBe(true);
+    const content = event?.data.content as { type: string; text: string }[];
+    expect(content[0].text).toHaveLength(240);
+  });
+
+  it("drops reasoning deltas from the cache", () => {
+    expect(
+      lightenEvent(
+        eventOf("session.reasoning.delta", {
+          assistantMessageID: "msg_1",
+          delta: "thinking",
+        }),
+      ),
+    ).toBeNull();
+  });
+
+  it("marks a light tool as loaded when the full event arrives", () => {
+    let messages = applyEvent(
+      [],
+      eventOf("session.tool.success", {
+        assistantMessageID: "msg_1",
+        id: "t1",
+        content: [],
+        light: true,
+      }),
+    );
+    expect((messages[0].content?.[0] as ToolPart).light).toBe(true);
+    messages = applyEvent(
+      messages,
+      eventOf("session.tool.success", {
+        assistantMessageID: "msg_1",
+        id: "t1",
+        content: [{ type: "text", text: "full" }],
+      }),
+    );
+    expect((messages[0].content?.[0] as ToolPart).light).toBe(false);
   });
 });
 

@@ -427,12 +427,39 @@ export const Composer = memo(function Composer({
     });
   };
 
+  const learnSentWords = (words: string[]) => {
+    let counts: Record<string, number> = {};
+    try {
+      const stored = JSON.parse(localStorage.getItem("nit-gui.spell-seen") ?? "{}");
+      if (stored && typeof stored === "object" && !Array.isArray(stored)) {
+        counts = stored as Record<string, number>;
+      }
+    } catch {
+      counts = {};
+    }
+    const learned: string[] = [];
+    for (const word of words) {
+      const count = (counts[word] ?? 0) + 1;
+      counts[word] = count;
+      if (count >= 3) {
+        learned.push(word);
+        delete counts[word];
+      }
+    }
+    localStorage.setItem("nit-gui.spell-seen", JSON.stringify(counts));
+    if (learned.length === 0) return;
+    setIgnored((current) => {
+      const next = Array.from(new Set([...current, ...learned]));
+      localStorage.setItem("nit-gui.spell-ignore", JSON.stringify(next));
+      return next;
+    });
+  };
+
   const addFiles = (files: File[]) => {
     if (!workspace) {
       onError("Choose a workspace before attaching files.");
       return;
-    }
-    for (const file of files) {
+    }    for (const file of files) {
       if (file.size > MAX_UPLOAD) {
         onError(`${file.name} is larger than ${formatBytes(MAX_UPLOAD)}.`);
         continue;
@@ -618,6 +645,10 @@ export const Composer = memo(function Composer({
     setSubmitting(true);
     try {
       await onSend(text, readyFiles, running ? "queue" : undefined);
+      const misspelled = issues
+        .filter((issue) => issue.source !== "grammar")
+        .map((issue) => issue.word.toLowerCase());
+      if (misspelled.length > 0) learnSentWords(misspelled);
       updateValue("");
       for (const item of attachments) {
         if (item.preview) URL.revokeObjectURL(item.preview);
@@ -916,6 +947,21 @@ export const Composer = memo(function Composer({
                     if (
                       area &&
                       Math.abs(area.selectionStart - end) <= 1 &&
+                      area.value.slice(undoFix.start, end) === undoFix.replacement
+                    ) {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      revertAutoFix();
+                      return;
+                    }
+                  }
+                  if (event.key === "Backspace" && undoFix) {
+                    const area = ref.current;
+                    const end = undoFix.start + undoFix.replacement.length;
+                    if (
+                      area &&
+                      area.selectionStart === end &&
+                      area.selectionEnd === end &&
                       area.value.slice(undoFix.start, end) === undoFix.replacement
                     ) {
                       event.preventDefault();

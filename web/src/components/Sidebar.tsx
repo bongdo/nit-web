@@ -424,25 +424,62 @@ export const Sidebar = memo(function Sidebar({
           </div>
         ) : (
           <div className="space-y-0.5">
-            {visible.map(({ session, depth }) => (
-              <SessionRow
-                key={session.id}
-                session={session}
-                depth={depth}
-                active={session.id === selectedId}
-                running={isRunning(session.id)}
-                waiting={waitingIds.has(session.id)}
-                failed={failedIds.has(session.id)}
-                done={doneIds.has(session.id)}
-                animated={animated}
-                hidden={hiddenIds.has(session.id)}
-                now={now}
-                onClick={() => onSelect(session.id)}
-                onHide={() => onHide(session.id)}
-                onUnhide={() => onUnhide(session.id)}
-                onDelete={() => onDelete(session.id)}
-              />
-            ))}
+            {visible.map(({ session, depth }) => {
+              const children = childrenByParent.get(session.id) ?? [];
+              const runningChildren = children.filter((child) => isRunning(child.id)).length;
+              const open = expanded.has(session.id);
+              return (
+                <Fragment key={session.id}>
+                  <SessionRow
+                    session={session}
+                    depth={depth}
+                    active={session.id === selectedId}
+                    running={isRunning(session.id)}
+                    waiting={waitingIds.has(session.id)}
+                    failed={failedIds.has(session.id)}
+                    done={doneIds.has(session.id)}
+                    animated={animated}
+                    hidden={hiddenIds.has(session.id)}
+                    now={now}
+                    subagentCount={children.length}
+                    runningSubagents={runningChildren}
+                    expanded={open}
+                    onClick={() => onSelect(session.id)}
+                    onToggle={() =>
+                      setExpanded((previous) => {
+                        const next = new Set(previous);
+                        if (next.has(session.id)) next.delete(session.id);
+                        else next.add(session.id);
+                        return next;
+                      })
+                    }
+                    onHide={() => onHide(session.id)}
+                    onUnhide={() => onUnhide(session.id)}
+                    onDelete={() => onDelete(session.id)}
+                  />
+                  {open &&
+                    children.map((child) => (
+                      <SessionRow
+                        key={child.id}
+                        session={child}
+                        depth={depth + 1}
+                        active={child.id === selectedId}
+                        running={isRunning(child.id)}
+                        waiting={waitingIds.has(child.id)}
+                        failed={failedIds.has(child.id)}
+                        done={doneIds.has(child.id)}
+                        animated={animated}
+                        hidden={hiddenIds.has(child.id)}
+                        now={now}
+                        onClick={() => onSelect(child.id)}
+                        onHide={() => onHide(child.id)}
+                        onUnhide={() => onUnhide(child.id)}
+                        onDelete={() => onDelete(child.id)}
+                      />
+                    ))}
+                </Fragment>
+              );
+            })}
           </div>
         )}
       </div>

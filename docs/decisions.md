@@ -252,3 +252,15 @@ Why: the browser already has media players and PDF viewing; the GUI only needs t
 Rejected: a custom audio/video player (extra controls and state), rendering every markdown link as a file card (breaks ordinary links), adding an icon package (lucide already has the needed file icons).
 
 Cost: video seeking depends on the browser buffering the whole file because `/api/file` does not forward range requests yet; media links load when the message is rendered.
+
+## 2026-11-06 — Frankfurt is the only runtime; capabilities stay server-side
+
+Context: the GUI grew host-side services (OpenCode, LanguageTool, Whisper) and client-side ones (nspell in a browser worker, microphone capture, audio playback). The product needs one production instance on Frankfurt and must not depend on what a particular client has installed.
+
+Decision: production runs only on the Frankfurt instance. OpenCode, nit-gui, Caddy, LanguageTool, Whisper and the TTS hub live there. The browser is a thin client: UI, microphone capture and audio playback only. New capabilities that need a model, dictionary, voice, JVM or another process are added as Frankfurt-side services behind `/api`, not as client-side dependencies. Browser `speechSynthesis` is not a TTS fallback.
+
+Why: one host to deploy, supervise, back up and secure; the client may be any browser on any OS; shared models and dictionaries do not depend on the device.
+
+Rejected: a local-first client with per-device TTS, STT or dictionaries; browser speech synthesis as a TTS fallback; keeping nspell in the browser indefinitely.
+
+Cost: spelling still runs in the browser until `/api/spell` lands; the TTS hub must move from `0.0.0.0:7787` to loopback and be proxied; every capability shares one host's CPU and RAM; a down Frankfurt instance takes the whole product down. This supersedes the browser-only part of 2026-11-05 — Composer spelling and the nspell half of 2026-11-06 — Hybrid spelling and grammar.

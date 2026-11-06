@@ -16,7 +16,7 @@ dictionaries, LanguageTool or a GPU.
 | --- | --- | --- |
 | Sessions, messages, models, agents | OpenCode on Frankfurt | source of truth |
 | STT | Frankfurt, `/api/stt` + `whisper-server` / `whisper-cli` | implemented |
-| TTS | Frankfurt, OpenCode TTS plugin; the browser only plays returned audio | host-side plugin, not managed by nit-gui |
+| TTS | Frankfurt, OpenCode TTS plugin; the browser never synthesizes speech | host-side plugin, not managed by nit-gui |
 | Spelling | browser nspell worker today; target Frankfurt `/api/spell` | migration gap |
 | Grammar | Frankfurt LanguageTool sidecar through `/api/grammar` | optional |
 | Attachments | Frankfurt, OpenCode `/api/experimental/fs/write` and `/tmp` | implemented |
@@ -33,7 +33,7 @@ Spelling is the remaining exception; see [Known limits](#known-limits).
 
 Open <http://127.0.0.1:7788>. `bin/run` installs frontend dependencies if
 needed, builds the web bundle when sources are newer, builds the Go binary and
-serves it on loopback.
+serves it on loopback. This is local development, not a deployment.
 
 ## Deploy
 
@@ -46,8 +46,8 @@ bin/frankfurt   # the only supported production deployment
 LanguageTool is configured (`NIT_GUI_LANGUAGETOOL` or
 `languagetool-http-server` on `PATH`), it also starts or reuses a detached
 sidecar on `8180` and passes its URL to the app, so grammar stays warm across
-app restarts. It reuses the first `basicauth` entry
-from `/etc/caddy/Caddyfile`; set `NIT_GUI_PUBLIC_PASSWORD` to use another
+app restarts. It reuses the first `basicauth` entry from
+`/etc/caddy/Caddyfile`; set `NIT_GUI_PUBLIC_PASSWORD` to use another
 password. The public port must be open in the OCI security list. The tailnet URL
 works without opening it. The listener is plain HTTP: basic auth protects access,
 not the password in transit, so prefer the tailnet URL for anything private.
@@ -140,8 +140,8 @@ workspace on the first Send, so an empty draft never appears in the list.
   it. Click a suggestion to apply it, or `ignore` to add the word to your
   dictionary. `Esc` hides the chip, and Settings → Spelling & grammar turns
   both checks off. Code blocks, inline code, URLs, paths, file names and known
-  project terms are skipped. This is the last client-side capability; it is
-  scheduled to move behind `/api/spell` on Frankfurt.
+  project terms are skipped. This is the last capability that still runs on
+  the client; it is scheduled to move behind `/api/spell` on Frankfurt.
 - Grammar is optional: when a LanguageTool sidecar is configured on Frankfurt,
   the same chip also shows punctuation and real-word fixes (`too` → `to`) from
   the host's Java process. Without it, only spelling runs. The draft goes to

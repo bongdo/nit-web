@@ -24,14 +24,15 @@ The remaining client-side exceptions are listed under [Migration gaps](#migratio
 | LanguageTool | `127.0.0.1:8180` | Grammar and real-word checks | optional |
 | `whisper-server` | `127.0.0.1:8178` | Fast dictation while recording | optional |
 | `whisper-cli` | none | Accurate dictation, one process per request | optional |
-| OpenCode TTS plugin | `127.0.0.1:7787` | Speech output; the browser only plays audio | optional |
+| OpenCode TTS plugin | `127.0.0.1:7787` target; currently `0.0.0.0:7787` | Speech output; the browser never synthesizes speech | optional |
 | Spelling | browser worker today, `/api/spell` on nit-gui target | RU/EN Hunspell checks | migration gap |
 
 MCP servers, shells and PTYs belong to OpenCode. They are not managed by
 nit-gui.
 
-Only Caddy may listen publicly. OpenCode, nit-gui, LanguageTool, Whisper and
-the TTS hub stay on loopback.
+In the target topology only Caddy listens publicly. OpenCode, nit-gui,
+LanguageTool, Whisper and the TTS hub stay on loopback; the TTS hub does not
+meet that yet.
 
 ## Client contract
 

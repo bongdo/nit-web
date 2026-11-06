@@ -571,7 +571,7 @@ export default function App() {
     let cancelled = false;
     setMessagesLoading(!cached);
     setTranscriptError(null);
-    const seen = new Set(messagesRef.current.map((message) => message.id));
+    const before = new Map(messagesRef.current.map((message) => [message.id, message]));
     api.messages(selectedId, { light: true, limit: TAIL_LIMIT })
       .then((page) => {
         if (cancelled) return;
@@ -585,12 +585,9 @@ export default function App() {
           current[0].id !== tail[0].id &&
           !current[0].id.startsWith("local-");
         const cursor = olderLoaded ? historyCursorRef.current : previous;
-        const added = force ? [] : current.filter((message) => !seen.has(message.id));
-        const next = force
-          ? mergeTail(current, tail)
-          : added.length > 0
-            ? mergeTail(tail, added)
-            : tail;
+        const changed = current.filter((message) => before.get(message.id) !== message);
+        const base = force ? mergeTail(current, tail) : tail;
+        const next = changed.length > 0 ? mergeTail(base, changed) : base;
         transcriptCache.set(selectedId, { messages: lightMessages(next), previous: cursor });
         loadedIdRef.current = selectedId;
         setMessages(next);

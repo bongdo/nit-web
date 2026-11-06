@@ -599,7 +599,7 @@ func TestMessagesLight(t *testing.T) {
 			{"id":"m1","type":"user","time":{"created":1},"text":"hello"},
 			{"id":"m2","type":"assistant","time":{"created":2},"content":[
 				{"type":"reasoning","text":%q,"ordinal":0},
-				{"type":"tool","id":"t1","name":"read","state":{"status":"completed","input":{"filePath":"/tmp/a"},"content":[{"type":"text","text":"tool output"}]}},
+				{"type":"tool","id":"t1","name":"read","state":{"status":"completed","input":{"filePath":"/tmp/a"},"content":[{"type":"text","text":"tool output"}],"metadata":{"lines":3}}},
 				{"type":"text","text":%q,"ordinal":0}
 			]},
 			{"id":"m3","type":"compaction","time":{"created":3},"summary":"kept summary"}
@@ -641,14 +641,19 @@ func TestMessagesLight(t *testing.T) {
 	if len(parts) != 3 {
 		t.Fatalf("parts = %d: %s", len(parts), rec.Body)
 	}
-	if parts[0].Type != "reasoning" || len(parts[0].Text) != 240 || !parts[0].Light {
-		t.Fatalf("reasoning not trimmed: %+v", parts[0])
+	if parts[0].Type != "reasoning" || parts[0].Text != "" || !parts[0].Light {
+		t.Fatalf("reasoning text survived: %+v", parts[0])
 	}
 	if parts[1].Type != "tool" || !parts[1].Light {
 		t.Fatalf("tool not marked light: %+v", parts[1])
 	}
-	if _, ok := parts[1].State["content"]; ok {
-		t.Fatalf("tool content survived: %+v", parts[1].State)
+	for _, key := range []string{"content", "input", "metadata"} {
+		if _, ok := parts[1].State[key]; ok {
+			t.Fatalf("tool %s survived: %+v", key, parts[1].State)
+		}
+	}
+	if parts[1].State["status"] != "completed" {
+		t.Fatalf("tool status lost: %+v", parts[1].State)
 	}
 	if parts[2].Type != "text" || len(parts[2].Text) != 300 {
 		t.Fatalf("answer changed: %+v", parts[2])

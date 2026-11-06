@@ -24,53 +24,32 @@ export function normalizeMessages(messages: Message[]): Message[] {
   });
 }
 
-const REASONING_PREVIEW = 240;
-const TOOL_PREVIEW = 240;
-const TOOL_INPUT_PREVIEW = 2048;
-
-function truncate(value: string, limit: number): string {
-  if (value.length <= limit) return value;
-  return Array.from(value).slice(0, limit).join("");
-}
-
-function safeStringify(value: unknown): string {
-  try {
-    return JSON.stringify(value) ?? "";
-  } catch {
-    return "";
-  }
-}
-
 export function lightMessages(messages: Message[]): Message[] {
   return messages.map((message) => {
     if (!message.content?.length) return message;
     let changed = false;
     const content = message.content.map((part) => {
-      if (part.type === "reasoning" && part.text.length > REASONING_PREVIEW) {
+      if (part.type === "reasoning") {
+        if (part.text === "") return part;
         changed = true;
-        return { ...part, text: truncate(part.text, REASONING_PREVIEW), light: true };
+        return { ...part, text: "", light: true };
       }
       if (part.type !== "tool") return part;
-      let next = part;
-      let toolChanged = false;
-      if (next.state.content && next.state.content.length > 0) {
-        next = { ...next, state: { ...next.state, content: [] } };
-        toolChanged = true;
-      }
-      if (next.state.input !== undefined) {
-        const encoded =
-          typeof next.state.input === "string" ? next.state.input : safeStringify(next.state.input);
-        if (encoded.length > TOOL_INPUT_PREVIEW) {
-          next = {
-            ...next,
-            state: { ...next.state, input: truncate(encoded, TOOL_INPUT_PREVIEW) },
-          };
-          toolChanged = true;
-        }
-      }
-      if (!toolChanged) return part;
+      const hasContent = Boolean(part.state.content?.length);
+      const hasInput = part.state.input !== undefined;
+      const hasMetadata = part.state.metadata !== undefined;
+      if (!hasContent && !hasInput && !hasMetadata) return part;
       changed = true;
-      return { ...next, light: true };
+      return {
+        ...part,
+        light: true,
+        state: {
+          ...part.state,
+          content: undefined,
+          input: undefined,
+          metadata: undefined,
+        },
+      };
     });
     return changed ? { ...message, content } : message;
   });
@@ -81,55 +60,16 @@ export function lightenEvent(event: StreamEvent): StreamEvent | null {
   switch (event.type) {
     case "session.reasoning.delta":
     case "session.tool.input.delta":
+    case "session.tool.input.ended":
     case "session.tool.progress":
       return null;
     case "session.reasoning.started":
-    case "session.reasoning.ended": {
-      const text = str(data.text) || str(data.delta);
-      if (text.length <= REASONING_PREVIEW) return event;
-      return {
-        ...event,
-        data: { ...data, text: truncate(text, REASONING_PREVIEW), light: true },
-      };
-    }
-    case "session.tool.called": {
-      if (data.input === undefined) return event;
-      const encoded =
-        typeof data.input === "string" ? data.input : safeStringify(data.input);
-      if (encoded.length <= TOOL_INPUT_PREVIEW) return event;
-      return {
-        ...event,
-        data: { ...data, input: truncate(encoded, TOOL_INPUT_PREVIEW), light: true },
-      };
-    }
-    case "session.tool.input.ended": {
-      const text = str(data.text);
-      if (text.length <= TOOL_INPUT_PREVIEW) return event;
-      return {
-        ...event,
-        data: { ...data, text: truncate(text, TOOL_INPUT_PREVIEW), light: true },
-      };
-    }
-    case "session.tool.success": {
-      const content = Array.isArray(data.content) ? data.content : [];
-      if (content.length === 0) return event;
-      const text = content
-        .map((item) =>
-          item && typeof item === "object" && typeof (item as { text?: unknown }).text === "string"
-            ? (item as { text: string }).text
-            : "",
-        )
-        .filter(Boolean)
-        .join("\n");
-      return {
-        ...event,
-        data: {
-          ...data,
-          content: text ? [{ type: "text", text: truncate(text, TOOL_PREVIEW) }] : [],
-          light: true,
-        },
-      };
-    }
+    case "session.reasoning.ended":
+      return { ...event, data: { ...data, text: "", light: true } };
+    case "session.tool.called":
+      return { ...event, data: { ...data, input: undefined, light: true } };
+    case "session.tool.success":
+      return { ...event, data: { ...data, content: [], light: true } };
     default:
       return event;
   }

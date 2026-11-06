@@ -445,6 +445,23 @@ function seedFluid() {
   fluid.cur = fluid.cur || makeField();
   fluid.next = fluid.next || makeField();
   for (const channel of fluid.cur) channel.fill(0);
+  const colors = palette();
+  for (let n = 0; n < 26; n += 1) {
+    const [cr, cg, cb] = toRgb(colors[n % colors.length]);
+    const bx = Math.random() * FW, by = Math.random() * FH;
+    const radius = 6 + Math.random() * 10;
+    for (let y = Math.max(0, Math.floor(by - radius)); y <= Math.min(FH - 1, Math.ceil(by + radius)); y += 1) {
+      for (let x = Math.max(0, Math.floor(bx - radius)); x <= Math.min(FW - 1, Math.ceil(bx + radius)); x += 1) {
+        const d = Math.hypot(x - bx, y - by);
+        if (d > radius) continue;
+        const amount = (1 - d / radius) * 0.7;
+        const i = y * FW + x;
+        fluid.cur[0][i] = Math.min(1, fluid.cur[0][i] + cr * amount);
+        fluid.cur[1][i] = Math.min(1, fluid.cur[1][i] + cg * amount);
+        fluid.cur[2][i] = Math.min(1, fluid.cur[2][i] + cb * amount);
+      }
+    }
+  }
   if (fluid.canvas) return;
   fluid.canvas = document.createElement("canvas");
   fluid.canvas.width = FW;
@@ -460,7 +477,7 @@ const fluidAt = (channel, x, y) => {
 function drawFluid(t) {
   const colors = palette();
   const cur = fluid.cur, next = fluid.next;
-  const [cr, cg, cb] = toRgb(colors[Math.floor(t * 0.45) % colors.length]);
+  const [cr, cg, cb] = toRgb(colors[Math.floor(t / 1.6) % colors.length]);
   const px = (cursor.x / w) * FW;
   const py = (cursor.y / h) * FH;
   const knots = swirls.map((s, i) => ({
@@ -468,7 +485,7 @@ function drawFluid(t) {
     y: (s.y + Math.cos(t * s.speed * 0.8 + i * 1.7) * s.r) * FH,
     s: s.s,
   }));
-  knots.push({ x: px, y: py, s: 20 });
+  knots.push({ x: px, y: py, s: 12 });
   for (let y = 0; y < FH; y += 1) {
     for (let x = 0; x < FW; x += 1) {
       let vx = 0.22, vy = 0.08;
@@ -478,6 +495,8 @@ function drawFluid(t) {
         vx -= dy * f;
         vy += dx * f;
       }
+      vx += Math.sin(y * 0.8 + t * 0.7) * 0.3;
+      vy += Math.cos(x * 0.7 - t * 0.6) * 0.3;
       const speed = Math.hypot(vx, vy) || 1;
       if (speed > 1.9) { vx *= 1.9 / speed; vy *= 1.9 / speed; }
       const sx = x - vx, sy = y - vy;
@@ -489,18 +508,18 @@ function drawFluid(t) {
         next[c][i] = (
           (fluidAt(ch, x0, y0) * (1 - fx) + fluidAt(ch, x0 + 1, y0) * fx) * (1 - fy) +
           (fluidAt(ch, x0, y0 + 1) * (1 - fx) + fluidAt(ch, x0 + 1, y0 + 1) * fx) * fy
-        ) * 0.993;
+        ) * 0.998;
       }
     }
   }
-  const drop = 3.4;
+  const drop = 6;
   for (let y = Math.floor(py - drop); y <= Math.ceil(py + drop); y += 1) {
     if (y < 0 || y >= FH) continue;
     for (let x = Math.floor(px - drop); x <= Math.ceil(px + drop); x += 1) {
       if (x < 0 || x >= FW) continue;
       const d = Math.hypot(x - px, y - py);
       if (d > drop) continue;
-      const weight = (1 - d / drop) * 0.16;
+      const weight = (1 - d / drop) * 0.1;
       const i = y * FW + x;
       next[0][i] = Math.min(1, next[0][i] + cr * weight);
       next[1][i] = Math.min(1, next[1][i] + cg * weight);
@@ -512,7 +531,7 @@ function drawFluid(t) {
   const data = fluid.img.data;
   for (let i = 0; i < FW * FH; i += 1) {
     const r = fluid.cur[0][i], g = fluid.cur[1][i], b = fluid.cur[2][i];
-    const a = Math.min(1, Math.max(r, g, b) * 1.6);
+    const a = Math.min(1, Math.max(r, g, b) * 2.4);
     const o = i * 4;
     data[o] = Math.min(255, r * 255);
     data[o + 1] = Math.min(255, g * 255);

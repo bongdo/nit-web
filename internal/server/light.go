@@ -1,15 +1,6 @@
 package server
 
-import (
-	"bytes"
-	"encoding/json"
-	"unicode/utf8"
-)
-
-const (
-	lightReasoningChars = 240
-	lightToolInputBytes = 2048
-)
+import "encoding/json"
 
 func lightenTranscript(data []byte) ([]byte, error) {
 	var messages []json.RawMessage
@@ -78,24 +69,11 @@ func lightenPart(raw []byte) (json.RawMessage, bool, error) {
 			return nil, false, err
 		}
 		changed := false
-		if content, ok := state["content"]; ok {
-			trimmed := bytes.TrimSpace(content)
-			if len(trimmed) > 2 && trimmed[0] == '[' {
-				delete(state, "content")
+		for _, key := range []string{"content", "input", "metadata"} {
+			if _, ok := state[key]; ok {
+				delete(state, key)
 				changed = true
 			}
-		}
-		if input, ok := state["input"]; ok && len(input) > lightToolInputBytes {
-			preview := string(input)
-			if len(preview) > lightToolInputBytes {
-				preview = preview[:lightToolInputBytes]
-			}
-			encoded, err := json.Marshal(preview)
-			if err != nil {
-				return nil, false, err
-			}
-			state["input"] = encoded
-			changed = true
 		}
 		if !changed {
 			return raw, false, nil
@@ -116,14 +94,10 @@ func lightenPart(raw []byte) (json.RawMessage, bool, error) {
 		if err := json.Unmarshal(part["text"], &text); err != nil {
 			return nil, false, err
 		}
-		if utf8.RuneCountInString(text) <= lightReasoningChars {
+		if text == "" {
 			return raw, false, nil
 		}
-		encoded, err := json.Marshal(truncateRunes(text, lightReasoningChars))
-		if err != nil {
-			return nil, false, err
-		}
-		part["text"] = encoded
+		part["text"] = json.RawMessage(`""`)
 		part["light"] = json.RawMessage("true")
 		encodedPart, err := json.Marshal(part)
 		if err != nil {
@@ -132,12 +106,4 @@ func lightenPart(raw []byte) (json.RawMessage, bool, error) {
 		return encodedPart, true, nil
 	}
 	return raw, false, nil
-}
-
-func truncateRunes(value string, limit int) string {
-	if utf8.RuneCountInString(value) <= limit {
-		return value
-	}
-	runes := []rune(value)
-	return string(runes[:limit])
 }

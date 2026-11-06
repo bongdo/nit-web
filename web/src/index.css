@@ -303,29 +303,45 @@
 
   .session-state {
     --sweep: var(--attention);
-    background-image:
-      linear-gradient(
-        105deg,
-        transparent 10%,
-        color-mix(in oklab, var(--sweep) 26%, transparent) 36%,
-        color-mix(in oklab, var(--sweep) 8%, transparent) 52%,
-        color-mix(in oklab, var(--sweep) 28%, transparent) 68%,
-        transparent 90%
-      ),
-      radial-gradient(
-        130% 170% at 50% 120%,
-        color-mix(in oklab, var(--sweep) 18%, transparent),
-        transparent 70%
-      );
-    background-size: 220% 100%, 100% 100%;
-    background-repeat: no-repeat;
+    position: relative;
+    overflow: hidden;
+    background-image: radial-gradient(
+      130% 170% at 50% 120%,
+      color-mix(in oklab, var(--sweep) 18%, transparent),
+      transparent 70%
+    );
     box-shadow: inset 0 0 18px color-mix(in oklab, var(--sweep) 12%, transparent);
   }
 
+  .session-state::before {
+    content: "";
+    position: absolute;
+    inset: -70% -100%;
+    z-index: 0;
+    pointer-events: none;
+    background: linear-gradient(
+      105deg,
+      transparent 38%,
+      color-mix(in oklab, var(--sweep) 55%, transparent) 48%,
+      color-mix(in oklab, var(--sweep) 24%, transparent) 54%,
+      transparent 64%
+    );
+    filter: blur(18px);
+    opacity: 0.75;
+    transform: translateX(-35%);
+  }
+
+  .session-state > * {
+    position: relative;
+    z-index: 1;
+  }
+
   .session-state-live {
-    animation:
-      session-sweep 3.2s cubic-bezier(0.45, 0, 0.25, 1) infinite,
-      session-breathe 3.2s ease-in-out infinite;
+    animation: session-breathe 3.2s ease-in-out infinite;
+  }
+
+  .session-state-live::before {
+    animation: session-shift 3.2s cubic-bezier(0.45, 0, 0.25, 1) infinite;
   }
 
   .session-waiting {
@@ -344,12 +360,12 @@
     animation: waiting-dot 3.2s ease-in-out infinite;
   }
 
-  @keyframes session-sweep {
+  @keyframes session-shift {
     from {
-      background-position: 200% 0, 0 0;
+      transform: translateX(-35%);
     }
     to {
-      background-position: -100% 0, 0 0;
+      transform: translateX(35%);
     }
   }
 
@@ -477,6 +493,7 @@
 
   @media (prefers-reduced-motion: reduce) {
     .session-state-live,
+    .session-state-live::before,
     .waiting-dot,
     .compaction-enter .compaction-line,
     .compaction-enter .compaction-pill,

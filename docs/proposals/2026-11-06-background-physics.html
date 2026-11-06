@@ -224,17 +224,15 @@ function drawGravity(t) {
 }
 
 const flowAt = (x, y, t) => {
-  const ax = 0.0038, ay = 0.006;
-  const sx = Math.sin(x * ax + t * 0.18);
-  let vx = -ay * sx * Math.sin(y * ay - t * 0.14);
-  let vy = -ax * Math.cos(x * ax + t * 0.18) * Math.cos(y * ay - t * 0.14);
+  let vx = 1;
+  let vy = Math.sin(x * 0.008 + t * 0.35) * 0.55 + Math.sin(x * 0.021 - t * 0.6 + y * 0.004) * 0.35;
   const dx = x - cursor.x, dy = y - cursor.y;
   const d2 = dx * dx + dy * dy;
-  if (d2 < 260 * 260) {
+  if (d2 < 180 * 180) {
     const d = Math.sqrt(d2) || 1;
-    const pull = Math.exp(-d2 / (260 * 260 * 0.5));
-    vx = vx * (1 - pull) - (dy / d) * pull * 1.6;
-    vy = vy * (1 - pull) + (dx / d) * pull * 1.6;
+    const pull = Math.exp(-d2 / (180 * 180 * 0.5));
+    vx += (-dy / d) * pull * 1.4;
+    vy += (dx / d) * pull * 1.4;
   }
   const len = Math.hypot(vx, vy) || 1;
   return [vx / len, vy / len];
@@ -245,7 +243,7 @@ const STREAM_COUNT = 78;
 function seedWaves() {
   streams.length = 0;
   for (let i = 0; i < STREAM_COUNT; i += 1) {
-    streams.push({ x: Math.random() * w, y: Math.random() * h, lift: Math.random() });
+    streams.push({ x: Math.random() * w, y: Math.random() * h });
   }
 }
 function drawWaves(t) {
@@ -255,21 +253,23 @@ function drawWaves(t) {
     const [sx, sy] = flowAt(s.x, s.y, t);
     s.x += sx * 2.4;
     s.y += sy * 2.4;
-    s.lift = 0.6 + 0.4 * Math.sin(t * 0.7 + i * 1.7);
-    if (s.x < -40 || s.x > w + 40 || s.y < -40 || s.y > h + 40) {
-      s.x = Math.random() * w;
+    if (s.x > w + 40) {
+      s.x = -40;
       s.y = Math.random() * h;
     }
+    if (s.y < -40) s.y = h + 40;
+    if (s.y > h + 40) s.y = -40;
     const highlight = i % 6 === 0;
-    ctx.strokeStyle = spark(highlight ? 0.45 : 0.1 + s.lift * 0.12);
+    const lift = 0.6 + 0.4 * Math.sin(t * 0.7 + i * 1.7);
+    ctx.strokeStyle = spark(highlight ? 0.45 : 0.1 + lift * 0.12);
     ctx.lineWidth = highlight ? 1.6 : 1;
     let x = s.x, y = s.y;
     ctx.beginPath();
     ctx.moveTo(x, y);
-    for (let k = 0; k < 22; k += 1) {
+    for (let k = 0; k < 26; k += 1) {
       const [vx, vy] = flowAt(x, y, t);
-      x += vx * 7;
-      y += vy * 7;
+      x += vx * 8;
+      y += vy * 8;
       ctx.lineTo(x, y);
     }
     ctx.stroke();

@@ -1,0 +1,421 @@
+package server
+
+import (
+	"crypto/rand"
+	"encoding/base64"
+	"fmt"
+	"html/template"
+	"log/slog"
+	"net"
+	"net/http"
+	"net/url"
+	"os"
+	"strings"
+	"sync"
+	"time"
+
+	"nitgui/internal/auth"
+)
+
+const (
+	authCookieName      = "nit_gui_session"
+	authSessionTTL      = 7 * 24 * time.Hour
+	authMaxFailures     = 5
+	authBlockFor        = 15 * time.Minute
+	authGlobalMax       = 50
+	authGlobalBlockFor  = 5 * time.Minute
+	authAttemptLifetime = 24 * time.Hour
+)
+
+type authAttempt struct {
+	failures     int
+	blockedUntil time.Time
+	last         time.Time
+}
+
+type authGate struct {
+	enabled            bool
+	hash               string
+	base               string
+	log                *slog.Logger
+	mu                 sync.Mutex
+	sessions           map[string]time.Time
+	attempts           map[string]*authAttempt
+	globalFailures     int
+	globalReset        time.Time
+	globalBlockedUntil time.Time
+	now                func() time.Time
+}
+
+type loginPageData struct {
+	Action  string
+	Next    string
+	Error   string
+	Blocked bool
+}
+
+var loginTemplate = template.Must(template.New("login").Parse(`<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<meta name="referrer" content="no-referrer">
+<title>nit-gui — sign in</title>
+<style>
+:root { color-scheme: dark; --bg:#0c0c0d; --panel:#151517; --line:#2a2a2e; --text:#f1f0ee; --muted:#a3a09b; --copper:#c4794f; --danger:#e07a6a; }
+* { box-sizing: border-box; }
+body { margin:0; min-height:100vh; display:grid; place-items:center; background:radial-gradient(circle at 50% 20%, #1d1713 0, var(--bg) 45%); color:var(--text); font:15px/1.5 ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
+main { width:min(92vw, 360px); padding:28px; background:var(--panel); border:1px solid var(--line); border-radius:14px; box-shadow:0 24px 80px rgba(0,0,0,.45); }
+.brand { display:flex; align-items:center; gap:9px; margin-bottom:22px; color:var(--muted); font-size:13px; letter-spacing:.08em; text-transform:uppercase; }
+.brand b { display:inline-grid; place-items:center; width:24px; height:24px; border-radius:7px; background:var(--copper); color:#1a100b; font-size:14px; letter-spacing:0; }
+h1 { margin:0 0 6px; font-size:22px; font-weight:600; letter-spacing:-.02em; }
+p { margin:0 0 20px; color:var(--muted); font-size:14px; }
+label { display:block; margin-bottom:8px; color:var(--muted); font-size:12px; letter-spacing:.04em; text-transform:uppercase; }
+input { width:100%; padding:11px 12px; border:1px solid var(--line); border-radius:9px; background:#0f0f10; color:var(--text); font:inherit; outline:none; }
+input:focus { border-color:var(--copper); box-shadow:0 0 0 3px rgba(196,121,79,.15); }
+button { width:100%; margin-top:14px; padding:11px 12px; border:0; border-radius:9px; background:var(--copper); color:#1a100b; font:inherit; font-weight:650; cursor:pointer; }
+button:hover { filter:brightness(1.08); }
+button:disabled { cursor:not-allowed; opacity:.55; }
+.error { margin:0 0 16px; padding:10px 12px; border:1px solid rgba(224,122,106,.35); border-radius:9px; background:rgba(224,122,106,.08); color:var(--danger); font-size:13px; }
+.foot { margin:18px 0 0; color:#6f6c68; font-size:12px; text-align:center; }
+</style>
+</head>
+<body>
+<main>
+<div class="brand"><b>n</b> nit-gui</div>
+<h1>Sign in</h1>
+<p>This instance is private. Enter the server password to continue.</p>
+{{if .Error}}<div class="error" role="alert">{{.Error}}</div>{{end}}
+<form method="post" action="{{.Action}}">
+<input type="hidden" name="next" value="{{.Next}}">
+<label for="password">Password</label>
+<input id="password" name="password" type="password" autocomplete="current-password" required autofocus {{if .Blocked}}disabled{{end}}>
+<button type="submit" {{if .Blocked}}disabled{{end}}>Continue</button>
+</form>
+<p class="foot">One password. No accounts.</p>
+</main>
+</body>
+</html>`))
+
+func newAuthGate(log *slog.Logger) *authGate {
+	if log == nil {
+		log = slog.Default()
+	}
+	hash := strings.TrimSpace(os.Getenv("NIT_GUI_PASSWORD_HASH"))
+	if hash == "" {
+		if password := os.Getenv("NIT_GUI_PASSWORD"); password != "" {
+			var err error
+			hash, err = auth.Hash(password)
+			if err != nil {
+				log.Error("auth password hash failed", "error", err)
+			}
+		}
+	}
+	return &authGate{
+		enabled:  hash != "",
+		hash:     hash,
+		base:     strings.TrimRight(os.Getenv("NIT_GUI_BASE_PATH"), "/"),
+		log:      log,
+		sessions: map[string]time.Time{},
+		attempts: map[string]*authAttempt{},
+		now:      time.Now,
+	}
+}
+
+func (a *authGate) wrap(next http.Handler) http.Handler {
+	if !a.enabled {
+		return next
+	}
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		path := a.trimBase(r.URL.Path)
+		switch path {
+		case "/auth", "/auth/":
+			a.handleLogin(w, r)
+			return
+		case "/auth/logout":
+			a.handleLogout(w, r)
+			return
+		}
+		if a.authenticated(r) {
+			next.ServeHTTP(w, r)
+			return
+		}
+		if path == "/api" || strings.HasPrefix(path, "/api/") {
+			writeError(w, http.StatusUnauthorized, "authentication required")
+			return
+		}
+		nextPath := a.externalPath(r.URL.RequestURI())
+		http.Redirect(w, r, a.authPath()+"?next="+url.QueryEscape(nextPath), http.StatusSeeOther)
+	})
+}
+
+func (a *authGate) handleLogin(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet && r.Method != http.MethodPost {
+		w.Header().Set("Allow", "GET, POST")
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	next := safeNext(r.URL.Query().Get("next"), a.base)
+	if r.Method == http.MethodGet {
+		if a.authenticated(r) {
+			http.Redirect(w, r, next, http.StatusSeeOther)
+			return
+		}
+		a.renderLogin(w, r, http.StatusOK, next, "", false)
+		return
+	}
+
+	r.Body = http.MaxBytesReader(w, r.Body, 4096)
+	if err := r.ParseForm(); err != nil {
+		a.renderLogin(w, r, http.StatusBadRequest, next, "Invalid request.", false)
+		return
+	}
+	next = safeNext(r.FormValue("next"), a.base)
+	ip := clientIP(r)
+	allowed, retry := a.allowAttempt(ip)
+	if !allowed {
+		a.renderLogin(w, r, http.StatusTooManyRequests, next, blockMessage(retry), true)
+		return
+	}
+	if auth.Verify(a.hash, r.FormValue("password")) {
+		a.clearFailures(ip)
+		a.startSession(w, r)
+		http.Redirect(w, r, next, http.StatusSeeOther)
+		return
+	}
+	a.recordFailure(ip)
+	allowed, retry = a.allowAttempt(ip)
+	if !allowed {
+		a.log.Warn("auth lockout", "ip", ip, "retry_after", retry.Round(time.Second).String())
+		a.renderLogin(w, r, http.StatusTooManyRequests, next, blockMessage(retry), true)
+		return
+	}
+	a.log.Warn("auth failed", "ip", ip)
+	a.renderLogin(w, r, http.StatusUnauthorized, next, "Wrong password.", false)
+}
+
+func (a *authGate) handleLogout(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		w.Header().Set("Allow", "POST")
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if cookie, err := r.Cookie(authCookieName); err == nil {
+		a.mu.Lock()
+		delete(a.sessions, cookie.Value)
+		a.mu.Unlock()
+	}
+	http.SetCookie(w, &http.Cookie{
+		Name:     authCookieName,
+		Value:    "",
+		Path:     a.cookiePath(),
+		MaxAge:   -1,
+		HttpOnly: true,
+		Secure:   isHTTPS(r),
+		SameSite: http.SameSiteStrictMode,
+	})
+	http.Redirect(w, r, a.authPath(), http.StatusSeeOther)
+}
+
+func (a *authGate) renderLogin(w http.ResponseWriter, r *http.Request, status int, next, message string, blocked bool) {
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Header().Set("Cache-Control", "no-store")
+	w.Header().Set("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'")
+	w.WriteHeader(status)
+	_ = loginTemplate.Execute(w, loginPageData{
+		Action:  a.authPath(),
+		Next:    next,
+		Error:   message,
+		Blocked: blocked,
+	})
+}
+
+func (a *authGate) authenticated(r *http.Request) bool {
+	cookie, err := r.Cookie(authCookieName)
+	if err != nil || cookie.Value == "" {
+		return false
+	}
+	now := a.now()
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	expires, ok := a.sessions[cookie.Value]
+	if !ok {
+		return false
+	}
+	if now.After(expires) {
+		delete(a.sessions, cookie.Value)
+		return false
+	}
+	return true
+}
+
+func (a *authGate) startSession(w http.ResponseWriter, r *http.Request) {
+	token := make([]byte, 32)
+	if _, err := rand.Read(token); err != nil {
+		http.Error(w, "could not start session", http.StatusInternalServerError)
+		return
+	}
+	value := base64.RawURLEncoding.EncodeToString(token)
+	now := a.now()
+	a.mu.Lock()
+	a.prune(now)
+	a.sessions[value] = now.Add(authSessionTTL)
+	a.mu.Unlock()
+	http.SetCookie(w, &http.Cookie{
+		Name:     authCookieName,
+		Value:    value,
+		Path:     a.cookiePath(),
+		MaxAge:   int(authSessionTTL.Seconds()),
+		HttpOnly: true,
+		Secure:   isHTTPS(r),
+		SameSite: http.SameSiteStrictMode,
+	})
+}
+
+func (a *authGate) allowAttempt(ip string) (bool, time.Duration) {
+	now := a.now()
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.prune(now)
+	if now.Before(a.globalBlockedUntil) {
+		return false, a.globalBlockedUntil.Sub(now)
+	}
+	if attempt := a.attempts[ip]; attempt != nil && now.Before(attempt.blockedUntil) {
+		return false, attempt.blockedUntil.Sub(now)
+	}
+	return true, 0
+}
+
+func (a *authGate) recordFailure(ip string) {
+	now := a.now()
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	attempt := a.attempts[ip]
+	if attempt == nil {
+		attempt = &authAttempt{}
+		a.attempts[ip] = attempt
+	}
+	attempt.failures++
+	attempt.last = now
+	if attempt.failures >= authMaxFailures {
+		attempt.failures = 0
+		attempt.blockedUntil = now.Add(authBlockFor)
+	}
+	if now.After(a.globalReset) {
+		a.globalFailures = 0
+		a.globalReset = now.Add(15 * time.Minute)
+	}
+	a.globalFailures++
+	if a.globalFailures >= authGlobalMax {
+		a.globalFailures = 0
+		a.globalReset = now.Add(15 * time.Minute)
+		a.globalBlockedUntil = now.Add(authGlobalBlockFor)
+	}
+}
+
+func (a *authGate) clearFailures(ip string) {
+	a.mu.Lock()
+	delete(a.attempts, ip)
+	a.mu.Unlock()
+}
+
+func (a *authGate) prune(now time.Time) {
+	for ip, attempt := range a.attempts {
+		if now.Sub(attempt.last) > authAttemptLifetime {
+			delete(a.attempts, ip)
+		}
+	}
+	for token, expires := range a.sessions {
+		if now.After(expires) {
+			delete(a.sessions, token)
+		}
+	}
+	if !a.globalReset.IsZero() && now.After(a.globalReset) && now.After(a.globalBlockedUntil) {
+		a.globalFailures = 0
+	}
+}
+
+func (a *authGate) trimBase(path string) string {
+	if a.base == "" {
+		return path
+	}
+	if path == a.base {
+		return "/"
+	}
+	if strings.HasPrefix(path, a.base+"/") {
+		return strings.TrimPrefix(path, a.base)
+	}
+	return path
+}
+
+func (a *authGate) externalPath(path string) string {
+	if path == "" {
+		path = "/"
+	}
+	if a.base == "" || path == a.base || strings.HasPrefix(path, a.base+"/") {
+		return path
+	}
+	return a.base + path
+}
+
+func (a *authGate) authPath() string {
+	return a.base + "/auth"
+}
+
+func (a *authGate) cookiePath() string {
+	if a.base == "" {
+		return "/"
+	}
+	return a.base + "/"
+}
+
+func safeNext(raw, base string) string {
+	if raw == "" || !strings.HasPrefix(raw, "/") || strings.HasPrefix(raw, "//") {
+		return base + "/"
+	}
+	if strings.ContainsAny(raw, "\r\n") {
+		return base + "/"
+	}
+	if base != "" && raw != base && !strings.HasPrefix(raw, base+"/") {
+		if raw == "/" {
+			return base + "/"
+		}
+		return base + raw
+	}
+	return raw
+}
+
+func blockMessage(retry time.Duration) string {
+	minutes := int((retry + time.Minute - 1) / time.Minute)
+	if minutes < 1 {
+		minutes = 1
+	}
+	return fmt.Sprintf("Too many attempts. Try again in %d min.", minutes)
+}
+
+func isHTTPS(r *http.Request) bool {
+	if r.TLS != nil {
+		return true
+	}
+	return strings.EqualFold(strings.TrimSpace(r.Header.Get("X-Forwarded-Proto")), "https")
+}
+
+func clientIP(r *http.Request) string {
+	host, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		host = r.RemoteAddr
+	}
+	if host == "127.0.0.1" || host == "::1" {
+		forwarded := r.Header.Get("X-Forwarded-For")
+		if forwarded != "" {
+			parts := strings.Split(forwarded, ",")
+			for i := len(parts) - 1; i >= 0; i-- {
+				if ip := strings.TrimSpace(parts[i]); ip != "" {
+					return ip
+				}
+			}
+		}
+	}
+	return host
+}

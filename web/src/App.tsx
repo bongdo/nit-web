@@ -1260,6 +1260,7 @@ export default function App() {
             <Composer
               session={selectedSession}
               workspace={workspace}
+              model={modelInfo}
               disabled={!health?.ok}
               running={running}
               focusKey={selectedId}

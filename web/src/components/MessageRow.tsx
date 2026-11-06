@@ -1,11 +1,21 @@
 import type { ReactNode } from "react";
 import { useState } from "react";
-import { Bot, Check, CircleAlert, Copy, GitFork, Terminal, Undo2 } from "lucide-react";
+import {
+  Bot,
+  Check,
+  CircleAlert,
+  Copy,
+  FileIcon,
+  FileText,
+  GitFork,
+  Terminal,
+  Undo2,
+} from "lucide-react";
 import type { Agent, Message, Model, UserFile } from "../lib/types";
-import { api } from "../lib/api";
+import { attachmentHref, attachmentKind } from "../lib/attachments";
 import { copyText } from "../lib/clipboard";
 import { isPureHtml, looksLikeHtml } from "../lib/html";
-import { fileUri, modelLabel, replyText } from "../lib/format";
+import { formatBytes, modelLabel, replyText } from "../lib/format";
 import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
 import { HtmlMessagePreview } from "./HtmlMessagePreview";
@@ -17,41 +27,71 @@ function timeLabel(ms: number): string {
   return new Date(ms).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }
 
-function isImageFile(file: UserFile): boolean {
-  if (file.mime?.startsWith("image/")) return true;
-  return /\.(png|jpe?g|gif|webp|svg|avif)$/i.test(file.name ?? fileUri(file) ?? "");
+function PdfPreview({ href, name }: { href: string; name: string }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="border-border bg-background/60 col-span-2 overflow-hidden rounded-md border">
+      <div className="flex items-center gap-2 px-2 py-1 text-[11px]">
+        <FileText className="text-muted-foreground size-3.5 shrink-0" />
+        <span className="min-w-0 flex-1 truncate">{name}</span>
+        <span className="text-muted-foreground shrink-0 uppercase">PDF</span>
+        <button
+          type="button"
+          onClick={() => setOpen((current) => !current)}
+          className="hover:bg-accent shrink-0 rounded px-1 py-0.5"
+        >
+          {open ? "Hide" : "Preview"}
+        </button>
+        <a
+          href={href}
+          target="_blank"
+          rel="noreferrer noopener"
+          className="hover:bg-accent shrink-0 rounded px-1 py-0.5"
+        >
+          Open
+        </a>
+      </div>
+      {open && <iframe src={href} title={name} className="border-border h-96 w-full border-t" />}
+    </div>
+  );
 }
 
 function FilePreview({ file }: { file: UserFile }) {
-  const uri = fileUri(file);
-  if (!uri) {
+  const href = attachmentHref(file);
+  const name = file.name ?? "file";
+  const kind = attachmentKind(file);
+  if (kind === "pdf" && href) return <PdfPreview href={href} name={name} />;
+  if (!href) {
     return (
       <span className="border-border bg-background/60 truncate rounded-md border px-2 py-1 text-[11px]">
-        {file.name ?? "file"}
+        {name}
       </span>
     );
   }
-  const href = api.fileUrl(uri);
-  if (!isImageFile(file)) {
+  if (kind === "image") {
     return (
-      <a
-        href={href}
-        target="_blank"
-        rel="noreferrer noopener"
-        className="border-border bg-background/60 truncate rounded-md border px-2 py-1 text-[11px]"
-      >
-        {file.name ?? "file"}
+      <a href={href} target="_blank" rel="noreferrer noopener" className="block">
+        <img
+          src={href}
+          alt={name}
+          loading="lazy"
+          className="border-border max-h-56 w-full rounded-md border object-cover"
+        />
       </a>
     );
   }
   return (
-    <a href={href} target="_blank" rel="noreferrer noopener" className="block">
-      <img
-        src={href}
-        alt={file.name ?? "attachment"}
-        loading="lazy"
-        className="border-border max-h-56 w-full rounded-md border object-cover"
-      />
+    <a
+      href={href}
+      target="_blank"
+      rel="noreferrer noopener"
+      className="border-border bg-background/60 flex items-center gap-1.5 truncate rounded-md border px-2 py-1 text-[11px]"
+    >
+      <FileIcon className="text-muted-foreground size-3.5 shrink-0" />
+      <span className="truncate">{name}</span>
+      {file.bytes ? (
+        <span className="text-muted-foreground shrink-0">{formatBytes(file.bytes)}</span>
+      ) : null}
     </a>
   );
 }

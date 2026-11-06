@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
+  AlertTriangle,
   ArrowUp,
   Check,
   ChevronDown,
@@ -11,9 +12,10 @@ import {
   Undo2,
   X,
 } from "lucide-react";
-import type { FormInfo, Session } from "../lib/types";
+import type { FormInfo, Model, Session } from "../lib/types";
 import { encodeWav } from "../lib/audio";
 import { api } from "../lib/api";
+import { attachmentWarning } from "../lib/attachments";
 import { questionField } from "../lib/forms";
 import { formatBytes, quoteText } from "../lib/format";
 import { shouldCaptureKey } from "../lib/keys";
@@ -29,6 +31,7 @@ export type Attachment = {
   id: string;
   name: string;
   size: number;
+  mime: string;
   path?: string;
   preview?: string;
   error?: string;
@@ -68,6 +71,7 @@ function loadIgnoredWords(): string[] {
 export function Composer({
   session,
   workspace,
+  model,
   disabled,
   running,
   focusKey,
@@ -88,6 +92,7 @@ export function Composer({
 }: {
   session: Session | null;
   workspace: string | null;
+  model?: Model | null;
   disabled?: boolean;
   running?: boolean;
   focusKey?: string | null;
@@ -414,10 +419,12 @@ export function Composer({
       }
       const id = attachmentId();
       const preview = file.type.startsWith("image/") ? URL.createObjectURL(file) : undefined;
+      const warning = attachmentWarning({ name: file.name, mime: file.type }, model);
       setAttachments((current) => [
         ...current,
-        { id, name: file.name || "file", size: file.size, preview },
+        { id, name: file.name || "file", size: file.size, mime: file.type, preview },
       ]);
+      if (warning) onError(warning);
       void api
         .upload(file, workspace)
         .then((result) => {
@@ -586,7 +593,8 @@ export function Composer({
 
   const submit = async () => {
     const text = value.trim();
-    if (!text || !workspace || disabled || submitting || uploading || finishing) return;
+    if ((!text && readyFiles.length === 0) || !workspace || disabled || submitting || uploading || finishing)
+      return;
     setSubmitting(true);
     try {
       await onSend(text, readyFiles, running ? "queue" : undefined);
@@ -795,33 +803,38 @@ export function Composer({
 
           {!question && attachments.length > 0 && (
             <div className="flex flex-wrap gap-1.5 px-3 pt-2">
-              {attachments.map((item) => (
-                <span
-                  key={item.id}
-                  className={cn(
-                    "border-border bg-muted/40 flex max-w-full items-center gap-1.5 rounded-md border px-1.5 py-1 text-[11px]",
-                    item.error && "border-destructive/50",
-                  )}
-                  title={item.error ?? item.name}
-                >
-                  {item.preview ? (
-                    <img src={item.preview} alt="" className="size-5 rounded object-cover" />
-                  ) : (
-                    <FileIcon className="text-muted-foreground size-3.5" />
-                  )}
-                  <span className="max-w-40 truncate">{item.name}</span>
-                  <span className="text-muted-foreground">{formatBytes(item.size)}</span>
-                  {!item.path && !item.error && <Loader2 className="size-3 animate-spin" />}
-                  <button
-                    type="button"
-                    onClick={() => removeAttachment(item.id)}
-                    aria-label={`Remove ${item.name}`}
-                    className="hover:bg-accent rounded p-0.5"
+              {attachments.map((item) => {
+                const warning = attachmentWarning(item, model);
+                return (
+                  <span
+                    key={item.id}
+                    className={cn(
+                      "border-border bg-muted/40 flex max-w-full items-center gap-1.5 rounded-md border px-1.5 py-1 text-[11px]",
+                      item.error && "border-destructive/50",
+                      warning && "border-amber-500/60",
+                    )}
+                    title={item.error ?? warning ?? item.name}
                   >
-                    <X className="size-3" />
-                  </button>
-                </span>
-              ))}
+                    {item.preview ? (
+                      <img src={item.preview} alt="" className="size-5 rounded object-cover" />
+                    ) : (
+                      <FileIcon className="text-muted-foreground size-3.5" />
+                    )}
+                    <span className="max-w-40 truncate">{item.name}</span>
+                    <span className="text-muted-foreground">{formatBytes(item.size)}</span>
+                    {warning && <AlertTriangle className="size-3 text-amber-500" />}
+                    {!item.path && !item.error && <Loader2 className="size-3 animate-spin" />}
+                    <button
+                      type="button"
+                      onClick={() => removeAttachment(item.id)}
+                      aria-label={`Remove ${item.name}`}
+                      className="hover:bg-accent rounded p-0.5"
+                    >
+                      <X className="size-3" />
+                    </button>
+                  </span>
+                );
+              })}
             </div>
           )}
 
@@ -1104,7 +1117,12 @@ export function Composer({
                   size="sm"
                   onClick={() => void submit()}
                   disabled={
-                    !workspace || disabled || !value.trim() || submitting || uploading || finishing
+                    !workspace ||
+                    disabled ||
+                    (!value.trim() && readyFiles.length === 0) ||
+                    submitting ||
+                    uploading ||
+                    finishing
                   }
                   aria-label={running ? "Queue message" : "Send"}
                 >

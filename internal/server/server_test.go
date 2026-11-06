@@ -601,6 +601,7 @@ func TestMessagesLight(t *testing.T) {
 			{"id":"m2","type":"assistant","time":{"created":2},"content":[
 				{"type":"reasoning","text":%q,"ordinal":0},
 				{"type":"tool","id":"t1","name":"read","state":{"status":"completed","input":{"filePath":"/tmp/a"},"content":[{"type":"text","text":"tool output"}],"metadata":{"lines":3}}},
+				{"type":"tool","id":"t2","name":"bash","state":{"status":"error","input":{"command":"false"},"error":{"message":"boom"}}},
 				{"type":"tool","id":"q1","name":"question","state":{"status":"completed","input":{"questions":[{"question":"Pick","options":[{"label":"A"}]}]},"content":[{"type":"text","text":"User answered: A"}],"metadata":{"answers":[["A"]]}}},
 				{"type":"text","text":%q,"ordinal":0}
 			]},
@@ -642,7 +643,7 @@ func TestMessagesLight(t *testing.T) {
 	if body.Data[0].Text != "hello" || body.Data[2].Summary != "kept summary" {
 		t.Fatalf("user or compaction changed: %s", rec.Body)
 	}
-	if body.Data[1].Steps != 2 || body.Data[1].Tools != 1 || body.Data[1].Errors != 0 {
+	if body.Data[1].Steps != 3 || body.Data[1].Tools != 2 || body.Data[1].Errors != 1 {
 		t.Fatalf("step counts = %+v: %s", body.Data[1], rec.Body)
 	}
 	parts := body.Data[1].Content

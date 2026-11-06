@@ -67,7 +67,7 @@ const hint = document.getElementById("hint");
 const themeButton = document.getElementById("theme");
 const media = matchMedia("(prefers-color-scheme: dark)");
 let forced = null;
-let mode = "fire";
+let mode = "gravity";
 let w = 0, h = 0, raf = 0, started = performance.now(), painted = 0;
 
 const isDark = () => (forced ? forced === "dark" : media.matches);
@@ -105,10 +105,6 @@ const palettes = {
     dark: ["#22d3ee", "#f0abfc", "#fbbf24", "#4ade80"],
     light: ["#0891b2", "#a21caf", "#b45309", "#15803d"],
   },
-  nodes: {
-    dark: ["#38bdf8", "#f472b6", "#a3e635", "#fbbf24"],
-    light: ["#0369a1", "#be185d", "#4d7c0f", "#b45309"],
-  },
 };
 const palette = () => palettes[mode][isDark() ? "dark" : "light"];
 
@@ -124,8 +120,6 @@ const ideas = {
   fluid: { label: "Fluid", hint: "цветные чернила плывут по течению, курсор закручивает поток", draw: drawFluid, seed: seedFluid, clear: true },
   gravity: { label: "Gravity", hint: "сетка прогибается вокруг тяжёлых масс и курсора", draw: drawGravity, clear: true },
   glitch: { label: "Glitch", hint: "полосы сигнала рвутся и дёргаются у курсора", draw: drawGlitch, clear: true },
-  nodes: { label: "Nodes", hint: "сеть узлов тянется к курсору и подсвечивает связи", draw: drawNodes, seed: seedNodes, clear: true },
-  fire: { label: "Fire", hint: "жар поднимается снизу, курсор поджигает сильнее", draw: drawFire, seed: seedFire, clear: true },
 };
 
 for (const [key, idea] of Object.entries(ideas)) {
@@ -629,11 +623,11 @@ function drawGlitch(t) {
   for (let i = 0; i < bands; i += 1) {
     const y = i * bh;
     if (Math.random() < 0.04) continue;
-    const near = Math.exp(-(((y + bh / 2 - cursor.y) / 150) ** 2));
-    let dx = Math.sin(t * 1.1 + i * 0.7) * 1.5 + near * Math.sin(t * 7 + i * 1.9) * 18;
-    if (Math.random() < 0.1) dx += (Math.random() - 0.5) * 90;
+    const near = Math.exp(-(((y + bh / 2 - cursor.y) / 120) ** 2));
+    let dx = Math.sin(t * 0.6 + i * 0.5) * 0.6 + near * Math.sin(t * 5 + i * 1.7) * 22;
+    if (Math.random() < 0.03) dx += (Math.random() - 0.5) * 46;
     ctx.drawImage(glitchBase, 0, y, w, bh, dx, y, w, bh);
-    if (Math.random() < 0.05) {
+    if (Math.random() < 0.03) {
       ctx.globalCompositeOperation = "lighter";
       ctx.drawImage(glitchBase, 0, y, w, bh, dx + 5, y, w, bh);
       ctx.globalCompositeOperation = "source-over";
@@ -647,170 +641,6 @@ function drawGlitch(t) {
     ctx.fillStyle = alpha(colors[1], 0.4);
     ctx.fillRect(0, Math.random() * h, w, 2);
   }
-}
-
-const nodes = [];
-const NODE_COUNT = 68;
-const NODE_LINK = 132;
-function seedNodes() {
-  nodes.length = 0;
-  for (let i = 0; i < NODE_COUNT; i += 1) {
-    nodes.push({
-      x: Math.random() * w,
-      y: Math.random() * h,
-      vx: (Math.random() - 0.5) * 0.6,
-      vy: (Math.random() - 0.5) * 0.6,
-    });
-  }
-}
-function drawNodes() {
-  const colors = palette();
-  for (const n of nodes) {
-    const dx = cursor.x - n.x, dy = cursor.y - n.y;
-    const d = Math.hypot(dx, dy) || 1;
-    n.vx += (Math.random() - 0.5) * 0.05;
-    n.vy += (Math.random() - 0.5) * 0.05;
-    if (d < 300) {
-      n.vx += (dx / d) * 0.03 - (dy / d) * 0.02;
-      n.vy += (dy / d) * 0.03 + (dx / d) * 0.02;
-    }
-    n.vx *= 0.986;
-    n.vy *= 0.986;
-    n.x += n.vx;
-    n.y += n.vy;
-    if (n.x < -20) n.x = w + 20;
-    if (n.x > w + 20) n.x = -20;
-    if (n.y < -20) n.y = h + 20;
-    if (n.y > h + 20) n.y = -20;
-  }
-  const hot = nodes.map((n) => Math.hypot(n.x - cursor.x, n.y - cursor.y) < 170);
-  ctx.lineWidth = 1;
-  for (let i = 0; i < nodes.length; i += 1) {
-    const a = nodes[i];
-    for (let j = i + 1; j < nodes.length; j += 1) {
-      const b = nodes[j];
-      const dx = a.x - b.x, dy = a.y - b.y;
-      const d2 = dx * dx + dy * dy;
-      if (d2 > NODE_LINK * NODE_LINK) continue;
-      const strength = 1 - Math.sqrt(d2) / NODE_LINK;
-      const linked = hot[i] || hot[j];
-      ctx.strokeStyle = linked ? colors[1] : colors[0];
-      ctx.globalAlpha = 0.06 + strength * (linked ? 0.5 : 0.22);
-      ctx.beginPath();
-      ctx.moveTo(a.x, a.y);
-      ctx.lineTo(b.x, b.y);
-      ctx.stroke();
-    }
-  }
-  ctx.fillStyle = colors[0];
-  ctx.globalAlpha = 0.55;
-  for (const n of nodes) ctx.fillRect(n.x - 1.4, n.y - 1.4, 2.8, 2.8);
-  ctx.globalAlpha = 1;
-}
-
-const fire = { heat: null, next: null, canvas: null, octx: null, img: null };
-const FIRE_RAMP = [
-  [0, [90, 12, 0]],
-  [0.35, [190, 55, 8]],
-  [0.62, [240, 120, 20]],
-  [0.82, [250, 190, 60]],
-  [1, [255, 243, 200]],
-];
-const fireColor = (v) => {
-  let i = 1;
-  while (i < FIRE_RAMP.length - 1 && v > FIRE_RAMP[i][0]) i += 1;
-  const [a, ca] = FIRE_RAMP[i - 1];
-  const [b, cb] = FIRE_RAMP[i];
-  const k = Math.min(1, Math.max(0, (v - a) / (b - a)));
-  return [ca[0] + (cb[0] - ca[0]) * k, ca[1] + (cb[1] - ca[1]) * k, ca[2] + (cb[2] - ca[2]) * k];
-};
-const embers = [];
-function seedFire() {
-  if (!fire.heat) {
-    fire.heat = new Float32Array(FW * FH);
-    fire.next = new Float32Array(FW * FH);
-    fire.canvas = document.createElement("canvas");
-    fire.canvas.width = FW;
-    fire.canvas.height = FH;
-    fire.octx = fire.canvas.getContext("2d");
-    fire.img = fire.octx.createImageData(FW, FH);
-  }
-  fire.heat.fill(0);
-  embers.length = 0;
-  for (let i = 0; i < 46; i += 1) {
-    embers.push({
-      x: Math.random() * FW,
-      y: FH - Math.random() * 12,
-      vy: 0.25 + Math.random() * 0.8,
-      sway: Math.random() * 6.28,
-      life: Math.random() * 90,
-    });
-  }
-}
-function drawFire(t) {
-  const heat = fire.heat, next = fire.next;
-  for (let y = 0; y < FH - 1; y += 1) {
-    for (let x = 0; x < FW; x += 1) {
-      const row = (y + 1) * FW;
-      const left = heat[row + (x > 0 ? x - 1 : 0)];
-      const mid = heat[row + x];
-      const right = heat[row + (x < FW - 1 ? x + 1 : FW - 1)];
-      next[y * FW + x] = Math.max(0, (left + mid * 2 + right) * 0.25 * 0.958 + (Math.random() - 0.5) * 0.02);
-    }
-  }
-  const base = (FH - 1) * FW;
-  for (let x = 0; x < FW; x += 1) {
-    const wave = Math.sin(x * 0.23 + t * 2.4) * Math.sin(x * 0.08 - t * 1.2);
-    next[base + x] = 0.42 + wave * 0.3 + Math.random() * 0.2;
-  }
-  const px = (cursor.x / w) * FW;
-  const py = (cursor.y / h) * FH;
-  const reach = 5;
-  for (let y = Math.max(0, Math.floor(py - reach)); y <= Math.min(FH - 1, Math.ceil(py + reach)); y += 1) {
-    for (let x = Math.max(0, Math.floor(px - reach)); x <= Math.min(FW - 1, Math.ceil(px + reach)); x += 1) {
-      const d = Math.hypot(x - px, y - py);
-      if (d > reach) continue;
-      const i = y * FW + x;
-      next[i] = Math.min(1.15, next[i] + (1 - d / reach) * 0.55);
-    }
-  }
-  fire.heat = next;
-  fire.next = heat;
-
-  const data = fire.img.data;
-  for (let i = 0; i < FW * FH; i += 1) {
-    const v = fire.heat[i];
-    const o = i * 4;
-    if (v < 0.02) {
-      data[o + 3] = 0;
-      continue;
-    }
-    const [r, g, b] = fireColor(v);
-    data[o] = r;
-    data[o + 1] = g;
-    data[o + 2] = b;
-    data[o + 3] = Math.min(isDark() ? 0.8 : 0.62, v) * 255;
-  }
-  fire.octx.putImageData(fire.img, 0, 0);
-  ctx.imageSmoothingEnabled = true;
-  ctx.drawImage(fire.canvas, 0, 0, w, h);
-
-  const sx = w / FW, sy = h / FH;
-  ctx.globalCompositeOperation = "lighter";
-  ctx.fillStyle = alpha("#fbbf24", 0.7);
-  for (const e of embers) {
-    e.y -= e.vy;
-    e.x += Math.sin(e.sway + t * 2) * 0.12;
-    e.life -= 1;
-    if (e.y < -2 || e.life <= 0) {
-      e.x = Math.random() * FW;
-      e.y = FH - 2;
-      e.life = 40 + Math.random() * 90;
-      e.vy = 0.25 + Math.random() * 0.8;
-    }
-    ctx.fillRect(e.x * sx, e.y * sy, 1.6, 1.6);
-  }
-  ctx.globalCompositeOperation = "source-over";
 }
 
 const frame = (now) => {

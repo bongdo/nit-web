@@ -9,7 +9,6 @@ import {
   Mic,
   Paperclip,
   Square,
-  Undo2,
   X,
 } from "lucide-react";
 import type { FormInfo, Model, Session } from "../lib/types";
@@ -311,7 +310,7 @@ export const Composer = memo(function Composer({
     });
   }, []);
 
-  const activeIssue = issueAtCaret(issues, caret);
+  const activeIssue = issueAtCaret(issues, caret, answerText);
   const visibleIssue = activeIssue && issueKey(activeIssue) !== dismissed ? activeIssue : null;
 
   useEffect(() => {
@@ -710,21 +709,6 @@ export const Composer = memo(function Composer({
             }
           }}
         >
-          {undoFix && (
-            <div className="absolute -top-9 right-3 z-20">
-              <button
-                type="button"
-                onMouseDown={(event) => event.preventDefault()}
-                onClick={revertAutoFix}
-                title={`Restore ${undoFix.original}`}
-                aria-label={`Restore ${undoFix.original}`}
-                className="border-border bg-popover text-muted-foreground hover:text-foreground flex items-center gap-1 rounded-md border px-2 py-1 text-[11px] shadow-lg"
-              >
-                <Undo2 className="size-3.5" />
-                {undoFix.original}
-              </button>
-            </div>
-          )}
           {paletteOpen && (
             <div className="border-border bg-popover absolute inset-x-2 bottom-full z-20 mb-2 max-h-64 overflow-y-auto rounded-lg border p-1 shadow-lg">
               {matches.map((item, index) => (

@@ -148,6 +148,8 @@ describe("spell", () => {
     expect(issueAtCaret(issues, 2)?.word).toBe("хочю");
     expect(issueAtCaret(issues, 6)?.word).toBe("хочю");
     expect(issueAtCaret(issues, 7)).toBeNull();
+    expect(issueAtCaret(issues, 7, "я хочю ")?.word).toBe("хочю");
+    expect(issueAtCaret(issues, 7, "я хочю проверку")).toBeNull();
     expect(issueAtCaret(issues, null)).toBeNull();
   });
 

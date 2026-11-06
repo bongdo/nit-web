@@ -1,4 +1,4 @@
-import { memo, useEffect, useRef, useState, type RefObject } from "react";
+import { Fragment, memo, useEffect, useRef, useState, type RefObject } from "react";
 import {
   ChevronRight,
   CornerDownRight,
@@ -30,7 +30,11 @@ function SessionRow({
   animated,
   hidden,
   now,
+  subagentCount = 0,
+  runningSubagents = 0,
+  expanded = false,
   onClick,
+  onToggle,
   onHide,
   onUnhide,
   onDelete,
@@ -45,13 +49,18 @@ function SessionRow({
   animated: boolean;
   hidden: boolean;
   now: number;
+  subagentCount?: number;
+  runningSubagents?: number;
+  expanded?: boolean;
   onClick: () => void;
+  onToggle?: () => void;
   onHide: () => void;
   onUnhide: () => void;
   onDelete: () => void;
 }) {
   const title = session.title?.trim() || (session.parentID ? "Subagent" : "New chat");
   const state = waiting ? "session-waiting" : failed ? "session-failed" : done ? "session-done" : null;
+  const hasSubagents = depth === 0 && subagentCount > 0;
   return (
     <div
       className="group relative"
@@ -60,6 +69,19 @@ function SessionRow({
         width: depth > 0 ? `calc(100% - ${depth * 12}px)` : undefined,
       }}
     >
+      {hasSubagents && (
+        <button
+          type="button"
+          onClick={onToggle}
+          aria-expanded={expanded}
+          aria-label={expanded ? "Hide subagents" : "Show subagents"}
+          className="text-muted-foreground hover:text-foreground absolute top-1.5 left-1 z-10 flex size-4 items-center justify-center rounded"
+        >
+          <ChevronRight
+            className={cn("size-3 transition-transform", expanded && "rotate-90")}
+          />
+        </button>
+      )}
       <button
         type="button"
         data-session-id={session.id}
@@ -67,6 +89,7 @@ function SessionRow({
         className={cn(
           "flex w-full flex-col gap-1 rounded-lg px-2.5 py-2 text-left transition-colors",
           depth > 0 && "py-1.5",
+          hasSubagents && "pl-6",
           hidden && "opacity-60",
           state && cn("session-state", state, animated && "session-state-live"),
           active ? "bg-accent text-accent-foreground" : "hover:bg-accent/60",
@@ -94,6 +117,22 @@ function SessionRow({
             />
           )}
           <span className="min-w-0 flex-1 truncate text-[13px] font-medium">{title}</span>
+          {hasSubagents && (
+            <span
+              className={cn(
+                "inline-flex shrink-0 items-center gap-0.5 text-[10px]",
+                runningSubagents > 0 ? "text-emerald-500" : "text-muted-foreground",
+              )}
+              title={
+                runningSubagents > 0
+                  ? `${runningSubagents} of ${subagentCount} subagents running`
+                  : `${subagentCount} subagents`
+              }
+            >
+              <GitBranch className="size-3" />
+              {runningSubagents > 0 ? `${runningSubagents}/${subagentCount}` : subagentCount}
+            </span>
+          )}
           <span
             className={cn(
               "shrink-0 text-[10px] transition-opacity group-hover:opacity-0",
@@ -112,13 +151,19 @@ function SessionRow({
                 : formatRelative(session.time.updated, now)}
           </span>
         </div>
-        {depth === 0 && (
+        {depth === 0 ? (
           <div className="text-muted-foreground flex min-w-0 items-center gap-1 pl-3.5 text-[10px]">
             <Folder className="size-3 shrink-0" />
             <span className="truncate" title={session.location?.directory}>
               {basename(session.location?.directory) || "unknown"}
             </span>
           </div>
+        ) : (
+          session.agent && (
+            <div className="text-muted-foreground truncate pl-3.5 text-[10px]">
+              {session.agent}
+            </div>
+          )
         )}
       </button>
       <div className="absolute top-1 right-1 hidden items-center gap-0.5 group-hover:flex">
@@ -216,7 +261,7 @@ export const Sidebar = memo(function Sidebar({
   motion: "animated" | "static";
 }) {
   const [now, setNow] = useState(Date.now());
-  const [showSubagents, setShowSubagents] = useState(false);
+  const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
   const autoExpanded = useRef<string | null>(null);
   const modKey =
     typeof navigator !== "undefined" && /mac/i.test(navigator.platform) ? "⌘K" : "Ctrl K";
@@ -226,9 +271,12 @@ export const Sidebar = memo(function Sidebar({
   }, []);
   useEffect(() => {
     if (!selectedId || autoExpanded.current === selectedId) return;
-    if (subagents.some((session) => session.id === selectedId)) {
+    const parentID = subagents.find((session) => session.id === selectedId)?.parentID;
+    if (parentID) {
       autoExpanded.current = selectedId;
-      setShowSubagents(true);
+      setExpanded((previous) =>
+        previous.has(parentID) ? previous : new Set(previous).add(parentID),
+      );
     }
   }, [selectedId, subagents]);
 
@@ -237,14 +285,19 @@ export const Sidebar = memo(function Sidebar({
   const runningCount = sessions.filter(
     (session) => isRunning(session.id) && !waitingIds.has(session.id),
   ).length;
-  const parentTitles = new Map(
-    sessions.map((session) => [session.id, session.title?.trim() || "New chat"]),
-  );
-  const runningSubagents = subagents.filter((session) => isRunning(session.id)).length;
-  const sortedSubagents = [...subagents].sort(
-    (a, b) =>
-      Number(isRunning(b.id)) - Number(isRunning(a.id)) || b.time.updated - a.time.updated,
-  );
+  const childrenByParent = new Map<string, Session[]>();
+  for (const session of subagents) {
+    if (!session.parentID) continue;
+    const list = childrenByParent.get(session.parentID) ?? [];
+    list.push(session);
+    childrenByParent.set(session.parentID, list);
+  }
+  for (const list of childrenByParent.values()) {
+    list.sort(
+      (a, b) =>
+        Number(isRunning(b.id)) - Number(isRunning(a.id)) || b.time.updated - a.time.updated,
+    );
+  }
   const animated = motion === "animated";
 
   return (
@@ -288,26 +341,6 @@ export const Sidebar = memo(function Sidebar({
             <span className="size-1.5 animate-pulse rounded-full bg-emerald-500" />
             {runningCount}
           </span>
-        )}
-        {subagents.length > 0 && (
-          <button
-            type="button"
-            onClick={() => setShowSubagents((value) => !value)}
-            aria-expanded={showSubagents}
-            aria-label={showSubagents ? "Hide subagents" : "Show subagents"}
-            className={cn(
-              "inline-flex items-center gap-1 text-[10px]",
-              runningSubagents > 0 ? "text-emerald-500" : "text-muted-foreground",
-            )}
-            title={
-              runningSubagents > 0
-                ? `${runningSubagents} of ${subagents.length} subagents running`
-                : `${subagents.length} subagents`
-            }
-          >
-            <GitBranch className="size-3" />
-            {runningSubagents > 0 ? `${runningSubagents}/${subagents.length}` : subagents.length}
-          </button>
         )}
       </div>
 
@@ -371,79 +404,6 @@ export const Sidebar = memo(function Sidebar({
       </div>
 
       <div className="scrollbar-thin min-h-0 flex-1 overflow-y-auto px-2 pb-2">
-        {subagents.length > 0 && (
-          <div className="mb-2">
-            <button
-              type="button"
-              onClick={() => setShowSubagents((value) => !value)}
-              aria-expanded={showSubagents}
-              className="hover:bg-accent/60 flex w-full items-center gap-1.5 rounded-md px-2 py-1.5 text-left"
-            >
-              <ChevronRight
-                className={cn(
-                  "size-3 shrink-0 transition-transform",
-                  showSubagents && "rotate-90",
-                )}
-              />
-              <GitBranch className="size-3 shrink-0" />
-              <span className="flex-1 text-[11px] font-medium">Subagents</span>
-              <span
-                className={cn(
-                  "text-[10px]",
-                  runningSubagents > 0 ? "text-emerald-500" : "text-muted-foreground",
-                )}
-              >
-                {runningSubagents > 0
-                  ? `${runningSubagents} running`
-                  : `${subagents.length} total`}
-              </span>
-            </button>
-            {showSubagents && (
-              <div className="space-y-0.5">
-                {sortedSubagents.map((session) => {
-                  const running = isRunning(session.id);
-                  return (
-                    <button
-                      key={session.id}
-                      type="button"
-                      onClick={() => onSelect(session.id)}
-                      className={cn(
-                        "flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left",
-                        session.id === selectedId
-                          ? "bg-accent text-accent-foreground"
-                          : "hover:bg-accent/60",
-                      )}
-                    >
-                      <span
-                        className={cn(
-                          "size-1.5 shrink-0 rounded-full",
-                          running ? "animate-pulse bg-emerald-500" : "bg-border",
-                        )}
-                      />
-                      <span className="min-w-0 flex-1">
-                        <span className="block truncate text-[12px]">
-                          {session.title?.trim() || session.agent || "Subagent"}
-                        </span>
-                        <span className="text-muted-foreground block truncate text-[10px]">
-                          {parentTitles.get(session.parentID ?? "") ?? "Subagent"} ·{" "}
-                          {session.agent ?? "subagent"}
-                        </span>
-                      </span>
-                      <span
-                        className={cn(
-                          "shrink-0 text-[10px]",
-                          running ? "text-emerald-500" : "text-muted-foreground",
-                        )}
-                      >
-                        {running ? "running" : formatRelative(session.time.updated, now)}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        )}
         {loading && sessions.length === 0 ? (
           <div className="space-y-2 px-1 py-2">
             {[0, 1, 2, 3].map((item) => (

@@ -160,8 +160,15 @@ const ALLOWED = new Set([
   "промптов",
   "промпты",
   "промт",
-  "сабагент",
-  "сабагенты",
+  "субагент",
+  "субагента",
+  "субагентам",
+  "субагентами",
+  "субагентах",
+  "субагенте",
+  "субагентом",
+  "субагенты",
+  "субагентов",
   "токен",
   "токенов",
   "токены",
@@ -282,10 +289,21 @@ export function issueKey(issue: SpellIssue): string {
   return `${issue.start}:${issue.end}:${issue.word}`;
 }
 
-export function issueAtCaret(issues: SpellIssue[], caret: number | null): SpellIssue | null {
+export function issueAtCaret(
+  issues: SpellIssue[],
+  caret: number | null,
+  text = "",
+): SpellIssue | null {
   if (caret === null) return null;
   for (const issue of issues) {
     if (caret >= issue.start && caret <= issue.end) return issue;
+    if (
+      text &&
+      caret === issue.end + 1 &&
+      (caret >= text.length || /\s/.test(text[caret]))
+    ) {
+      return issue;
+    }
   }
   return null;
 }

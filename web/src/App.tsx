@@ -363,6 +363,7 @@ export default function App() {
     const requestedAt = Date.now();
     const scopedDirectory = scopeRef.current === "directory" ? workspaceRef.current : null;
     try {
+      // shortcut: children=true returns the newest 100 sessions, paginate when older subagents matter.
       const [list, nested] = await Promise.all([
         api.sessions(scopedDirectory ?? undefined),
         api

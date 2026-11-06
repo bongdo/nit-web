@@ -20,12 +20,21 @@ type Draft struct {
 	UpdatedAt int64  `json:"updatedAt"`
 }
 
-type State struct {
+type InstanceState struct {
 	Hidden []string          `json:"hidden"`
 	Status map[string]string `json:"status"`
 	Drafts map[string]Draft  `json:"drafts,omitempty"`
 	Model  *ModelRef         `json:"model,omitempty"`
 	Agent  string            `json:"agent,omitempty"`
+}
+
+type State struct {
+	Instances map[string]InstanceState `json:"instances,omitempty"`
+	Hidden    []string                 `json:"hidden,omitempty"`
+	Status    map[string]string        `json:"status,omitempty"`
+	Drafts    map[string]Draft         `json:"drafts,omitempty"`
+	Model     *ModelRef                `json:"model,omitempty"`
+	Agent     string                   `json:"agent,omitempty"`
 }
 
 type Store struct {
@@ -48,7 +57,10 @@ func DefaultPath() string {
 	return filepath.Join(home, ".local", "state", "nit-gui", "ui-state.json")
 }
 
-func Open(path string) (*Store, error) {
+func Open(path, defaultInstance string) (*Store, error) {
+	if defaultInstance == "" {
+		defaultInstance = "local"
+	}
 	store := &Store{path: path, state: newState()}
 	if path == "" {
 		return store, nil
@@ -64,46 +76,94 @@ func Open(path string) (*Store, error) {
 		store.state = newState()
 		return store, err
 	}
-	if store.state.Status == nil {
-		store.state.Status = map[string]string{}
+	if store.state.Instances == nil {
+		store.state.Instances = map[string]InstanceState{}
 	}
-	if store.state.Drafts == nil {
-		store.state.Drafts = map[string]Draft{}
+	migrated := false
+	if len(store.state.Instances) == 0 && hasLegacy(store.state) {
+		store.state.Instances[defaultInstance] = normalizeInstance(InstanceState{
+			Hidden: store.state.Hidden,
+			Status: store.state.Status,
+			Drafts: store.state.Drafts,
+			Model:  store.state.Model,
+			Agent:  store.state.Agent,
+		})
+		migrated = true
+	}
+	store.state.Hidden = nil
+	store.state.Status = nil
+	store.state.Drafts = nil
+	store.state.Model = nil
+	store.state.Agent = ""
+	if migrated {
+		if err := store.saveLocked(); err != nil {
+			return store, err
+		}
 	}
 	return store, nil
 }
 
 func newState() State {
-	return State{Status: map[string]string{}, Drafts: map[string]Draft{}}
+	return State{Instances: map[string]InstanceState{}}
 }
 
-func (s *Store) Snapshot() State {
+func hasLegacy(state State) bool {
+	return len(state.Hidden) > 0 || len(state.Status) > 0 || len(state.Drafts) > 0 || state.Model != nil || state.Agent != ""
+}
+
+func normalizeInstance(state InstanceState) InstanceState {
+	if state.Hidden == nil {
+		state.Hidden = []string{}
+	}
+	if state.Status == nil {
+		state.Status = map[string]string{}
+	}
+	if state.Drafts == nil {
+		state.Drafts = map[string]Draft{}
+	}
+	return state
+}
+
+func (s *Store) Snapshot(instance string) InstanceState {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	hidden := make([]string, len(s.state.Hidden))
-	copy(hidden, s.state.Hidden)
+	hidden := make([]string, len(s.state.Instances[instance].Hidden))
+	copy(hidden, s.state.Instances[instance].Hidden)
 	sort.Strings(hidden)
-	status := make(map[string]string, len(s.state.Status))
-	for id, value := range s.state.Status {
+	current := s.state.Instances[instance]
+	status := make(map[string]string, len(current.Status))
+	for id, value := range current.Status {
 		status[id] = value
 	}
-	drafts := make(map[string]Draft, len(s.state.Drafts))
-	for key, draft := range s.state.Drafts {
+	drafts := make(map[string]Draft, len(current.Drafts))
+	for key, draft := range current.Drafts {
 		drafts[key] = draft
 	}
 	var model *ModelRef
-	if s.state.Model != nil {
-		copy := *s.state.Model
-		model = &copy
+	if current.Model != nil {
+		clone := *current.Model
+		model = &clone
 	}
-	return State{Hidden: hidden, Status: status, Drafts: drafts, Model: model, Agent: s.state.Agent}
+	return InstanceState{Hidden: hidden, Status: status, Drafts: drafts, Model: model, Agent: current.Agent}
 }
 
-func (s *Store) SetHidden(ids []string, hidden bool) error {
+func (s *Store) instanceLocked(instance string) InstanceState {
+	if s.state.Instances == nil {
+		s.state.Instances = map[string]InstanceState{}
+	}
+	state, ok := s.state.Instances[instance]
+	if !ok {
+		state = InstanceState{Status: map[string]string{}, Drafts: map[string]Draft{}}
+	}
+	return normalizeInstance(state)
+}
+
+func (s *Store) SetHidden(instance string, ids []string, hidden bool) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	current := make(map[string]struct{}, len(s.state.Hidden))
-	for _, id := range s.state.Hidden {
+	state := s.instanceLocked(instance)
+	current := make(map[string]struct{}, len(state.Hidden))
+	for _, id := range state.Hidden {
 		current[id] = struct{}{}
 	}
 	for _, id := range ids {
@@ -118,70 +178,82 @@ func (s *Store) SetHidden(ids []string, hidden bool) error {
 		next = append(next, id)
 	}
 	sort.Strings(next)
-	s.state.Hidden = next
+	state.Hidden = next
+	s.state.Instances[instance] = state
 	return s.saveLocked()
 }
 
-func (s *Store) SetStatus(id, status string) error {
+func (s *Store) SetStatus(instance, id, status string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	state := s.instanceLocked(instance)
 	if status == "" {
-		delete(s.state.Status, id)
+		delete(state.Status, id)
 	} else {
-		s.state.Status[id] = status
+		state.Status[id] = status
 	}
+	s.state.Instances[instance] = state
 	return s.saveLocked()
 }
 
-func (s *Store) SetDraft(key, text string) (Draft, error) {
+func (s *Store) SetDraft(instance, key, text string) (Draft, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	state := s.instanceLocked(instance)
 	if text == "" {
-		delete(s.state.Drafts, key)
+		delete(state.Drafts, key)
+		s.state.Instances[instance] = state
 		return Draft{}, s.saveLocked()
 	}
 	draft := Draft{Text: text, UpdatedAt: time.Now().UnixMilli()}
-	s.state.Drafts[key] = draft
+	state.Drafts[key] = draft
+	s.state.Instances[instance] = state
 	return draft, s.saveLocked()
 }
 
-func (s *Store) Draft(key string) Draft {
+func (s *Store) Draft(instance, key string) Draft {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return s.state.Drafts[key]
+	return s.state.Instances[instance].Drafts[key]
 }
 
-func (s *Store) SetModel(model *ModelRef) error {
+func (s *Store) SetModel(instance string, model *ModelRef) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	state := s.instanceLocked(instance)
 	if model == nil {
-		s.state.Model = nil
+		state.Model = nil
 	} else {
-		copy := *model
-		s.state.Model = &copy
+		clone := *model
+		state.Model = &clone
 	}
+	s.state.Instances[instance] = state
 	return s.saveLocked()
 }
 
-func (s *Store) SetAgent(agent string) error {
+func (s *Store) SetAgent(instance, agent string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.state.Agent = agent
+	state := s.instanceLocked(instance)
+	state.Agent = agent
+	s.state.Instances[instance] = state
 	return s.saveLocked()
 }
 
-func (s *Store) Remove(id string) error {
+func (s *Store) Remove(instance, id string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	next := s.state.Hidden[:0]
-	for _, hidden := range s.state.Hidden {
+	state := s.instanceLocked(instance)
+	next := state.Hidden[:0]
+	for _, hidden := range state.Hidden {
 		if hidden != id {
 			next = append(next, hidden)
 		}
 	}
-	s.state.Hidden = next
-	delete(s.state.Status, id)
-	delete(s.state.Drafts, id)
+	state.Hidden = next
+	delete(state.Status, id)
+	delete(state.Drafts, id)
+	s.state.Instances[instance] = state
 	return s.saveLocked()
 }
 

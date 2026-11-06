@@ -303,9 +303,10 @@ export function ChatView({
       return;
     }
     fadePending.current = false;
-    element.classList.remove("context-fade");
-    void element.offsetWidth;
-    element.classList.add("context-fade");
+    element.animate([{ opacity: 0 }, { opacity: 1 }], {
+      duration: 140,
+      easing: "ease-out",
+    });
   }, [loading, motion, session?.id]);
 
   useLayoutEffect(() => {
@@ -336,6 +337,12 @@ export function ChatView({
     if (!row || row === previous.row || messages.length <= previous.count) return;
     setFreshRow({ id: row, session: sessionID });
   }, [loading, messages, session?.id]);
+
+  useEffect(() => {
+    if (!freshRow) return;
+    const timer = window.setTimeout(() => setFreshRow(null), 240);
+    return () => window.clearTimeout(timer);
+  }, [freshRow]);
 
   useLayoutEffect(() => {
     const id = session?.id ?? null;

@@ -1,0 +1,407 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>nit-gui — background effects</title>
+<style>
+  :root { color-scheme: light dark; }
+  html, body { margin: 0; background: transparent; font-family: ui-sans-serif, system-ui, sans-serif; }
+  .stage {
+    position: relative; height: 430px; overflow: hidden;
+    background: oklch(0.985 0.002 250); color: oklch(0.2 0.01 260);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .stage.dark { background: oklch(0.165 0.008 260); color: oklch(0.93 0.004 250); }
+  canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .copy { position: relative; text-align: center; max-width: 24rem; pointer-events: none; }
+  .copy h2 { margin: 0; font-size: 20px; font-weight: 600; letter-spacing: -0.01em; }
+  .copy p { margin: 8px 0 0; font-size: 14px; line-height: 22px; color: oklch(0.52 0.015 260); }
+  .dark .copy p { color: oklch(0.66 0.012 255); }
+  .tabs { position: absolute; top: 12px; left: 12px; right: 92px; z-index: 2; display: flex; flex-wrap: wrap; gap: 6px; }
+  .tabs button {
+    font: 12px/1 ui-sans-serif, system-ui, sans-serif; padding: 8px 12px; border-radius: 8px;
+    border: 1px solid oklch(0.9 0.006 250); background: oklch(1 0 0 / 0.82); color: inherit; cursor: pointer;
+  }
+  .tabs button.on { background: oklch(0.2 0.01 260); color: oklch(0.98 0 0); border-color: transparent; }
+  .dark .tabs button { background: oklch(0.2 0.009 260 / 0.82); border-color: oklch(0.29 0.01 260); }
+  .dark .tabs button.on { background: oklch(0.93 0.004 250); color: oklch(0.19 0.01 260); }
+  .theme {
+    position: absolute; top: 12px; right: 12px; z-index: 2;
+    font: 12px/1 ui-sans-serif, system-ui, sans-serif; padding: 8px 12px; border-radius: 8px;
+    border: 1px solid oklch(0.9 0.006 250); background: oklch(1 0 0 / 0.82); color: inherit; cursor: pointer;
+  }
+  .dark .theme { background: oklch(0.2 0.009 260 / 0.82); border-color: oklch(0.29 0.01 260); }
+  .hint {
+    position: absolute; left: 14px; bottom: 12px; z-index: 2; font-size: 11.5px; line-height: 1.4;
+    color: oklch(0.52 0.015 260); background: oklch(1 0 0 / 0.7); padding: 6px 9px; border-radius: 7px;
+  }
+  .dark .hint { color: oklch(0.66 0.012 255); background: oklch(0.17 0.008 260 / 0.7); }
+</style>
+</head>
+<body>
+<div class="stage" id="stage">
+  <canvas id="c"></canvas>
+  <div class="tabs" id="tabs"></div>
+  <button class="theme" id="theme">Dark</button>
+  <div class="copy">
+    <h2>Start a new chat</h2>
+    <p>Type below and the chat is created in this directory on the first message.</p>
+  </div>
+  <div class="hint" id="hint"></div>
+</div>
+<script>
+const stage = document.getElementById("stage");
+const canvas = document.getElementById("c");
+const ctx = canvas.getContext("2d");
+const tabs = document.getElementById("tabs");
+const hint = document.getElementById("hint");
+const themeButton = document.getElementById("theme");
+const media = matchMedia("(prefers-color-scheme: dark)");
+let forced = null;
+let mode = "mesh";
+let w = 0, h = 0, raf = 0, started = performance.now(), painted = 0;
+
+const isDark = () => (forced ? forced === "dark" : media.matches);
+const ink = () => (isDark() ? "oklch(0.93 0.004 250)" : "oklch(0.2 0.01 260)");
+const accent = () => (isDark() ? "oklch(0.78 0.14 55)" : "oklch(0.62 0.16 45)");
+const accentA = (a) => `oklch(${isDark() ? "0.78 0.14 55" : "0.62 0.16 45"} / ${a})`;
+
+const pointer = { x: 0, y: 0, inside: false };
+const cursor = { x: 0, y: 0, power: 1 };
+
+const ideas = {
+  mesh: {
+    label: "Mesh",
+    hint: "сетка натягивается линзой и закручивается вокруг курсора",
+    draw: drawMesh,
+  },
+  filings: {
+    label: "Filings",
+    hint: "штрихи выстраиваются по касательной вокруг курсора",
+    draw: drawFilings,
+  },
+  halftone: {
+    label: "Halftone",
+    hint: "точки вспухают и меднеют рядом с курсором",
+    draw: drawHalftone,
+  },
+  flow: {
+    label: "Flow",
+    hint: "частицы несутся потоком и облетают курсор вихрем",
+    draw: drawFlow,
+  },
+  spotlight: {
+    label: "Spotlight",
+    hint: "контуры проявляются только в пятне света у курсора",
+    draw: drawSpotlight,
+  },
+  twist: {
+    label: "Twist",
+    hint: "вертикальные линии затягивает в воронку под курсором",
+    draw: drawTwist,
+  },
+};
+
+for (const [key, idea] of Object.entries(ideas)) {
+  const button = document.createElement("button");
+  button.textContent = idea.label;
+  button.className = key === mode ? "on" : "";
+  button.onclick = () => {
+    mode = key;
+    [...tabs.children].forEach((child) => (child.className = child.textContent === idea.label ? "on" : ""));
+    hint.textContent = idea.hint;
+    ctx.globalCompositeOperation = "source-over";
+    ctx.globalAlpha = 1;
+    ctx.clearRect(0, 0, w, h);
+    if (key === "flow") seedParts();
+  };
+  tabs.append(button);
+}
+
+const setTheme = () => {
+  stage.classList.toggle("dark", isDark());
+  themeButton.textContent = isDark() ? "Light" : "Dark";
+  ctx.globalCompositeOperation = "source-over";
+  ctx.globalAlpha = 1;
+  ctx.clearRect(0, 0, w, h);
+  if (mode === "flow") seedParts();
+};
+themeButton.onclick = () => {
+  forced = isDark() ? "light" : "dark";
+  setTheme();
+};
+media.addEventListener("change", () => { if (!forced) setTheme(); });
+
+const hole = (radius = 300) => {
+  ctx.globalCompositeOperation = "destination-out";
+  ctx.save();
+  ctx.translate(w / 2, h / 2 - 6);
+  ctx.scale(1, 0.62);
+  const g = ctx.createRadialGradient(0, 0, 0, 0, 0, radius);
+  g.addColorStop(0, "rgba(0,0,0,0.93)");
+  g.addColorStop(0.55, "rgba(0,0,0,0.55)");
+  g.addColorStop(1, "rgba(0,0,0,0)");
+  ctx.fillStyle = g;
+  ctx.fillRect(-w, -h, w * 2, h * 2);
+  ctx.restore();
+  ctx.globalCompositeOperation = "source-over";
+};
+
+const waveY = (x, base, index, t) => {
+  const nx = x / w;
+  return base
+    + Math.sin(nx * 5.5 + t * 0.25 + index * 0.2) * 9
+    + Math.sin(nx * 11 - t * 0.18 + index * 0.1) * 4
+    + Math.sin(nx * 2.2 - t * 0.12) * 7;
+};
+
+function drawMesh(t) {
+  const gap = 62, step = 11, R = 215;
+  const warp = (x, y) => {
+    const dx = x - cursor.x, dy = y - cursor.y;
+    const d2 = dx * dx + dy * dy;
+    if (d2 > R * R) return [x, y];
+    const d = Math.sqrt(d2) || 1;
+    const q = d / R;
+    const f = (1 - q * q) * (1 - q * q);
+    const push = 26 * f;
+    const swirl = 0.85 * f;
+    const cos = Math.cos(swirl), sin = Math.sin(swirl);
+    return [
+      cursor.x + dx * cos - dy * sin + (dx / d) * push,
+      cursor.y + dx * sin + dy * cos + (dy / d) * push,
+    ];
+  };
+  ctx.lineWidth = 1;
+  let index = 0;
+  for (let x = 0; x <= w + gap; x += gap, index += 1) {
+    ctx.strokeStyle = index % 5 === 0 ? accent() : ink();
+    ctx.globalAlpha = index % 5 === 0 ? 0.3 : 0.14;
+    ctx.beginPath();
+    for (let y = -10; y <= h + 10; y += step) {
+      const [px, py] = warp(x, y);
+      if (y === -10) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+    }
+    ctx.stroke();
+  }
+  for (let y = 0; y <= h + gap; y += gap, index += 1) {
+    ctx.strokeStyle = index % 5 === 0 ? accent() : ink();
+    ctx.globalAlpha = index % 5 === 0 ? 0.3 : 0.14;
+    ctx.beginPath();
+    for (let x = -10; x <= w + 10; x += step) {
+      const [px, py] = warp(x, y);
+      if (x === -10) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+    }
+    ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
+  hole();
+}
+
+function drawFilings(t) {
+  const gap = 29, baseLen = 13, R = 225;
+  ctx.lineWidth = 1;
+  ctx.lineCap = "round";
+  for (let y = 15; y < h; y += gap) {
+    for (let x = 15; x < w; x += gap) {
+      const dx = x - cursor.x, dy = y - cursor.y;
+      const d2 = dx * dx + dy * dy;
+      const v = d2 < R * R ? 1 - d2 / (R * R) : 0;
+      const vv = v * v;
+      let ax = Math.sin(x * 0.004 + t * 0.22) * 0.7 + Math.cos(y * 0.005 - t * 0.16) * 0.7;
+      let ay = Math.cos(x * 0.003 - t * 0.18) * 0.7 + Math.sin(y * 0.004 + t * 0.2) * 0.7;
+      const al = Math.hypot(ax, ay) || 1;
+      ax /= al; ay /= al;
+      const tl = Math.hypot(dx, dy) || 1;
+      let ux = ax * (1 - vv) + (-dy / tl) * vv;
+      let uy = ay * (1 - vv) + (dx / tl) * vv;
+      const ul = Math.hypot(ux, uy) || 1;
+      ux /= ul; uy /= ul;
+      const len = baseLen * (0.7 + vv * 1.5);
+      ctx.strokeStyle = vv > 0.42 ? accent() : ink();
+      ctx.globalAlpha = 0.15 + vv * 0.6;
+      ctx.beginPath();
+      ctx.moveTo(x - (ux * len) / 2, y - (uy * len) / 2);
+      ctx.lineTo(x + (ux * len) / 2, y + (uy * len) / 2);
+      ctx.stroke();
+    }
+  }
+  ctx.globalAlpha = 1;
+  hole();
+}
+
+function drawHalftone(t) {
+  const gap = 17, R = 170;
+  for (let y = 8; y < h; y += gap) {
+    for (let x = 8; x < w; x += gap) {
+      const field = 0.5 + 0.5 * Math.sin(x * 0.011 + t * 0.35) * Math.cos(y * 0.013 - t * 0.28);
+      const dx = x - cursor.x, dy = y - cursor.y;
+      const d2 = dx * dx + dy * dy;
+      const v = d2 < R * R ? Math.exp(-d2 / (R * R * 0.3)) : 0;
+      const hot = v > 0.62;
+      ctx.fillStyle = hot ? accent() : ink();
+      ctx.globalAlpha = hot ? 0.2 + v * 0.55 : 0.09 + field * 0.15 + v * 0.2;
+      ctx.beginPath();
+      ctx.arc(x, y, 1 + field * 2.2 + v * 3.8, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+  ctx.globalAlpha = 1;
+  hole();
+}
+
+const parts = [];
+const PART_COUNT = 520;
+const respawn = (p, anywhere = false) => {
+  if (anywhere) {
+    p.x = Math.random() * w;
+    p.y = Math.random() * h;
+  } else {
+    const edge = Math.floor(Math.random() * 4);
+    if (edge === 0) { p.x = Math.random() * w; p.y = -4; }
+    else if (edge === 1) { p.x = w + 4; p.y = Math.random() * h; }
+    else if (edge === 2) { p.x = Math.random() * w; p.y = h + 4; }
+    else { p.x = -4; p.y = Math.random() * h; }
+  }
+  p.px = p.x; p.py = p.y;
+  p.life = 60 + Math.floor(Math.random() * 150);
+  return p;
+};
+const seedParts = () => {
+  parts.length = 0;
+  for (let i = 0; i < PART_COUNT; i += 1) {
+    parts.push(respawn({ x: Math.random() * w, y: Math.random() * h, px: 0, py: 0, life: 0 }, true));
+    parts[i].life = Math.floor(Math.random() * 210);
+  }
+};
+
+function drawFlow(t) {
+  ctx.globalCompositeOperation = "destination-out";
+  ctx.fillStyle = "rgba(0,0,0,0.08)";
+  ctx.fillRect(0, 0, w, h);
+  ctx.globalCompositeOperation = "source-over";
+  const R = 185;
+  ctx.lineWidth = 1;
+  for (const p of parts) {
+    const dx = p.x - cursor.x, dy = p.y - cursor.y;
+    const d2 = dx * dx + dy * dy;
+    const v = d2 < R * R ? Math.exp(-d2 / (R * R * 0.5)) : 0;
+    const d = Math.sqrt(d2) || 1;
+    const phase = Math.sin(p.x * 0.006 + t * 0.2) * Math.cos(p.y * 0.008 - t * 0.15);
+    let ax = -Math.sin(p.x * 0.006 + t * 0.2) * Math.sin(p.y * 0.008 - t * 0.15) * 0.008;
+    let ay = -Math.cos(p.x * 0.006 + t * 0.2) * Math.cos(p.y * 0.008 - t * 0.15) * 0.006;
+    let vx = ax * (1 - v) + (-dy / d) * v * 0.9;
+    let vy = ay * (1 - v) + (dx / d) * v * 0.9;
+    const vl = Math.hypot(vx, vy) || 1;
+    const speed = 1.5 + v * 0.9;
+    p.life -= 1;
+    p.px = p.x; p.py = p.y;
+    p.x += (vx / vl) * speed;
+    p.y += (vy / vl) * speed;
+    if (p.life <= 0 || p.x < -20 || p.x > w + 20 || p.y < -20 || p.y > h + 20) {
+      respawn(p, true);
+      continue;
+    }
+    ctx.strokeStyle = v > 0.35 ? accent() : ink();
+    ctx.globalAlpha = 0.16 + v * 0.5;
+    ctx.beginPath();
+    ctx.moveTo(p.px, p.py);
+    ctx.lineTo(p.x, p.y);
+    ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
+}
+
+function drawSpotlight(t) {
+  const gap = 26, R = 290;
+  const lines = Math.ceil(h / gap) + 2;
+  const g = ctx.createRadialGradient(cursor.x, cursor.y, 0, cursor.x, cursor.y, R);
+  g.addColorStop(0, accentA(0.7));
+  g.addColorStop(0.5, accentA(0.42));
+  g.addColorStop(0.82, accentA(0.14));
+  g.addColorStop(1, accentA(0));
+  ctx.strokeStyle = g;
+  ctx.globalAlpha = 1;
+  ctx.lineWidth = 1.1;
+  for (let index = 0; index < lines; index += 1) {
+    const base = (index - 1) * gap;
+    ctx.beginPath();
+    for (let x = -10; x <= w + 10; x += 5) {
+      const y = waveY(x, base, index, t * 0.5);
+      if (x === -10) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+  }
+}
+
+function drawTwist() {
+  const gap = 25, step = 7, swirlMax = 1.9;
+  const twist = (x, y) => {
+    const dx = x - cursor.x, dy = y - cursor.y;
+    const d = Math.hypot(dx, dy);
+    const a = -swirlMax / (1 + d / 55);
+    const cos = Math.cos(a), sin = Math.sin(a);
+    return [cursor.x + dx * cos - dy * sin, cursor.y + dx * sin + dy * cos];
+  };
+  ctx.lineWidth = 1;
+  let index = 0;
+  for (let x = 0; x <= w + gap; x += gap, index += 1) {
+    ctx.strokeStyle = index % 5 === 0 ? accent() : ink();
+    ctx.globalAlpha = index % 5 === 0 ? 0.3 : 0.14;
+    ctx.beginPath();
+    for (let y = -10; y <= h + 10; y += step) {
+      const [px, py] = twist(x, y);
+      if (y === -10) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+    }
+    ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
+  hole();
+}
+
+const frame = (now) => {
+  raf = requestAnimationFrame(frame);
+  if (now - painted < 33) return;
+  painted = now;
+  const t = (now - started) / 1000;
+  if (pointer.inside) {
+    cursor.x += (pointer.x - cursor.x) * 0.16;
+    cursor.y += (pointer.y - cursor.y) * 0.16;
+  }
+  if (mode !== "flow") ctx.clearRect(0, 0, w, h);
+  ideas[mode].draw(t);
+};
+
+stage.addEventListener("pointermove", (event) => {
+  const rect = canvas.getBoundingClientRect();
+  pointer.x = event.clientX - rect.left;
+  pointer.y = event.clientY - rect.top;
+  pointer.inside = true;
+});
+stage.addEventListener("pointerleave", () => { pointer.inside = false; });
+
+const resize = () => {
+  const rect = stage.getBoundingClientRect();
+  w = rect.width; h = rect.height;
+  const dpr = Math.min(devicePixelRatio || 1, 2);
+  canvas.width = Math.round(w * dpr);
+  canvas.height = Math.round(h * dpr);
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, w, h);
+  if (mode === "flow") seedParts();
+  if (!pointer.inside) {
+    cursor.x = w * 0.63;
+    cursor.y = h * 0.42;
+  }
+};
+
+new ResizeObserver(resize).observe(stage);
+setTheme();
+resize();
+hint.textContent = ideas[mode].hint;
+started = performance.now();
+raf = requestAnimationFrame(frame);
+</script>
+</body>
+</html>

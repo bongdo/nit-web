@@ -1,4 +1,4 @@
-import { memo, useEffect, useState, type RefObject } from "react";
+import { memo, useEffect, useRef, useState, type RefObject } from "react";
 import {
   ChevronRight,
   CornerDownRight,
@@ -217,6 +217,7 @@ export const Sidebar = memo(function Sidebar({
 }) {
   const [now, setNow] = useState(Date.now());
   const [showSubagents, setShowSubagents] = useState(false);
+  const autoExpanded = useRef<string | null>(null);
   const modKey =
     typeof navigator !== "undefined" && /mac/i.test(navigator.platform) ? "⌘K" : "Ctrl K";
   useEffect(() => {
@@ -224,7 +225,11 @@ export const Sidebar = memo(function Sidebar({
     return () => window.clearInterval(timer);
   }, []);
   useEffect(() => {
-    setShowSubagents((value) => value || subagents.some((session) => session.id === selectedId));
+    if (!selectedId || autoExpanded.current === selectedId) return;
+    if (subagents.some((session) => session.id === selectedId)) {
+      autoExpanded.current = selectedId;
+      setShowSubagents(true);
+    }
   }, [selectedId, subagents]);
 
   const visible = groupSessions(filterSessions(sessions, search), waitingIds);

@@ -650,7 +650,7 @@ export const Sidebar = memo(function Sidebar({
       <div className="border-border text-muted-foreground flex items-center gap-1 border-t px-2 py-1.5 text-[10px]">
         <Button
           variant="ghost"
-          size="icon-xs"
+          size="icon-sm"
           className={cn(notify && "text-emerald-500")}
           onClick={onNotify}
           title={notify ? "Desktop notifications on" : "Desktop notifications off"}
@@ -660,7 +660,7 @@ export const Sidebar = memo(function Sidebar({
         </Button>
         <Button
           variant="ghost"
-          size="icon-xs"
+          size="icon-sm"
           onClick={onSettings}
           title="Settings"
           aria-label="Settings"

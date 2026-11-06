@@ -294,6 +294,7 @@ export const Sidebar = memo(function Sidebar({
             type="button"
             onClick={() => setShowSubagents((value) => !value)}
             aria-expanded={showSubagents}
+            aria-label={showSubagents ? "Hide subagents" : "Show subagents"}
             className={cn(
               "inline-flex items-center gap-1 text-[10px]",
               runningSubagents > 0 ? "text-emerald-500" : "text-muted-foreground",

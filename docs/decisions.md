@@ -264,3 +264,15 @@ Why: one host to deploy, supervise, back up and secure; the client may be any br
 Rejected: a local-first client with per-device TTS, STT or dictionaries; browser speech synthesis as a TTS fallback; keeping nspell in the browser indefinitely.
 
 Cost: spelling still runs in the browser until `/api/spell` lands; the TTS hub must move from `0.0.0.0:7787` to loopback and be proxied; every capability shares one host's CPU and RAM; a down Frankfurt instance takes the whole product down. This supersedes the browser-only part of 2026-11-05 — Composer spelling and the nspell half of 2026-11-06 — Hybrid spelling and grammar.
+
+## 2026-11-06 — Server password page and Funnel ingress
+
+Context: the app is exposed publicly, but the only gate was Caddy basic auth on a plain-HTTP listener. The user wants a normal web login page, a password set on the server, and brute-force protection.
+
+Decision: put authentication in the Go app. `bin/auth` generates a random password, stores a PBKDF2-SHA256 hash (600k rounds) in `~/.config/nit-gui/auth.env` with mode `0600`, and prints the password once. `/auth` renders the login page; a successful login sets an HttpOnly, Secure, SameSite=Strict session cookie. Five wrong passwords block an IP for 15 minutes; 50 failures across all clients block new logins for 5 minutes. Caddy binds `127.0.0.1:7792` and only proxies; Tailscale Funnel terminates public TLS at `https://frankfurt.tailf358cb.ts.net/nit/`. The app is served under `/nit` with a matching Vite base and API prefix.
+
+Why: one place owns auth and rate limiting, the password never reaches Caddy or a URL, and Funnel provides HTTPS without opening the host's public IP or changing the OCI security list.
+
+Rejected: keeping Caddy basic auth (no login page, no lockout), exposing the app or Caddy on `0.0.0.0`, using the host public IP with `nip.io` (80/7792 closed, 443 occupied), and a per-user account system (out of scope for one user).
+
+Cost: one shared password, in-memory sessions and lockout counters, and no 2FA. Restarting the app signs everyone out and clears blocks. Public access depends on Tailscale Funnel; a real domain would need DNS and a free TLS port.

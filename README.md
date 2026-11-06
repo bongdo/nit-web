@@ -14,6 +14,7 @@ dictionaries, LanguageTool or a GPU.
 
 | Capability | Runs on | State |
 | --- | --- | --- |
+| Authentication | Frankfurt, `/auth` + session cookie | one shared password |
 | Sessions, messages, models, agents | OpenCode on Frankfurt | source of truth |
 | STT | Frankfurt, `/api/stt` + `whisper-server` / `whisper-cli` | implemented |
 | TTS | Frankfurt, OpenCode TTS plugin; the browser never synthesizes speech | host-side plugin, not managed by nit-gui |
@@ -38,22 +39,31 @@ serves it on loopback. This is local development, not a deployment.
 ## Deploy
 
 ```sh
-bin/frankfurt   # the only supported production deployment
+bin/auth        # once: generate the server password
+bin/frankfurt   # build and restart the app and its local Caddy
+sudo tailscale funnel --bg --set-path /nit 7792   # once: public HTTPS
 ```
 
-`bin/frankfurt` builds on the Frankfurt host, restarts the app on
-`127.0.0.1:7791`, and starts a user Caddy on `:7792` with basic auth. When
-LanguageTool is configured (`NIT_GUI_LANGUAGETOOL` or
-`languagetool-http-server` on `PATH`), it also starts or reuses a detached
-sidecar on `8180` and passes its URL to the app, so grammar stays warm across
-app restarts. It reuses the first `basicauth` entry from
-`/etc/caddy/Caddyfile`; set `NIT_GUI_PUBLIC_PASSWORD` to use another
-password. The public port must be open in the OCI security list. The tailnet URL
-works without opening it. The listener is plain HTTP: basic auth protects access,
-not the password in transit, so prefer the tailnet URL for anything private.
-Dictation needs a secure context, so `http://<public-or-tailnet-ip>` cannot use
-the microphone. Use an SSH tunnel to `127.0.0.1:7792` or put HTTPS in front
-(Tailscale Serve/Funnel) when dictation matters.
+`bin/auth` writes `~/.config/nit-gui/auth.env` with mode `0600` and a
+PBKDF2-SHA256 hash, then prints the password once. Rotate it with
+`bin/auth -force` and restart with `bin/frankfurt`.
+
+`bin/frankfurt` builds the web bundle with base `/nit/`, restarts the app on
+`127.0.0.1:7791`, and starts a user Caddy on `127.0.0.1:7792`. Caddy is
+loopback-only; Tailscale Funnel terminates HTTPS and exposes the app at
+`https://frankfurt.tailf358cb.ts.net/nit/`. The app serves `/auth`, keeps an
+HttpOnly Secure SameSite=Strict session cookie, and blocks an IP for 15 minutes
+after 5 wrong passwords.
+
+The box's public IP is `92.5.143.242`. The OCI security list does not expose
+`80`/`7792`, and `443` is used by another service. The supported public path is
+Tailscale Funnel; do not bind the app or Caddy to `0.0.0.0`. Dictation needs a
+secure context, which the Funnel URL provides.
+
+When LanguageTool is configured (`NIT_GUI_LANGUAGETOOL` or
+`languagetool-http-server` on `PATH`), `bin/frankfurt` also starts or reuses a
+detached sidecar on `8180` and passes its URL to the app, so grammar stays warm
+across app restarts.
 
 `bin/nixos` and `bin/deploy nixos` remain in the tree for the old NixOS host.
 That path is legacy and is not a supported production target; new features are
@@ -181,9 +191,12 @@ rewritten to loopback. Credentials in a server URL are discarded.
 | `OPENCODE_URL` | Same, supported for parity with `nit`. |
 | `XDG_CONFIG_HOME` | Used to locate `opencode/service.json`. |
 | `NIT_GUI_ALLOWED_HOSTS` | Comma-separated extra `Host` names accepted behind a reverse proxy. Loopback is always accepted. |
-| `NIT_GUI_PUBLIC_PORT` | Public Caddy port for `bin/frankfurt`, default `7792`. |
-| `NIT_GUI_PUBLIC_HOST` | Public host printed by `bin/frankfurt`, default `92.5.143.242`. |
-| `NIT_GUI_PUBLIC_PASSWORD` | Password for `bin/frankfurt`; otherwise reuse `/etc/caddy/Caddyfile`. |
+| `NIT_GUI_PUBLIC_PORT` | Caddy port for `bin/frankfurt`, default `7792`. |
+| `NIT_GUI_PUBLIC_HOST` | Public host printed by `bin/frankfurt`, default `frankfurt.tailf358cb.ts.net`. |
+| `NIT_GUI_BASE_PATH` | External path prefix, default `/nit` in `bin/frankfurt`. |
+| `NIT_GUI_AUTH_ENV` | Auth env file sourced by `bin/frankfurt`, default `~/.config/nit-gui/auth.env`. |
+| `NIT_GUI_PASSWORD_HASH` | PBKDF2-SHA256 hash used by the login page. Set by `bin/auth`. |
+| `NIT_GUI_PASSWORD` | Plain password for local development; hashed at startup. Do not use in production. |
 | `NIT_GUI_LANGUAGETOOL` | Path to `languagetool-http-server`; the app starts it lazily. |
 | `NIT_GUI_LANGUAGETOOL_URL` | Use an already running LanguageTool server instead of spawning one. |
 | `NIT_GUI_LANGUAGETOOL_PORT` | Spawned server port, default `8179`. |
@@ -237,9 +250,14 @@ nspell worker. It is not implemented yet.
 - Production is one Frankfurt instance. The browser is untrusted and thin: it
   gets only the same-origin API, never host files, service credentials, model
   paths or a local shell.
-- The Go listener stays on loopback. `bin/frankfurt` puts a separate user Caddy
-  with basic auth in front; it proxies only to `127.0.0.1:7791`. The app trusts a
+- The Go listener stays on loopback. `bin/frankfurt` starts Caddy on
+  `127.0.0.1:7792`; Tailscale Funnel terminates public TLS. The app trusts a
   `Host` name only when it is loopback or listed in `NIT_GUI_ALLOWED_HOSTS`.
+- Every route except `/auth` requires a session cookie. The login page uses a
+  PBKDF2-SHA256 hash (600k rounds), an HttpOnly Secure SameSite=Strict cookie,
+  no-store and a strict CSP. Five wrong passwords block the source IP for 15
+  minutes; 50 failures across all clients block new logins for 5 minutes.
+  Password values are never logged or put in a URL.
 - The service password stays in the Go process and is not logged. OpenCode
   content can contain it because a tool can read `service.json`, so every
   pass-through JSON response from OpenCode and every SSE `data` payload is
@@ -262,7 +280,8 @@ nspell worker. It is not implemented yet.
   `allow-same-origin` is absent, so preview scripts run in an opaque origin and
   cannot read the app, cookies or local storage. Preview code can still make
   network requests, so treat it as untrusted content.
-- The app has no accounts, database, telemetry or analytics.
+- There is one shared password, no per-user accounts, database, telemetry or
+  analytics. Sessions live in memory and are lost on restart.
 
 ## Frontend behaviour
 
@@ -405,8 +424,10 @@ own startup warmup.
   before sending a file the current model cannot read.
 - No syntax highlighting in code blocks; copy and HTML preview are implemented.
 - The HTML preview is a fixed-height iframe, not a full-window renderer.
-- The Go app has no authentication of its own. `bin/frankfurt` puts basic auth
-  in front of the public listener; any other remote exposure needs the same.
+- Authentication is one shared password, not per-user accounts. Sessions and
+  lockout counters are in memory, so an app restart signs everyone out and
+  clears blocks. The public path is Tailscale Funnel; exposing the app another
+  way requires TLS and the same auth in front.
 
 ## Decisions
 

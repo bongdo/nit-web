@@ -317,11 +317,11 @@ export default function App() {
       (item) => item.id === currentModel?.id && item.providerID === currentModel?.providerID,
     ) ?? null;
   const sessionCost = selectedSession?.cost ?? 0;
-  const estimated = estimateCost(selectedSession?.tokens, modelInfo);
-  const shownCost = sessionCost > 0 ? sessionCost : estimated;
   const lastAssistantTokens = [...messages]
     .reverse()
     .find((message) => message.type === "assistant" && message.tokens)?.tokens;
+  const estimated = estimateCost(selectedSession?.tokens, modelInfo, lastAssistantTokens);
+  const shownCost = sessionCost > 0 ? sessionCost : estimated;
   const shownContext = contextPercent(lastAssistantTokens, modelInfo);
 
   const flushStream = useCallback(() => {

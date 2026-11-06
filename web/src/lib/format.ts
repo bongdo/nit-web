@@ -13,12 +13,24 @@ export function formatRelative(ms: number, now = Date.now()): string {
   return new Date(ms).toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
 
-export function estimateCost(tokens?: Tokens, model?: Model | null): number {
-  const price = model?.cost?.[0];
-  if (!tokens || !price) return 0;
+export function estimateCost(
+  tokens?: Tokens,
+  model?: Model | null,
+  contextTokens?: Tokens,
+): number {
+  if (!tokens || !model?.cost?.length) return 0;
+  const context = contextTokens ?? tokens;
+  const contextSize =
+    (context.input ?? 0) + (context.cache?.read ?? 0) + (context.cache?.write ?? 0);
+  const price =
+    model.cost
+      .filter((item) => item.tier?.type === "context" && contextSize > item.tier.size)
+      .sort((a, b) => (b.tier?.size ?? 0) - (a.tier?.size ?? 0))[0] ??
+    model.cost.find((item) => !item.tier);
+  if (!price) return 0;
   return (
     ((tokens.input ?? 0) * price.input +
-      (tokens.output ?? 0) * price.output +
+      ((tokens.output ?? 0) + (tokens.reasoning ?? 0)) * price.output +
       (tokens.cache?.read ?? 0) * price.cache.read +
       (tokens.cache?.write ?? 0) * price.cache.write) /
     1_000_000

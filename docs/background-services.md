@@ -8,6 +8,11 @@ browser is a thin client: it renders the UI, records microphone audio and plays
 audio. It is not assumed to have local TTS voices, local STT, Hunspell
 dictionaries, LanguageTool, a GPU or any other capability.
 
+Caddy listens on loopback only. Tailscale Funnel terminates public HTTPS and
+exposes the app at `https://frankfurt.tailf358cb.ts.net/nit/`. Authentication is
+a server-side password page at `/auth`; there is no Caddy basic auth and no
+per-user account system.
+
 This is a product boundary, not a temporary packaging detail. A feature that
 needs a model, dictionary, voice, JVM or another process is added as a service
 on Frankfurt and exposed through nit-gui. It is not pushed into the client.
@@ -19,8 +24,9 @@ The remaining client-side exceptions are listed under [Migration gaps](#migratio
 | Service | Address on Frankfurt | Role | Required |
 | --- | --- | --- | --- |
 | OpenCode | `127.0.0.1:49374` (varies) | Sessions, messages, models, agents, provider credentials | yes |
-| nit-gui | `127.0.0.1:7791` | Go API + embedded web bundle | yes |
-| Caddy | `:7792` | Public listener, basic auth, reverse proxy | for public access |
+| nit-gui | `127.0.0.1:7791` | Go API, embedded web bundle, `/auth` login and sessions | yes |
+| Caddy | `127.0.0.1:7792` | Loopback reverse proxy, security headers, `/nit` path | yes |
+| Tailscale Funnel | `https://frankfurt.tailf358cb.ts.net/nit/` | Public HTTPS ingress | for public access |
 | LanguageTool | `127.0.0.1:8180` | Grammar and real-word checks | optional |
 | `whisper-server` | `127.0.0.1:8178` | Fast dictation while recording | optional |
 | `whisper-cli` | none | Accurate dictation, one process per request | optional |
@@ -30,9 +36,10 @@ The remaining client-side exceptions are listed under [Migration gaps](#migratio
 MCP servers, shells and PTYs belong to OpenCode. They are not managed by
 nit-gui.
 
-In the target topology only Caddy listens publicly. OpenCode, nit-gui,
-LanguageTool, Whisper and the TTS hub stay on loopback; the TTS hub does not
-meet that yet.
+Only Tailscale Funnel is public. Caddy, OpenCode, nit-gui, LanguageTool, Whisper
+and the TTS hub stay on loopback; the TTS hub does not meet that yet. The host
+public IP `92.5.143.242` is not the ingress: `80`/`7792` are not open in the OCI
+security list and `443` is used by another service.
 
 ## Client contract
 
@@ -42,7 +49,9 @@ The browser may:
 - capture 16 kHz mono WAV from the microphone and upload it to `/api/stt`;
 - play audio returned by the host;
 - keep UI preferences, drafts and the personal spelling dictionary in
-  `localStorage`.
+  `localStorage`;
+- hold the session in an HttpOnly cookie; the password is never stored in the
+  browser.
 
 The browser must not be required to:
 
@@ -99,7 +108,12 @@ is not measured here.
 | `NIT_GUI_STT_FAST_MODEL` | fast model path |
 | `NIT_GUI_WHISPER`, `NIT_GUI_WHISPER_MODEL`, `NIT_GUI_STT_LANG` | accurate dictation |
 | `NIT_GUI_WARM` | `0` disables startup warmup |
-| `NIT_GUI_PUBLIC_*` | Caddy port, host and basic-auth password |
+| `NIT_GUI_PUBLIC_PORT` | Caddy loopback port, default `7792` |
+| `NIT_GUI_PUBLIC_HOST` | Funnel hostname, default `frankfurt.tailf358cb.ts.net` |
+| `NIT_GUI_BASE_PATH` | External path prefix, default `/nit` |
+| `NIT_GUI_AUTH_ENV` | Auth env file, default `~/.config/nit-gui/auth.env` |
+| `NIT_GUI_PASSWORD_HASH` | PBKDF2-SHA256 login hash set by `bin/auth` |
+| `NIT_GUI_PASSWORD` | Plain local-development password, hashed at startup |
 | `NIT_GUI_DEPLOY_*` | deploy host, port and directory |
 
 TTS is configured in the OpenCode TTS plugin, not in nit-gui. nit-gui has no
@@ -110,22 +124,26 @@ TTS environment variable and no browser speech fallback.
 - Production is the single Frankfurt instance. Every visitor shares the same
   OpenCode sessions, credentials and working directories. This is a one-user
   product until real per-user auth and session scoping exist.
-- Caddy basic auth is the only public gate. The listener is plain HTTP; basic
-  auth protects access, not the password in transit. Prefer the tailnet URL or
-  put HTTPS in front (Tailscale Serve/Funnel).
-- The Go listener stays on loopback. `bin/frankfurt` proxies only to
+- Tailscale Funnel terminates public TLS. Caddy and the Go app stay on
+  loopback; `bin/frankfurt` binds Caddy to `127.0.0.1:7792` and proxies only to
   `127.0.0.1:7791`. Set `NIT_GUI_ALLOWED_HOSTS` for the public name.
+- The app login is a server-side password page at `/auth`. The password is
+  stored as a PBKDF2-SHA256 hash (600k rounds), the session cookie is HttpOnly,
+  Secure and SameSite=Strict, and the login page sends no-store plus a strict
+  CSP. Five wrong passwords block the source IP for 15 minutes; 50 failures
+  across all clients block new logins for 5 minutes.
 - The OpenCode password stays in the Go process and is redacted from JSON and
-  SSE before it reaches the browser.
+  SSE before it reaches the browser. The login password is never logged or put
+  in a URL.
 - SSE must not be buffered or timed out by the proxy. Caddy works with the
   current `/api/events` proxy; verify long-lived connections and reconnect
   behavior after proxy changes.
-- The Go app has no rate limiting. Put limits on `/api/prompt`, `/api/stt`,
+- API rate limiting is still missing. Put limits on `/api/prompt`, `/api/stt`,
   `/api/grammar` and uploads at the proxy, or add them to the app.
 - Uploaded files are written under `/tmp` on the OpenCode host and are never
   cleaned up. A public deployment needs retention and quota rules.
 - Back up the OpenCode data directory and configuration. `/tmp` uploads are not
-  a backup. Caddy certificates and the service environment file also matter.
+  a backup. `auth.env`, the Caddy config and Tailscale state also matter.
 - Use systemd/journald for the Go app, Caddy, LanguageTool and Whisper. Set
   restart policies and log rotation; watch disk for models, JRE and uploads.
 
@@ -139,9 +157,12 @@ TTS environment variable and no browser speech fallback.
   on `0.0.0.0:7787` and is not part of the app. It must bind to `127.0.0.1` and
   be reached through the app or Caddy; the browser must only receive audio.
   Do not add `speechSynthesis` as a fallback.
-- **No TLS.** The public listener is plain HTTP with basic auth. TLS is a
-  prerequisite for a public link and for browser microphone access outside an
-  SSH tunnel or tailnet HTTPS.
+- **One shared password, in-memory sessions.** There is no per-user account,
+  2FA or session revocation list. An app restart signs everyone out and clears
+  login lockout counters.
+- **Public IP is not the ingress.** `92.5.143.242` has no usable inbound
+  `80`/`443` path here; public access depends on Tailscale Funnel. A real
+  domain would need DNS and a free TLS port.
 - **No supervisor.** `bin/frankfurt` starts the app and Caddy with `setsid`;
   they do not survive reboot. `bin/languagetool` also has no supervisor.
   systemd is the durable answer.
@@ -152,7 +173,8 @@ TTS environment variable and no browser speech fallback.
   RAM.
 - **No per-user isolation.** There are no accounts, quotas or session scoping.
   A public link exposes the same sessions to every visitor.
-- **No rate limits.** Add them at Caddy or in the Go app before exposing the
+- **No API rate limits.** Login has lockout, but prompt, STT, grammar and
+  uploads do not. Add limits at Caddy or in the Go app before exposing the
   instance beyond the tailnet.
 - **No upload retention.** `/tmp/nit-gui-*` grows without cleanup.
 - **No observability.** Use journald, restart policies and disk alerts for the
@@ -187,7 +209,9 @@ After=network.target
 
 [Service]
 Environment=NIT_GUI_LANGUAGETOOL_URL=http://127.0.0.1:8180
-Environment=NIT_GUI_ALLOWED_HOSTS=92.5.143.242,frankfurt
+Environment=NIT_GUI_ALLOWED_HOSTS=frankfurt.tailf358cb.ts.net,frankfurt
+Environment=NIT_GUI_BASE_PATH=/nit
+EnvironmentFile=%h/.config/nit-gui/auth.env
 ExecStart=/path/to/nit-gui --addr 127.0.0.1:7791
 Restart=always
 RestartSec=2
@@ -203,12 +227,12 @@ OpenCode; do not run a second TTS hub.
 
 ## Before exposing beyond the tailnet
 
-1. Put HTTPS in front of Caddy.
-2. Replace shared basic auth with real per-user authentication, or keep the
-   instance on the tailnet/VPN.
+1. Keep TLS at Tailscale Funnel; Caddy and the app stay on loopback.
+2. Replace the shared password with real per-user authentication if more than
+   one person needs access.
 3. Add rate limits for prompt, STT, grammar and uploads.
 4. Add upload retention and a quota.
 5. Move spelling behind `/api/spell` so the client needs no dictionaries.
 6. Move the TTS hub to loopback and proxy it through nit-gui.
 7. Supervise every process with systemd and verify restart on reboot.
-8. Back up OpenCode data, configuration and Caddy state.
+8. Back up OpenCode data, configuration, `auth.env` and Caddy state.

@@ -69,10 +69,35 @@ describe("format", () => {
       cost: [{ input: 0.15, output: 0.6, cache: { read: 0.003, write: 0 } }],
       limit: { context: 1_000_000 },
     } as unknown as Model;
-    const tokens = { input: 1_000_000, output: 1_000_000, cache: { read: 1_000_000 } };
-    expect(estimateCost(tokens, model)).toBeCloseTo(0.753, 6);
+    const tokens = {
+      input: 1_000_000,
+      output: 1_000_000,
+      reasoning: 500_000,
+      cache: { read: 1_000_000 },
+    };
+    expect(estimateCost(tokens, model)).toBeCloseTo(1.053, 6);
     expect(contextPercent(tokens, model)).toBe(100);
     expect(estimateCost(undefined, model)).toBe(0);
+  });
+
+  it("picks the context price tier from the last request, not session totals", () => {
+    const model = {
+      cost: [
+        { input: 0.1, output: 0.5, cache: { read: 0.01, write: 0.125 } },
+        {
+          tier: { type: "context", size: 100_000 },
+          input: 0.5,
+          output: 2.5,
+          cache: { read: 0.05, write: 0.625 },
+        },
+      ],
+      limit: { context: 1_000_000 },
+    } as unknown as Model;
+    const totals = { input: 50_000, output: 100_000, cache: { read: 60_000, write: 0 } };
+    const small = { input: 40_000, output: 10, cache: { read: 50_000, write: 0 } };
+    expect(estimateCost(totals, model, small)).toBeCloseTo(0.0556, 6);
+    expect(estimateCost(totals, model, { input: 100_000 })).toBeCloseTo(0.0556, 6);
+    expect(estimateCost(totals, model, totals)).toBeCloseTo(0.278, 6);
   });
 
   it("joins assistant text parts and ignores reasoning and tool parts", () => {

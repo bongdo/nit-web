@@ -166,6 +166,7 @@ export type Model = {
   capabilities?: { input?: string[] };
   variants: { id: string }[];
   cost: {
+    tier?: { type: string; size: number };
     input: number;
     output: number;
     cache: { read: number; write: number };

@@ -1,3 +1,4 @@
+import { sessionRunning } from "./format";
 import type { Agent, FormInfo, Session } from "./types";
 
 export type Scope = "directory" | "mine" | "all";
@@ -26,6 +27,31 @@ export function waitingSessionIds(forms: FormInfo[], fallbackId?: string | null)
     if (id) ids.add(id);
   }
   return ids;
+}
+
+export function mergeWaitingSessionIds(
+  selectedId: string | null,
+  selectedForms: FormInfo[],
+  background: ReadonlySet<string>,
+): Set<string> {
+  const ids = new Set(background);
+  if (selectedId) ids.delete(selectedId);
+  for (const id of waitingSessionIds(selectedForms, selectedId)) ids.add(id);
+  return ids;
+}
+
+export function pollSessionIds(
+  sessions: Session[],
+  selectedId: string | null,
+  running: Record<string, boolean>,
+  waiting: ReadonlySet<string>,
+): string[] {
+  return sessions
+    .filter((session) => session.id !== selectedId)
+    .filter(
+      (session) => (running[session.id] ?? sessionRunning(session)) || waiting.has(session.id),
+    )
+    .map((session) => session.id);
 }
 
 export type SessionRow = { session: Session; depth: number };

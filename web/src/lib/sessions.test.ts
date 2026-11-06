@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 import {
   groupSessions,
   isTechnical,
+  mergeWaitingSessionIds,
   nextSessionId,
+  pollSessionIds,
   scopeSessions,
   waitingSessionIds,
 } from "./sessions";
@@ -104,5 +106,39 @@ describe("sessions", () => {
       "child",
       "root",
     ]);
+  });
+
+  it("merges background waiting ids without leaking them into the selected forms queue", () => {
+    expect([
+      ...mergeWaitingSessionIds(
+        "ses_1",
+        [form({ sessionID: "ses_1" })],
+        new Set(["ses_1", "ses_2"]),
+      ),
+    ]).toEqual(["ses_2", "ses_1"]);
+    expect([
+      ...mergeWaitingSessionIds("ses_1", [], new Set(["ses_1", "ses_2"])),
+    ]).toEqual(["ses_2"]);
+    expect([
+      ...mergeWaitingSessionIds("ses_1", [form({ sessionID: "ses_2" })], new Set()),
+    ]).toEqual(["ses_2"]);
+  });
+
+  it("polls only unselected running or already-waiting sessions", () => {
+    const list = [
+      session({ id: "selected", time: { created: 0, updated: 0, busy: 2, idle: 1 } }),
+      session({ id: "busy", time: { created: 0, updated: 0, busy: 2, idle: 1 } }),
+      session({ id: "idle", time: { created: 0, updated: 0, busy: 1, idle: 2 } }),
+      session({ id: "waiting", time: { created: 0, updated: 0 } }),
+      session({ id: "forced-idle", time: { created: 0, updated: 0, busy: 2, idle: 1 } }),
+    ];
+    expect(
+      pollSessionIds(
+        list,
+        "selected",
+        { selected: true, "forced-idle": false },
+        new Set(["selected", "waiting"]),
+      ),
+    ).toEqual(["busy", "waiting"]);
   });
 });

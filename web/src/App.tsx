@@ -24,9 +24,10 @@ import {
 import { questionField } from "./lib/forms";
 import {
   groupSessions,
+  mergeWaitingSessionIds,
   nextSessionId,
+  pollSessionIds,
   scopeSessions,
-  waitingSessionIds,
   type Scope,
 } from "./lib/sessions";
 import { cn } from "./lib/utils";
@@ -161,6 +162,7 @@ export default function App() {
       : "magnetic";
   });
   const [forms, setForms] = useState<FormInfo[]>([]);
+  const [backgroundWaitingIds, setBackgroundWaitingIds] = useState<Set<string>>(new Set());
   const [hiddenIds, setHiddenIds] = useState<Set<string>>(() => {
     try {
       const value = JSON.parse(localStorage.getItem("nit-gui.hidden") ?? "[]");
@@ -212,11 +214,16 @@ export default function App() {
   const lastQueryRef = useRef(`${scope}|${workspace}`);
   const streamQueue = useRef<StreamEvent[]>([]);
   const streamFrame = useRef<number | null>(null);
+  const formsOwnerRef = useRef<string | null>(null);
 
   const sessionsRef = useRef(sessions);
   sessionsRef.current = sessions;
   const agentsRef = useRef(agents);
   agentsRef.current = agents;
+  const runningIdsRef = useRef(runningIds);
+  runningIdsRef.current = runningIds;
+  const backgroundWaitingRef = useRef(backgroundWaitingIds);
+  backgroundWaitingRef.current = backgroundWaitingIds;
   const selectedSession = sessions.find((session) => session.id === selectedId) ?? null;
   const parentSession = selectedSession?.parentID
     ? (sessions.find((session) => session.id === selectedSession.parentID) ?? null)
@@ -231,7 +238,10 @@ export default function App() {
       sessionRunning(sessions.find((session) => session.id === id)),
     [runningIds, sessions],
   );
-  const waitingIds = useMemo(() => waitingSessionIds(forms, selectedId), [forms, selectedId]);
+  const waitingIds = useMemo(
+    () => mergeWaitingSessionIds(selectedId, forms, backgroundWaitingIds),
+    [backgroundWaitingIds, forms, selectedId],
+  );
   const runningNow = selectedId ? isRunning(selectedId) : false;
   const modelInfo =
     models.find(
@@ -326,12 +336,18 @@ export default function App() {
   const loadForms = useCallback(async () => {
     const id = selectedIdRef.current;
     if (!id) {
+      formsOwnerRef.current = null;
       setForms([]);
       return;
     }
     try {
-      setForms(await api.forms(id));
+      const data = await api.forms(id);
+      if (selectedIdRef.current !== id) return;
+      formsOwnerRef.current = id;
+      setForms(data);
     } catch {
+      if (selectedIdRef.current !== id) return;
+      formsOwnerRef.current = id;
       setForms([]);
     }
   }, []);
@@ -340,6 +356,77 @@ export default function App() {
     void loadChildren();
     void loadForms();
   }, [loadChildren, loadForms, selectedId]);
+
+  useEffect(() => {
+    if (!selectedId || formsOwnerRef.current !== selectedId) return;
+    const waiting = forms.length > 0;
+    setBackgroundWaitingIds((previous) => {
+      if (waiting === previous.has(selectedId)) return previous;
+      const next = new Set(previous);
+      if (waiting) next.add(selectedId);
+      else next.delete(selectedId);
+      return next;
+    });
+  }, [forms, selectedId]);
+
+  useEffect(() => {
+    let cancelled = false;
+    let polling = false;
+
+    const poll = async () => {
+      if (cancelled || polling || document.hidden || !healthRef.current?.ok) return;
+      const ids = pollSessionIds(
+        sessionsRef.current,
+        selectedIdRef.current,
+        runningIdsRef.current,
+        backgroundWaitingRef.current,
+      );
+      if (ids.length === 0) return;
+      polling = true;
+      try {
+        const results = await Promise.all(
+          ids.map(async (id) => {
+            try {
+              return [id, (await api.forms(id)).length > 0] as const;
+            } catch {
+              return [id, backgroundWaitingRef.current.has(id)] as const;
+            }
+          }),
+        );
+        if (cancelled) return;
+        setBackgroundWaitingIds((previous) => {
+          const next = new Set(previous);
+          for (const [id, waiting] of results) {
+            if (id === selectedIdRef.current) continue;
+            if (waiting) next.add(id);
+            else next.delete(id);
+          }
+          const known = new Set(sessionsRef.current.map((session) => session.id));
+          for (const id of next) {
+            if (!known.has(id)) next.delete(id);
+          }
+          if (next.size === previous.size && [...next].every((id) => previous.has(id))) {
+            return previous;
+          }
+          return next;
+        });
+      } finally {
+        polling = false;
+      }
+    };
+
+    const timer = window.setInterval(() => void poll(), 5_000);
+    const onVisibility = () => {
+      if (!document.hidden) void poll();
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    void poll();
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, []);
 
   useEffect(() => {
     const key = `${scope}|${workspace}`;

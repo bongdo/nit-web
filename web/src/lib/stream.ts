@@ -8,6 +8,21 @@ function num(value: unknown): number | undefined {
   return typeof value === "number" ? value : undefined;
 }
 
+function isQuestionEvent(event: StreamEvent, messages: Message[]): boolean {
+  const data = event.data ?? {};
+  if (str(data.name) === "question") return true;
+  const id = str(data.id);
+  if (!id) return false;
+  const messageID = str(data.assistantMessageID);
+  return messages.some(
+    (message) =>
+      (!messageID || message.id === messageID) &&
+      (message.content ?? []).some(
+        (part) => part.type === "tool" && part.id === id && part.name === "question",
+      ),
+  );
+}
+
 export function normalizeMessages(messages: Message[]): Message[] {
   return messages.map((message) => {
     if (message.type !== "assistant" || !message.content) return message;

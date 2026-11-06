@@ -670,6 +670,200 @@ func TestMessagesLight(t *testing.T) {
 	}
 }
 
+const (
+	lightAnsweredQuestion = `{"type":"tool","id":"q1","name":"question","executed":true,"time":{"created":10,"ran":11,"completed":20},"state":{"status":"completed","input":{"questions":[{"header":"Pick","question":"Pick one","options":[{"label":"A","description":"first"}]}]},"content":[{"type":"text","text":"User answered: A"}],"metadata":{"answers":[["A"]]}}}`
+	lightPendingQuestion  = `{"type":"tool","id":"q2","name":"question","executed":false,"time":{"created":11},"state":{"status":"running","input":{"questions":[{"question":"Waiting"}]}}}`
+	lightErroredQuestion  = `{"type":"tool","id":"q3","name":"question","executed":false,"time":{"created":12},"state":{"status":"error","input":{"questions":[{"question":"Boom"}]},"error":{"name":"ToolError","message":"timed out"}}}`
+	lightReadPart         = `{"type":"tool","id":"t1","name":"read","executed":true,"time":{"created":5},"state":{"status":"completed","input":{"filePath":"/tmp/a"},"content":[{"type":"text","text":"tool output"}],"metadata":{"lines":3}}}`
+	lightReasoningPart    = `{"type":"reasoning","id":"r1","time":{"created":4},"text":"thinking hard","ordinal":0}`
+)
+
+func lightQuestionFixtures(t *testing.T) map[string]map[string]any {
+	t.Helper()
+	originals := map[string]map[string]any{}
+	for _, raw := range []string{lightAnsweredQuestion, lightPendingQuestion, lightErroredQuestion} {
+		var part map[string]any
+		if err := json.Unmarshal([]byte(raw), &part); err != nil {
+			t.Fatal(err)
+		}
+		originals[part["id"].(string)] = part
+	}
+	return originals
+}
+
+func decodeLightPage(t *testing.T, rec *httptest.ResponseRecorder) ([]string, map[string]map[string]any, *string) {
+	t.Helper()
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d: %s", rec.Code, rec.Body)
+	}
+	var body struct {
+		Data []struct {
+			ID      string           `json:"id"`
+			Content []map[string]any `json:"content"`
+		} `json:"data"`
+		Previous *string `json:"previous"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	ids := make([]string, len(body.Data))
+	parts := map[string]map[string]any{}
+	for index, message := range body.Data {
+		ids[index] = message.ID
+		for _, part := range message.Content {
+			if id, _ := part["id"].(string); id != "" {
+				parts[id] = part
+			}
+		}
+	}
+	return ids, parts, body.Previous
+}
+
+func assertQuestionUnchanged(t *testing.T, parts map[string]map[string]any, original map[string]any) {
+	t.Helper()
+	id := original["id"].(string)
+	part, ok := parts[id]
+	if !ok {
+		t.Fatalf("question %s missing", id)
+	}
+	if _, ok := part["light"]; ok {
+		t.Fatalf("question %s was marked light: %v", id, part)
+	}
+	if !reflect.DeepEqual(part, original) {
+		t.Fatalf("question %s changed:\n got %v\nwant %v", id, part, original)
+	}
+}
+
+func assertStrippedTool(t *testing.T, parts map[string]map[string]any, id string) {
+	t.Helper()
+	part, ok := parts[id]
+	if !ok {
+		t.Fatalf("tool %s missing", id)
+	}
+	if part["light"] != true {
+		t.Fatalf("tool %s not marked light: %v", id, part)
+	}
+	state, _ := part["state"].(map[string]any)
+	if state["status"] != "completed" {
+		t.Fatalf("tool %s lost status: %v", id, part)
+	}
+	for _, key := range []string{"input", "content", "metadata"} {
+		if _, ok := state[key]; ok {
+			t.Fatalf("tool %s kept %s: %v", id, key, part)
+		}
+	}
+}
+
+func TestMessagesLightKeepsQuestions(t *testing.T) {
+	originals := lightQuestionFixtures(t)
+	cases := []struct {
+		name      string
+		content   string
+		questions []string
+		stripped  []string
+		reasoning bool
+	}{
+		{
+			name:      "answered",
+			content:   "[" + lightAnsweredQuestion + "]",
+			questions: []string{"q1"},
+		},
+		{
+			name:      "pending",
+			content:   "[" + lightPendingQuestion + "]",
+			questions: []string{"q2"},
+		},
+		{
+			name:      "errored",
+			content:   "[" + lightErroredQuestion + "]",
+			questions: []string{"q3"},
+		},
+		{
+			name:      "mixed with stripped parts",
+			content:   "[" + lightReasoningPart + "," + lightReadPart + "," + lightAnsweredQuestion + "," + lightPendingQuestion + "]",
+			questions: []string{"q1", "q2"},
+			stripped:  []string{"t1"},
+			reasoning: true,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			upstream := httptest.NewServer(auth(func(w http.ResponseWriter, r *http.Request) {
+				fmt.Fprintf(w, `{"data":[{"id":"m1","type":"assistant","time":{"created":1},"content":%s}],"cursor":{"next":null}}`, tc.content)
+			}))
+			defer upstream.Close()
+
+			rec := httptest.NewRecorder()
+			req := httptest.NewRequest(http.MethodGet, "http://127.0.0.1:7788/api/sessions/ses_1/messages?light=1", nil)
+			newHandler(t, upstream.URL).ServeHTTP(rec, req)
+			_, parts, _ := decodeLightPage(t, rec)
+
+			for _, id := range tc.questions {
+				assertQuestionUnchanged(t, parts, originals[id])
+			}
+			for _, id := range tc.stripped {
+				assertStrippedTool(t, parts, id)
+			}
+			if tc.reasoning {
+				part, ok := parts["r1"]
+				if !ok {
+					t.Fatalf("reasoning missing: %s", rec.Body)
+				}
+				if part["light"] != true || part["text"] != "" {
+					t.Fatalf("reasoning not stripped: %v", part)
+				}
+			}
+		})
+	}
+}
+
+func TestMessagesLightLimitKeepsQuestions(t *testing.T) {
+	originals := lightQuestionFixtures(t)
+	upstream := httptest.NewServer(auth(func(w http.ResponseWriter, r *http.Request) {
+		query := r.URL.Query()
+		switch query.Get("cursor") {
+		case "":
+			if query.Get("order") != "desc" || query.Get("limit") != "2" {
+				t.Errorf("unexpected first page query: %s", r.URL.RawQuery)
+			}
+			fmt.Fprintf(w, `{"data":[
+				{"id":"m3","type":"assistant","time":{"created":3},"content":[%s,%s]},
+				{"id":"m2","type":"user","time":{"created":2},"text":"hello"}
+			],"cursor":{"next":"older"}}`, lightAnsweredQuestion, lightReadPart)
+		case "older":
+			if query.Get("order") != "" || query.Get("limit") != "2" {
+				t.Errorf("unexpected older page query: %s", r.URL.RawQuery)
+			}
+			fmt.Fprintf(w, `{"data":[{"id":"m1","type":"assistant","time":{"created":1},"content":[%s]}],"cursor":{"next":null}}`, lightPendingQuestion)
+		default:
+			t.Errorf("unexpected cursor %q", query.Get("cursor"))
+		}
+	}))
+	defer upstream.Close()
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "http://127.0.0.1:7788/api/sessions/ses_1/messages?light=1&limit=2", nil)
+	newHandler(t, upstream.URL).ServeHTTP(rec, req)
+	ids, parts, previous := decodeLightPage(t, rec)
+	if len(ids) != 2 || ids[0] != "m2" || ids[1] != "m3" {
+		t.Fatalf("tail not reversed: %s", rec.Body)
+	}
+	if previous == nil || *previous != "older" {
+		t.Fatalf("previous = %v: %s", previous, rec.Body)
+	}
+	assertQuestionUnchanged(t, parts, originals["q1"])
+	assertStrippedTool(t, parts, "t1")
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodGet, "http://127.0.0.1:7788/api/sessions/ses_1/messages?light=1&limit=2&before=older", nil)
+	newHandler(t, upstream.URL).ServeHTTP(rec, req)
+	ids, parts, previous = decodeLightPage(t, rec)
+	if len(ids) != 1 || ids[0] != "m1" || previous != nil {
+		t.Fatalf("unexpected older page: %s", rec.Body)
+	}
+	assertQuestionUnchanged(t, parts, originals["q2"])
+}
+
 func TestMessageProxy(t *testing.T) {
 	upstream := httptest.NewServer(auth(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/api/session/ses_1/message/msg_1" {

@@ -592,12 +592,25 @@ export default function App() {
     localStorage.removeItem("nit-gui.session");
   }, [hiddenIds, selectedId, showHidden]);
 
+  const saveCurrentTranscript = useCallback(() => {
+    const current = selectedIdRef.current;
+    if (!current || loadedIdRef.current !== current) return;
+    const pending = coalesceEvents(streamQueue.current);
+    const latest =
+      pending.length === 0
+        ? messagesRef.current
+        : pending.reduce(
+            (next, event) =>
+              (event.data ?? {}).sessionID === current ? applyEvent(next, event) : next,
+            messagesRef.current,
+          );
+    transcriptCache.set(current, latest);
+  }, [transcriptCache]);
+
   const selectSession = useCallback((id: string | null) => {
     const current = selectedIdRef.current;
     if (id !== current) {
-      if (current && loadedIdRef.current === current) {
-        transcriptCache.set(current, messagesRef.current);
-      }
+      saveCurrentTranscript();
       const cached = id ? transcriptCache.get(id) : undefined;
       loadedIdRef.current = cached && id ? id : null;
       setMessages(cached ?? []);
@@ -609,9 +622,10 @@ export default function App() {
     else localStorage.removeItem("nit-gui.session");
     setSidebarOpen(false);
     swipe.close();
-  }, [swipe.close]);
+  }, [saveCurrentTranscript, swipe.close]);
 
   const selectWorkspace = useCallback((directory: string) => {
+    saveCurrentTranscript();
     const value = directory.trim().replace(/\/+$/, "") || "/";
     setWorkspaceState(value);
     localStorage.setItem("nit-gui.workspace", value);
@@ -628,7 +642,7 @@ export default function App() {
     setMessages([]);
     setMessagesLoading(false);
     setPickerOpen(false);
-  }, []);
+  }, [saveCurrentTranscript]);
 
   const changeScope = useCallback((next: Scope) => {
     setScopeState(next);

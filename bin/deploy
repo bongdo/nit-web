@@ -89,11 +89,23 @@ REMOTE
 deploy_frankfurt() {
   local port="${NIT_GUI_DEPLOY_PORT:-7791}"
   local public_port="${NIT_GUI_PUBLIC_PORT:-7792}"
-  local public_host="${NIT_GUI_PUBLIC_HOST:-92.5.143.242}"
+  local public_host="${NIT_GUI_PUBLIC_HOST:-frankfurt.tailf358cb.ts.net}"
+  local base_path="${NIT_GUI_BASE_PATH:-/nit}"
   local run_dir="$PWD/.cache"
   local bin="$run_dir/nit-gui"
   local caddyfile="$run_dir/frankfurt.Caddyfile"
+  local auth_env="${NIT_GUI_AUTH_ENV:-$HOME/.config/nit-gui/auth.env}"
   local tailnet_ip=""
+
+  if [ -r "$auth_env" ]; then
+    set -a
+    . "$auth_env"
+    set +a
+  fi
+  if [ -z "${NIT_GUI_PASSWORD_HASH:-}" ] && [ -z "${NIT_GUI_PASSWORD:-}" ]; then
+    echo "deploy: no auth password; run bin/auth first or set NIT_GUI_PASSWORD_HASH" >&2
+    return 1
+  fi
 
   tailnet_ip="$(tailscale ip -4 2>/dev/null | head -1 || true)"
   local allowed="$public_host"
@@ -121,7 +133,7 @@ deploy_frankfurt() {
     fi
   fi
 
-  NIT_GUI_ALLOWED_HOSTS="$allowed" setsid "$bin" --addr "127.0.0.1:$port" >"$run_dir/nit-gui.log" 2>&1 < /dev/null &
+  NIT_GUI_ALLOWED_HOSTS="$allowed" NIT_GUI_BASE_PATH="$base_path" setsid "$bin" --addr "127.0.0.1:$port" >"$run_dir/nit-gui.log" 2>&1 < /dev/null &
 
   local ready=0
   for _ in $(seq 1 40); do
@@ -137,30 +149,29 @@ deploy_frankfurt() {
     return 1
   fi
 
-  local auth_user auth_hash
-  auth_user="$(awk '/basicauth \{/{getline; print $1; exit}' /etc/caddy/Caddyfile 2>/dev/null || true)"
-  auth_hash="$(awk '/basicauth \{/{getline; print $2; exit}' /etc/caddy/Caddyfile 2>/dev/null || true)"
-  if [ -n "${NIT_GUI_PUBLIC_PASSWORD:-}" ]; then
-    auth_user="${NIT_GUI_PUBLIC_USER:-bongdo}"
-    auth_hash="$(caddy hash-password --plaintext "$NIT_GUI_PUBLIC_PASSWORD")"
-  fi
-  if [ -z "$auth_user" ] || [ -z "$auth_hash" ]; then
-    echo "deploy: set NIT_GUI_PUBLIC_PASSWORD for the public listener" >&2
-    return 1
-  fi
-
   cat >"$caddyfile" <<EOF
 {
 	auto_https off
 	admin off
 }
 
-:$public_port {
+127.0.0.1:$public_port {
 	encode zstd gzip
-	basicauth {
-		$auth_user $auth_hash
+	header {
+		X-Content-Type-Options nosniff
+		X-Frame-Options DENY
+		Referrer-Policy no-referrer
+		Permissions-Policy "microphone=(self)"
+		Cross-Origin-Opener-Policy same-origin
+		Cross-Origin-Resource-Policy same-origin
+		-Server
 	}
-	reverse_proxy 127.0.0.1:$port
+	handle_path $base_path/* {
+		reverse_proxy 127.0.0.1:$port
+	}
+	handle {
+		reverse_proxy 127.0.0.1:$port
+	}
 }
 EOF
 
@@ -170,7 +181,8 @@ EOF
 
   ready=0
   for _ in $(seq 1 40); do
-    if [ "$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:$public_port/" || true)" = 401 ]; then
+    code="$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:$public_port$base_path/" || true)"
+    if [ "$code" = 303 ] || [ "$code" = 302 ] || [ "$code" = 200 ]; then
       ready=1
       break
     fi
@@ -183,12 +195,14 @@ EOF
   fi
 
   tailnet_ip="$(tailscale ip -4 2>/dev/null | head -1 || true)"
-  echo "deploy: frankfurt http://$public_host:$public_port/ (basic auth: $auth_user)"
+  echo "deploy: local http://127.0.0.1:$public_port$base_path/"
   if [ -n "$tailnet_ip" ]; then
-    echo "deploy: tailnet http://$tailnet_ip:$public_port/"
+    echo "deploy: tailnet http://$tailnet_ip:$public_port$base_path/"
   fi
-  echo "deploy: open tcp/$public_port in the OCI security list for public access"
-  echo "deploy: dictation needs https or a local tunnel to 127.0.0.1:$public_port"
+  echo "deploy: public https://$public_host$base_path/"
+  if ! tailscale funnel status 2>/dev/null | grep -q "$public_port"; then
+    echo "deploy: enable public access with: sudo tailscale funnel --bg --set-path $base_path $public_port"
+  fi
 }
 
 case "$target" in

@@ -1,5 +1,6 @@
 import type { UserFile } from "./types";
 import { fileUri } from "./format";
+import { appPath } from "./base";
 
 export type AttachmentKind = "image" | "pdf" | "text" | "other";
 export type FileType =
@@ -80,8 +81,16 @@ export function attachmentNameFromHref(href: string): string {
   }
 }
 
+export function localFileHref(href?: string): string | undefined {
+  if (!href) return undefined;
+  if (/^\/api\/file\?/i.test(href)) return appPath(href);
+  const prefix = appPath("/api/file?");
+  if (prefix !== "/api/file?" && href.startsWith(prefix)) return href;
+  return undefined;
+}
+
 export function isLocalFileHref(href?: string): boolean {
-  return Boolean(href && /^\/api\/file\?/i.test(href));
+  return localFileHref(href) !== undefined;
 }
 
 export function attachmentHref(file: UserFile): string | undefined {
@@ -90,7 +99,7 @@ export function attachmentHref(file: UserFile): string | undefined {
   if (uri) {
     if (/^(data|blob):/i.test(uri) || /^https?:/i.test(uri)) return uri;
     if (/^file:/i.test(uri) && !uri.startsWith("file:///tmp/nit-gui-") && inline) return inline;
-    return `/api/file?path=${encodeURIComponent(uri)}`;
+    return appPath(`/api/file?path=${encodeURIComponent(uri)}`);
   }
   return inline;
 }

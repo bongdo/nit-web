@@ -38,6 +38,7 @@ function dictionaryAssets(): Plugin {
 }
 
 export default defineConfig({
+  base: process.env.NIT_GUI_BASE || "/",
   plugins: [react(), tailwindcss(), dictionaryAssets()],
   server: {
     proxy: {

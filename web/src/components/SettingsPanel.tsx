@@ -3,6 +3,7 @@ import type { Agent, Model, ModelRef } from "../lib/types";
 import type { Theme } from "../hooks/useTheme";
 import type { SceneSetting } from "./Scene";
 import { modelKey } from "../lib/format";
+import { appPath } from "../lib/base";
 import { Button } from "./ui/button";
 import { Select } from "./ui/select";
 
@@ -251,6 +252,15 @@ export function SettingsPanel({
               <option value="static">Static</option>
             </Select>
           </label>
+        </div>
+
+        <div className="border-border flex items-center justify-between gap-3 border-t px-4 py-3">
+          <span className="text-muted-foreground text-xs">Private Frankfurt instance</span>
+          <form method="post" action={appPath("/auth/logout")}>
+            <Button type="submit" variant="outline" size="sm">
+              Sign out
+            </Button>
+          </form>
         </div>
       </div>
     </div>

@@ -39,6 +39,7 @@ type Server struct {
 	mux          *http.ServeMux
 	fast         *fastSTT
 	grammar      *grammarChecker
+	auth         *authGate
 	allowedHosts map[string]struct{}
 }
 
@@ -53,6 +54,7 @@ func New(provider ClientProvider, static fs.FS, log *slog.Logger) http.Handler {
 		mux:          http.NewServeMux(),
 		fast:         newFastSTT(log),
 		grammar:      newGrammarChecker(log),
+		auth:         newAuthGate(log),
 		allowedHosts: map[string]struct{}{},
 	}
 	for _, host := range strings.Split(os.Getenv("NIT_GUI_ALLOWED_HOSTS"), ",") {
@@ -62,7 +64,7 @@ func New(provider ClientProvider, static fs.FS, log *slog.Logger) http.Handler {
 	}
 	s.routes()
 	go s.warm()
-	return s.middleware(s.mux)
+	return s.middleware(s.auth.wrap(s.mux))
 }
 
 func (s *Server) warm() {
@@ -120,6 +122,9 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("/api/", func(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, "not found")
 	})
+	s.mux.HandleFunc("POST /auth/logout", func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, "/", http.StatusSeeOther)
+	})
 	s.mux.HandleFunc("/", s.staticFile)
 }
 
@@ -128,7 +133,13 @@ func (s *Server) middleware(next http.Handler) http.Handler {
 		w.Header().Set("X-Content-Type-Options", "nosniff")
 		w.Header().Set("Referrer-Policy", "no-referrer")
 		w.Header().Set("X-Frame-Options", "DENY")
-		if !s.allowedHost(r.Host) {
+		w.Header().Set("Permissions-Policy", "microphone=(self)")
+		w.Header().Set("Cross-Origin-Opener-Policy", "same-origin")
+		w.Header().Set("Cross-Origin-Resource-Policy", "same-origin")
+		if isHTTPS(r) {
+			w.Header().Set("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
+		}
+		if !s.allowedHost(forwardedHost(r)) {
 			writeError(w, http.StatusForbidden, "host not allowed")
 			return
 		}
@@ -174,7 +185,14 @@ func allowedOrigin(r *http.Request) bool {
 	if err != nil || (u.Scheme != "http" && u.Scheme != "https") {
 		return false
 	}
-	return strings.EqualFold(u.Host, r.Host)
+	return strings.EqualFold(u.Host, forwardedHost(r))
+}
+
+func forwardedHost(r *http.Request) string {
+	if host := strings.TrimSpace(r.Header.Get("X-Forwarded-Host")); host != "" {
+		return host
+	}
+	return r.Host
 }
 
 func (s *Server) client(ctx context.Context) (*opencode.Client, bool) {

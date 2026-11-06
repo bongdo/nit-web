@@ -1,7 +1,7 @@
 import { memo } from "react";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { attachmentNameFromHref, isLocalFileHref } from "../lib/attachments";
+import { attachmentNameFromHref, localFileHref } from "../lib/attachments";
 import { AttachmentPreview } from "./Attachment";
 import { CodeBlock } from "./CodeBlock";
 import { cn } from "../lib/utils";
@@ -19,10 +19,11 @@ const components: Components = {
     return <code className={className}>{children}</code>;
   },
   a({ href, children, ...props }) {
-    if (isLocalFileHref(href)) {
+    const localHref = localFileHref(href);
+    if (localHref) {
       const text = typeof children === "string" ? children.trim() : "";
-      const name = /\.[a-z0-9]+$/i.test(text) ? text : attachmentNameFromHref(href!);
-      return <AttachmentPreview name={name} href={href!} />;
+      const name = /\.[a-z0-9]+$/i.test(text) ? text : attachmentNameFromHref(localHref);
+      return <AttachmentPreview name={name} href={localHref} />;
     }
     const external = Boolean(href && /^https?:\/\//i.test(href));
     return (

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { StreamEvent } from "../lib/types";
+import { appPath } from "../lib/base";
 
 export type StreamStatus = "connecting" | "online" | "offline";
 
@@ -21,7 +22,7 @@ export function useEventStream(
     const connect = () => {
       if (closed) return;
       setStatus("connecting");
-      source = new EventSource("/api/events");
+      source = new EventSource(appPath("/api/events"));
       source.onopen = () => {
         retry = 0;
         setStatus("online");

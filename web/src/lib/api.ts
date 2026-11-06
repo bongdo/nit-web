@@ -12,6 +12,7 @@ import type {
   SessionList,
 } from "./types";
 import type { GrammarMatch } from "./spell";
+import { appPath } from "./base";
 
 export class ApiError extends Error {
   status: number;
@@ -42,7 +43,7 @@ async function errorText(response: Response): Promise<string> {
 async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const headers: Record<string, string> = { Accept: "application/json" };
   if (options.body !== undefined) headers["Content-Type"] = "application/json";
-  const response = await fetch(path, {
+  const response = await fetch(appPath(path), {
     method: options.method ?? "GET",
     headers,
     body: options.body === undefined ? undefined : JSON.stringify(options.body),
@@ -159,7 +160,7 @@ export const api = {
     ),
   upload: async (file: File, dir: string) => {
     const query = new URLSearchParams({ name: file.name, dir });
-    const response = await fetch(`/api/upload?${query}`, {
+    const response = await fetch(appPath(`/api/upload?${query}`), {
       method: "POST",
       headers: { "Content-Type": file.type || "application/octet-stream" },
       body: file,
@@ -169,7 +170,7 @@ export const api = {
     return (await response.json()) as { path: string; name: string; size: number };
   },
   stt: async (audio: Blob, mode?: "fast") => {
-    const response = await fetch(`/api/stt${mode ? `?mode=${mode}` : ""}`, {
+    const response = await fetch(appPath(`/api/stt${mode ? `?mode=${mode}` : ""}`), {
       method: "POST",
       headers: { "Content-Type": "audio/wav" },
       body: audio,

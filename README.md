@@ -27,7 +27,10 @@ has a `./run` wrapper, the restart uses it (the NixOS wrapper sets `NIT_SERVER`)
 otherwise it runs `./nit-gui` directly.
 
 `bin/frankfurt` builds locally, restarts the app on `127.0.0.1:7791`, and starts
-a user Caddy on `:7792` with basic auth. It reuses the first `basicauth` entry
+a user Caddy on `:7792` with basic auth. When LanguageTool is configured
+(`NIT_GUI_LANGUAGETOOL` or `languagetool-http-server` on `PATH`), it also
+starts or reuses a detached sidecar on `8180` and passes its URL to the app, so
+grammar stays warm across app restarts. It reuses the first `basicauth` entry
 from `/etc/caddy/Caddyfile`; set `NIT_GUI_PUBLIC_PASSWORD` to use another
 password. The public port must be open in the OCI security list. The tailnet URL
 works without opening it. The listener is plain HTTP: basic auth protects access,

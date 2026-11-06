@@ -14,7 +14,19 @@ const CURSOR_RADIUS = 150;
 const SPOTLIGHT_RADIUS = 290;
 const SPOTLIGHT_GAP = 26;
 const WAVE_SPAN = 1280;
-const VARIANTS = ["spotlight", "magnetic", "split", "ripple", "diagonal"] as const;
+const VARIANTS = [
+  "spotlight",
+  "magnetic",
+  "split",
+  "ripple",
+  "diagonal",
+  "bend",
+  "warp",
+  "flow",
+  "sheen",
+  "fold",
+  "spiral",
+] as const;
 
 export type SceneVariant = (typeof VARIANTS)[number];
 export type SceneSetting = SceneVariant | "random";
@@ -92,6 +104,19 @@ export function Scene({
           const falloff = Math.exp(-distance / 230) * cursor.power;
           return y + Math.sin(distance * 0.075 - time * 3.1) * 15 * falloff;
         }
+        if (kind === "fold") {
+          const creaseX = ((time * 0.055) % 1) * (width + 400) - 200;
+          const fade = Math.exp(-(((base - cy) / 260) ** 2)) * cursor.power;
+          y += Math.tanh((x - creaseX) / 30) * 46 * fade;
+          y -= dy * Math.exp(-(dx * dx + dy * dy) / (300 * 300)) * 0.25 * cursor.power;
+          return y;
+        }
+        if (kind === "spiral") {
+          const distance = Math.sqrt(dx * dx + dy * dy) || 1;
+          const angle =
+            (0.8 + Math.sin(time * 0.5) * 0.35) * Math.exp(-distance / 260) * cursor.power;
+          return cy + dx * Math.sin(angle) + dy * Math.cos(angle);
+        }
         const space = dx * dx + dy * dy;
         if (space > CURSOR_RADIUS * CURSOR_RADIUS) return y;
         const q = Math.sqrt(space) / CURSOR_RADIUS;
@@ -103,6 +128,8 @@ export function Scene({
       };
     };
 
+    type FieldBounds = { x0: number; x1: number; y0: number; y1: number };
+
     const drawField = (
       time: number,
       extentWidth: number,
@@ -111,45 +138,62 @@ export function Scene({
       cx: number,
       cy: number,
       kind: SceneVariant,
-      gapScale = 1,
-      shift = 0,
+      {
+        gapScale = 1,
+        shift = 0,
+        bounds,
+        step: stepOverride,
+      }: { gapScale?: number; shift?: number; bounds?: FieldBounds; step?: number } = {},
     ) => {
       const shape = shapeFor(kind, span, cx, cy, shift);
-      const { step, gap } = sampling(extentWidth);
-      const fieldGap = gap * gapScale;
+      const sampled = sampling(extentWidth);
+      const step = stepOverride ?? sampled.step;
+      const fieldGap = sampled.gap * gapScale;
       const radius = kind === "ripple" ? 240 : CURSOR_RADIUS;
       const lines = Math.ceil(extentHeight / fieldGap) + 2;
-      for (let index = 0; index < lines; index += 1) {
+      const margin = 60;
+      const first = bounds
+        ? Math.max(0, Math.ceil((bounds.y0 - margin) / fieldGap) + 1)
+        : 0;
+      const last = bounds
+        ? Math.min(lines - 1, Math.floor((bounds.y1 + margin) / fieldGap) + 1)
+        : lines - 1;
+      const from = bounds ? Math.max(-10, bounds.x0 - margin) : -10;
+      const to = bounds
+        ? Math.min(extentWidth + 10, bounds.x1 + margin)
+        : extentWidth + 10;
+
+      for (let index = first; index <= last; index += 1) {
         const base = (index - 1) * fieldGap;
         const highlight = index % 9 === 0;
         context.strokeStyle = highlight ? accent : ink;
         context.globalAlpha = highlight ? 0.45 : 0.13;
         context.beginPath();
-        for (let x = -10; x <= extentWidth + 10; x += step) {
+        for (let x = from; x <= to; x += step) {
           const y = shape(x, base, index, time);
-          if (x === -10) context.moveTo(x, y);
+          if (x === from) context.moveTo(x, y);
           else context.lineTo(x, y);
         }
         context.stroke();
       }
 
-      if (cursor.power > 0.01) {
+      const haloFrom = Math.max(from, cx - radius);
+      const haloTo = Math.min(to, cx + radius);
+      if (cursor.power > 0.01 && haloTo > haloFrom) {
         const halo = context.createLinearGradient(cx - radius, 0, cx + radius, 0);
         halo.addColorStop(0, "rgba(0,0,0,0)");
         halo.addColorStop(0.5, accent);
         halo.addColorStop(1, "rgba(0,0,0,0)");
-        for (let index = 0; index < lines; index += 1) {
+        for (let index = first; index <= last; index += 1) {
           const base = (index - 1) * fieldGap;
           const near = Math.exp(-((base - cy) ** 2) / 20000) * cursor.power;
           if (near < 0.04) continue;
           context.strokeStyle = halo;
           context.globalAlpha = near * 0.75;
           context.beginPath();
-          const from = Math.max(-10, cx - radius);
-          const to = Math.min(extentWidth + 10, cx + radius);
-          for (let x = from; x <= to; x += step) {
+          for (let x = haloFrom; x <= haloTo; x += step) {
             const y = shape(x, base, index, time);
-            if (x === from) context.moveTo(x, y);
+            if (x === haloFrom) context.moveTo(x, y);
             else context.lineTo(x, y);
           }
           context.stroke();
@@ -158,7 +202,197 @@ export function Scene({
       context.globalAlpha = 1;
     };
 
-    const paintSpotlight = (time: number) => {
+    const hexA = (hex: string, a: number) =>
+      `${hex}${Math.round(a * 255)
+        .toString(16)
+        .padStart(2, "0")}`;
+    const darkTheme = () => document.documentElement.classList.contains("dark");
+    const aurora = {
+      dark: ["#34d399", "#22d3ee", "#a78bfa", "#f472b6"],
+      light: ["#0d9488", "#0284c7", "#7c3aed", "#db2777"],
+    };
+
+    const paintBend = (time: number) => {
+      const dark = darkTheme();
+      const colors = aurora[dark ? "dark" : "light"];
+      context.globalCompositeOperation = dark ? "lighter" : "source-over";
+      const bands = 9;
+      for (let band = 0; band < bands; band += 1) {
+        const base = ((band + 0.5) / bands) * height;
+        const thick = 38 + (band % 3) * 22;
+        const liftY = cursor.y - base;
+        const grad = context.createLinearGradient(0, 0, width, 0);
+        grad.addColorStop(0, hexA(colors[band % 4], dark ? 0.16 : 0.1));
+        grad.addColorStop(0.5, hexA(colors[(band + 1) % 4], dark ? 0.22 : 0.14));
+        grad.addColorStop(1, hexA(colors[band % 4], 0));
+        const top: [number, number][] = [];
+        for (let x = -20; x <= width + 20; x += 12) {
+          const dx = x - cursor.x;
+          const near =
+            Math.exp(-(dx * dx) / (195 * 195)) *
+            Math.exp(-(liftY * liftY) / (165 * 165)) *
+            cursor.power;
+          top.push([
+            x,
+            base +
+              Math.sin(x * (0.0042 + band * 0.0005) + time * (0.1 + band * 0.022) + band * 1.7) *
+                (24 + band * 5) +
+              Math.tanh(liftY / 70) * near * 78,
+          ]);
+        }
+        context.fillStyle = grad;
+        context.beginPath();
+        top.forEach(([x, y], i) => {
+          if (i === 0) context.moveTo(x, y);
+          else context.lineTo(x, y);
+        });
+        for (let i = top.length - 1; i >= 0; i -= 1) {
+          context.lineTo(top[i][0], top[i][1] + thick);
+        }
+        context.closePath();
+        context.fill();
+        context.strokeStyle = hexA(colors[(band + 1) % 4], dark ? 0.32 : 0.18);
+        context.globalAlpha = 1;
+        context.beginPath();
+        top.forEach(([x, y], i) => {
+          if (i === 0) context.moveTo(x, y);
+          else context.lineTo(x, y);
+        });
+        context.stroke();
+      }
+      if (cursor.power > 0.01) {
+        const glow = context.createRadialGradient(
+          cursor.x,
+          cursor.y,
+          0,
+          cursor.x,
+          cursor.y,
+          190,
+        );
+        glow.addColorStop(0, hexA(colors[0], dark ? 0.14 : 0.08));
+        glow.addColorStop(1, hexA(colors[0], 0));
+        context.fillStyle = glow;
+        context.fillRect(cursor.x - 200, cursor.y - 200, 400, 400);
+      }
+      context.globalCompositeOperation = "source-over";
+    };
+
+    const paintWarp = (time: number) => {
+      const wells = [
+        { x: cursor.x, y: cursor.y, m: 4200 * cursor.power },
+        {
+          x: width * (0.5 + Math.sin(time * 0.19) * 0.3),
+          y: height * (0.5 + Math.cos(time * 0.15) * 0.26),
+          m: 2600,
+        },
+      ];
+      const warp = (x: number, y: number): [number, number] => {
+        let dx = 0;
+        let dy = 0;
+        for (const well of wells) {
+          const ox = x - well.x;
+          const oy = y - well.y;
+          const force = well.m / (ox * ox + oy * oy + 2600);
+          dx += ox * force;
+          dy += oy * force;
+        }
+        const len = Math.hypot(dx, dy);
+        if (len > 46) {
+          dx *= 46 / len;
+          dy *= 46 / len;
+        }
+        return [x + dx, y + dy];
+      };
+      const { step, gap } = sampling(width);
+      let index = 0;
+      for (let base = -gap; base <= height + gap; base += gap) {
+        const near = Math.exp(-(((base - cursor.y) / 120) ** 2)) * cursor.power;
+        context.strokeStyle = near > 0.25 || index % 9 === 0 ? accent : ink;
+        context.globalAlpha = Math.min(0.62, (index % 9 === 0 ? 0.42 : 0.13) + near * 0.4);
+        context.beginPath();
+        for (let x = -gap; x <= width + gap; x += step) {
+          const [wx, wy] = warp(x, base);
+          if (x === -gap) context.moveTo(wx, wy);
+          else context.lineTo(wx, wy);
+        }
+        context.stroke();
+        index += 1;
+      }
+      for (let base = -gap; base <= width + gap; base += gap) {
+        const near = Math.exp(-(((base - cursor.x) / 120) ** 2)) * cursor.power;
+        context.strokeStyle = near > 0.25 || index % 9 === 0 ? accent : ink;
+        context.globalAlpha = Math.min(0.62, (index % 9 === 0 ? 0.42 : 0.13) + near * 0.4);
+        context.beginPath();
+        for (let y = -gap; y <= height + gap; y += step) {
+          const [wx, wy] = warp(base, y);
+          if (y === -gap) context.moveTo(wx, wy);
+          else context.lineTo(wx, wy);
+        }
+        context.stroke();
+        index += 1;
+      }
+      context.globalAlpha = 1;
+    };
+
+    const paintFlow = (time: number) => {
+      const { step, gap } = sampling(width);
+      let index = 0;
+      for (let base = -gap; base <= height + gap; base += gap) {
+        context.strokeStyle = index % 9 === 0 ? accent : ink;
+        context.globalAlpha = index % 9 === 0 ? 0.45 : 0.13;
+        context.beginPath();
+        let y = base + wave(-gap, base, index, time, WAVE_SPAN) * 0.5;
+        context.moveTo(-gap, y);
+        for (let x = -gap; x <= width + gap; x += step) {
+          const slope =
+            Math.sin(x * 0.004 + time * 0.3) * 0.5 +
+            Math.sin(x * 0.011 - time * 0.5 + y * 0.01) * 0.3;
+          const dx = x - cursor.x;
+          const dy = y - cursor.y;
+          y +=
+            slope * step +
+            Math.tanh(dy / 90) * Math.exp(-(dx * dx) / (260 * 260)) * cursor.power * 3;
+          context.lineTo(x, y);
+        }
+        context.stroke();
+        index += 1;
+      }
+      context.globalAlpha = 1;
+    };
+
+    const paintSheen = (time: number) => {
+      const sweep = ((time * 0.05) % 1) * (width + 600) - 300;
+      const at = (offset: number) =>
+        Math.min(1, Math.max(0, (sweep + offset) / width));
+      const { step, gap } = sampling(width);
+      let index = 0;
+      for (let base = -gap; base <= height + gap; base += gap) {
+        const grad = context.createLinearGradient(0, 0, width, 0);
+        grad.addColorStop(0, ink);
+        grad.addColorStop(at(-260), ink);
+        grad.addColorStop(at(-70), accent);
+        grad.addColorStop(at(0), accent);
+        grad.addColorStop(at(70), accent);
+        grad.addColorStop(at(260), ink);
+        grad.addColorStop(1, ink);
+        context.strokeStyle = index % 9 === 0 ? accent : grad;
+        context.globalAlpha = index % 9 === 0 ? 0.45 : 0.32;
+        context.beginPath();
+        for (let x = -gap; x <= width + gap; x += step) {
+          const dx = x - cursor.x;
+          const dy = base - cursor.y;
+          const near = Math.exp(-(dx * dx + dy * dy) / (280 * 280)) * cursor.power;
+          const y = wave(x, base, index, time, WAVE_SPAN) + Math.tanh(dy / 90) * near * 26;
+          if (x === -gap) context.moveTo(x, y);
+          else context.lineTo(x, y);
+        }
+        context.stroke();
+        index += 1;
+      }
+      context.globalAlpha = 1;
+    };
+
+
       if (cursor.power < 0.02) {
         if (!blank) {
           if (lastBox) context.clearRect(lastBox.x, lastBox.y, lastBox.w, lastBox.h);
@@ -240,18 +474,32 @@ export function Scene({
         const size = Math.hypot(width, height);
         const cos = Math.SQRT1_2;
         const sin = Math.SQRT1_2;
-        const dx = cursor.x - width / 2;
-        const dy = cursor.y - height / 2;
-        const localX = size / 2 + dx * cos - dy * sin;
-        const localY = size / 2 + dx * sin + dy * cos;
+        const local = (x: number, y: number) => ({
+          x: size / 2 + (x - width / 2) * cos - (y - height / 2) * sin,
+          y: size / 2 + (x - width / 2) * sin + (y - height / 2) * cos,
+        });
+        const cursorLocal = local(cursor.x, cursor.y);
+        const corners = [local(0, 0), local(width, 0), local(0, height), local(width, height)];
+        const bounds = {
+          x0: Math.min(...corners.map((corner) => corner.x)),
+          x1: Math.max(...corners.map((corner) => corner.x)),
+          y0: Math.min(...corners.map((corner) => corner.y)),
+          y1: Math.max(...corners.map((corner) => corner.y)),
+        };
         context.save();
         context.translate(width / 2, height / 2);
         context.rotate(-Math.PI / 4);
         context.translate(-size / 2, -size / 2);
-        drawField(time, size, size, width, localX, localY, "ripple", Math.SQRT1_2);
+        drawField(time, size, size, width, cursorLocal.x, cursorLocal.y, "ripple", {
+          gapScale: 1.5,
+          bounds,
+          step: 7,
+        });
         context.restore();
       } else {
-        drawField(time, width, height, WAVE_SPAN, cursor.x, cursor.y, chosen, 1, originX);
+        drawField(time, width, height, WAVE_SPAN, cursor.x, cursor.y, chosen, {
+          shift: originX,
+        });
       }
 
       context.globalCompositeOperation = "destination-out";

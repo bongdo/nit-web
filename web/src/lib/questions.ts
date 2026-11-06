@@ -46,7 +46,18 @@ export function questionRecords(part: ToolPart): QuestionRecord[] {
 }
 
 function questionItems(input: unknown): unknown[] {
-  if (typeof input === "string") return [input];
+  if (typeof input === "string") {
+    const trimmed = input.trim();
+    if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
+      try {
+        const parsed: unknown = JSON.parse(trimmed);
+        if (parsed && typeof parsed === "object") return questionItems(parsed);
+      } catch {
+        return [input];
+      }
+    }
+    return [input];
+  }
   if (Array.isArray(input)) return input;
   if (!input || typeof input !== "object") return [];
   const record = input as Record<string, unknown>;

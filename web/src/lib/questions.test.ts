@@ -63,6 +63,12 @@ describe("parseQuestions", () => {
     ]);
   });
 
+  it("reads JSON encoded input", () => {
+    expect(parseQuestions('{"questions":[{"question":"Pick","options":["A"]}]}')).toEqual([
+      { header: undefined, question: "Pick", options: [{ label: "A" }], answers: [] },
+    ]);
+  });
+
   it("ignores malformed input", () => {
     expect(parseQuestions(null)).toEqual([]);
     expect(parseQuestions({})).toEqual([]);

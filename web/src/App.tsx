@@ -257,6 +257,7 @@ export default function App() {
   messagesRef.current = messages;
   const [transcriptCache] = useState(() => new TranscriptCache());
   const [messageLoads] = useState(() => new Set<string>());
+  const questionIDs = useRef(new Set<string>());
   const [historyCursor, setHistoryCursor] = useState<string | null>(null);
   const historyCursorRef = useRef(historyCursor);
   historyCursorRef.current = historyCursor;
@@ -961,6 +962,8 @@ export default function App() {
   const onEvent = (event: StreamEvent) => {
     const data = event.data ?? {};
     const sessionID = typeof data.sessionID === "string" ? data.sessionID : "";
+    const toolID = typeof data.id === "string" ? data.id : "";
+    if (toolID && data.name === "question") questionIDs.current.add(toolID);
 
     if (sessionID) {
       if (event.type === "session.execution.started") {
@@ -1051,7 +1054,7 @@ export default function App() {
     } else if (sessionID && isMessageStreamEvent(event.type)) {
       const cached = transcriptCache.get(sessionID);
       if (cached) {
-        const light = lightenEvent(event, cached.messages);
+        const light = lightenEvent(event, cached.messages, questionIDs.current);
         if (light) {
           transcriptCache.update(
             sessionID,

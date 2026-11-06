@@ -347,6 +347,18 @@ describe("light transcripts", () => {
     expect(lightenEvent(events[0])).toBe(events[0]);
   });
 
+  it("recognizes a question by its known tool id without a name", () => {
+    const item = event("session.tool.input.delta", {
+      assistantMessageID: "msg_1",
+      id: "q1",
+      delta: '{"questions":[',
+    });
+    expect(lightenEvent(item, [], new Set())).toBeNull();
+    const next = lightenEvent(item, [], new Set(["q1"]));
+    expect(next?.data.name).toBe("question");
+    expect(next?.data.delta).toBe('{"questions":[');
+  });
+
   it("keeps an answered question whole through the cache", () => {
     const input = {
       questions: [{ question: "Pick", options: [{ label: "A" }] }],

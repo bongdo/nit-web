@@ -8,9 +8,8 @@ function num(value: unknown): number | undefined {
   return typeof value === "number" ? value : undefined;
 }
 
-function isQuestionEvent(event: StreamEvent, messages: Message[]): boolean {
+function cachedQuestion(event: StreamEvent, messages: Message[]): boolean {
   const data = event.data ?? {};
-  if (str(data.name) === "question") return true;
   const id = str(data.id);
   if (!id) return false;
   const messageID = str(data.assistantMessageID);
@@ -21,6 +20,18 @@ function isQuestionEvent(event: StreamEvent, messages: Message[]): boolean {
         (part) => part.type === "tool" && part.id === id && part.name === "question",
       ),
   );
+}
+
+function isQuestionEvent(
+  event: StreamEvent,
+  messages: Message[],
+  questionIDs?: Set<string>,
+): boolean {
+  const data = event.data ?? {};
+  if (str(data.name) === "question") return true;
+  const id = str(data.id);
+  if (!id) return false;
+  return questionIDs?.has(id) === true || cachedQuestion(event, messages);
 }
 
 export function normalizeMessages(messages: Message[]): Message[] {
@@ -71,9 +82,16 @@ export function lightMessages(messages: Message[]): Message[] {
   });
 }
 
-export function lightenEvent(event: StreamEvent, messages: Message[] = []): StreamEvent | null {
+export function lightenEvent(
+  event: StreamEvent,
+  messages: Message[] = [],
+  questionIDs?: Set<string>,
+): StreamEvent | null {
   const data = event.data ?? {};
-  if (isQuestionEvent(event, messages)) return event;
+  if (isQuestionEvent(event, messages, questionIDs)) {
+    if (str(data.name) === "question" || cachedQuestion(event, messages)) return event;
+    return { ...event, data: { ...data, name: "question" } };
+  }
   switch (event.type) {
     case "session.reasoning.delta":
     case "session.tool.input.delta":

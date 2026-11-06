@@ -14,7 +14,7 @@ import type { FormInfo, Model, Session } from "../lib/types";
 import { encodeWav } from "../lib/audio";
 import { api } from "../lib/api";
 import { attachmentWarning } from "../lib/attachments";
-import { loadDraft, saveDraft } from "../lib/drafts";
+import { loadDraftState, saveDraftState, type DraftState } from "../lib/drafts";
 import { questionField } from "../lib/forms";
 import { formatBytes, quoteText } from "../lib/format";
 import { shouldCaptureKey } from "../lib/keys";
@@ -118,9 +118,11 @@ export const Composer = memo(function Composer({
   onDraftApplied?: () => void;
   onInsertApplied?: () => void;
 }) {
-  const [value, setText] = useState(() => loadDraft(draftKey));
+  const [value, setText] = useState(() => loadDraftState(draftKey).text);
   const valueRef = useRef(value);
   valueRef.current = value;
+  const [hydrated, setHydrated] = useState(false);
+  const editedRef = useRef(false);
   const [submitting, setSubmitting] = useState(false);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [dropActive, setDropActive] = useState(false);
@@ -150,6 +152,8 @@ export const Composer = memo(function Composer({
   const addedDelay = useRef(new Map<string, number>());
   const removeTimers = useRef(new Set<number>());
   const question = form ? questionField(form) : null;
+  const questionRef = useRef(question);
+  questionRef.current = question;
   const option = question?.options?.find((item) => item.value === value) ?? null;
   const answerText = option ? "" : value;
   const customAnswer = !question || (question.options?.length ?? 0) === 0 || question.custom !== false;
@@ -157,8 +161,58 @@ export const Composer = memo(function Composer({
     const resolved = typeof next === "function" ? next(valueRef.current) : next;
     valueRef.current = resolved;
     setText(resolved);
-    if (!question) saveDraft(draftKey, resolved);
+    if (!question) {
+      editedRef.current = true;
+      saveDraftState(draftKey, resolved, Date.now());
+      if (!resolved) void api.setDraft(draftKey, "").catch(() => {});
+    }
   };
+
+  useEffect(() => {
+    let cancelled = false;
+    const local: DraftState = loadDraftState(draftKey);
+    api.draft(draftKey)
+      .then((remote) => {
+        if (cancelled) return;
+        if (!editedRef.current) {
+          if (remote.text && remote.updatedAt >= local.updatedAt) {
+            valueRef.current = remote.text;
+            setText(remote.text);
+            saveDraftState(draftKey, remote.text, remote.updatedAt);
+          } else if (local.text && local.updatedAt > remote.updatedAt) {
+            void api.setDraft(draftKey, local.text).catch(() => {});
+          }
+        }
+        setHydrated(true);
+      })
+      .catch(() => {
+        if (!cancelled) setHydrated(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [draftKey]);
+
+  useEffect(() => {
+    if (!hydrated || question) return;
+    const timer = window.setTimeout(() => {
+      const text = valueRef.current;
+      saveDraftState(draftKey, text, Date.now());
+      void api.setDraft(draftKey, text).catch(() => {});
+    }, 700);
+    return () => window.clearTimeout(timer);
+  }, [value, hydrated, draftKey, question]);
+
+  useEffect(
+    () => () => {
+      if (questionRef.current) return;
+      const text = valueRef.current;
+      saveDraftState(draftKey, text, Date.now());
+      void api.setDraft(draftKey, text).catch(() => {});
+    },
+    [draftKey],
+  );
+
   const { issues } = useSpellcheck(
     question && !customAnswer ? "" : answerText,
     spellcheck && !recording && !finishing,

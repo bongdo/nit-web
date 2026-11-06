@@ -151,9 +151,15 @@ export const Header = memo(function Header({
   const title = session?.title?.trim() || (session ? "New chat" : "nit-gui");
   const live = streamStatus === "online" && health?.ok;
   const wasLive = useRef(Boolean(live));
+  const booted = useRef(false);
   const [reconnected, setReconnected] = useState(0);
 
   useEffect(() => {
+    if (!booted.current) {
+      booted.current = true;
+      wasLive.current = Boolean(live);
+      return;
+    }
     if (live && !wasLive.current) setReconnected((count) => count + 1);
     wasLive.current = Boolean(live);
   }, [live]);

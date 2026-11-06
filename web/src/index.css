@@ -1157,24 +1157,6 @@
     animation: chrome-sheen-chip-out 240ms cubic-bezier(0.22, 0.7, 0.2, 1) both;
   }
 
-  .chrome-sheen-chip-line {
-    position: absolute;
-    right: 0;
-    bottom: 0;
-    left: 0;
-    height: 1px;
-    pointer-events: none;
-    background: linear-gradient(
-      90deg,
-      transparent,
-      color-mix(in oklab, white 40%, var(--spark)),
-      transparent
-    );
-    opacity: 0;
-    transform: translateX(-110%);
-    animation: chrome-sheen-chip-line 620ms cubic-bezier(0.22, 0.7, 0.2, 1) both;
-  }
-
   .chrome-sheen-health {
     position: relative;
     overflow: hidden;
@@ -1247,7 +1229,6 @@
     .chrome-sheen-error-progress,
     .chrome-sheen-chip-in,
     .chrome-sheen-chip-out,
-    .chrome-sheen-chip-line,
     .chrome-sheen-health-offline::before,
     .chrome-sheen-health-sweep,
     .chrome-sheen-empty::before {

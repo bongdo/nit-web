@@ -74,6 +74,7 @@ function messageOf(error: unknown): string {
 
 const LEGACY_HIDDEN_KEY = "nit-gui.hidden";
 const UI_MIGRATED_KEY = "nit-gui.ui-migrated";
+const UI_PREFS_MIGRATED_KEY = "nit-gui.ui-prefs-migrated";
 
 function eventSize(event: StreamEvent): number {
   try {
@@ -225,19 +226,8 @@ export default function App() {
   const [booting, setBooting] = useState(true);
   const [search, setSearch] = useState("");
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [preferredModel, setPreferredModel] = useState<ModelRef | null>(() => {
-    try {
-      const value = JSON.parse(localStorage.getItem("nit-gui.model") ?? "null");
-      return value && typeof value.id === "string" && typeof value.providerID === "string"
-        ? value
-        : null;
-    } catch {
-      return null;
-    }
-  });
-  const [preferredAgent, setPreferredAgent] = useState<string | null>(() =>
-    localStorage.getItem("nit-gui.agent"),
-  );
+  const [preferredModel, setPreferredModel] = useState<ModelRef | null>(null);
+  const [preferredAgent, setPreferredAgent] = useState<string | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
   const refreshTimer = useRef<number | null>(null);
   const hoverTimer = useRef<number | null>(null);
@@ -279,6 +269,8 @@ export default function App() {
     setHiddenIds(hidden);
     setDoneIds(done);
     setFailedIds(failed);
+    if (state.model) setPreferredModel(state.model);
+    if (state.agent) setPreferredAgent(state.agent);
   }, []);
 
   const loadUiState = useCallback(async () => {
@@ -298,6 +290,27 @@ export default function App() {
         }
         localStorage.setItem(UI_MIGRATED_KEY, "1");
         localStorage.removeItem(LEGACY_HIDDEN_KEY);
+      }
+      if (localStorage.getItem(UI_PREFS_MIGRATED_KEY) !== "1") {
+        if (!state.model) {
+          try {
+            const value = JSON.parse(localStorage.getItem("nit-gui.model") ?? "null");
+            if (value && typeof value.id === "string" && typeof value.providerID === "string") {
+              await api.setModel(value);
+              state = { ...state, model: value };
+            }
+          } catch {}
+        }
+        if (!state.agent) {
+          const legacy = localStorage.getItem("nit-gui.agent");
+          if (legacy) {
+            await api.setAgent(legacy);
+            state = { ...state, agent: legacy };
+          }
+        }
+        localStorage.setItem(UI_PREFS_MIGRATED_KEY, "1");
+        localStorage.removeItem("nit-gui.model");
+        localStorage.removeItem("nit-gui.agent");
       }
       applyUiState(state);
     } catch {}
@@ -1361,7 +1374,7 @@ export default function App() {
   const changeModel = useCallback(
     async (model: ModelRef) => {
       setPreferredModel(model);
-      localStorage.setItem("nit-gui.model", JSON.stringify(model));
+      void api.setModel(model).catch((error) => setBanner(messageOf(error)));
       const session = selectedSession;
       if (!session) return;
       setSessions((previous) =>
@@ -1380,7 +1393,7 @@ export default function App() {
   const changeAgent = useCallback(
     async (agent: string) => {
       setPreferredAgent(agent);
-      localStorage.setItem("nit-gui.agent", agent);
+      void api.setAgent(agent).catch((error) => setBanner(messageOf(error)));
       const session = selectedSession;
       if (!session) return;
       setSessions((previous) =>

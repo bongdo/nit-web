@@ -1,0 +1,717 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Compaction event — three directions</title>
+<style>
+  :root {
+    --bg: #16181c;
+    --card: #1e2125;
+    --fg: #e9ebee;
+    --muted: #99a1ab;
+    --faint: #6c737d;
+    --border: #33373d;
+    --spark: #f2a65e;
+    --spark-soft: rgba(242, 166, 94, 0.12);
+    --shadow: 0 12px 32px rgba(0, 0, 0, 0.28);
+  }
+
+  html[data-theme="light"] {
+    --bg: #fafafa;
+    --card: #ffffff;
+    --fg: #22262b;
+    --muted: #667080;
+    --faint: #89919c;
+    --border: #e3e5e9;
+    --spark: #c96a1e;
+    --spark-soft: rgba(201, 106, 30, 0.1);
+    --shadow: 0 12px 32px rgba(24, 30, 40, 0.08);
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--fg);
+    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap {
+    max-width: 760px;
+    margin: 0 auto;
+    padding: 26px 28px 48px;
+  }
+
+  .meta {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding-bottom: 18px;
+    border-bottom: 1px solid var(--border);
+    font: 10px/1.4 ui-monospace, "SFMono-Regular", "Cascadia Code", monospace;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--faint);
+  }
+
+  .meta-title { flex: 1; }
+  .meta-actions { display: flex; gap: 6px; }
+
+  .meta button {
+    appearance: none;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--muted);
+    border-radius: 6px;
+    padding: 5px 8px;
+    font: inherit;
+    letter-spacing: inherit;
+    text-transform: inherit;
+    cursor: pointer;
+  }
+
+  .meta button:hover { color: var(--fg); border-color: var(--faint); }
+
+  .lede {
+    margin: 18px 0 4px;
+    font-size: 13px;
+    line-height: 1.6;
+    color: var(--muted);
+  }
+
+  .lede strong { color: var(--fg); font-weight: 500; }
+
+  .variant { margin-top: 30px; }
+
+  .variant-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 9px;
+    font: 10px/1 ui-monospace, "SFMono-Regular", monospace;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--faint);
+  }
+
+  .letter {
+    display: grid;
+    place-items: center;
+    width: 18px;
+    height: 18px;
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    color: var(--muted);
+  }
+
+  .variant-name { color: var(--muted); }
+  .variant-tag { color: var(--spark); }
+  .variant-note { margin-left: auto; letter-spacing: 0; text-transform: none; font-family: inherit; }
+
+  .stage {
+    padding: 16px 18px 14px;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background:
+      radial-gradient(120% 90% at 50% 0%, var(--spark-soft), transparent 55%),
+      var(--card);
+  }
+
+  html[data-theme="light"] .stage {
+    background:
+      radial-gradient(120% 90% at 50% 0%, var(--spark-soft), transparent 55%),
+      var(--card);
+  }
+
+  .context {
+    margin: 0;
+    font-size: 12px;
+    line-height: 1.7;
+    color: var(--faint);
+    opacity: 0.72;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .context + .context { margin-top: -2px; }
+
+  .stage .seam { margin: 13px 0 17px; }
+
+  /* ── A · seam ─────────────────────────────────────────────── */
+
+  .seam {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+  }
+
+  .seam .line {
+    position: relative;
+    flex: 1;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, color-mix(in oklab, var(--border) 85%, var(--fg)) 55%, transparent);
+    opacity: 0.9;
+  }
+
+  .seam .line:last-child {
+    background: linear-gradient(90deg, transparent, color-mix(in oklab, var(--border) 85%, var(--fg)) 45%, transparent);
+  }
+
+  .pill {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    max-width: min(100%, 430px);
+    padding: 6px 10px 6px 8px;
+    border: 1px solid color-mix(in oklab, var(--border) 88%, var(--fg));
+    border-radius: 999px;
+    background: color-mix(in oklab, var(--card) 92%, var(--bg));
+    color: var(--fg);
+    font: 12px/1.2 ui-sans-serif, system-ui, sans-serif;
+    white-space: nowrap;
+    overflow: hidden;
+    cursor: pointer;
+    box-shadow: 0 1px 0 rgba(255, 255, 255, 0.02) inset;
+    transition: border-color 160ms ease, background 160ms ease;
+  }
+
+  .pill:hover {
+    border-color: color-mix(in oklab, var(--spark) 45%, var(--border));
+    background: color-mix(in oklab, var(--card) 86%, var(--spark-soft));
+  }
+
+  .fold-ico {
+    display: grid;
+    place-items: center;
+    width: 22px;
+    height: 22px;
+    flex: 0 0 auto;
+    border-radius: 50%;
+    background: var(--spark-soft);
+    color: var(--spark);
+  }
+
+  .fold-ico svg { width: 13px; height: 13px; display: block; }
+
+  .pill-label { font-weight: 500; }
+  .pill-sep { width: 3px; height: 3px; border-radius: 50%; background: var(--faint); opacity: 0.7; }
+  .pill-tokens { color: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+
+  .chev {
+    width: 13px;
+    height: 13px;
+    flex: 0 0 auto;
+    margin-left: 1px;
+    color: var(--faint);
+    transition: transform 220ms cubic-bezier(0.22, 0.7, 0.2, 1), color 160ms ease;
+  }
+
+  button[aria-expanded="true"] .chev { transform: rotate(180deg); }
+
+  .summary {
+    display: grid;
+    grid-template-rows: 0fr;
+    transition: grid-template-rows 320ms cubic-bezier(0.22, 0.7, 0.2, 1);
+  }
+
+  .summary.open { grid-template-rows: 1fr; }
+
+  .summary-clip { overflow: hidden; }
+
+  .summary-body {
+    max-width: 620px;
+    margin: 0 auto;
+    padding: 1px 0 13px;
+    opacity: 0;
+    transform: translateY(-3px);
+    transition: opacity 220ms ease 40ms, transform 260ms cubic-bezier(0.22, 0.7, 0.2, 1) 40ms;
+  }
+
+  .summary.open .summary-body { opacity: 1; transform: none; }
+
+  .summary-head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 7px;
+    font: 10px/1 ui-monospace, "SFMono-Regular", monospace;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+    color: var(--faint);
+  }
+
+  .summary-head .rule { flex: 1; height: 1px; background: var(--border); opacity: 0.7; }
+
+  .summary-meta { letter-spacing: 0; text-transform: none; font-family: inherit; }
+
+  .summary-body p {
+    margin: 0 0 6px;
+    font-size: 12.5px;
+    line-height: 1.6;
+    color: var(--muted);
+  }
+
+  .summary-body ul {
+    margin: 0;
+    padding-left: 16px;
+    font-size: 12.5px;
+    line-height: 1.65;
+    color: var(--muted);
+  }
+
+  .summary-body li::marker { color: var(--spark); }
+  .summary-body strong { color: var(--fg); font-weight: 500; }
+
+  /* ── B · fold card ────────────────────────────────────────── */
+
+  .foldcard {
+    position: relative;
+    margin: 12px auto 14px;
+    width: 100%;
+    max-width: 620px;
+  }
+
+  .ghost {
+    position: absolute;
+    inset: 0;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: var(--card);
+    opacity: var(--o);
+    transform: translateY(var(--y)) scale(var(--s));
+    z-index: 0;
+  }
+
+  .ghost.g1 { --o: 0.55; --y: -5px; --s: 0.985; }
+  .ghost.g2 { --o: 0.32; --y: -10px; --s: 0.97; }
+  .ghost.g3 { --o: 0.16; --y: -15px; --s: 0.955; }
+
+  .foldcard-main {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    gap: 11px;
+    width: 100%;
+    padding: 11px 13px;
+    border: 1px solid color-mix(in oklab, var(--border) 82%, var(--spark));
+    border-radius: 12px;
+    background:
+      linear-gradient(150deg, color-mix(in oklab, var(--spark) 9%, var(--card)), var(--card) 42%);
+    color: var(--fg);
+    text-align: left;
+    cursor: pointer;
+    box-shadow: var(--shadow);
+    transition: transform 180ms ease, border-color 180ms ease;
+  }
+
+  .foldcard-main:hover {
+    transform: translateY(-1px);
+    border-color: color-mix(in oklab, var(--spark) 42%, var(--border));
+  }
+
+  .tile {
+    display: grid;
+    place-items: center;
+    width: 32px;
+    height: 32px;
+    flex: 0 0 auto;
+    border-radius: 9px;
+    color: var(--spark);
+    background: var(--spark-soft);
+    box-shadow: 0 0 0 1px color-mix(in oklab, var(--spark) 18%, transparent) inset;
+  }
+
+  .tile svg { width: 16px; height: 16px; display: block; }
+
+  .foldcard-text { flex: 1; min-width: 0; }
+  .foldcard-title { display: block; font-size: 13px; font-weight: 500; line-height: 1.35; }
+  .foldcard-sub { display: block; margin-top: 1px; font-size: 11px; line-height: 1.4; color: var(--muted); }
+
+  .tokens {
+    flex: 0 0 auto;
+    padding: 3px 7px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--muted);
+    font: 10.5px/1.4 ui-monospace, "SFMono-Regular", monospace;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .foldcard .summary-body {
+    max-width: none;
+    margin: 0;
+    padding: 11px 13px 12px;
+    border: 1px solid var(--border);
+    border-top: 0;
+    border-radius: 0 0 12px 12px;
+    background: var(--card);
+  }
+
+  .foldcard .summary {
+    position: relative;
+    z-index: 1;
+    margin-top: -6px;
+  }
+
+  .foldcard .summary-clip { padding-top: 6px; }
+
+  /* ── C · whisper ──────────────────────────────────────────── */
+
+  .whisper {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    width: 100%;
+    padding: 6px 8px;
+    border: 0;
+    background: transparent;
+    color: var(--faint);
+    font: 10px/1.4 ui-monospace, "SFMono-Regular", monospace;
+    letter-spacing: 0.13em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: color 160ms ease;
+  }
+
+  .whisper:hover { color: var(--muted); }
+
+  .whisper-rule { width: 26px; height: 1px; background: currentColor; opacity: 0.45; }
+  .whisper-dot { width: 4px; height: 4px; border-radius: 50%; background: var(--spark); flex: 0 0 auto; }
+  .whisper .chev { width: 11px; height: 11px; margin-left: -2px; }
+
+  .whisper .summary-body {
+    max-width: 580px;
+    margin: 0 auto;
+    padding: 7px 0 9px;
+    text-align: left;
+  }
+
+  .whisper .summary-head { justify-content: center; }
+  .whisper .summary-head .rule { display: none; }
+
+  /* ── running ──────────────────────────────────────────────── */
+
+  .running {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 9px;
+    padding: 12px 0 4px;
+  }
+
+  .running-pill {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 12px 6px 9px;
+    border: 1px solid color-mix(in oklab, var(--spark) 32%, var(--border));
+    border-radius: 999px;
+    background: color-mix(in oklab, var(--card) 92%, var(--bg));
+    color: var(--fg);
+    font-size: 12px;
+    overflow: hidden;
+  }
+
+  .running-pill::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(100deg, transparent 20%, color-mix(in oklab, var(--spark) 20%, transparent) 50%, transparent 80%);
+    transform: translateX(-120%);
+    animation: sweep 1.5s ease-in-out infinite;
+  }
+
+  .running .fold-ico { animation: breathe 1.6s ease-in-out infinite; }
+  .ellipsis { display: inline-flex; gap: 2px; margin-left: 1px; }
+  .ellipsis i { width: 3px; height: 3px; border-radius: 50%; background: var(--muted); animation: blink 1.2s ease-in-out infinite; }
+  .ellipsis i:nth-child(2) { animation-delay: 0.15s; }
+  .ellipsis i:nth-child(3) { animation-delay: 0.3s; }
+
+  .foot {
+    margin-top: 34px;
+    padding-top: 14px;
+    border-top: 1px solid var(--border);
+    font-size: 11.5px;
+    line-height: 1.6;
+    color: var(--faint);
+  }
+
+  .foot code {
+    font-family: ui-monospace, "SFMono-Regular", monospace;
+    font-size: 10.5px;
+    color: var(--muted);
+  }
+
+  /* ── entry animations (replayable) ────────────────────────── */
+
+  @keyframes line-in {
+    from { opacity: 0; transform: scaleX(0); }
+    to { opacity: 0.9; transform: scaleX(1); }
+  }
+
+  @keyframes pill-in {
+    from { opacity: 0; transform: translateY(5px) scale(0.96); }
+    to { opacity: 1; transform: none; }
+  }
+
+  @keyframes sweep {
+    from { transform: translateX(-120%); }
+    to { transform: translateX(120%); }
+  }
+
+  @keyframes stack-in {
+    from { opacity: 0; transform: translateY(4px) scale(1); }
+    to { opacity: var(--o); transform: translateY(var(--y)) scale(var(--s)); }
+  }
+
+  @keyframes rise-in {
+    from { opacity: 0; transform: translateY(5px); }
+    to { opacity: 1; transform: none; }
+  }
+
+  @keyframes dot-in {
+    0% { opacity: 0; transform: scale(0.4); }
+    55% { opacity: 1; transform: scale(1.3); box-shadow: 0 0 0 0 var(--spark-soft); }
+    100% { opacity: 1; transform: scale(1); box-shadow: 0 0 0 5px transparent; }
+  }
+
+  .play .seam .line { animation: line-in 560ms cubic-bezier(0.22, 0.7, 0.2, 1) both; }
+  .play .pill { animation: pill-in 460ms cubic-bezier(0.22, 0.7, 0.2, 1) 170ms both; }
+  .play .pill::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: linear-gradient(100deg, transparent 25%, color-mix(in oklab, var(--spark) 24%, transparent) 50%, transparent 75%);
+    transform: translateX(-120%);
+    animation: sweep 950ms ease-out 620ms both;
+    pointer-events: none;
+  }
+
+  .play .ghost { animation: stack-in 520ms cubic-bezier(0.22, 0.7, 0.2, 1) both; }
+  .play .ghost.g2 { animation-delay: 40ms; }
+  .play .ghost.g3 { animation-delay: 80ms; }
+  .play .foldcard-main { animation: rise-in 480ms cubic-bezier(0.22, 0.7, 0.2, 1) 120ms both; }
+  .play .whisper { animation: rise-in 500ms cubic-bezier(0.22, 0.7, 0.2, 1) both; }
+  .play .whisper-dot { animation: dot-in 700ms ease-out 180ms both; }
+
+  @keyframes breathe {
+    0%, 100% { box-shadow: 0 0 0 0 transparent; }
+    50% { box-shadow: 0 0 0 4px var(--spark-soft); }
+  }
+
+  @keyframes blink {
+    0%, 100% { opacity: 0.35; }
+    50% { opacity: 1; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation: none !important;
+      transition: none !important;
+    }
+  }
+
+  @media (max-width: 560px) {
+    .wrap { padding: 20px 16px 36px; }
+    .pill-tokens { display: none; }
+    .foldcard-sub { display: none; }
+    .variant-note { display: none; }
+  }
+</style>
+</head>
+<body class="play">
+<div class="wrap">
+  <div class="meta">
+    <span class="meta-title">Compaction event · three directions</span>
+    <div class="meta-actions">
+      <button type="button" id="replay">Replay</button>
+      <button type="button" id="theme">Light</button>
+    </div>
+  </div>
+
+  <p class="lede">
+    The event is a <strong>seam between two conversations</strong>, not a message.
+    It should read in one glance, open without a layout jump and never look like a gray box.
+  </p>
+
+  <section class="variant">
+    <div class="variant-head">
+      <span class="letter">A</span>
+      <span class="variant-name">Seam</span>
+      <span class="variant-tag">recommended</span>
+      <span class="variant-note">quiet, opens with the summary</span>
+    </div>
+    <div class="stage">
+      <p class="context">…we finished the composer overlay and the checks are green.</p>
+      <div class="seam">
+        <span class="line"></span>
+        <button class="pill" type="button" aria-expanded="true" aria-controls="sum-a" data-toggle="sum-a">
+          <span class="fold-ico">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M2 12h6"/><path d="M22 12h-6"/>
+              <path d="M12 2v2"/><path d="M12 8v2"/><path d="M12 14v2"/><path d="M12 20v2"/>
+              <path d="m19 9-3 3 3 3"/><path d="m5 9 3 3-3 3"/>
+            </svg>
+          </span>
+          <span class="pill-label">Context compacted</span>
+          <span class="pill-sep"></span>
+          <span class="pill-tokens">309k tokens</span>
+          <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+        </button>
+        <span class="line"></span>
+      </div>
+      <div class="summary open" id="sum-a">
+        <div class="summary-clip">
+          <div class="summary-body">
+            <div class="summary-head">
+              <span>Summary of earlier conversation</span>
+              <span class="rule"></span>
+              <span class="summary-meta">manual · 309k tokens</span>
+            </div>
+            <ul>
+              <li><strong>Goal:</strong> make compaction read as a seam, not a gray box.</li>
+              <li><strong>Decided:</strong> hairline + centered pill; summary unfolds in place.</li>
+              <li><strong>Open:</strong> token count, manual/auto wording, running state.</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+      <p class="context">…so the UI layer is clean. Next: the compaction event.</p>
+    </div>
+  </section>
+
+  <section class="variant">
+    <div class="variant-head">
+      <span class="letter">B</span>
+      <span class="variant-name">Fold card</span>
+      <span class="variant-note">more information, more presence</span>
+    </div>
+    <div class="stage">
+      <p class="context">…we finished the composer overlay and the checks are green.</p>
+      <div class="foldcard">
+        <span class="ghost g3"></span>
+        <span class="ghost g2"></span>
+        <span class="ghost g1"></span>
+        <button class="foldcard-main" type="button" aria-expanded="false" aria-controls="sum-b" data-toggle="sum-b">
+          <span class="tile">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M2 12h6"/><path d="M22 12h-6"/>
+              <path d="M12 2v2"/><path d="M12 8v2"/><path d="M12 14v2"/><path d="M12 20v2"/>
+              <path d="m19 9-3 3 3 3"/><path d="m5 9 3 3-3 3"/>
+            </svg>
+          </span>
+          <span class="foldcard-text">
+            <span class="foldcard-title">Context compacted</span>
+            <span class="foldcard-sub">Earlier messages folded into a summary</span>
+          </span>
+          <span class="tokens">309k</span>
+          <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+        </button>
+        <div class="summary" id="sum-b">
+          <div class="summary-clip">
+            <div class="summary-body">
+              <div class="summary-head"><span>Summary of earlier conversation</span><span class="rule"></span><span class="summary-meta">manual</span></div>
+              <p>Composer overlay, green checks, and the background scene were finished earlier. The only open item is the compaction event itself.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+      <p class="context">…so the UI layer is clean. Next: the compaction event.</p>
+    </div>
+  </section>
+
+  <section class="variant">
+    <div class="variant-head">
+      <span class="letter">C</span>
+      <span class="variant-name">Whisper</span>
+      <span class="variant-note">almost invisible until needed</span>
+    </div>
+    <div class="stage">
+      <p class="context">…we finished the composer overlay and the checks are green.</p>
+      <button class="whisper" type="button" aria-expanded="false" aria-controls="sum-c" data-toggle="sum-c" style="margin: 15px 0;">
+        <span class="whisper-rule"></span>
+        <span class="whisper-dot"></span>
+        <span>context compacted</span>
+        <span class="pill-sep"></span>
+        <span>309k tokens</span>
+        <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+        <span class="whisper-rule"></span>
+      </button>
+      <div class="summary" id="sum-c" style="padding: 0 12px;">
+        <div class="summary-clip">
+          <div class="summary-body">
+            <div class="summary-head"><span>Summary of earlier conversation</span></div>
+            <p>Composer overlay, green checks, background scene: done. The compaction event is the only open item.</p>
+          </div>
+        </div>
+      </div>
+      <p class="context">…so the UI layer is clean. Next: the compaction event.</p>
+    </div>
+  </section>
+
+  <section class="variant">
+    <div class="variant-head">
+      <span class="letter">↻</span>
+      <span class="variant-name">Running state</span>
+      <span class="variant-note">while the summary is being generated</span>
+    </div>
+    <div class="running">
+      <span class="running-pill">
+        <span class="fold-ico">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M2 12h6"/><path d="M22 12h-6"/>
+            <path d="M12 2v2"/><path d="M12 8v2"/><path d="M12 14v2"/><path d="M12 20v2"/>
+            <path d="m19 9-3 3 3 3"/><path d="m5 9 3 3-3 3"/>
+          </svg>
+        </span>
+        <span>Compacting context</span>
+        <span class="ellipsis"><i></i><i></i><i></i></span>
+      </span>
+    </div>
+  </section>
+
+  <p class="foot">
+    All three use the existing palette, <code>formatTokens</code> and no new dependency.
+    The expanded body is animated with <code>grid-template-rows</code>; keyboard and
+    reduced-motion behaviour stay native.
+  </p>
+</div>
+
+<script>
+  const root = document.documentElement;
+  const body = document.body;
+
+  document.querySelectorAll("[data-toggle]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const target = document.getElementById(button.getAttribute("aria-controls"));
+      const open = target.classList.toggle("open");
+      button.setAttribute("aria-expanded", String(open));
+    });
+  });
+
+  const replay = () => {
+    body.classList.remove("play");
+    void body.offsetWidth;
+    body.classList.add("play");
+  };
+
+  document.getElementById("replay").addEventListener("click", replay);
+
+  document.getElementById("theme").addEventListener("click", (event) => {
+    const light = root.getAttribute("data-theme") !== "light";
+    root.setAttribute("data-theme", light ? "light" : "dark");
+    event.currentTarget.textContent = light ? "Dark" : "Light";
+  });
+</script>
+</body>
+</html>

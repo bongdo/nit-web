@@ -23,7 +23,7 @@ import {
   Settings,
   Trash2,
 } from "lucide-react";
-import type { Session } from "../lib/types";
+import type { Health, Session } from "../lib/types";
 import { basename, filterSessions, formatRelative } from "../lib/format";
 import { SCOPES, groupSessions, type Scope } from "../lib/sessions";
 import { cn } from "../lib/utils";
@@ -262,6 +262,7 @@ export const Sidebar = memo(function Sidebar({
   scope,
   selectedId,
   loading,
+  health,
   search,
   searchRef,
   hiddenIds,
@@ -291,6 +292,7 @@ export const Sidebar = memo(function Sidebar({
   scope: Scope;
   selectedId: string | null;
   loading: boolean;
+  health: Health | null;
   search: string;
   searchRef: RefObject<HTMLInputElement | null>;
   hiddenIds: Set<string>;

@@ -1125,7 +1125,6 @@ export default function App() {
   const closePicker = useCallback(() => setPickerOpen(false), []);
   const openSettings = useCallback(() => setSettingsOpen(true), []);
   const closeSettings = useCallback(() => setSettingsOpen(false), []);
-  const openTheme = useCallback(() => setThemeOpen(true), []);
   const closeTheme = useCallback(() => setThemeOpen(false), []);
   const openSidebar = useCallback(() => setSidebarOpen(true), []);
   const toggleHidden = useCallback(() => setShowHidden((value) => !value), []);
@@ -1788,6 +1787,8 @@ export default function App() {
               setSidebarOpen(false);
               openSettings();
             }}
+            notify={notifications}
+            onNotify={() => void toggleNotify()}
             isRunning={isRunning}
             waitingIds={waitingIds}
             failedIds={failedIds}
@@ -1819,18 +1820,13 @@ export default function App() {
           estimatedCost={sessionCost === 0 && estimated > 0}
           health={health}
           streamStatus={streamStatus}
-          theme={theme}
           collapsed={swipeMode ? !swipe.opened : collapsed}
           sidebarMode={sidebarMode}
           subagents={subagents}
           parent={parentSession}
-          notify={notifications}
           onOpenSubagent={openSubagent}
           onBack={backToParent}
-          onSettings={openSettings}
           onToggleSidebar={toggleSidebar}
-          onTheme={openTheme}
-          onNotify={() => void toggleNotify()}
         />
 
         {activeError && (

@@ -1,12 +1,14 @@
-# Background services on the Frankfurt instance
+# Background services on the nit-gui host
 
 ## Decision
 
-Production runs on exactly one host: the Frankfurt instance. nit-gui,
-OpenCode, Caddy, LanguageTool, Whisper and the TTS hub all live there. The
-browser is a thin client: it renders the UI, records microphone audio and plays
-audio. It is not assumed to have local TTS voices, local STT, Hunspell
-dictionaries, LanguageTool, a GPU or any other capability.
+Production runs one nit-gui service on the Frankfurt host. It fronts one or
+more OpenCode servers, called instances: a local server, an explicit URL, or a
+server reached through an SSH tunnel. nit-gui, Caddy, LanguageTool, Whisper and
+the TTS hub live on the nit-gui host. The browser is a thin client: it renders
+the UI, records microphone audio and plays audio. It is not assumed to have
+local TTS voices, local STT, Hunspell dictionaries, LanguageTool, a GPU or any
+other capability.
 
 Caddy listens on loopback only. Tailscale Funnel terminates public HTTPS and
 exposes the app at `https://frankfurt.tailf358cb.ts.net/nit/`. Authentication is
@@ -19,28 +21,64 @@ on Frankfurt and exposed through nit-gui. It is not pushed into the client.
 
 The remaining client-side exceptions are listed under [Migration gaps](#migration-gaps).
 
-Shared UI state lives in `~/.local/state/nit-gui/ui-state.json`: hidden chats,
-done/failed markers, drafts, preferred model and agent. The browser keeps only
-device preferences and an in-memory transcript cache; drafts are mirrored to
-`localStorage` for instant load. That is the split that makes hiding a chat,
-continuing a draft or clearing a completion marker visible on every device.
+Shared UI state lives in `~/.local/state/nit-gui/ui-state.json`, keyed by
+instance: hidden chats, done/failed markers, drafts, preferred model and agent.
+The browser keeps only device preferences and an in-memory transcript cache;
+drafts are mirrored to `localStorage` for instant load. That is the split that
+makes hiding a chat, continuing a draft or clearing a completion marker visible
+on every device.
 
 ## Topology
 
-| Service | Address on Frankfurt | Role | Required |
+| Service | Address on the nit-gui host | Role | Required |
 | --- | --- | --- | --- |
-| OpenCode | `127.0.0.1:49374` (varies) | Sessions, messages, models, agents, provider credentials | yes |
-| nit-gui | `127.0.0.1:7791` | Go API, embedded web bundle, `/auth` login, sessions and shared UI state | yes |
+| OpenCode | one per instance: `127.0.0.1:49374`, URL, or a local SSH forward | Sessions, messages, models, agents, provider credentials | yes |
+| nit-gui | `127.0.0.1:7791` | Go API, embedded web bundle, `/auth` login, instance registry, SSH tunnels, sessions and shared UI state | yes |
 | Caddy | `127.0.0.1:7792` | Loopback reverse proxy, security headers, `/nit` path | yes |
 | Tailscale Funnel | `https://frankfurt.tailf358cb.ts.net/nit/` | Public HTTPS ingress | for public access |
 | LanguageTool | `127.0.0.1:8180` | Grammar and real-word checks | optional |
 | `whisper-server` | `127.0.0.1:8178` | Fast dictation while recording | optional |
 | `whisper-cli` | none | Accurate dictation, one process per request | optional |
-| OpenCode TTS plugin | `127.0.0.1:7787` target; currently `0.0.0.0:7787` | Speech output; the browser never synthesizes speech | optional |
+| OpenCode TTS plugin | `127.0.0.1:7787` target; currently `0.0.0.0:7787` | Speech output; the browser uses a labeled device voice as fallback | optional |
 | Spelling | browser worker today, `/api/spell` on nit-gui target | RU/EN Hunspell checks | migration gap |
 
 MCP servers, shells and PTYs belong to OpenCode. They are not managed by
 nit-gui.
+
+## Instances
+
+`instances.json` (`NIT_GUI_INSTANCES`, or
+`${XDG_CONFIG_HOME:-$HOME/.config}/nit-gui/instances.json`) defines named
+OpenCode servers:
+
+```json
+{
+  "instances": [
+    { "name": "frankfurt", "url": "auto" },
+    { "name": "riga", "ssh": "riga-dev", "dir": "/home/bongdo/Projects" },
+    { "name": "office", "url": "http://10.0.0.5:49374", "passwordFile": "~/.config/nit-gui/office.password" }
+  ]
+}
+```
+
+- Missing or empty means one auto-discovered instance named `local`.
+- `url: "auto"` uses `NIT_SERVER` / `OPENCODE_SERVER` / `OPENCODE_URL`, then
+  `opencode service status`.
+- An explicit remote `url` needs `passwordFile` or inline `password`.
+- `ssh` runs `opencode service status` and reads `service.json` on the remote
+  host, then opens a local port forward with the `ssh` binary. The tunnel lives
+  until `DropFor` or app shutdown.
+- The first instance is the default. Names match `^[A-Za-z0-9._-]{1,64}$`.
+- Passwords stay on the nit-gui host. A config with an inline password should be
+  mode `0600`; the app warns otherwise. A malformed file falls back to `local`
+  and the error is shown in the Instances menu.
+
+The browser sends `X-Nit-Instance: <id>` on every API request and `?instance=`
+on `EventSource` and `/api/file` links. Only the active instance keeps an event
+stream; switching remounts the chat view and reloads that instance's sessions,
+models, agents and drafts. Dictation and grammar run on the nit-gui host and are
+therefore shared by all instances; sessions, models, agents and workspaces are
+per instance.
 
 Only Tailscale Funnel is public. Caddy, OpenCode, nit-gui, LanguageTool, Whisper
 and the TTS hub stay on loopback; the TTS hub does not meet that yet. The host
@@ -59,18 +97,21 @@ The browser may:
   source of truth;
 - read hidden, done/failed, drafts, model and agent state from `/api/ui`;
 - hold the session in an HttpOnly cookie; the password is never stored in the
-  browser.
+  browser;
+- use `speechSynthesis` only as a labeled device fallback when the host TTS
+  plugin is not connected. It is never presented as host speech.
 
 The browser must not be required to:
 
-- have a system TTS voice or call `speechSynthesis`;
+- have a host TTS voice; a browser without a local voice simply gets no speech;
 - run a model, a GPU or local STT;
 - carry Hunspell dictionaries or a spelling engine (target state);
 - reach OpenCode, LanguageTool, Whisper or the TTS hub directly.
 
 A browser with a microphone and audio output is enough for the product. A
 feature that only works on a developer laptop because it has a local model,
-voice or dictionary is not finished.
+voice or dictionary is not finished; the Instances menu must say which fallback
+is in use.
 
 ## Startup order
 

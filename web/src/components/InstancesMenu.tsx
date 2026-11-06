@@ -142,6 +142,7 @@ export function InstancesMenu({
                   </span>
                   <span className="text-muted-foreground block truncate text-[11px]">
                     {item.state}
+                    {item.opencode?.version ? ` · OpenCode ${item.opencode.version}` : ""}
                     {item.detail ? ` · ${item.detail}` : ""}
                   </span>
                   {item.error && (

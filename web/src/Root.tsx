@@ -44,9 +44,10 @@ export default function Root() {
       const result = await api.instances();
       setData(result);
       const stored = localStorage.getItem("nit-gui.instance");
-      setActive(
-        stored && result.instances.some((item) => item.id === stored) ? stored : result.default,
-      );
+      const next =
+        stored && result.instances.some((item) => item.id === stored) ? stored : result.default;
+      setActive(next);
+      localStorage.setItem("nit-gui.instance", next);
     } catch (cause) {
       setError(messageOf(cause));
     }
@@ -61,9 +62,13 @@ export default function Root() {
     try {
       const result = await api.instances(true);
       setData(result);
-      setActive((current) =>
-        result.instances.some((item) => item.id === current) ? current : result.default,
-      );
+      setActive((current) => {
+        const next = result.instances.some((item) => item.id === current)
+          ? current
+          : result.default;
+        localStorage.setItem("nit-gui.instance", next);
+        return next;
+      });
     } catch (cause) {
       setError(messageOf(cause));
     }
@@ -74,6 +79,11 @@ export default function Root() {
     localStorage.setItem("nit-gui.instance", id);
     setMenuOpen(false);
   }, []);
+
+  const openMenu = useCallback(() => {
+    setMenuOpen(true);
+    void load();
+  }, [load]);
 
   if (!data) {
     if (error) return <LoadError message={error} onRetry={() => void load()} />;
@@ -103,7 +113,7 @@ export default function Root() {
         instance={info.id}
         defaultInstance={data.default}
         defaultDirectory={info.defaultDirectory}
-        onOpenInstances={() => setMenuOpen(true)}
+        onOpenInstances={openMenu}
       />
       {menuOpen && (
         <InstancesMenu

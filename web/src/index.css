@@ -277,6 +277,170 @@
       opacity: 0;
     }
   }
+
+  .sidebar-sheen-active-line {
+    position: absolute;
+    top: 0;
+    right: 0.5rem;
+    left: 0.5rem;
+    z-index: 20;
+    height: 1px;
+    pointer-events: none;
+    background: linear-gradient(
+      90deg,
+      transparent,
+      color-mix(in oklab, var(--spark) 65%, transparent) 18%,
+      color-mix(in oklab, var(--spark) 70%, var(--foreground)) 50%,
+      color-mix(in oklab, var(--spark) 65%, transparent) 82%,
+      transparent
+    );
+    opacity: 0.95;
+    will-change: transform;
+  }
+
+  .sidebar-sheen-active-line-live {
+    transition: transform 280ms cubic-bezier(0.22, 0.7, 0.2, 1);
+  }
+
+  .sidebar-sheen-list {
+    --sidebar-sheen-step: 34ms;
+  }
+
+  .sidebar-sheen-unfold {
+    --sidebar-sheen-step: 40ms;
+  }
+
+  .sidebar-sheen-enter {
+    animation: sidebar-sheen-rise 220ms cubic-bezier(0.22, 0.7, 0.2, 1) both;
+  }
+
+  .sidebar-sheen-badge {
+    overflow: hidden;
+  }
+
+  .sidebar-sheen-badge-settle {
+    animation: sidebar-sheen-badge-settle 620ms cubic-bezier(0.22, 0.7, 0.2, 1) both;
+  }
+
+  .sidebar-sheen-badge-settle::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    pointer-events: none;
+    background: linear-gradient(
+      100deg,
+      transparent 38%,
+      color-mix(in oklab, white 55%, var(--success)) 48%,
+      color-mix(in oklab, white 18%, var(--success)) 52%,
+      transparent 62%
+    );
+    transform: translateX(-120%);
+    animation: sidebar-sheen-sweep 780ms cubic-bezier(0.22, 0.7, 0.2, 1) both;
+  }
+
+  .sidebar-sheen-tab-glow,
+  .sidebar-sheen-tab-line {
+    position: absolute;
+    left: 0;
+    z-index: -1;
+    width: var(--sidebar-sheen-tab-w, 0px);
+    transform: translateX(var(--sidebar-sheen-tab-x, 2px));
+    pointer-events: none;
+  }
+
+  .sidebar-sheen-tab-glow {
+    top: 2px;
+    bottom: 2px;
+    border-radius: 4px;
+    background: linear-gradient(
+      180deg,
+      color-mix(in oklab, white 16%, var(--background)),
+      color-mix(in oklab, var(--background) 92%, transparent)
+    );
+    box-shadow:
+      inset 0 0 0 1px color-mix(in oklab, var(--border) 55%, transparent),
+      0 1px 2px color-mix(in oklab, black 8%, transparent);
+  }
+
+  .sidebar-sheen-tab-line {
+    bottom: 1px;
+    height: 1px;
+    opacity: 0.85;
+    background: linear-gradient(
+      90deg,
+      transparent,
+      color-mix(in oklab, var(--spark) 55%, var(--foreground)) 30%,
+      color-mix(in oklab, white 50%, var(--spark)) 50%,
+      color-mix(in oklab, var(--spark) 55%, var(--foreground)) 70%,
+      transparent
+    );
+  }
+
+  .sidebar-sheen-tabs .sidebar-sheen-tab-glow,
+  .sidebar-sheen-tabs .sidebar-sheen-tab-line {
+    transition:
+      transform 300ms cubic-bezier(0.22, 0.7, 0.2, 1),
+      width 300ms cubic-bezier(0.22, 0.7, 0.2, 1);
+  }
+
+  .sidebar-sheen-search::after {
+    content: "";
+    position: absolute;
+    right: 1px;
+    bottom: 0;
+    left: 1px;
+    height: 1px;
+    pointer-events: none;
+    background: linear-gradient(
+      90deg,
+      transparent,
+      color-mix(in oklab, var(--spark) 70%, transparent) 18%,
+      color-mix(in oklab, white 35%, var(--spark)) 50%,
+      color-mix(in oklab, var(--spark) 70%, transparent) 82%,
+      transparent
+    );
+    opacity: 0;
+    transform: scaleX(0);
+    transform-origin: left;
+  }
+
+  .sidebar-sheen-search-live::after {
+    transition:
+      transform 220ms cubic-bezier(0.22, 0.7, 0.2, 1),
+      opacity 220ms cubic-bezier(0.22, 0.7, 0.2, 1);
+  }
+
+  .sidebar-sheen-search:focus-within::after {
+    opacity: 1;
+    transform: scaleX(1);
+  }
+
+  .sidebar-sheen-search-count-in {
+    animation: sidebar-sheen-fade 180ms ease-out both;
+  }
+
+  .sidebar-sheen-workspace {
+    position: relative;
+    overflow: hidden;
+  }
+
+  .sidebar-sheen-workspace-live::after {
+    content: "";
+    position: absolute;
+    inset: 0 -40%;
+    pointer-events: none;
+    background: linear-gradient(
+      100deg,
+      transparent 42%,
+      color-mix(in oklab, white 55%, var(--spark)) 48%,
+      color-mix(in oklab, white 18%, var(--spark)) 52%,
+      transparent 58%
+    );
+    opacity: 0;
+    transform: translateX(-120%);
+    animation: sidebar-sheen-path 700ms cubic-bezier(0.22, 0.7, 0.2, 1) 60ms both;
+  }
 }
 
 @layer utilities {
@@ -538,6 +702,84 @@
     }
     50% {
       opacity: 1;
+    }
+  }
+
+  @keyframes sidebar-sheen-rise {
+    from {
+      opacity: 0;
+      transform: translateY(4px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes sidebar-sheen-fade {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+
+  @keyframes sidebar-sheen-sweep {
+    from {
+      transform: translateX(-120%);
+    }
+    to {
+      transform: translateX(120%);
+    }
+  }
+
+  @keyframes sidebar-sheen-badge-settle {
+    0% {
+      color: var(--success);
+      transform: scale(0.94);
+    }
+    60% {
+      color: var(--success);
+      transform: scale(1.02);
+    }
+    100% {
+      transform: scale(1);
+    }
+  }
+
+  @keyframes sidebar-sheen-path {
+    0% {
+      opacity: 0;
+      transform: translateX(-120%);
+    }
+    22% {
+      opacity: 1;
+    }
+    52% {
+      opacity: 0;
+      transform: translateX(120%);
+    }
+    100% {
+      opacity: 0;
+      transform: translateX(120%);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .sidebar-sheen-active-line-live,
+    .sidebar-sheen-tabs .sidebar-sheen-tab-glow,
+    .sidebar-sheen-tabs .sidebar-sheen-tab-line,
+    .sidebar-sheen-search-live::after {
+      transition: none;
+    }
+
+    .sidebar-sheen-enter,
+    .sidebar-sheen-workspace-live::after,
+    .sidebar-sheen-badge-settle,
+    .sidebar-sheen-badge-settle::after,
+    .sidebar-sheen-search-count-in {
+      animation: none;
     }
   }
 
@@ -1734,249 +1976,6 @@
     }
     to {
       transform: scaleX(1);
-    }
-  }
-}
-
-      opacity: 0;
-      transform: translateX(120%);
-    }
-    100% {
-      opacity: 0;
-      transform: translateX(120%);
-    }
-  }
-
-  @keyframes session-breathe {
-    0%,
-    100% {
-      box-shadow: inset 0 0 14px color-mix(in oklab, var(--sweep) 7%, transparent);
-    }
-    50% {
-      box-shadow: inset 0 0 28px color-mix(in oklab, var(--sweep) 20%, transparent);
-    }
-  }
-
-  @keyframes waiting-dot {
-    0%,
-    100% {
-      opacity: 1;
-      transform: scale(1);
-    }
-    50% {
-      opacity: 0.55;
-      transform: scale(0.8);
-    }
-  }
-
-  .compaction-enter .compaction-line {
-    transform-origin: center;
-    animation: compaction-line 520ms cubic-bezier(0.22, 0.7, 0.2, 1) both;
-  }
-
-  .compaction-enter .compaction-pill {
-    animation: compaction-pill 420ms cubic-bezier(0.22, 0.7, 0.2, 1) 140ms both;
-  }
-
-  .compaction-enter .compaction-pill::after {
-    content: "";
-    position: absolute;
-    inset: 0;
-    border-radius: inherit;
-    background: linear-gradient(
-      100deg,
-      transparent 25%,
-      color-mix(in oklab, var(--spark) 24%, transparent) 50%,
-      transparent 75%
-    );
-    pointer-events: none;
-    transform: translateX(-120%);
-    animation: compaction-sweep 950ms ease-out 600ms both;
-  }
-
-  .compaction-busy.compaction-pill::after {
-    content: "";
-    position: absolute;
-    inset: 0;
-    border-radius: inherit;
-    background: linear-gradient(
-      100deg,
-      transparent 20%,
-      color-mix(in oklab, var(--spark) 20%, transparent) 50%,
-      transparent 80%
-    );
-    pointer-events: none;
-    transform: translateX(-120%);
-    animation: compaction-sweep 1.5s ease-in-out infinite;
-  }
-
-  .compaction-busy .compaction-tile {
-    animation: compaction-breathe 1.6s ease-in-out infinite;
-  }
-
-  .compaction-dot {
-    animation: compaction-blink 1.2s ease-in-out infinite;
-  }
-
-  @keyframes compaction-line {
-    from {
-      opacity: 0;
-      transform: scaleX(0);
-    }
-    to {
-      opacity: 1;
-      transform: scaleX(1);
-    }
-  }
-
-  @keyframes compaction-pill {
-    from {
-      opacity: 0;
-      transform: translateY(5px) scale(0.96);
-    }
-    to {
-      opacity: 1;
-      transform: none;
-    }
-  }
-
-  @keyframes compaction-sweep {
-    from {
-      transform: translateX(-120%);
-    }
-    to {
-      transform: translateX(120%);
-    }
-  }
-
-  @keyframes compaction-breathe {
-    0%,
-    100% {
-      box-shadow: 0 0 0 0 transparent;
-    }
-    50% {
-      box-shadow: 0 0 0 4px color-mix(in oklab, var(--spark) 14%, transparent);
-    }
-  }
-
-  @keyframes compaction-blink {
-    0%,
-    100% {
-      opacity: 0.35;
-    }
-    50% {
-      opacity: 1;
-    }
-  }
-
-  @keyframes sidebar-sheen-rise {
-    from {
-      opacity: 0;
-      transform: translateY(4px);
-    }
-    to {
-      opacity: 1;
-      transform: translateY(0);
-    }
-  }
-
-  @keyframes sidebar-sheen-fade {
-    from {
-      opacity: 0;
-    }
-    to {
-      opacity: 1;
-    }
-  }
-
-  @keyframes sidebar-sheen-sweep {
-    from {
-      transform: translateX(-120%);
-    }
-    to {
-      transform: translateX(120%);
-    }
-  }
-
-  @keyframes sidebar-sheen-badge-settle {
-    0% {
-      color: var(--success);
-      transform: scale(0.94);
-    }
-    60% {
-      color: var(--success);
-      transform: scale(1.02);
-    }
-    100% {
-      transform: scale(1);
-    }
-  }
-
-  @keyframes sidebar-sheen-path {
-    0% {
-      opacity: 0;
-      transform: translateX(-120%);
-    }
-    22% {
-      opacity: 1;
-    }
-    52% {
-      opacity: 0;
-      transform: translateX(120%);
-    }
-    100% {
-      opacity: 0;
-      transform: translateX(120%);
-    }
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    .sidebar-sheen-active-line-live,
-    .sidebar-sheen-tabs .sidebar-sheen-tab-glow,
-    .sidebar-sheen-tabs .sidebar-sheen-tab-line,
-    .sidebar-sheen-search-live::after {
-      transition: none;
-    }
-
-    .sidebar-sheen-enter,
-    .sidebar-sheen-workspace-live::after,
-    .sidebar-sheen-badge-settle,
-    .sidebar-sheen-badge-settle::after,
-    .sidebar-sheen-search-count-in {
-      animation: none;
-    }
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    .session-state-live,
-    .session-state-live::before,
-    .session-state-live::after,
-    .waiting-dot,
-    .compaction-enter .compaction-line,
-    .compaction-enter .compaction-pill,
-    .compaction-enter .compaction-pill::after,
-    .compaction-busy.compaction-pill::after,
-    .compaction-busy .compaction-tile,
-    .compaction-dot {
-      animation: none;
-    }
-  }
-}
-
-@media (min-width: 48rem) {
-  .swipe-sidebar {
-    translate: calc((var(--sidebar-swipe, 0) - 1) * 100%);
-    transition: translate 200ms cubic-bezier(0.32, 0.72, 0, 1);
-    will-change: translate;
-  }
-
-  .swipe-sidebar[data-dragging] {
-    transition: none;
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    .swipe-sidebar {
-      transition: none;
     }
   }
 }

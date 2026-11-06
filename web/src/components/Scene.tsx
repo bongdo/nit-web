@@ -646,7 +646,10 @@ export function Scene({
       readPalette();
       paint(still ? STILL_TIME : (performance.now() - started) / 1000);
     });
-    theme.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
+    theme.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ["class", "data-theme"],
+    });
     const tracksPointer = window.matchMedia("(pointer: fine)").matches;
     if (tracksPointer) {
       window.addEventListener("mousemove", move);

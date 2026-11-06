@@ -336,3 +336,27 @@ Why: hidden chats and completion markers are shared product state, not device pr
 Rejected: keeping hidden state in `localStorage` (breaks multi-device), a database (overkill for one file), and syncing every preference to the server (theme, sidebar, drafts are device-specific).
 
 Cost: last-write-wins, no push channel, and a done marker is only created by an open client that receives the idle event. The state file must be backed up with the rest of the instance.
+
+## 2026-11-06 — Drafts and model/agent join the server state
+
+Context: the user continues long prompts and reviews across devices and wants the same model and agent defaults everywhere. Drafts and those preferences were still `localStorage` only.
+
+Decision: store drafts, preferred model and preferred agent in the same `ui-state.json`. Drafts are keyed by session ID or `new:<workspace>`, capped at 256 KiB, saved 700 ms after the last edit, and mirrored to `localStorage` only for instant load. The client resolves the initial value by `updatedAt`: the newer side wins, and a local draft is pushed when the server has none.
+
+Why: these are shared product state, not device chrome. The local mirror keeps chat switching instant and survives a temporary server failure.
+
+Rejected: keeping drafts local (breaks cross-device continuation), sending every keystroke to the server (wasteful), and a database (one JSON file is enough for one user).
+
+Cost: two devices editing the same draft overwrite each other, last save wins. A draft over 256 KiB is rejected. Model/agent changes are also last-write-wins.
+
+## 2026-11-06 — Named themes on top of the stock light/dark tokens
+
+Context: the app only had light, dark and system, and `/theme` cycled them. The stock palette stays the default, but the product now needs classic palettes and a couple of authored ones.
+
+Decision: keep the stock palettes on `:root` and `.dark`, and add named palettes as `[data-theme="..."]` blocks that override the same CSS variables on `<html>`. Theme ids and labels live in `web/src/lib/themes.ts`; `.dark` still marks the dark variant for Tailwind and existing observers, while `data-theme` picks the palette. `/theme`, the header button and the mobile button open a picker that applies a theme live. `system` resolves to stock light or dark from the media query.
+
+Why: the token layer already drives every surface, so new themes need CSS only. The picker previews reuse the same variables, so a swatch cannot drift from the real palette.
+
+Rejected: a stylesheet per theme and CSS-in-JS (more moving parts), and rewriting every `dark:` utility into per-theme variants.
+
+Cost: each named theme must define every token, and the dark theme ids are repeated in the pre-paint script in `web/index.html`.

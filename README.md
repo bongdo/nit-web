@@ -21,7 +21,7 @@ dictionaries, LanguageTool or a GPU.
 | Spelling | browser nspell worker today; target Frankfurt `/api/spell` | migration gap |
 | Grammar | Frankfurt LanguageTool sidecar through `/api/grammar` | optional |
 | Attachments | Frankfurt, OpenCode `/api/experimental/fs/write` and `/tmp` | implemented |
-| UI state (hidden, done, failed) | Frankfurt, `~/.local/state/nit-gui/ui-state.json` | shared across devices |
+| UI state (hidden, done, failed, drafts, model/agent) | Frankfurt, `~/.local/state/nit-gui/ui-state.json` | shared across devices |
 
 The supported client is a browser with a microphone and audio output. Features
 must not depend on local models, dictionaries, OS speech voices or a GPU.
@@ -32,14 +32,15 @@ Spelling is the remaining exception; see [Known limits](#known-limits).
 | Where | What |
 | --- | --- |
 | OpenCode on Frankfurt | Sessions, messages, models, agents, working directories. |
-| nit-gui on Frankfurt | Hidden chats and done/failed markers in `ui-state.json`; auth sessions in memory; uploads under `/tmp`. |
-| Browser `localStorage` | Device preferences: theme, sidebar mode, motion, background, dictation mode, spelling/autofix, notifications, workspace, recent workspaces, scope, selected chat, preferred model/agent, drafts, personal spelling dictionary. |
+| nit-gui on Frankfurt | Hidden chats, done/failed markers, drafts, preferred model and agent in `ui-state.json`; auth sessions in memory; uploads under `/tmp`. |
+| Browser `localStorage` | Device preferences: theme, sidebar mode, motion, background, dictation mode, spelling/autofix, notifications, workspace, recent workspaces, scope, selected chat, personal spelling dictionary. Drafts are mirrored locally only as an instant-load cache. |
 | Browser memory | Transcript cache (up to 12 MiB), running/waiting state, form state, current stream. |
 
 The cache is deliberately local: it makes chat switching instant and is safe to
-lose. Hidden chats and done/failed markers are deliberately on the server: they
-are the same on every device. Device preferences and unsent drafts stay local
-because another device should not inherit them.
+lose. Hidden chats, done/failed markers, drafts, model and agent are deliberately
+on the server: they are the same on every device. Theme, sidebar, motion,
+workspace and the selected chat stay local because they describe the device you
+are sitting at.
 
 ## Run
 
@@ -130,15 +131,16 @@ opens the same transcripts, and the parent header has `Back to parent`.
 
 `New chat` does not create a session. The session is created in the current
 workspace on the first Send, so an empty draft never appears in the list.
-Hidden chats and done/failed markers are stored by the server, so hiding a chat
-on one device hides it on the next one.
+Hidden chats, done/failed markers, drafts, model and agent are stored by the
+server, so hiding a chat or continuing a draft works on the next device.
 
 ## Composer and message actions
 
 - The textarea grows to 200 px and then scrolls inside itself.
-- Each chat keeps its own unsent draft in `localStorage`; switching chats or
-  reloading restores it. The new-chat draft is separate per workspace. Unsent
-  attachments are not kept when you switch chats.
+- Each chat keeps its own unsent draft on the server, mirrored locally for
+  instant load; switching chats, reloading or opening another device restores
+  it. The new-chat draft is separate per workspace. Unsent attachments are not
+  kept when you switch chats.
 - Typing anywhere focuses the composer and keeps the first key, unless a
   dialog/menu is open or another field already has focus.
 - `/` opens the command palette: `/new`, `/dir`, `/compact`, `/revert`, `/fork`,
@@ -258,10 +260,14 @@ The browser only talks to these same-origin endpoints:
 | `POST /api/sessions/{id}/model` | Switch model `{model: {id, providerID, variant?}}`. |
 | `POST /api/sessions/{id}/agent` | Switch agent `{agent}`. |
 | `GET /api/models`, `GET /api/agents` | Pickers. |
-| `GET /api/ui` | Shared `{hidden, status}` UI state. |
+| `GET /api/ui` | Shared `{hidden, status, model, agent}` UI state. |
 | `POST /api/ui/hidden` | `{ids, hidden}`; hide or unhide chats. |
+| `GET /api/ui/drafts?key=` | Read one shared draft with its `updatedAt`. |
+| `POST /api/ui/drafts` | `{key, text}`; save or clear a shared draft. |
+| `POST /api/ui/model` | `{model}`; save the preferred model. |
+| `POST /api/ui/agent` | `{agent}`; save the preferred agent. |
 | `POST /api/ui/sessions/{id}/status` | `{status}`: `done`, `failed` or empty (seen). |
-| `DELETE /api/ui/sessions/{id}` | Remove hidden/status state for a deleted chat. |
+| `DELETE /api/ui/sessions/{id}` | Remove hidden/status/draft state for a deleted chat. |
 | `GET /api/events` | Server-sent events proxied from OpenCode `/api/event`. |
 
 All `/api` endpoints require the session cookie. `/auth` is the only
@@ -329,14 +335,17 @@ nspell worker. It is not implemented yet.
 - The composer is a bottom dock overlay: growing it never resizes the transcript
   or the background canvas, and the transcript scrolls underneath it.
 - Model and agent pickers in the header; changes are applied to the current
-  session and remembered for the next new session. When the selected model
+  session and remembered on the server for the next new session on any device.
+  When the selected model
   exposes variants, a variant picker appears and the chosen `variant` is sent
   with the model ref; it is kept across model switches that support it.
 - Running dot: driven by `session.execution.*` and `session.idle` events, and
   re-synced from `time.busy`/`time.idle` on every session-list load or reconnect.
   A local event newer than the list request wins, so a missed idle event cannot
   leave the dot stuck.
-- Dark, light and system themes. Theme is stored in `localStorage`.
+- Stock light and dark themes plus Nord, Solarized, Gruvbox, Dracula, Paper and
+  Ember, or follow the system. `/theme` opens the picker. Theme is stored in
+  `localStorage`.
 - Settings → Sign out posts to `/auth/logout` and clears the session cookie.
 - The empty chat and the workspace picker draw slow contour lines with a copper
   accent (`--spark`). Settings → Background picks `spotlight`, `magnetic`,
@@ -465,6 +474,8 @@ own startup warmup.
   every 10 seconds; there is no push channel. A done marker is only created by
   an open client that receives the idle event, so a completion while every
   client is closed is not marked unseen later.
+- Drafts are capped at 256 KiB each and saved 700 ms after the last edit. Two
+  devices editing the same draft overwrite each other; the newest save wins.
 - Authentication is one shared password, not per-user accounts. Sessions and
   lockout counters are in memory, so an app restart signs everyone out and
   clears blocks. The public path is Tailscale Funnel; exposing the app another

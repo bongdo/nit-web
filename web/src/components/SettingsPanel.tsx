@@ -1,6 +1,6 @@
 import { X } from "lucide-react";
 import type { Agent, Model, ModelRef } from "../lib/types";
-import type { Theme } from "../hooks/useTheme";
+import { THEMES, type Theme } from "../lib/themes";
 import type { SceneSetting } from "./Scene";
 import { modelKey } from "../lib/format";
 import { appPath } from "../lib/base";
@@ -162,9 +162,11 @@ export function SettingsPanel({
               value={theme}
               onChange={(event) => onTheme(event.target.value as Theme)}
             >
-              <option value="system">System</option>
-              <option value="light">Light</option>
-              <option value="dark">Dark</option>
+              {THEMES.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.label}
+                </option>
+              ))}
             </Select>
           </label>
 

@@ -19,10 +19,11 @@ on Frankfurt and exposed through nit-gui. It is not pushed into the client.
 
 The remaining client-side exceptions are listed under [Migration gaps](#migration-gaps).
 
-Shared UI state lives in `~/.local/state/nit-gui/ui-state.json`: hidden chats
-and done/failed markers. The browser keeps only device preferences, unsent
-drafts and an in-memory transcript cache. That is the split that makes hiding a
-chat or clearing a completion marker visible on every device.
+Shared UI state lives in `~/.local/state/nit-gui/ui-state.json`: hidden chats,
+done/failed markers, drafts, preferred model and agent. The browser keeps only
+device preferences and an in-memory transcript cache; drafts are mirrored to
+`localStorage` for instant load. That is the split that makes hiding a chat,
+continuing a draft or clearing a completion marker visible on every device.
 
 ## Topology
 
@@ -53,9 +54,10 @@ The browser may:
 - render the UI and talk only to the same-origin `/api` endpoints;
 - capture 16 kHz mono WAV from the microphone and upload it to `/api/stt`;
 - play audio returned by the host;
-- keep UI preferences, drafts and the personal spelling dictionary in
-  `localStorage`;
-- read hidden and done/failed state from `/api/ui`;
+- keep UI preferences and the personal spelling dictionary in `localStorage`;
+- mirror drafts to `localStorage` for instant load, but treat `/api/ui` as the
+  source of truth;
+- read hidden, done/failed, drafts, model and agent state from `/api/ui`;
 - hold the session in an HttpOnly cookie; the password is never stored in the
   browser.
 
@@ -152,9 +154,9 @@ TTS environment variable and no browser speech fallback.
   `/api/grammar` and uploads at the proxy, or add them to the app.
 - Uploaded files are written under `/tmp` on the OpenCode host and are never
   cleaned up. A public deployment needs retention and quota rules.
-- Back up the OpenCode data directory and configuration. `/tmp` uploads are not
-  a backup. `auth.env`, `ui-state.json`, the Caddy config and Tailscale state
-  also matter.
+- `ui-state.json` contains draft text and must stay mode `0600`. Back up the
+  OpenCode data directory and configuration; `/tmp` uploads are not a backup.
+  `auth.env`, `ui-state.json`, the Caddy config and Tailscale state also matter.
 - Use systemd/journald for the Go app, Caddy, LanguageTool and Whisper. Set
   restart policies and log rotation; watch disk for models, JRE and uploads.
 
@@ -169,8 +171,9 @@ TTS environment variable and no browser speech fallback.
   be reached through the app or Caddy; the browser must only receive audio.
   Do not add `speechSynthesis` as a fallback.
 - **UI state has no push channel.** Clients read it on focus and every 10
-  seconds. The JSON file is last-write-wins, and a completion marker only
-  exists if a client was open to receive the idle event.
+  seconds. The JSON file is last-write-wins, drafts are capped at 256 KiB, and
+  a completion marker only exists if a client was open to receive the idle
+  event.
 - **One shared password, in-memory sessions.** There is no per-user account,
   2FA or session revocation list. An app restart signs everyone out and clears
   login lockout counters.

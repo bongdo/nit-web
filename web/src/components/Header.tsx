@@ -7,6 +7,7 @@ import {
   Loader2,
   Monitor,
   Moon,
+  Palette,
   PanelLeftClose,
   PanelLeftOpen,
   Settings,
@@ -25,7 +26,8 @@ import { SubagentMenu } from "./SubagentMenu";
 export function ThemeIcon({ theme }: { theme: Theme }) {
   if (theme === "light") return <Sun />;
   if (theme === "dark") return <Moon />;
-  return <Monitor />;
+  if (theme === "system") return <Monitor />;
+  return <Palette />;
 }
 
 function ContextMeter({ value, session }: { value: number; session?: string }) {
@@ -97,6 +99,59 @@ function ModelChip({ label }: { label: string }) {
         · {shown}
       </span>
     </span>
+  );
+}
+
+const pill = "border-border/60 bg-card/90 rounded-lg border shadow-sm backdrop-blur-2xl";
+
+export function SessionPill({
+  session,
+  directory: fallbackDirectory,
+  models,
+  model,
+  agent,
+  contextPercent,
+  cost,
+  estimatedCost,
+  className,
+}: {
+  session: Session | null;
+  directory?: string | null;
+  models: Model[];
+  model: ModelRef | null;
+  agent: string | null;
+  contextPercent?: number | null;
+  cost?: number;
+  estimatedCost?: boolean;
+  className?: string;
+}) {
+  const directory = session?.location?.directory ?? fallbackDirectory;
+  const title = session?.title?.trim() || (session ? "New chat" : "nit-gui");
+  return (
+    <div className={cn(pill, "min-w-0 overflow-hidden px-3.5 py-1", className)}>
+      <h1 className="truncate text-[13px] font-semibold leading-tight">{title}</h1>
+      <div className="text-muted-foreground flex min-w-0 items-center gap-1 text-[10px] leading-tight">
+        <Folder className="size-3 shrink-0" />
+        <span className="truncate" title={directory ?? undefined}>
+          {directory ? basename(directory) : "no directory"}
+        </span>
+        {(agent || model) && (
+          <ModelChip label={`${agent ?? "agent"} · ${modelLabel(model, models) || "model"}`} />
+        )}
+        {contextPercent != null && (
+          <span className="flex shrink-0 items-center gap-1" title="Context used">
+            <span>· ctx {contextPercent}%</span>
+            <ContextMeter value={contextPercent} session={session?.id} />
+          </span>
+        )}
+        {(cost ?? 0) > 0 && (
+          <span className="shrink-0" title={estimatedCost ? "Estimated cost" : "Session cost"}>
+            · {estimatedCost ? "~" : ""}
+            {formatCost(cost)}
+          </span>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -285,8 +340,8 @@ export const Header = memo(function Header({
             size="icon-sm"
             className={cn(pill, "size-9")}
             onClick={onTheme}
-            title={`Theme: ${theme}`}
-            aria-label={`Theme: ${theme}`}
+            title={`Theme: ${themeLabel(theme)}`}
+            aria-label={`Theme: ${themeLabel(theme)}`}
           >
             <ThemeIcon theme={theme} />
           </Button>

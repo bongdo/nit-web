@@ -3,7 +3,7 @@ export const THEMES = [
   { id: "light", label: "Stock light", hint: "light" },
   { id: "dark", label: "Stock dark", hint: "dark" },
   { id: "nord", label: "Nord", hint: "dark" },
-  { id: "solarized", label: "Solarized", hint: "light" },
+  { id: "solarized", label: "Solarized Light", hint: "light" },
   { id: "gruvbox", label: "Gruvbox", hint: "dark" },
   { id: "dracula", label: "Dracula", hint: "dark" },
   { id: "paper", label: "Paper", hint: "light" },

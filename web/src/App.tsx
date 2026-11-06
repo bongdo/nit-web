@@ -47,6 +47,7 @@ import {
   scopeSessions,
   type Scope,
 } from "./lib/sessions";
+import { themeLabel } from "./lib/themes";
 import { cn } from "./lib/utils";
 import { useAttention } from "./hooks/useAttention";
 import { useTheme } from "./hooks/useTheme";
@@ -60,6 +61,7 @@ import { SubagentMenu } from "./components/SubagentMenu";
 import { Sidebar } from "./components/Sidebar";
 import { WorkspacePicker } from "./components/WorkspacePicker";
 import { SettingsPanel } from "./components/SettingsPanel";
+import { ThemePicker } from "./components/ThemePicker";
 import { FormCard } from "./components/FormCard";
 import { BootScreen, OfflineScreen } from "./components/StatusScreens";
 import { Button } from "./components/ui/button";
@@ -131,13 +133,13 @@ const COMMANDS: ComposerCommand[] = [
   { id: "revert", label: "/revert", description: "Revert the last message and edit it" },
   { id: "fork", label: "/fork", description: "Fork before the last message" },
   { id: "retry", label: "/retry", description: "Repeat the last prompt" },
-  { id: "theme", label: "/theme", description: "Cycle light, dark and system" },
+  { id: "theme", label: "/theme", description: "Pick a color theme" },
   { id: "clear", label: "/clear", description: "Clear the input" },
   { id: "help", label: "/help", description: "Show command help" },
 ];
 
 export default function App() {
-  const { theme, setTheme, cycle } = useTheme();
+  const { theme, setTheme } = useTheme();
   const [health, setHealth] = useState<Health | null>(null);
   const healthRef = useRef<Health | null>(null);
   const [config, setConfig] = useState<Config | null>(null);
@@ -166,6 +168,7 @@ export default function App() {
   scopeRef.current = scope;
   const [pickerOpen, setPickerOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [themeOpen, setThemeOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(() => localStorage.getItem("nit-gui.collapsed") === "1");
   const [sidebarMode, setSidebarMode] = useState<"button" | "hover" | "swipe">(() => {
     const stored = localStorage.getItem("nit-gui.sidebar-mode");
@@ -1122,6 +1125,8 @@ export default function App() {
   const closePicker = useCallback(() => setPickerOpen(false), []);
   const openSettings = useCallback(() => setSettingsOpen(true), []);
   const closeSettings = useCallback(() => setSettingsOpen(false), []);
+  const openTheme = useCallback(() => setThemeOpen(true), []);
+  const closeTheme = useCallback(() => setThemeOpen(false), []);
   const openSidebar = useCallback(() => setSidebarOpen(true), []);
   const toggleHidden = useCallback(() => setShowHidden((value) => !value), []);
   const clearComposerDraft = useCallback(() => setComposerDraft(null), []);
@@ -1545,7 +1550,7 @@ export default function App() {
           void retryLast();
           break;
         case "theme":
-          cycle();
+          setThemeOpen(true);
           break;
         case "help":
           setBanner(
@@ -1554,7 +1559,7 @@ export default function App() {
           break;
       }
     },
-    [compactSession, cycle, forkAt, lastUser, newChat, retryLast, revertLast],
+    [compactSession, forkAt, lastUser, newChat, retryLast, revertLast],
   );
   const runCommandRef = useRef(runCommand);
   runCommandRef.current = runCommand;
@@ -1630,6 +1635,7 @@ export default function App() {
         !isEditableTarget(target) &&
         !pickerOpen &&
         !settingsOpen &&
+        !themeOpen &&
         !(target && target.closest("[data-form-card]")) &&
         !(target && target.closest("[data-transcript]"))
       ) {
@@ -1644,6 +1650,10 @@ export default function App() {
         return;
       }
       if (event.key === "Escape") {
+        if (themeOpen) {
+          if (!event.repeat) setThemeOpen(false);
+          return;
+        }
         if (settingsOpen) {
           if (!event.repeat) setSettingsOpen(false);
           return;
@@ -1676,6 +1686,7 @@ export default function App() {
     stop,
     swipe.close,
     swipe.open,
+    themeOpen,
   ]);
 
   if (booting) return <BootScreen />;
@@ -1814,7 +1825,7 @@ export default function App() {
           onBack={backToParent}
           onSettings={openSettings}
           onToggleSidebar={toggleSidebar}
-          onTheme={cycle}
+          onTheme={openTheme}
           onNotify={() => void toggleNotify()}
         />
 
@@ -1885,7 +1896,7 @@ export default function App() {
               disabled={!health?.ok}
               running={running}
               focusKey={selectedId}
-              typingBlocked={settingsOpen || pickerOpen}
+              typingBlocked={settingsOpen || pickerOpen || themeOpen}
               drawerOpen={sidebarOpen}
               draft={composerDraft}
               insert={composerInsert}
@@ -1949,9 +1960,9 @@ export default function App() {
               variant="ghost"
               size="icon-sm"
               className="size-11"
-              onClick={cycle}
-              aria-label={`Theme: ${theme}`}
-              title={`Theme: ${theme}`}
+              onClick={openTheme}
+              aria-label={`Theme: ${themeLabel(theme)}`}
+              title={`Theme: ${themeLabel(theme)}`}
             >
               <ThemeIcon theme={theme} />
             </Button>
@@ -2015,6 +2026,10 @@ export default function App() {
           }}
           onClose={closeSettings}
         />
+      )}
+
+      {themeOpen && (
+        <ThemePicker theme={theme} onPick={setTheme} onClose={closeTheme} />
       )}
     </div>
   );

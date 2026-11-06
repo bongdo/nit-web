@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ArrowUp,
   Check,
@@ -7,7 +7,6 @@ import {
   Loader2,
   Mic,
   Paperclip,
-  SpellCheck,
   Square,
   X,
 } from "lucide-react";
@@ -16,10 +15,10 @@ import { encodeWav } from "../lib/audio";
 import { api } from "../lib/api";
 import { questionField } from "../lib/forms";
 import { formatBytes, quoteText } from "../lib/format";
-import { applyIssue, issueKey, type SpellIssue } from "../lib/spell";
+import { applyIssue, issueAtCaret, issueKey, type SpellIssue } from "../lib/spell";
 import { useSpellcheck } from "../hooks/useSpellcheck";
 import { cn } from "../lib/utils";
-import { COMPOSER_TEXT, ComposerHighlights } from "./ComposerHighlights";
+import { COMPOSER_TEXT, ComposerHighlights, type HintRect } from "./ComposerHighlights";
 import { Button } from "./ui/button";
 import { Textarea } from "./ui/textarea";
 
@@ -101,8 +100,10 @@ export function Composer({
   const [elapsed, setElapsed] = useState(0);
   const [commandIndex, setCommandIndex] = useState(0);
   const [commandDismissed, setCommandDismissed] = useState(false);
-  const [spellOpen, setSpellOpen] = useState(false);
   const [ignored, setIgnored] = useState<string[]>(loadIgnoredWords);
+  const [caret, setCaret] = useState<number | null>(null);
+  const [dismissed, setDismissed] = useState<string | null>(null);
+  const [hintRect, setHintRect] = useState<HintRect | null>(null);
   const [formOpen, setFormOpen] = useState(true);
   const [formBusy, setFormBusy] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
@@ -115,7 +116,7 @@ export function Composer({
   const option = question?.options?.find((item) => item.value === value) ?? null;
   const answerText = option ? "" : value;
   const customAnswer = !question || (question.options?.length ?? 0) === 0 || question.custom !== false;
-  const { issues, checking } = useSpellcheck(
+  const { issues } = useSpellcheck(
     question && !customAnswer ? "" : answerText,
     spellcheck && !recording && !finishing,
     ignored,
@@ -204,10 +205,6 @@ export function Composer({
   }, [value]);
 
   useEffect(() => {
-    if (!checking && issues.length === 0) setSpellOpen(false);
-  }, [checking, issues.length]);
-
-  useEffect(() => {
     const area = ref.current;
     const layer = highlightRef.current;
     if (!area || !layer) return;
@@ -221,7 +218,43 @@ export function Composer({
     if (!area || !layer) return;
     layer.scrollTop = area.scrollTop;
     layer.scrollLeft = area.scrollLeft;
+    setHintRect(null);
   };
+
+  const updateCaret = () => {
+    const area = ref.current;
+    if (!area || area.selectionStart !== area.selectionEnd) {
+      setCaret(null);
+      return;
+    }
+    setCaret(area.selectionStart);
+    setDismissed(null);
+  };
+
+  const onHintRect = useCallback((rect: HintRect | null) => {
+    setHintRect((current) => {
+      if (!rect) return current === null ? current : null;
+      if (
+        current &&
+        current.left === rect.left &&
+        current.top === rect.top &&
+        current.width === rect.width &&
+        current.height === rect.height
+      ) {
+        return current;
+      }
+      return rect;
+    });
+  }, []);
+
+  const activeIssue = issueAtCaret(issues, caret);
+  const visibleIssue = activeIssue && issueKey(activeIssue) !== dismissed ? activeIssue : null;
+
+  useEffect(() => {
+    const hide = () => setHintRect(null);
+    window.addEventListener("resize", hide);
+    return () => window.removeEventListener("resize", hide);
+  }, []);
 
   useEffect(() => {
     setCommandIndex(0);
@@ -231,6 +264,7 @@ export function Composer({
   const appendText = (text: string) => {
     const clean = text.trim();
     if (!clean) return;
+    setDismissed(null);
     setValue((current) => {
       if (!current) return clean;
       return /\s$/.test(current) ? `${current}${clean}` : `${current} ${clean}`;
@@ -241,15 +275,19 @@ export function Composer({
       area.focus();
       area.setSelectionRange(area.value.length, area.value.length);
       area.scrollTop = area.scrollHeight;
+      setCaret(area.value.length);
     });
   };
 
   const applySuggestion = (issue: SpellIssue, replacement: string) => {
+    const position = issue.start + replacement.length;
     setValue(applyIssue(answerText, issue, replacement));
+    setCaret(position);
+    setDismissed(null);
+    setHintRect(null);
     requestAnimationFrame(() => {
       const area = ref.current;
       if (!area) return;
-      const position = issue.start + replacement.length;
       area.focus();
       area.setSelectionRange(position, position);
     });
@@ -258,6 +296,8 @@ export function Composer({
   const ignoreWord = (word: string) => {
     const clean = word.trim().toLowerCase();
     if (!clean) return;
+    setHintRect(null);
+    setDismissed(null);
     setIgnored((current) => {
       if (current.includes(clean)) return current;
       const next = [...current, clean];
@@ -674,59 +714,6 @@ export function Composer({
             </div>
           )}
 
-          {spellcheck && spellOpen && issues.length > 0 && (
-            <div className="border-border border-b px-3 py-2">
-              <div className="mb-1 flex items-center justify-between gap-2">
-                <span className="text-[11px] font-medium">Spelling · {issues.length}</span>
-                <button
-                  type="button"
-                  onClick={() => setSpellOpen(false)}
-                  aria-label="Close spelling"
-                  className="text-muted-foreground hover:text-foreground rounded p-0.5"
-                >
-                  <X className="size-3.5" />
-                </button>
-              </div>
-              <ul className="scrollbar-thin max-h-32 space-y-1 overflow-y-auto">
-                {issues.map((issue) => (
-                  <li
-                    key={issueKey(issue)}
-                    className="flex flex-wrap items-baseline gap-1.5 text-[11px]"
-                  >
-                    <span
-                      className="text-destructive max-w-44 truncate font-mono"
-                      title={issue.word}
-                    >
-                      {issue.word}
-                    </span>
-                    {issue.suggestions.length === 0 ? (
-                      <span className="text-muted-foreground">no suggestions</span>
-                    ) : (
-                      issue.suggestions.map((suggestion) => (
-                        <button
-                          key={suggestion}
-                          type="button"
-                          onClick={() => applySuggestion(issue, suggestion)}
-                          aria-label={`Replace ${issue.word} with ${suggestion}`}
-                          className="bg-muted hover:bg-accent rounded px-1.5 py-0.5 font-mono"
-                        >
-                          {suggestion}
-                        </button>
-                      ))
-                    )}
-                    <button
-                      type="button"
-                      onClick={() => ignoreWord(issue.word)}
-                      className="text-muted-foreground hover:text-foreground underline"
-                    >
-                      ignore
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-
           {customAnswer && (
             <div className="relative">
               <Textarea
@@ -752,8 +739,19 @@ export function Composer({
                   COMPOSER_TEXT,
                   "block scrollbar-none max-h-[200px] min-h-[44px] overflow-y-auto",
                 )}
-                onChange={(event) => setValue(event.target.value)}
+                onChange={(event) => {
+                  setValue(event.target.value);
+                  setCaret(
+                    event.target.selectionStart === event.target.selectionEnd
+                      ? event.target.selectionStart
+                      : null,
+                  );
+                  setDismissed(null);
+                }}
                 onScroll={syncScroll}
+                onSelect={updateCaret}
+                onClick={updateCaret}
+                onKeyUp={updateCaret}
                 onPaste={(event) => {
                   const files = Array.from(event.clipboardData.files);
                   if (!question && files.length > 0) {
@@ -762,11 +760,6 @@ export function Composer({
                   }
                 }}
                 onKeyDown={(event) => {
-                  if ((event.metaKey || event.ctrlKey) && event.key === ".") {
-                    event.preventDefault();
-                    if (issues.length > 0) setSpellOpen((current) => !current);
-                    return;
-                  }
                   if (paletteOpen) {
                     if (event.key === "ArrowDown") {
                       event.preventDefault();

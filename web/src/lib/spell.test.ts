@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   applyIssue,
   findIssues,
+  issueAtCaret,
   languageOf,
   maskCode,
   words,
@@ -135,5 +136,13 @@ describe("spell", () => {
   it("applies a suggestion by offsets", () => {
     const issue = findIssues("я хочю проверку", ru, en)[0];
     expect(applyIssue("я хочю проверку", issue, "хочу")).toBe("я хочу проверку");
+  });
+
+  it("finds the issue at the caret", () => {
+    const issues = findIssues("я хочю проверку", ru, en);
+    expect(issueAtCaret(issues, 2)?.word).toBe("хочю");
+    expect(issueAtCaret(issues, 6)?.word).toBe("хочю");
+    expect(issueAtCaret(issues, 7)).toBeNull();
+    expect(issueAtCaret(issues, null)).toBeNull();
   });
 });

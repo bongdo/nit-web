@@ -271,3 +271,11 @@ export function applyIssue(text: string, issue: SpellIssue, replacement: string)
 export function issueKey(issue: SpellIssue): string {
   return `${issue.start}:${issue.end}:${issue.word}`;
 }
+
+export function issueAtCaret(issues: SpellIssue[], caret: number | null): SpellIssue | null {
+  if (caret === null) return null;
+  for (const issue of issues) {
+    if (caret >= issue.start && caret <= issue.end) return issue;
+  }
+  return null;
+}

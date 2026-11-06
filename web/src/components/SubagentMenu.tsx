@@ -71,7 +71,7 @@ export function SubagentMenu({
         <GitBranch />
         <span>{sessions.length}</span>
         {active > 0 && (
-          <span className="inline-flex items-center gap-1 text-emerald-500">
+          <span className="inline-flex items-center gap-1 text-success">
             <Loader2 className="size-3 animate-spin" />
             {active}
           </span>
@@ -102,7 +102,7 @@ export function SubagentMenu({
               <span
                 className={cn(
                   "size-1.5 shrink-0 rounded-full",
-                  sessionRunning(session) ? "animate-pulse bg-emerald-500" : "bg-border",
+                  sessionRunning(session) ? "animate-pulse bg-success" : "bg-border",
                 )}
               />
               <span className="min-w-0 flex-1">
@@ -114,7 +114,7 @@ export function SubagentMenu({
               <span
                 className={cn(
                   "shrink-0 text-[10px]",
-                  sessionRunning(session) ? "text-emerald-500" : "text-muted-foreground",
+                  sessionRunning(session) ? "text-success" : "text-muted-foreground",
                 )}
               >
                 {sessionRunning(session) ? "running" : formatRelative(session.time.updated)}

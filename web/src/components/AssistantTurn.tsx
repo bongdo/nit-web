@@ -158,7 +158,7 @@ export const AssistantTurn = memo(function AssistantTurn({
             >
               {open ? <ChevronDown className="size-3.5" /> : <ChevronRight className="size-3.5" />}
               {streaming ? (
-                <Loader2 className="size-3.5 animate-spin text-emerald-500" />
+                <Loader2 className="size-3.5 animate-spin text-success" />
               ) : null}
               {loadingSteps ? (
                 <Loader2 className="text-muted-foreground size-3.5 animate-spin" />

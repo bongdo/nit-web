@@ -17,7 +17,7 @@ function StatusIcon({ status }: { status: ToolPart["state"]["status"] }) {
     return <Loader2 className="text-muted-foreground size-3.5 animate-spin" />;
   }
   if (status === "completed") {
-    return <Check className="row-sheen-tool-check size-3.5 text-emerald-500" />;
+    return <Check className="row-sheen-tool-check size-3.5 text-success" />;
   }
   if (status === "error") return <AlertCircle className="text-destructive size-3.5" />;
   return <Circle className="size-3.5" />;

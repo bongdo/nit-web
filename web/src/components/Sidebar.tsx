@@ -138,7 +138,7 @@ function SessionRow({
                 waiting
                   ? cn("bg-spark ring-spark/30 ring-2", animated && "waiting-dot")
                   : running
-                    ? "animate-pulse bg-emerald-500"
+                    ? "animate-pulse bg-success"
                     : doneHere
                       ? "bg-success ring-success/20 ring-2"
                       : "bg-border",
@@ -161,7 +161,7 @@ function SessionRow({
               waiting
                 ? "text-foreground font-semibold"
                 : running
-                  ? "text-emerald-500"
+                  ? "text-success"
                   : "text-muted-foreground",
             )}
             title={
@@ -225,7 +225,7 @@ function SessionRow({
             className={cn("size-3 transition-transform", expanded && "rotate-90")}
           />
           <GitBranch className="size-3" />
-          <span className={cn(runningSubagents > 0 && "text-emerald-500")}>
+          <span className={cn(runningSubagents > 0 && "text-success")}>
             {runningSubagents > 0 ? `${runningSubagents}/${subagentCount}` : subagentCount}
           </span>
         </button>
@@ -235,7 +235,7 @@ function SessionRow({
           <Button
             variant="ghost"
             size="icon-xs"
-            className="text-emerald-500 hover:bg-emerald-500/10"
+            className="text-success hover:bg-success/10"
             onClick={onUnhide}
             title="Unhide chat"
             aria-label="Unhide chat"
@@ -488,7 +488,7 @@ export const Sidebar = memo(function Sidebar({
         )}
         {runningCount > 0 && (
           <span className="text-muted-foreground inline-flex items-center gap-1 text-[10px]">
-            <span className="size-1.5 animate-pulse rounded-full bg-emerald-500" />
+            <span className="size-1.5 animate-pulse rounded-full bg-success" />
             {runningCount}
           </span>
         )}
@@ -681,7 +681,7 @@ export const Sidebar = memo(function Sidebar({
         <Button
           variant="ghost"
           size="icon-sm"
-          className={cn(notify && "text-emerald-500")}
+          className={cn(notify && "text-success")}
           onClick={onNotify}
           title={notify ? "Desktop notifications on" : "Desktop notifications off"}
           aria-label="Desktop notifications"

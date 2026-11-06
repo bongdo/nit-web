@@ -103,7 +103,11 @@ deploy_frankfurt() {
 
   mkdir -p "$run_dir"
   go build -trimpath -o "$bin" .
-  stop "$bin --addr 127.0.0.1:$port"
+  stop "(^|/)nit-gui --addr 127\.0\.0\.1:$port$"
+  if pgrep -f "(^|/)nit-gui --addr 127\.0\.0\.1:$port$" >/dev/null; then
+    echo "deploy: port $port is still held by nit-gui" >&2
+    return 1
+  fi
 
   if [ -z "${NIT_GUI_LANGUAGETOOL_URL:-}" ] && {
     [ -n "${NIT_GUI_LANGUAGETOOL:-}" ] ||

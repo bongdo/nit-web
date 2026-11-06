@@ -148,14 +148,40 @@ export function ChatView({
   } | null>(null);
   const [showJump, setShowJump] = useState(false);
   const [quote, setQuote] = useState<{ text: string; x: number; y: number } | null>(null);
+  const [freshRow, setFreshRow] = useState<{ id: string; session: string } | null>(null);
+  const jumping = useRef(false);
+  const seenSession = useRef<string | null>(null);
+  const fadePending = useRef(false);
+  const entrance = useRef<{
+    session: string | null;
+    row: string | null;
+    count: number;
+    ready: boolean;
+  }>({ session: null, row: null, count: 0, ready: false });
 
   const scrollToBottom = useCallback(() => {
     const element = scrollRef.current;
     if (!element) return;
+    jumping.current = false;
     element.scrollTop = element.scrollHeight;
     stick.current = true;
     setShowJump(false);
   }, []);
+
+  const jumpToLatest = useCallback(() => {
+    const element = scrollRef.current;
+    if (!element) return;
+    const smooth =
+      motion === "animated" &&
+      !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    jumping.current = true;
+    stick.current = true;
+    setShowJump(false);
+    element.scrollTo({
+      top: element.scrollHeight,
+      behavior: smooth ? "smooth" : "auto",
+    });
+  }, [motion]);
 
   const scheduleScroll = useCallback(() => {
     if (scrollFrame.current !== null) return;
@@ -258,6 +284,61 @@ export function ChatView({
 
   useLayoutEffect(() => {
     const id = session?.id ?? null;
+    if (!id) return;
+    const previous = seenSession.current;
+    if (previous !== id) {
+      seenSession.current = id;
+      if (!previous) return;
+      fadePending.current = true;
+    }
+    if (!fadePending.current) return;
+    if (loading) return;
+    if (motion !== "animated") {
+      fadePending.current = false;
+      return;
+    }
+    const element = contentRef.current;
+    if (!element || window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      fadePending.current = false;
+      return;
+    }
+    fadePending.current = false;
+    element.classList.remove("context-fade");
+    void element.offsetWidth;
+    element.classList.add("context-fade");
+  }, [loading, motion, session?.id]);
+
+  useLayoutEffect(() => {
+    setFreshRow(null);
+  }, [motion]);
+
+  useLayoutEffect(() => {
+    const sessionID = session?.id ?? null;
+    const previous = entrance.current;
+    const last = messages[messages.length - 1];
+    let row: string | null = last?.id ?? null;
+    if (last?.type === "assistant") {
+      let index = messages.length - 1;
+      while (index > 0 && messages[index - 1].type === "assistant") index -= 1;
+      row = messages[index]?.id ?? row;
+    }
+    if (!sessionID || loading) {
+      entrance.current = { session: sessionID, row: null, count: 0, ready: false };
+      return;
+    }
+    const next = { session: sessionID, row, count: messages.length, ready: true };
+    if (previous.session !== sessionID || !previous.ready) {
+      if (previous.session !== sessionID) setFreshRow(null);
+      entrance.current = next;
+      return;
+    }
+    entrance.current = next;
+    if (!row || row === previous.row || messages.length <= previous.count) return;
+    setFreshRow({ id: row, session: sessionID });
+  }, [loading, messages, session?.id]);
+
+  useLayoutEffect(() => {
+    const id = session?.id ?? null;
     const element = scrollRef.current;
     if (!id || !element || loading || pendingRestore.current !== id) return;
     pendingRestore.current = null;
@@ -353,7 +434,11 @@ export function ChatView({
           group.push(messages[index]);
         }
         items.push(
-          <div key={`turn-${message.id}`} data-message-id={message.id}>
+          <div
+            key={`turn-${message.id}`}
+            data-message-id={message.id}
+            className={message.id === fresh ? "message-enter" : undefined}
+          >
             <AssistantTurn
               messages={group}
               models={models}
@@ -367,7 +452,11 @@ export function ChatView({
         continue;
       }
       items.push(
-        <div key={message.id} data-message-id={message.id}>
+        <div
+          key={message.id}
+          data-message-id={message.id}
+          className={message.id === fresh ? "message-enter" : undefined}
+        >
           <MessageRow
             message={message}
             models={models}
@@ -386,6 +475,7 @@ export function ChatView({
     return items;
   }, [
     agents,
+    fresh,
     freshCompaction,
     messages,
     models,
@@ -465,10 +555,26 @@ export function ChatView({
         ref={scrollRef}
         data-transcript
         className="scrollbar-thin min-h-0 flex-1 overflow-y-auto overflow-x-hidden [overflow-anchor:none] [scrollbar-gutter:stable]"
+        onWheel={() => {
+          jumping.current = false;
+        }}
+        onPointerDown={() => {
+          jumping.current = false;
+        }}
+        onKeyDown={() => {
+          jumping.current = false;
+        }}
         onScroll={(event) => {
           const element = event.currentTarget;
           const nearBottom =
             element.scrollHeight - element.scrollTop - element.clientHeight < BOTTOM_GAP;
+          if (jumping.current) {
+            if (!nearBottom) {
+              setQuote(null);
+              return;
+            }
+            jumping.current = false;
+          }
           stick.current = nearBottom;
           setShowJump(!nearBottom);
           setQuote(null);
@@ -522,7 +628,7 @@ export function ChatView({
               "pointer-events-auto relative shadow-md",
               motion === "animated" && "chrome-sheen-latest",
             )}
-            onClick={scrollToBottom}
+            onClick={jumpToLatest}
             aria-label="Jump to latest"
           >
             <ArrowDown />

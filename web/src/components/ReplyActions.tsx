@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Check, Copy, Volume2, VolumeX } from "lucide-react";
+import { Check, Copy, Volume2 } from "lucide-react";
 import { copyText } from "../lib/clipboard";
 import { cn } from "../lib/utils";
 import { Button } from "./ui/button";
@@ -48,7 +48,7 @@ export function ReplyActions({ text, className }: { text: string; className?: st
   };
 
   return (
-    <div className={cn("flex items-center gap-1", className)}>
+    <div className={cn("reply-actions-enter flex items-center gap-1", className)}>
       <Button
         variant="ghost"
         size="xs"
@@ -68,7 +68,15 @@ export function ReplyActions({ text, className }: { text: string; className?: st
           aria-label={speaking ? "Stop reading" : "Read aloud"}
           title={speaking ? "Stop reading" : "Read aloud"}
         >
-          {speaking ? <VolumeX /> : <Volume2 />}
+          {speaking ? (
+            <span className="read-equalizer" aria-hidden>
+              <span />
+              <span />
+              <span />
+            </span>
+          ) : (
+            <Volume2 />
+          )}
           <span>{speaking ? "Stop" : "Read"}</span>
         </Button>
       )}

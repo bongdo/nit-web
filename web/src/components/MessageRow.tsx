@@ -90,7 +90,7 @@ export const MessageRow = memo(function MessageRow({
             </div>
           </div>
           <div
-            className={`mt-1 flex justify-end gap-0.5 pointer-events-none opacity-0 transition-opacity group-focus-within:pointer-events-auto group-focus-within:opacity-100 group-hover:pointer-events-auto group-hover:opacity-100${
+            className={`message-actions mt-1 flex justify-end gap-0.5 pointer-events-none opacity-0 transition-opacity group-focus-within:pointer-events-auto group-focus-within:opacity-100 group-hover:pointer-events-auto group-hover:opacity-100${
               alwaysShowActions
                 ? " any-pointer-coarse:pointer-events-auto any-pointer-coarse:opacity-100 pointer-coarse:pointer-events-auto pointer-coarse:opacity-100"
                 : ""

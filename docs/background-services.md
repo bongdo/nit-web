@@ -19,12 +19,17 @@ on Frankfurt and exposed through nit-gui. It is not pushed into the client.
 
 The remaining client-side exceptions are listed under [Migration gaps](#migration-gaps).
 
+Shared UI state lives in `~/.local/state/nit-gui/ui-state.json`: hidden chats
+and done/failed markers. The browser keeps only device preferences, unsent
+drafts and an in-memory transcript cache. That is the split that makes hiding a
+chat or clearing a completion marker visible on every device.
+
 ## Topology
 
 | Service | Address on Frankfurt | Role | Required |
 | --- | --- | --- | --- |
 | OpenCode | `127.0.0.1:49374` (varies) | Sessions, messages, models, agents, provider credentials | yes |
-| nit-gui | `127.0.0.1:7791` | Go API, embedded web bundle, `/auth` login and sessions | yes |
+| nit-gui | `127.0.0.1:7791` | Go API, embedded web bundle, `/auth` login, sessions and shared UI state | yes |
 | Caddy | `127.0.0.1:7792` | Loopback reverse proxy, security headers, `/nit` path | yes |
 | Tailscale Funnel | `https://frankfurt.tailf358cb.ts.net/nit/` | Public HTTPS ingress | for public access |
 | LanguageTool | `127.0.0.1:8180` | Grammar and real-word checks | optional |
@@ -50,6 +55,7 @@ The browser may:
 - play audio returned by the host;
 - keep UI preferences, drafts and the personal spelling dictionary in
   `localStorage`;
+- read hidden and done/failed state from `/api/ui`;
 - hold the session in an HttpOnly cookie; the password is never stored in the
   browser.
 
@@ -115,6 +121,7 @@ is not measured here.
 | `NIT_GUI_AUTH_ENV` | Auth env file, default `~/.config/nit-gui/auth.env` |
 | `NIT_GUI_PASSWORD_HASH` | PBKDF2-SHA256 login hash set by `bin/auth` |
 | `NIT_GUI_PASSWORD` | Plain local-development password, hashed at startup |
+| `NIT_GUI_STATE` | Shared UI state path, default `~/.local/state/nit-gui/ui-state.json` |
 | `NIT_GUI_DEPLOY_*` | deploy host, port and directory |
 
 TTS is configured in the OpenCode TTS plugin, not in nit-gui. nit-gui has no
@@ -146,7 +153,8 @@ TTS environment variable and no browser speech fallback.
 - Uploaded files are written under `/tmp` on the OpenCode host and are never
   cleaned up. A public deployment needs retention and quota rules.
 - Back up the OpenCode data directory and configuration. `/tmp` uploads are not
-  a backup. `auth.env`, the Caddy config and Tailscale state also matter.
+  a backup. `auth.env`, `ui-state.json`, the Caddy config and Tailscale state
+  also matter.
 - Use systemd/journald for the Go app, Caddy, LanguageTool and Whisper. Set
   restart policies and log rotation; watch disk for models, JRE and uploads.
 
@@ -160,6 +168,9 @@ TTS environment variable and no browser speech fallback.
   on `0.0.0.0:7787` and is not part of the app. It must bind to `127.0.0.1` and
   be reached through the app or Caddy; the browser must only receive audio.
   Do not add `speechSynthesis` as a fallback.
+- **UI state has no push channel.** Clients read it on focus and every 10
+  seconds. The JSON file is last-write-wins, and a completion marker only
+  exists if a client was open to receive the idle event.
 - **One shared password, in-memory sessions.** There is no per-user account,
   2FA or session revocation list. An app restart signs everyone out and clears
   login lockout counters.

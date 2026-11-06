@@ -20,6 +20,9 @@ type Store struct {
 }
 
 func DefaultPath() string {
+	if path := os.Getenv("NIT_GUI_STATE"); path != "" {
+		return path
+	}
 	if dir := os.Getenv("XDG_STATE_HOME"); dir != "" {
 		return filepath.Join(dir, "nit-gui", "ui-state.json")
 	}

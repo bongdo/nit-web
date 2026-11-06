@@ -324,3 +324,15 @@ Why: the thumb reaches the bottom of the screen, the sheet keeps the chat visibl
 Rejected: keeping the desktop rail on mobile, a full-screen sessions page, and drag-to-dismiss on the sheet.
 
 Cost: mobile gets its own navigation surface and five bar buttons; the sheet has no swipe-down gesture, only the backdrop, Escape and session selection close it.
+
+## 2026-11-06 — Hidden and done state move to the server
+
+Context: hidden chats were kept in `localStorage`, and done/failed markers lived only in memory. Hiding a chat or seeing a completion on one device did not affect another device, which breaks the multi-device use case.
+
+Decision: store hidden session IDs and done/failed status in `~/.local/state/nit-gui/ui-state.json` behind `/api/ui`. The browser keeps only device preferences, unsent drafts and the in-memory transcript cache. Clients load the state on boot, on focus and every 10 seconds; mutations are optimistic and saved through the API.
+
+Why: hidden chats and completion markers are shared product state, not device preferences. A JSON file is enough for one user and avoids adding a database.
+
+Rejected: keeping hidden state in `localStorage` (breaks multi-device), a database (overkill for one file), and syncing every preference to the server (theme, sidebar, drafts are device-specific).
+
+Cost: last-write-wins, no push channel, and a done marker is only created by an open client that receives the idle event. The state file must be backed up with the rest of the instance.

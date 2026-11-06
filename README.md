@@ -21,10 +21,25 @@ dictionaries, LanguageTool or a GPU.
 | Spelling | browser nspell worker today; target Frankfurt `/api/spell` | migration gap |
 | Grammar | Frankfurt LanguageTool sidecar through `/api/grammar` | optional |
 | Attachments | Frankfurt, OpenCode `/api/experimental/fs/write` and `/tmp` | implemented |
+| UI state (hidden, done, failed) | Frankfurt, `~/.local/state/nit-gui/ui-state.json` | shared across devices |
 
 The supported client is a browser with a microphone and audio output. Features
 must not depend on local models, dictionaries, OS speech voices or a GPU.
 Spelling is the remaining exception; see [Known limits](#known-limits).
+
+## State
+
+| Where | What |
+| --- | --- |
+| OpenCode on Frankfurt | Sessions, messages, models, agents, working directories. |
+| nit-gui on Frankfurt | Hidden chats and done/failed markers in `ui-state.json`; auth sessions in memory; uploads under `/tmp`. |
+| Browser `localStorage` | Device preferences: theme, sidebar mode, motion, background, dictation mode, spelling/autofix, notifications, workspace, recent workspaces, scope, selected chat, preferred model/agent, drafts, personal spelling dictionary. |
+| Browser memory | Transcript cache (up to 12 MiB), running/waiting state, form state, current stream. |
+
+The cache is deliberately local: it makes chat switching instant and is safe to
+lose. Hidden chats and done/failed markers are deliberately on the server: they
+are the same on every device. Device preferences and unsent drafts stay local
+because another device should not inherit them.
 
 ## Run
 
@@ -115,6 +130,8 @@ opens the same transcripts, and the parent header has `Back to parent`.
 
 `New chat` does not create a session. The session is created in the current
 workspace on the first Send, so an empty draft never appears in the list.
+Hidden chats and done/failed markers are stored by the server, so hiding a chat
+on one device hides it on the next one.
 
 ## Composer and message actions
 
@@ -200,6 +217,7 @@ rewritten to loopback. Credentials in a server URL are discarded.
 | `NIT_GUI_AUTH_ENV` | Auth env file sourced by `bin/frankfurt`, default `~/.config/nit-gui/auth.env`. |
 | `NIT_GUI_PASSWORD_HASH` | PBKDF2-SHA256 hash used by the login page. Set by `bin/auth`. |
 | `NIT_GUI_PASSWORD` | Plain password for local development; hashed at startup. Do not use in production. |
+| `NIT_GUI_STATE` | Path to `ui-state.json`, default `$XDG_STATE_HOME/nit-gui/ui-state.json` or `~/.local/state/nit-gui/ui-state.json`. |
 | `NIT_GUI_LANGUAGETOOL` | Path to `languagetool-http-server`; the app starts it lazily. |
 | `NIT_GUI_LANGUAGETOOL_URL` | Use an already running LanguageTool server instead of spawning one. |
 | `NIT_GUI_LANGUAGETOOL_PORT` | Spawned server port, default `8179`. |
@@ -240,6 +258,10 @@ The browser only talks to these same-origin endpoints:
 | `POST /api/sessions/{id}/model` | Switch model `{model: {id, providerID, variant?}}`. |
 | `POST /api/sessions/{id}/agent` | Switch agent `{agent}`. |
 | `GET /api/models`, `GET /api/agents` | Pickers. |
+| `GET /api/ui` | Shared `{hidden, status}` UI state. |
+| `POST /api/ui/hidden` | `{ids, hidden}`; hide or unhide chats. |
+| `POST /api/ui/sessions/{id}/status` | `{status}`: `done`, `failed` or empty (seen). |
+| `DELETE /api/ui/sessions/{id}` | Remove hidden/status state for a deleted chat. |
 | `GET /api/events` | Server-sent events proxied from OpenCode `/api/event`. |
 
 All `/api` endpoints require the session cookie. `/auth` is the only
@@ -439,6 +461,10 @@ own startup warmup.
   before sending a file the current model cannot read.
 - No syntax highlighting in code blocks; copy and HTML preview are implemented.
 - The HTML preview is a fixed-height iframe, not a full-window renderer.
+- UI state is last-write-wins in one JSON file. Clients refresh it on focus and
+  every 10 seconds; there is no push channel. A done marker is only created by
+  an open client that receives the idle event, so a completion while every
+  client is closed is not marked unseen later.
 - Authentication is one shared password, not per-user accounts. Sessions and
   lockout counters are in memory, so an app restart signs everyone out and
   clears blocks. The public path is Tailscale Funnel; exposing the app another

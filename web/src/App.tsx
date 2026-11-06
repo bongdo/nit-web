@@ -343,30 +343,49 @@ export default function App() {
     () => mergeWaitingSessionIds(selectedId, forms, backgroundWaitingIds),
     [backgroundWaitingIds, forms, selectedId],
   );
-  const markDone = useCallback((id: string) => {
-    if (failedRef.current.has(id)) return;
-    setDoneIds((previous) => (previous.has(id) ? previous : new Set(previous).add(id)));
+  const saveStatus = useCallback((id: string, status: "" | "done" | "failed") => {
+    void api.setSessionStatus(id, status).catch((error) => setBanner(messageOf(error)));
   }, []);
-  const clearDone = useCallback((id: string) => {
-    setDoneIds((previous) => {
-      if (!previous.has(id)) return previous;
-      const next = new Set(previous);
-      next.delete(id);
-      return next;
-    });
+  const saveHidden = useCallback((ids: string[], hidden: boolean) => {
+    void api.setHidden(ids, hidden).catch((error) => setBanner(messageOf(error)));
   }, []);
+  const markDone = useCallback(
+    (id: string) => {
+      if (failedRef.current.has(id)) return;
+      setDoneIds((previous) => (previous.has(id) ? previous : new Set(previous).add(id)));
+      saveStatus(id, "done");
+    },
+    [saveStatus],
+  );
+  const clearDone = useCallback(
+    (id: string) => {
+      setDoneIds((previous) => {
+        if (!previous.has(id)) return previous;
+        const next = new Set(previous);
+        next.delete(id);
+        return next;
+      });
+      if (!failedRef.current.has(id)) saveStatus(id, "");
+    },
+    [saveStatus],
+  );
   const markFailed = useCallback(
     (id: string) => {
       failedRef.current.add(id);
       setFailedIds(new Set(failedRef.current));
       clearDone(id);
+      saveStatus(id, "failed");
     },
-    [clearDone],
+    [clearDone, saveStatus],
   );
-  const clearFailed = useCallback((id: string) => {
-    if (!failedRef.current.delete(id)) return;
-    setFailedIds(new Set(failedRef.current));
-  }, []);
+  const clearFailed = useCallback(
+    (id: string) => {
+      if (!failedRef.current.delete(id)) return;
+      setFailedIds(new Set(failedRef.current));
+      saveStatus(id, "");
+    },
+    [saveStatus],
+  );
   const runningNow = selectedId ? isRunning(selectedId) : false;
   const modelInfo =
     models.find(
@@ -997,12 +1016,12 @@ export default function App() {
       setHiddenIds((current) => {
         const next = new Set(current);
         for (const item of ids) next.add(item);
-        saveHidden(next);
         return next;
       });
+      saveHidden(ids, true);
       if (selectedIdRef.current && ids.includes(selectedIdRef.current)) selectSession(null);
     },
-    [selectSession, sessionAndChildren],
+    [saveHidden, selectSession, sessionAndChildren],
   );
 
   const unhideSession = useCallback(
@@ -1011,11 +1030,11 @@ export default function App() {
       setHiddenIds((current) => {
         const next = new Set(current);
         for (const item of ids) next.delete(item);
-        saveHidden(next);
         return next;
       });
+      saveHidden(ids, false);
     },
-    [sessionAndChildren],
+    [saveHidden, sessionAndChildren],
   );
 
   const deleteSession = useCallback(
@@ -1030,9 +1049,17 @@ export default function App() {
           if (!current.has(id)) return current;
           const next = new Set(current);
           next.delete(id);
-          saveHidden(next);
           return next;
         });
+        setDoneIds((current) => {
+          if (!current.has(id)) return current;
+          const next = new Set(current);
+          next.delete(id);
+          return next;
+        });
+        failedRef.current.delete(id);
+        setFailedIds(new Set(failedRef.current));
+        void api.removeSessionState(id).catch((error) => setBanner(messageOf(error)));
         if (selectedIdRef.current === id) {
           loadedIdRef.current = null;
           selectSession(null);
@@ -1199,6 +1226,21 @@ export default function App() {
 
     if (event.type === "session.deleted" && sessionID) {
       transcriptCache.delete(sessionID);
+      setHiddenIds((current) => {
+        if (!current.has(sessionID)) return current;
+        const next = new Set(current);
+        next.delete(sessionID);
+        return next;
+      });
+      setDoneIds((current) => {
+        if (!current.has(sessionID)) return current;
+        const next = new Set(current);
+        next.delete(sessionID);
+        return next;
+      });
+      failedRef.current.delete(sessionID);
+      setFailedIds(new Set(failedRef.current));
+      void api.removeSessionState(sessionID).catch(() => {});
     }
 
     if (

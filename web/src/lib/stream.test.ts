@@ -189,22 +189,22 @@ describe("light transcripts", () => {
   });
 
   it("keeps a short tool preview in cached events", () => {
-    const event = lightenEvent(
-      eventOf("session.tool.success", {
+    const next = lightenEvent(
+      event("session.tool.success", {
         assistantMessageID: "msg_1",
         id: "t1",
         content: [{ type: "text", text: "x".repeat(400) }],
       }),
     );
-    expect(event?.data.light).toBe(true);
-    const content = event?.data.content as { type: string; text: string }[];
+    expect(next?.data.light).toBe(true);
+    const content = next?.data.content as { type: string; text: string }[];
     expect(content[0].text).toHaveLength(240);
   });
 
   it("drops reasoning deltas from the cache", () => {
     expect(
       lightenEvent(
-        eventOf("session.reasoning.delta", {
+        event("session.reasoning.delta", {
           assistantMessageID: "msg_1",
           delta: "thinking",
         }),
@@ -215,7 +215,7 @@ describe("light transcripts", () => {
   it("marks a light tool as loaded when the full event arrives", () => {
     let messages = applyEvent(
       [],
-      eventOf("session.tool.success", {
+      event("session.tool.success", {
         assistantMessageID: "msg_1",
         id: "t1",
         content: [],
@@ -225,7 +225,7 @@ describe("light transcripts", () => {
     expect((messages[0].content?.[0] as ToolPart).light).toBe(true);
     messages = applyEvent(
       messages,
-      eventOf("session.tool.success", {
+      event("session.tool.success", {
         assistantMessageID: "msg_1",
         id: "t1",
         content: [{ type: "text", text: "full" }],

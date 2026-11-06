@@ -80,6 +80,8 @@ export function lightenEvent(event: StreamEvent): StreamEvent | null {
   const data = event.data ?? {};
   switch (event.type) {
     case "session.reasoning.delta":
+    case "session.tool.input.delta":
+    case "session.tool.progress":
       return null;
     case "session.reasoning.started":
     case "session.reasoning.ended": {

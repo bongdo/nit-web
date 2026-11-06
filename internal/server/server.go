@@ -362,12 +362,11 @@ func (s *Server) messages(w http.ResponseWriter, r *http.Request) {
 			s.upstreamError(w, err)
 			return
 		}
-		data, _, prev, err := decodeMessagesPage(raw)
+		data, next, _, err := decodeMessagesPage(raw)
 		if err != nil {
 			s.upstreamError(w, err)
 			return
 		}
-		previous = prev
 		if len(data) > 0 {
 			if light {
 				data, err = lightenTranscript(data)
@@ -376,10 +375,14 @@ func (s *Server) messages(w http.ResponseWriter, r *http.Request) {
 					return
 				}
 			}
-			data, err = reverseTranscript(data)
+			var count int
+			data, count, err = reverseTranscript(data)
 			if err != nil {
 				writeError(w, http.StatusBadGateway, "OpenCode returned an invalid transcript")
 				return
+			}
+			if count >= limit {
+				previous = next
 			}
 			pages = append(pages, redactor.JSON(data))
 		}
@@ -476,15 +479,16 @@ func decodeMessagesPage(raw []byte) (json.RawMessage, string, string, error) {
 	return data, next, prev, nil
 }
 
-func reverseTranscript(data []byte) ([]byte, error) {
+func reverseTranscript(data []byte) ([]byte, int, error) {
 	var messages []json.RawMessage
 	if err := json.Unmarshal(data, &messages); err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	for left, right := 0, len(messages)-1; left < right; left, right = left+1, right-1 {
 		messages[left], messages[right] = messages[right], messages[left]
 	}
-	return json.Marshal(messages)
+	encoded, err := json.Marshal(messages)
+	return encoded, len(messages), err
 }
 
 func (s *Server) message(w http.ResponseWriter, r *http.Request) {

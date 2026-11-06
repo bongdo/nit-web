@@ -168,3 +168,15 @@ Why: switching back to a cached chat is immediate; the first open of the heavies
 Rejected: persisting transcripts in localStorage (5 MB limit and huge payloads), IndexedDB (more moving parts for the same result), virtualizing the transcript (a separate feature), and disabling upstream compression globally (other endpoints can still benefit).
 
 Cost: the cache is lost on reload and trusts the event stream for background updates; a change made by another client to a cached, non-running session is not seen until reconnect or reload.
+
+## 2026-11-06 — Long chats: tail-first light transcripts and a size-bounded cache
+
+Context: even after the proxy fixes, a 17 MB transcript took about a second to open. Almost all of it was tool output (14.8 MB) and reasoning (0.5 MB); the user rarely opens those and mostly needs the final answer, their own messages, questions and compaction.
+
+Decision: the client opens the newest 50 messages with `?light=1&limit=50`. Light mode removes tool `state.content`, truncates reasoning to 240 characters and large tool input to 2 KB, and marks those parts `light`. Opening a tool or thought fetches one full message from `GET /api/sessions/{id}/messages/{messageID}`. Older pages load on demand with the cursor from the tail. The in-memory cache stores light transcripts under a 12 MiB budget (at most 30 entries) instead of a fixed five.
+
+Why: the heaviest local chat now opens with about 110 KB and 0.13 s instead of 15.9 MB and 1.05 s; a single tool message loads in about 5 ms. Light entries are small, so the budget holds many more chats than a fixed count.
+
+Rejected: virtualizing the whole transcript (more UI work), loading the full history in the background (wastes the transfer we just avoided), persisting transcripts in IndexedDB (a separate feature), and dropping tool calls entirely (they still give the activity summary and can be opened).
+
+Cost: long chats open at the tail; older messages need "Load earlier". Full tool output and reasoning are one request away, and the cache evicts the least recently used chats by total size.

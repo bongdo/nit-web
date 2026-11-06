@@ -1,6 +1,7 @@
 package server
 
 import (
+	"bytes"
 	"encoding/json"
 	"unicode/utf8"
 )
@@ -77,9 +78,12 @@ func lightenPart(raw []byte) (json.RawMessage, bool, error) {
 			return nil, false, err
 		}
 		changed := false
-		if _, ok := state["content"]; ok {
-			delete(state, "content")
-			changed = true
+		if content, ok := state["content"]; ok {
+			trimmed := bytes.TrimSpace(content)
+			if len(trimmed) > 2 && trimmed[0] == '[' {
+				delete(state, "content")
+				changed = true
+			}
 		}
 		if input, ok := state["input"]; ok && len(input) > lightToolInputBytes {
 			preview := string(input)

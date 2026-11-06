@@ -539,12 +539,12 @@ func TestMessagesLimit(t *testing.T) {
 			if query.Get("order") != "desc" || query.Get("limit") != "2" {
 				t.Errorf("unexpected first page query: %s", r.URL.RawQuery)
 			}
-			fmt.Fprint(w, `{"data":[{"id":"m3"},{"id":"m2"}],"cursor":{"next":null,"previous":"older"}}`)
+			fmt.Fprint(w, `{"data":[{"id":"m3"},{"id":"m2"}],"cursor":{"next":"older","previous":"newer"}}`)
 		case "older":
 			if query.Get("order") != "" || query.Get("limit") != "2" {
 				t.Errorf("unexpected older page query: %s", r.URL.RawQuery)
 			}
-			fmt.Fprint(w, `{"data":[{"id":"m1"}],"cursor":{"next":null,"previous":null}}`)
+			fmt.Fprint(w, `{"data":[{"id":"m1"}],"cursor":{"next":null,"previous":"newer"}}`)
 		default:
 			t.Errorf("unexpected cursor %q", query.Get("cursor"))
 		}

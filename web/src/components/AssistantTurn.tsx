@@ -39,7 +39,7 @@ type AssistantTurnProps = {
   actionsDisabled?: boolean;
   onRevert: (message: Message) => void;
   onFork: (message: Message) => void;
-  onLoadMessage?: (messageID: string) => void;
+  onLoadMessage?: (messageID: string) => void | Promise<void>;
 };
 
 export const AssistantTurn = memo(function AssistantTurn({

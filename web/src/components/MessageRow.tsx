@@ -119,7 +119,7 @@ export const MessageRow = memo(function MessageRow({
   autoOpen?: boolean;
   onRevert: (message: Message) => void;
   onFork: (message: Message) => void;
-  onLoadMessage?: (messageID: string) => void;
+  onLoadMessage?: (messageID: string) => void | Promise<void>;
 }) {
   const [copied, setCopied] = useState(false);
 

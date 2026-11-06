@@ -169,7 +169,8 @@ The browser only talks to these same-origin endpoints:
 | `GET /api/sessions?dir=&children=true` | Newest sessions; `children=true` includes subagent sessions. |
 | `POST /api/sessions` | Create `{directory, title?, agent?, model?}`. |
 | `GET /api/sessions/{id}` | One session, used to restore a selected subagent after reload. |
-| `GET /api/sessions/{id}/messages` | Full transcript, ascending, paginated upstream, redacted. |
+| `GET /api/sessions/{id}/messages` | Full transcript, ascending, paginated upstream, redacted. `light=1` strips tool output and long reasoning; `limit=N` returns the newest N; `before=` loads the previous page. |
+| `GET /api/sessions/{id}/messages/{messageID}` | One full message, used to load tool output or reasoning on demand. |
 | `GET /api/sessions/{id}/children` | Subagent sessions with this parent. |
 | `POST /api/sessions/{id}/prompt` | Send `{text, files?}`. |
 | `POST /api/sessions/{id}/interrupt` | Stop the active execution. |
@@ -310,8 +311,9 @@ own startup warmup.
 
 - Sessions are listed up to OpenCode's newest 100. Search filters that window
   client-side.
-- A transcript is assembled from at most 20 upstream pages (100 messages each).
-  Longer sessions are truncated at 2000 messages.
+- The UI opens the newest 50 messages and loads older pages on demand. The full
+  endpoint is assembled from at most 20 upstream pages (100 messages each);
+  longer sessions are truncated at 2000 messages.
 - No permission prompt UI, form/question UI, session deletion, shell panel, PTY
   or VCS panel yet.
 - Dictation has two modes. Fast needs `whisper-server` (override with

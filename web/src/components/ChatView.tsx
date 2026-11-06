@@ -78,8 +78,8 @@ export function ChatView({
   onBrowseWorkspace: () => void;
   hasEarlier: boolean;
   loadingEarlier: boolean;
-  onLoadEarlier: () => void;
-  onLoadMessage: (messageID: string) => void;
+  onLoadEarlier: () => void | Promise<void>;
+  onLoadMessage: (messageID: string) => void | Promise<void>;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);

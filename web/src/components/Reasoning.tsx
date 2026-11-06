@@ -20,7 +20,9 @@ export const Reasoning = memo(function Reasoning({
       onToggle={(event) => {
         if (!event.currentTarget.open || !part.light || !onLoad || loading) return;
         setLoading(true);
-        Promise.resolve(onLoad()).finally(() => setLoading(false));
+        Promise.resolve()
+          .then(() => onLoad())
+          .finally(() => setLoading(false));
       }}
     >
       <summary className="hover:bg-muted/40 flex cursor-pointer list-none items-center gap-2 rounded px-2 py-1 text-[11px] [&::-webkit-details-marker]:hidden">

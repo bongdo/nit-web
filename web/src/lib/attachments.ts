@@ -1,6 +1,8 @@
 import type { UserFile } from "./types";
 import { fileUri } from "./format";
 import { appPath } from "./base";
+import { getInstance } from "./api";
+import { addInstanceParam } from "./instances";
 
 export type AttachmentKind = "image" | "pdf" | "text" | "other";
 export type FileType =
@@ -83,9 +85,10 @@ export function attachmentNameFromHref(href: string): string {
 
 export function localFileHref(href?: string): string | undefined {
   if (!href) return undefined;
-  if (/^\/api\/file\?/i.test(href)) return appPath(href);
+  if (/^\/api\/file\?/i.test(href)) return addInstanceParam(appPath(href), getInstance());
   const prefix = appPath("/api/file?");
-  if (prefix !== "/api/file?" && href.startsWith(prefix)) return href;
+  if (prefix !== "/api/file?" && href.startsWith(prefix))
+    return addInstanceParam(href, getInstance());
   return undefined;
 }
 
@@ -99,7 +102,10 @@ export function attachmentHref(file: UserFile): string | undefined {
   if (uri) {
     if (/^(data|blob):/i.test(uri) || /^https?:/i.test(uri)) return uri;
     if (/^file:/i.test(uri) && !uri.startsWith("file:///tmp/nit-gui-") && inline) return inline;
-    return appPath(`/api/file?path=${encodeURIComponent(uri)}`);
+    return addInstanceParam(
+      appPath(`/api/file?path=${encodeURIComponent(uri)}`),
+      getInstance(),
+    );
   }
   return inline;
 }

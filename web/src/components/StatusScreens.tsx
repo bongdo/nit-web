@@ -49,8 +49,8 @@ export function OfflineScreen({
         </div>
         <h1 className="text-xl font-semibold tracking-tight">OpenCode service is offline</h1>
         <p className="text-muted-foreground mt-2 text-sm leading-6">
-          nit-gui talks to the local OpenCode service. Start it, then retry. Your sessions are
-          stored by OpenCode, not here.
+          nit-gui could not reach OpenCode for this instance. Start it, then retry. Your sessions
+          are stored by OpenCode, not here.
         </p>
         {instance && (
           <div className="text-muted-foreground mt-2 font-mono text-[11px]">instance {instance}</div>
@@ -60,9 +60,6 @@ export function OfflineScreen({
             {health.error}
           </pre>
         )}
-        <div className="text-muted-foreground mt-4 font-mono text-[11px]">
-          opencode service status
-        </div>
         <div className="mt-5 flex items-center justify-center gap-2">
           <Button onClick={onRetry}>
             <RefreshCw />

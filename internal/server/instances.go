@@ -65,6 +65,9 @@ func (s *Server) instanceInfo(ctx context.Context, spec opencode.InstanceSpec, p
 	}
 	if spec.SSH != "" && !probeAll && !s.multi.Connected(spec.Name) {
 		out.Error = s.multi.LastError(spec.Name)
+		if out.Error != "" {
+			out.State = "offline"
+		}
 		out.Capabilities = s.capabilities(ctx, "", "unknown", "not connected")
 		return out
 	}
@@ -130,5 +133,3 @@ func (s *Server) grammarCapability(ctx context.Context) capabilityOut {
 	}
 	return capabilityOut{ID: "grammar", Label: "Grammar", Owner: "nit-gui", State: state, Detail: detail}
 }
-
-

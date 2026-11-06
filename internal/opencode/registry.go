@@ -192,18 +192,19 @@ func (r *Registry) endpoint(ctx context.Context, spec InstanceSpec) (Endpoint, i
 
 func localEndpoint(ctx context.Context, spec InstanceSpec) (Endpoint, io.Closer, error) {
 	var ep Endpoint
-	if spec.URL == "" || spec.URL == "auto" {
-		var err error
-		ep, err = Discover(ctx)
-		if err != nil {
-			return Endpoint{}, nil, err
-		}
-	} else {
+	explicit := spec.URL != "" && spec.URL != "auto"
+	if explicit {
 		base, err := normalizeServerURL(spec.URL)
 		if err != nil {
 			return Endpoint{}, nil, err
 		}
 		ep.URL = base
+	} else {
+		var err error
+		ep, err = Discover(ctx)
+		if err != nil {
+			return Endpoint{}, nil, err
+		}
 	}
 	switch {
 	case spec.Password != "":
@@ -225,6 +226,8 @@ func localEndpoint(ctx context.Context, spec InstanceSpec) (Endpoint, io.Closer,
 			pw := ReadPassword()
 			return pw, pw != ""
 		}
+	case explicit:
+		return Endpoint{}, nil, fmt.Errorf("instance %q: set passwordFile for a remote URL", spec.Name)
 	}
 	return ep, nil, nil
 }

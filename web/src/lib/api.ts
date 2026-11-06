@@ -90,6 +90,7 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
 }
 
 export const api = {
+  setInstance,
   instances: (probe = false) =>
     request<InstancesResponse>(probe ? "/api/instances?probe=all" : "/api/instances"),
   health: () => request<Health>("/api/health"),

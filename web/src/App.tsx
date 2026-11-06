@@ -1345,7 +1345,7 @@ export default function App({
     reloadSelected();
   };
 
-  const streamStatus = useEventStream(onEvent, onStreamOpen);
+  const streamStatus = useEventStream(onEvent, onStreamOpen, instance);
 
   const send = useCallback(
     async (text: string, attachments: Attachment[] = [], delivery?: "queue" | "steer") => {
@@ -1737,10 +1737,17 @@ export default function App({
     pickerOpen,
   ]);
 
-  if (booting) return <BootScreen />;
+  if (booting) return <BootScreen instance={instance} onSwitch={onOpenInstances} />;
 
   if (health && !health.ok && sessions.length === 0) {
-    return <OfflineScreen health={health} onRetry={() => void retryConnection()} />;
+    return (
+      <OfflineScreen
+        health={health}
+        onRetry={() => void retryConnection()}
+        instance={instance}
+        onSwitch={onOpenInstances}
+      />
+    );
   }
 
   if (!workspace) {
@@ -1874,6 +1881,9 @@ export default function App({
           sidebarMode={sidebarMode}
           subagents={subagents}
           parent={parentSession}
+          instance={instance}
+          online={Boolean(health?.ok)}
+          onOpenInstances={onOpenInstances}
           onOpenSubagent={openSubagent}
           onBack={backToParent}
           onToggleSidebar={toggleSidebar}
@@ -1943,7 +1953,8 @@ export default function App({
               session={selectedSession}
               workspace={workspace}
               model={modelInfo}
-              draftKey={composerKey}
+              draftKey={composerDraftKey}
+              instance={instance}
               disabled={!health?.ok}
               running={running}
               focusKey={selectedId}
@@ -2047,6 +2058,7 @@ export default function App({
           motion={motion}
           background={background}
           sidebarMode={sidebarMode}
+          instance={instance}
           onModel={(model) => void changeModel(model)}
           onAgent={(agent) => void changeAgent(agent)}
           onTheme={changeTheme}
@@ -2075,6 +2087,7 @@ export default function App({
             setBackground(value);
             localStorage.setItem("nit-gui.background", value);
           }}
+          onInstances={onOpenInstances}
           onClose={closeSettings}
         />
       )}

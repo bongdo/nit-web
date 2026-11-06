@@ -15,9 +15,9 @@ const dotClass: Record<string, string> = {
 const tagClass: Record<string, string> = {
   required: "border-primary/30 bg-primary/10 text-primary",
   on: "border-success/30 bg-success/10 text-success",
-  fallback: "border-border bg-muted text-muted-foreground",
-  off: "border-destructive/30 bg-destructive/10 text-destructive",
-  unknown: "border-border bg-muted text-muted-foreground",
+  fallback: "border-attention/30 bg-attention/10 text-attention",
+  off: "border-border bg-muted text-muted-foreground",
+  unknown: "border-border border-dashed bg-transparent text-muted-foreground",
 };
 
 function capabilityTag(cap: InstanceCapability, state: CapabilityState): string {

@@ -4,24 +4,31 @@ Web GUI for the OpenCode v2 service. Sessions on the left, transcript in the
 middle, composer at the bottom. It is a client only: OpenCode remains the source
 of truth for sessions, messages, models and agents.
 
-Production has one instance: **Frankfurt**. Everything that needs a model,
-dictionary, voice, JVM or another background process runs on that host. The
-browser is a thin client: it renders the UI, records microphone audio and plays
-audio. It is never assumed to have local TTS voices, local STT, Hunspell
-dictionaries, LanguageTool or a GPU.
+Production has one **nit-gui** service, **Frankfurt**. It can front several
+OpenCode servers, called instances, and the browser switches between them
+without a second login. Everything that needs a model, dictionary, voice, JVM or
+another background process runs on the nit-gui host. The browser is a thin
+client: it renders the UI, records microphone audio and plays audio. It is never
+assumed to have local TTS voices, local STT, Hunspell dictionaries,
+LanguageTool or a GPU.
+
+`OpenCode` and `nit-gui` are required. Dictation, grammar, speech and
+server-side spelling are optional capabilities; the Instances menu names the
+fallback for every one of them.
 
 ## Runtime contract
 
 | Capability | Runs on | State |
 | --- | --- | --- |
-| Authentication | Frankfurt, `/auth` + session cookie | one shared password |
-| Sessions, messages, models, agents | OpenCode on Frankfurt | source of truth |
-| STT | Frankfurt, `/api/stt` + `whisper-server` / `whisper-cli` | implemented |
-| TTS | Frankfurt, OpenCode TTS plugin; the browser never synthesizes speech | host-side plugin, not managed by nit-gui |
-| Spelling | browser nspell worker today; target Frankfurt `/api/spell` | migration gap |
-| Grammar | Frankfurt LanguageTool sidecar through `/api/grammar` | optional |
-| Attachments | Frankfurt, OpenCode `/api/experimental/fs/write` and `/tmp` | implemented |
-| UI state (hidden, done, failed, drafts, model/agent) | Frankfurt, `~/.local/state/nit-gui/ui-state.json` | shared across devices |
+| Authentication | nit-gui host, `/auth` + session cookie | one shared password |
+| Sessions, messages, models, agents | each OpenCode instance | source of truth |
+| Instance list, SSH tunnels | nit-gui host, `~/.config/nit-gui/instances.json` | implemented |
+| STT | nit-gui host, `/api/stt` + `whisper-server` / `whisper-cli` | optional |
+| TTS | OpenCode host plugin; the browser has a labeled device fallback | host plugin not proxied |
+| Spelling | browser nspell worker today; target nit-gui `/api/spell` | migration gap |
+| Grammar | nit-gui host LanguageTool sidecar through `/api/grammar` | optional |
+| Attachments | the active instance, OpenCode `/api/experimental/fs/write` and `/tmp` | implemented |
+| UI state (hidden, done, failed, drafts, model/agent) | nit-gui host, `~/.local/state/nit-gui/ui-state.json`, scoped by instance | shared across devices |
 
 The supported client is a browser with a microphone and audio output. Features
 must not depend on local models, dictionaries, OS speech voices or a GPU.
@@ -31,16 +38,85 @@ Spelling is the remaining exception; see [Known limits](#known-limits).
 
 | Where | What |
 | --- | --- |
-| OpenCode on Frankfurt | Sessions, messages, models, agents, working directories. |
-| nit-gui on Frankfurt | Hidden chats, done/failed markers, drafts, preferred model and agent in `ui-state.json`; auth sessions in memory; uploads under `/tmp`. |
-| Browser `localStorage` | Device preferences: theme, sidebar mode, motion, background, dictation mode, spelling/autofix, notifications, workspace, recent workspaces, scope, selected chat, personal spelling dictionary. Drafts are mirrored locally only as an instant-load cache. |
+| Each OpenCode instance | Sessions, messages, models, agents, working directories. |
+| nit-gui on the host | Instance definitions and SSH tunnels; hidden chats, done/failed markers, drafts, preferred model and agent in `ui-state.json`, keyed by instance; auth sessions in memory; uploads under `/tmp`. |
+| Browser `localStorage` | Device preferences: theme, sidebar mode, motion, background, dictation mode, spelling/autofix, notifications, scope, personal spelling dictionary. Workspace, recent workspaces and selected chat are per instance; the default instance keeps the old unscoped keys. Drafts are mirrored locally only as an instant-load cache. |
 | Browser memory | Transcript cache (up to 12 MiB), running/waiting state, form state, current stream. |
 
 The cache is deliberately local: it makes chat switching instant and is safe to
 lose. Hidden chats, done/failed markers, drafts, model and agent are deliberately
-on the server: they are the same on every device. Theme, sidebar, motion,
-workspace and the selected chat stay local because they describe the device you
-are sitting at.
+on the server: they are the same on every device and scoped to the instance.
+Theme, sidebar, motion, workspace and the selected chat stay local because they
+describe the device you are sitting at.
+
+## Instances
+
+An instance is one OpenCode server behind this nit-gui. The nit-gui host stays
+the same; switching an instance changes the OpenCode namespace: sessions,
+workspaces, models, agents and the event stream. The menu header shows
+`This app: nit-gui @ <host>` separately, so the app and the instance are not
+confused.
+
+Open the menu from the instance chip in the header, `/instances`, or Settings →
+Instances. Each row shows the transport (`local`, `url`, `ssh`), the OpenCode
+version and the state. The detail panel has three layers and a capability row:
+
+```
+Browser      UI · microphone · audio · spelling (this device)
+nit-gui      auth · proxy · drafts · dictation · grammar
+OpenCode     sessions · models · agents · workspace · speech plugin
+```
+
+Capabilities are `on`, `fallback`, `off` or `unknown`. Optional capabilities are
+never shown as errors: `off` names what still works. An offline instance shows
+the reason and a `Reconnect` action; switching to another instance leaves it
+untouched. If every instance is offline, the offline screen has `Switch instance`.
+
+### Configuration
+
+The file is `$NIT_GUI_INSTANCES` or
+`${XDG_CONFIG_HOME:-$HOME/.config}/nit-gui/instances.json` on the nit-gui host.
+Missing or empty means one auto-discovered local instance named `local`.
+
+```json
+{
+  "instances": [
+    { "name": "frankfurt", "url": "auto" },
+    { "name": "riga", "ssh": "riga-dev", "dir": "/home/bongdo/Projects" },
+    {
+      "name": "office",
+      "url": "http://10.0.0.5:49374",
+      "passwordFile": "~/.config/nit-gui/office.password"
+    }
+  ]
+}
+```
+
+- `url: "auto"` uses the same discovery as before: `NIT_SERVER`,
+  `OPENCODE_SERVER`, `OPENCODE_URL`, then `opencode service status`.
+- `url` with an explicit endpoint needs `passwordFile` or inline `password` for
+  a non-loopback host.
+- `ssh` discovers the remote service, reads the remote OpenCode password and
+  forwards a local port. It uses the `ssh` binary, not a Go SSH dependency.
+- `dir` is the default workspace for a new instance. The workspace picker still
+  lists the instance's own projects.
+- Names must match `^[A-Za-z0-9._-]{1,64}$` and be unique. The first instance is
+  the default.
+- Passwords stay on the nit-gui host. The browser never receives them. A config
+  file with inline passwords should be mode `0600`; the app warns otherwise.
+- A malformed file does not stop the app: it falls back to `local` and shows the
+  error in the menu.
+
+The name, URL, SSH host and password files are read once at startup. Restart the
+app after editing the file.
+
+### Switching
+
+Switching instances remounts the chat view: sessions, transcript cache, event
+stream, models, agents and drafts are reloaded for the selected OpenCode server.
+The previous instance keeps its own UI state, drafts and selected workspace.
+There is one event stream for the active instance; inactive instances do not
+keep background SSE connections.
 
 ## Run
 

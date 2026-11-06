@@ -1,5 +1,5 @@
 import { memo, useState, type ReactNode } from "react";
-import { Bot, Check, CircleAlert, Copy, GitFork, Loader2, Terminal, Undo2 } from "lucide-react";
+import { Bot, CircleAlert, Copy, GitFork, Loader2, Terminal, Undo2 } from "lucide-react";
 import type { Agent, Message, Model, UserFile } from "../lib/types";
 import { attachmentHref } from "../lib/attachments";
 import { copyText } from "../lib/clipboard";
@@ -13,6 +13,7 @@ import { HtmlMessagePreview } from "./HtmlMessagePreview";
 import { Markdown } from "./Markdown";
 import { QuestionCard } from "./QuestionCard";
 import { Reasoning } from "./Reasoning";
+import { ReplyActions } from "./ReplyActions";
 import { ToolCall } from "./ToolCall";
 
 function timeLabel(ms: number): string {
@@ -59,7 +60,6 @@ export const MessageRow = memo(function MessageRow({
   onFork: (message: Message) => Promise<void>;
   onLoadMessage?: (messageID: string) => void | Promise<void>;
 }) {
-  const [copied, setCopied] = useState(false);
   const [busy, setBusy] = useState<"revert" | "fork" | null>(null);
 
   const act = async (kind: "revert" | "fork", run: () => Promise<void>) => {
@@ -199,13 +199,6 @@ export const MessageRow = memo(function MessageRow({
   const model = modelLabel(message.model, models);
   const reply = replyText(message);
 
-  const onCopyReply = async () => {
-    if (await copyText(reply)) {
-      setCopied(true);
-      window.setTimeout(() => setCopied(false), 1500);
-    }
-  };
-
   return (
     <div className="px-1 py-3">
       <div className="mb-1.5 flex min-w-0 items-center gap-2 text-xs">
@@ -214,18 +207,6 @@ export const MessageRow = memo(function MessageRow({
         </span>
         <span className="font-medium">{agent?.name ?? message.agent ?? "Assistant"}</span>
         {model && <span className="text-muted-foreground truncate">{model}</span>}
-        {reply.trim() !== "" && (
-          <Button
-            variant="ghost"
-            size="xs"
-            className={`row-sheen-copy text-muted-foreground shrink-0${copied ? " row-sheen-copy-on" : ""}`}
-            onClick={onCopyReply}
-            aria-label="Copy assistant reply"
-          >
-            {copied ? <Check /> : <Copy />}
-            <span>{copied ? "Copied" : "Copy"}</span>
-          </Button>
-        )}
         <span className="text-muted-foreground ml-auto shrink-0 text-[10px]">
           {streaming ? "streaming" : timeLabel(message.time.created)}
         </span>
@@ -278,6 +259,7 @@ export const MessageRow = memo(function MessageRow({
             </span>
           </div>
         )}
+        {!streaming && reply.trim() !== "" && <ReplyActions text={reply} className="mt-2" />}
       </div>
     </div>
   );

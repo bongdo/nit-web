@@ -1,22 +1,14 @@
 import { memo, useEffect, useRef, useState } from "react";
-import {
-  Bot,
-  Check,
-  ChevronDown,
-  ChevronRight,
-  Copy,
-  Loader2,
-} from "lucide-react";
+import { Bot, ChevronDown, ChevronRight, Loader2 } from "lucide-react";
 import type { Agent, Message, Model, ReasoningPart, ToolPart } from "../lib/types";
 import { activityLine } from "../lib/activity";
-import { copyText } from "../lib/clipboard";
 import { stepMessageIDs } from "../lib/stream";
 import { isPureHtml, looksLikeHtml } from "../lib/html";
 import { modelLabel, replyText } from "../lib/format";
-import { Button } from "./ui/button";
 import { HtmlMessagePreview } from "./HtmlMessagePreview";
 import { Markdown } from "./Markdown";
 import { QuestionCard } from "./QuestionCard";
+import { ReplyActions } from "./ReplyActions";
 import { Reasoning } from "./Reasoning";
 import { ToolCall } from "./ToolCall";
 
@@ -49,7 +41,6 @@ export const AssistantTurn = memo(function AssistantTurn({
 }: AssistantTurnProps) {
   const [open, setOpen] = useState(false);
   const wasStreaming = useRef(streaming);
-  const [copied, setCopied] = useState(false);
   const [loadingSteps, setLoadingSteps] = useState(false);
   const last = messages[messages.length - 1];
   const owners = new Map<ReasoningPart | ToolPart, Message>();
@@ -123,13 +114,6 @@ export const AssistantTurn = memo(function AssistantTurn({
     }
   }, [streaming]);
 
-  const onCopy = async () => {
-    if (await copyText(reply)) {
-      setCopied(true);
-      window.setTimeout(() => setCopied(false), 1500);
-    }
-  };
-
   const loadSteps = () => {
     if (!onLoadMessage) return;
     const ids = stepMessageIDs(messages).filter(
@@ -150,18 +134,6 @@ export const AssistantTurn = memo(function AssistantTurn({
         </span>
         <span className="font-medium">{agent?.name ?? last?.agent ?? "Assistant"}</span>
         {model && <span className="text-muted-foreground truncate">{model}</span>}
-        {reply.trim() !== "" && (
-          <Button
-            variant="ghost"
-            size="xs"
-            className={`row-sheen-copy text-muted-foreground shrink-0${copied ? " row-sheen-copy-on" : ""}`}
-            onClick={onCopy}
-            aria-label="Copy assistant reply"
-          >
-            {copied ? <Check /> : <Copy />}
-            <span>{copied ? "Copied" : "Copy"}</span>
-          </Button>
-        )}
         <span className="text-muted-foreground ml-auto shrink-0 text-[10px]">
           {streaming ? "running" : new Date(last?.time.created ?? Date.now()).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
         </span>
@@ -261,6 +233,7 @@ export const AssistantTurn = memo(function AssistantTurn({
             </span>
           </div>
         )}
+        {!streaming && reply.trim() !== "" && <ReplyActions text={reply} className="mt-2" />}
       </div>
     </div>
   );

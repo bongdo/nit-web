@@ -3,6 +3,7 @@ import type {
   Config,
   FormInfo,
   Health,
+  InstancesResponse,
   Message,
   MessagesResponse,
   Model,
@@ -29,7 +30,18 @@ type RequestOptions = {
   method?: string;
   body?: unknown;
   signal?: AbortSignal;
+  instance?: string;
 };
+
+let instance = "";
+
+export function setInstance(id: string) {
+  instance = id;
+}
+
+export function getInstance(): string {
+  return instance;
+}
 
 async function errorText(response: Response): Promise<string> {
   try {
@@ -52,6 +64,8 @@ function redirectToLogin() {
 async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const headers: Record<string, string> = { Accept: "application/json" };
   if (options.body !== undefined) headers["Content-Type"] = "application/json";
+  const scoped = options.instance ?? instance;
+  if (scoped) headers["X-Nit-Instance"] = scoped;
   const response = await fetch(appPath(path), {
     method: options.method ?? "GET",
     headers,
@@ -76,6 +90,8 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
 }
 
 export const api = {
+  instances: (probe = false) =>
+    request<InstancesResponse>(probe ? "/api/instances?probe=all" : "/api/instances"),
   health: () => request<Health>("/api/health"),
   config: () => request<Config>("/api/config"),
   projects: () => request<Project[]>("/api/projects"),
@@ -172,7 +188,10 @@ export const api = {
     const query = new URLSearchParams({ name: file.name, dir });
     const response = await fetch(appPath(`/api/upload?${query}`), {
       method: "POST",
-      headers: { "Content-Type": file.type || "application/octet-stream" },
+      headers: {
+        "Content-Type": file.type || "application/octet-stream",
+        ...(instance ? { "X-Nit-Instance": instance } : {}),
+      },
       body: file,
       signal: AbortSignal.timeout(120_000),
     });
@@ -182,7 +201,10 @@ export const api = {
   stt: async (audio: Blob, mode?: "fast") => {
     const response = await fetch(appPath(`/api/stt${mode ? `?mode=${mode}` : ""}`), {
       method: "POST",
-      headers: { "Content-Type": "audio/wav" },
+      headers: {
+        "Content-Type": "audio/wav",
+        ...(instance ? { "X-Nit-Instance": instance } : {}),
+      },
       body: audio,
       signal: AbortSignal.timeout(180_000),
     });
@@ -221,14 +243,16 @@ export const api = {
     request<{ ok: boolean }>(`/api/ui/sessions/${encodeURIComponent(id)}`, {
       method: "DELETE",
     }),
-  draft: (key: string) =>
+  draft: (key: string, instance?: string) =>
     request<{ text: string; updatedAt: number }>(
       `/api/ui/drafts?key=${encodeURIComponent(key)}`,
+      { instance },
     ),
-  setDraft: (key: string, text: string) =>
+  setDraft: (key: string, text: string, instance?: string) =>
     request<{ updatedAt: number }>("/api/ui/drafts", {
       method: "POST",
       body: { key, text },
+      instance,
     }),
   setModel: (model: ModelRef | null) =>
     request<{ ok: boolean }>("/api/ui/model", { method: "POST", body: { model } }),

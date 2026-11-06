@@ -203,6 +203,37 @@ export type Health = {
   server?: string;
   version?: string;
   error?: string;
+  instance?: string;
+};
+
+export type CapabilityState = "on" | "fallback" | "off" | "unknown";
+
+export type InstanceCapability = {
+  id: string;
+  label: string;
+  owner: string;
+  state: CapabilityState;
+  required?: boolean;
+  detail?: string;
+};
+
+export type Instance = {
+  id: string;
+  name: string;
+  transport: "local" | "url" | "ssh";
+  detail: string;
+  state: "connected" | "offline" | "unknown";
+  error?: string;
+  opencode?: { ok: boolean; version?: string; server?: string };
+  defaultDirectory?: string;
+  capabilities: InstanceCapability[];
+};
+
+export type InstancesResponse = {
+  app: { name: string; host: string; version: string };
+  default: string;
+  configError?: string;
+  instances: Instance[];
 };
 
 export type StreamEvent = {

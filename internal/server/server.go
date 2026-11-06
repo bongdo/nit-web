@@ -33,6 +33,42 @@ type ClientProvider interface {
 	Drop()
 }
 
+type MultiProvider interface {
+	ClientFor(context.Context, string) (*opencode.Client, error)
+	DropFor(string)
+	Instances() []opencode.InstanceSpec
+	DefaultInstance() string
+	ConfigError() string
+	Connected(string) bool
+	LastError(string) string
+}
+
+type singleProvider struct {
+	provider ClientProvider
+}
+
+func (p singleProvider) ClientFor(ctx context.Context, name string) (*opencode.Client, error) {
+	if name != "local" {
+		return nil, opencode.ErrUnknownInstance
+	}
+	return p.provider.Client(ctx)
+}
+
+func (p singleProvider) DropFor(name string) {
+	if name == "local" {
+		p.provider.Drop()
+	}
+}
+
+func (p singleProvider) Instances() []opencode.InstanceSpec {
+	return []opencode.InstanceSpec{{Name: "local"}}
+}
+
+func (p singleProvider) DefaultInstance() string { return "local" }
+func (p singleProvider) ConfigError() string     { return "" }
+func (p singleProvider) Connected(string) bool   { return true }
+func (p singleProvider) LastError(string) string { return "" }
+
 type Server struct {
 	multi        MultiProvider
 	static       fs.FS
@@ -307,7 +343,6 @@ func (s *Server) health(w http.ResponseWriter, r *http.Request) {
 func (s *Server) sessions(w http.ResponseWriter, r *http.Request) {
 	c, ok := s.withClient(w, r)
 	if !ok {
-		writeError(w, http.StatusServiceUnavailable, "opencode service not found")
 		return
 	}
 	q := url.Values{}
@@ -343,7 +378,6 @@ func (s *Server) session(w http.ResponseWriter, r *http.Request) {
 	}
 	c, ok := s.withClient(w, r)
 	if !ok {
-		writeError(w, http.StatusServiceUnavailable, "opencode service not found")
 		return
 	}
 	var raw json.RawMessage
@@ -369,7 +403,6 @@ func (s *Server) createSession(w http.ResponseWriter, r *http.Request) {
 	}
 	c, ok := s.withClient(w, r)
 	if !ok {
-		writeError(w, http.StatusServiceUnavailable, "opencode service not found")
 		return
 	}
 	dir := strings.TrimSpace(in.Directory)
@@ -413,7 +446,6 @@ func (s *Server) deleteSession(w http.ResponseWriter, r *http.Request) {
 	}
 	c, ok := s.withClient(w, r)
 	if !ok {
-		writeError(w, http.StatusServiceUnavailable, "opencode service not found")
 		return
 	}
 	if err := c.Do(r.Context(), http.MethodDelete, "/api/session/"+url.PathEscape(id), nil, nil); err != nil {
@@ -431,7 +463,6 @@ func (s *Server) messages(w http.ResponseWriter, r *http.Request) {
 	}
 	c, ok := s.withClient(w, r)
 	if !ok {
-		writeError(w, http.StatusServiceUnavailable, "opencode service not found")
 		return
 	}
 	limit := 0
@@ -602,7 +633,6 @@ func (s *Server) message(w http.ResponseWriter, r *http.Request) {
 	}
 	c, ok := s.withClient(w, r)
 	if !ok {
-		writeError(w, http.StatusServiceUnavailable, "opencode service not found")
 		return
 	}
 	path := fmt.Sprintf("/api/session/%s/message/%s", url.PathEscape(id), url.PathEscape(messageID))
@@ -638,7 +668,6 @@ func (s *Server) children(w http.ResponseWriter, r *http.Request) {
 	}
 	c, ok := s.withClient(w, r)
 	if !ok {
-		writeError(w, http.StatusServiceUnavailable, "opencode service not found")
 		return
 	}
 	q := url.Values{}
@@ -688,7 +717,6 @@ func (s *Server) prompt(w http.ResponseWriter, r *http.Request) {
 	}
 	c, ok := s.withClient(w, r)
 	if !ok {
-		writeError(w, http.StatusServiceUnavailable, "opencode service not found")
 		return
 	}
 	body := map[string]any{"text": in.Text}
@@ -714,7 +742,6 @@ func (s *Server) interrupt(w http.ResponseWriter, r *http.Request) {
 	}
 	c, ok := s.withClient(w, r)
 	if !ok {
-		writeError(w, http.StatusServiceUnavailable, "opencode service not found")
 		return
 	}
 	var raw json.RawMessage
@@ -744,7 +771,6 @@ func (s *Server) revert(w http.ResponseWriter, r *http.Request) {
 	}
 	c, ok := s.withClient(w, r)
 	if !ok {
-		writeError(w, http.StatusServiceUnavailable, "opencode service not found")
 		return
 	}
 	path := "/api/session/" + url.PathEscape(id) + "/revert"
@@ -774,7 +800,6 @@ func (s *Server) fork(w http.ResponseWriter, r *http.Request) {
 	}
 	c, ok := s.withClient(w, r)
 	if !ok {
-		writeError(w, http.StatusServiceUnavailable, "opencode service not found")
 		return
 	}
 	body := map[string]any{}
@@ -797,7 +822,6 @@ func (s *Server) compact(w http.ResponseWriter, r *http.Request) {
 	}
 	c, ok := s.withClient(w, r)
 	if !ok {
-		writeError(w, http.StatusServiceUnavailable, "opencode service not found")
 		return
 	}
 	if err := c.Do(r.Context(), http.MethodPost, "/api/session/"+url.PathEscape(id)+"/compact", map[string]any{}, nil); err != nil {
@@ -826,7 +850,6 @@ func (s *Server) switchModel(w http.ResponseWriter, r *http.Request) {
 	}
 	c, ok := s.withClient(w, r)
 	if !ok {
-		writeError(w, http.StatusServiceUnavailable, "opencode service not found")
 		return
 	}
 	var raw json.RawMessage
@@ -856,7 +879,6 @@ func (s *Server) switchAgent(w http.ResponseWriter, r *http.Request) {
 	}
 	c, ok := s.withClient(w, r)
 	if !ok {
-		writeError(w, http.StatusServiceUnavailable, "opencode service not found")
 		return
 	}
 	var raw json.RawMessage
@@ -901,7 +923,6 @@ type modelOut struct {
 func (s *Server) models(w http.ResponseWriter, r *http.Request) {
 	c, ok := s.withClient(w, r)
 	if !ok {
-		writeError(w, http.StatusServiceUnavailable, "opencode service not found")
 		return
 	}
 	var env struct {
@@ -938,7 +959,6 @@ type agentOut struct {
 func (s *Server) agents(w http.ResponseWriter, r *http.Request) {
 	c, ok := s.withClient(w, r)
 	if !ok {
-		writeError(w, http.StatusServiceUnavailable, "opencode service not found")
 		return
 	}
 	var env struct {
@@ -1052,7 +1072,6 @@ func (s *Server) upload(w http.ResponseWriter, r *http.Request) {
 	}
 	c, ok := s.withClient(w, r)
 	if !ok {
-		writeError(w, http.StatusServiceUnavailable, "opencode service not found")
 		return
 	}
 	path := filepath.Join(os.TempDir(), fmt.Sprintf("nit-gui-%d-%s", time.Now().UnixNano(), safeUploadName(name)))
@@ -1072,7 +1091,6 @@ func (s *Server) file(w http.ResponseWriter, r *http.Request) {
 	}
 	c, ok := s.withClient(w, r)
 	if !ok {
-		writeError(w, http.StatusServiceUnavailable, "opencode service not found")
 		return
 	}
 	body, err := c.ReadFile(r.Context(), path)
@@ -1108,7 +1126,6 @@ func (s *Server) forms(w http.ResponseWriter, r *http.Request) {
 	}
 	c, ok := s.withClient(w, r)
 	if !ok {
-		writeError(w, http.StatusServiceUnavailable, "opencode service not found")
 		return
 	}
 	var raw json.RawMessage
@@ -1135,7 +1152,6 @@ func (s *Server) replyForm(w http.ResponseWriter, r *http.Request) {
 	}
 	c, ok := s.withClient(w, r)
 	if !ok {
-		writeError(w, http.StatusServiceUnavailable, "opencode service not found")
 		return
 	}
 	path := "/api/session/" + url.PathEscape(id) + "/form/" + url.PathEscape(formID) + "/reply"
@@ -1155,7 +1171,6 @@ func (s *Server) cancelForm(w http.ResponseWriter, r *http.Request) {
 	}
 	c, ok := s.withClient(w, r)
 	if !ok {
-		writeError(w, http.StatusServiceUnavailable, "opencode service not found")
 		return
 	}
 	path := "/api/session/" + url.PathEscape(id) + "/form/" + url.PathEscape(formID)
@@ -1303,7 +1318,6 @@ func parseTranscription(out string) string {
 func (s *Server) config(w http.ResponseWriter, r *http.Request) {
 	c, ok := s.withClient(w, r)
 	if !ok {
-		writeError(w, http.StatusServiceUnavailable, "opencode service not found")
 		return
 	}
 	var loc struct {
@@ -1348,7 +1362,6 @@ func (s *Server) config(w http.ResponseWriter, r *http.Request) {
 func (s *Server) projects(w http.ResponseWriter, r *http.Request) {
 	c, ok := s.withClient(w, r)
 	if !ok {
-		writeError(w, http.StatusServiceUnavailable, "opencode service not found")
 		return
 	}
 	var raw json.RawMessage
@@ -1360,7 +1373,7 @@ func (s *Server) projects(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) uiState(w http.ResponseWriter, r *http.Request) {
-	state := s.ui.Snapshot()
+	state := s.ui.Snapshot(s.instanceName(r))
 	if state.Hidden == nil {
 		state.Hidden = []string{}
 	}
@@ -1398,7 +1411,7 @@ func (s *Server) setHidden(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	if err := s.ui.SetHidden(in.IDs, in.Hidden); err != nil {
+	if err := s.ui.SetHidden(s.instanceName(r), in.IDs, in.Hidden); err != nil {
 		s.log.Error("ui state save failed", "error", err)
 		writeError(w, http.StatusInternalServerError, "could not save ui state")
 		return
@@ -1412,7 +1425,7 @@ func (s *Server) getDraft(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid draft key")
 		return
 	}
-	draft := s.ui.Draft(key)
+	draft := s.ui.Draft(s.instanceName(r), key)
 	writeJSON(w, http.StatusOK, map[string]any{
 		"text":      draft.Text,
 		"updatedAt": draft.UpdatedAt,
@@ -1436,7 +1449,7 @@ func (s *Server) setDraft(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusRequestEntityTooLarge, "draft is too large")
 		return
 	}
-	draft, err := s.ui.SetDraft(in.Key, in.Text)
+	draft, err := s.ui.SetDraft(s.instanceName(r), in.Key, in.Text)
 	if err != nil {
 		s.log.Error("ui state save failed", "error", err)
 		writeError(w, http.StatusInternalServerError, "could not save ui state")
@@ -1460,7 +1473,7 @@ func (s *Server) setModel(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	if err := s.ui.SetModel(in.Model); err != nil {
+	if err := s.ui.SetModel(s.instanceName(r), in.Model); err != nil {
 		s.log.Error("ui state save failed", "error", err)
 		writeError(w, http.StatusInternalServerError, "could not save ui state")
 		return
@@ -1480,7 +1493,7 @@ func (s *Server) setAgent(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid agent")
 		return
 	}
-	if err := s.ui.SetAgent(in.Agent); err != nil {
+	if err := s.ui.SetAgent(s.instanceName(r), in.Agent); err != nil {
 		s.log.Error("ui state save failed", "error", err)
 		writeError(w, http.StatusInternalServerError, "could not save ui state")
 		return
@@ -1506,7 +1519,7 @@ func (s *Server) setSessionStatus(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid status")
 		return
 	}
-	if err := s.ui.SetStatus(id, status); err != nil {
+	if err := s.ui.SetStatus(s.instanceName(r), id, status); err != nil {
 		s.log.Error("ui state save failed", "error", err)
 		writeError(w, http.StatusInternalServerError, "could not save ui state")
 		return
@@ -1520,7 +1533,7 @@ func (s *Server) removeSessionState(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid session id")
 		return
 	}
-	if err := s.ui.Remove(id); err != nil {
+	if err := s.ui.Remove(s.instanceName(r), id); err != nil {
 		s.log.Error("ui state save failed", "error", err)
 		writeError(w, http.StatusInternalServerError, "could not save ui state")
 		return
@@ -1531,7 +1544,6 @@ func (s *Server) removeSessionState(w http.ResponseWriter, r *http.Request) {
 func (s *Server) events(w http.ResponseWriter, r *http.Request) {
 	c, ok := s.withClient(w, r)
 	if !ok {
-		writeError(w, http.StatusServiceUnavailable, "opencode service not found")
 		return
 	}
 	resp, err := c.Stream(r.Context(), "/api/event")
@@ -1599,7 +1611,7 @@ func (s *Server) staticFile(w http.ResponseWriter, r *http.Request) {
 	http.ServeFileFS(w, r, s.static, "index.html")
 }
 
-func (s *Server) upstreamError(w http.ResponseWriter, err error) {
+func (s *Server) upstreamError(w http.ResponseWriter, r *http.Request, err error) {
 	var he *opencode.HTTPError
 	if errors.As(err, &he) {
 		var body struct {
@@ -1617,7 +1629,7 @@ func (s *Server) upstreamError(w http.ResponseWriter, err error) {
 		writeError(w, http.StatusGatewayTimeout, "OpenCode service timed out")
 		return
 	}
-	s.provider.Drop()
+	s.drop(r)
 	writeError(w, http.StatusBadGateway, "OpenCode service unavailable")
 }
 

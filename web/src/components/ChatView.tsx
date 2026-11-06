@@ -16,7 +16,13 @@ import {
   Sparkles,
 } from "lucide-react";
 import type { Agent, Message, Model, Project, Session } from "../lib/types";
-import { EARLIER_THRESHOLD, needsEarlier } from "../lib/scroll";
+import {
+  anchorIndex,
+  BOTTOM_GAP,
+  EARLIER_THRESHOLD,
+  needsEarlier,
+  type ScrollAnchor,
+} from "../lib/scroll";
 import { cn } from "../lib/utils";
 import { Button } from "./ui/button";
 import { AssistantTurn } from "./AssistantTurn";
@@ -59,6 +65,15 @@ function ErrorBanner({ error, onRetry }: { error: string; onRetry: () => void })
       <span aria-hidden className="chrome-sheen-error-progress" />
     </div>
   );
+}
+
+function findRow(rows: HTMLDivElement | null, messageID: string): HTMLElement | null {
+  if (!rows) return null;
+  for (const row of rows.children) {
+    const element = row as HTMLElement;
+    if (element.dataset.messageId === messageID) return element;
+  }
+  return null;
 }
 
 export function ChatView({
@@ -116,10 +131,13 @@ export function ChatView({
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
+  const rowsRef = useRef<HTMLDivElement>(null);
   const stick = useRef(true);
   const scrollFrame = useRef<number | null>(null);
   const messagesRef = useRef(messages);
   messagesRef.current = messages;
+  const anchors = useRef(new Map<string, ScrollAnchor>());
+  const pendingRestore = useRef<string | null>(null);
   const earlierAnchor = useRef<{
     height: number;
     top: number;
@@ -156,6 +174,41 @@ export function ChatView({
     };
     void onLoadEarlier();
   }, [hasEarlier, loadingEarlier, onLoadEarlier, session?.id]);
+
+  const applyAnchor = useCallback((anchor: ScrollAnchor): boolean => {
+    const element = scrollRef.current;
+    const row = findRow(rowsRef.current, anchor.messageID);
+    if (!element || !row) return false;
+    element.scrollTop +=
+      row.getBoundingClientRect().top - element.getBoundingClientRect().top - anchor.offset;
+    return true;
+  }, []);
+
+  const saveAnchor = (sessionID: string, nearBottom: boolean) => {
+    const element = scrollRef.current;
+    if (!element) return;
+    if (nearBottom) {
+      anchors.current.set(sessionID, { messageID: "", offset: 0, bottom: true });
+      return;
+    }
+    const rows = rowsRef.current;
+    if (!rows) return;
+    const viewportTop = element.getBoundingClientRect().top;
+    const tops: number[] = [];
+    const bottoms: number[] = [];
+    for (const row of rows.children) {
+      const rect = row.getBoundingClientRect();
+      tops.push(rect.top);
+      bottoms.push(rect.bottom);
+    }
+    const index = anchorIndex(bottoms, viewportTop);
+    if (index < 0) return;
+    anchors.current.set(sessionID, {
+      messageID: (rows.children[index] as HTMLElement).dataset.messageId ?? "",
+      offset: tops[index] - viewportTop,
+      bottom: false,
+    });
+  };
 
   useEffect(
     () => () => {
@@ -194,10 +247,29 @@ export function ChatView({
     return () => document.removeEventListener("selectionchange", update);
   }, []);
 
-  useEffect(() => {
-    stick.current = true;
-    scheduleScroll();
+  useLayoutEffect(() => {
+    const id = session?.id ?? null;
+    pendingRestore.current = id;
+    if (id && loading) anchors.current.delete(id);
   }, [session?.id]);
+
+  useLayoutEffect(() => {
+    const id = session?.id ?? null;
+    const element = scrollRef.current;
+    if (!id || !element || loading || pendingRestore.current !== id) return;
+    pendingRestore.current = null;
+    if (scrollFrame.current !== null) {
+      cancelAnimationFrame(scrollFrame.current);
+      scrollFrame.current = null;
+    }
+    const anchor = anchors.current.get(id);
+    if (anchor && !anchor.bottom && anchor.messageID && applyAnchor(anchor)) {
+      stick.current = false;
+      setShowJump(true);
+      return;
+    }
+    scrollToBottom();
+  }, [applyAnchor, loading, scrollToBottom, session?.id]);
 
   useEffect(() => {
     if (stick.current) scheduleScroll();
@@ -270,32 +342,34 @@ export function ChatView({
           group.push(messages[index]);
         }
         items.push(
-          <AssistantTurn
-            key={`turn-${message.id}`}
-            messages={group}
-            models={models}
-            agents={agents}
-            workspace={workspace}
-            streaming={Boolean(running && index === messages.length - 1)}
-            onLoadMessage={onLoadMessage}
-          />,
+          <div key={`turn-${message.id}`} data-message-id={message.id}>
+            <AssistantTurn
+              messages={group}
+              models={models}
+              agents={agents}
+              workspace={workspace}
+              streaming={Boolean(running && index === messages.length - 1)}
+              onLoadMessage={onLoadMessage}
+            />
+          </div>,
         );
         continue;
       }
       items.push(
-        <MessageRow
-          key={message.id}
-          message={message}
-          models={models}
-          agents={agents}
-          running={running}
-          alwaysShowActions={message.id === lastUserID}
-          autoOpen={freshCompaction && message.id === lastCompactionId}
-          onRevert={onRevert}
-          onFork={onFork}
-          streaming={false}
-          onLoadMessage={onLoadMessage}
-        />,
+        <div key={message.id} data-message-id={message.id}>
+          <MessageRow
+            message={message}
+            models={models}
+            agents={agents}
+            running={running}
+            alwaysShowActions={message.id === lastUserID}
+            autoOpen={freshCompaction && message.id === lastCompactionId}
+            onRevert={onRevert}
+            onFork={onFork}
+            streaming={false}
+            onLoadMessage={onLoadMessage}
+          />
+        </div>,
       );
     }
     return items;
@@ -383,11 +457,12 @@ export function ChatView({
         onScroll={(event) => {
           const element = event.currentTarget;
           const nearBottom =
-            element.scrollHeight - element.scrollTop - element.clientHeight < 140;
+            element.scrollHeight - element.scrollTop - element.clientHeight < BOTTOM_GAP;
           stick.current = nearBottom;
           setShowJump(!nearBottom);
           setQuote(null);
           if (earlierAnchor.current) earlierAnchor.current.top = element.scrollTop;
+          if (session?.id) saveAnchor(session.id, nearBottom);
           if (needsEarlier(element.scrollTop, element.scrollHeight, element.clientHeight)) {
             requestEarlier();
           }
@@ -407,7 +482,7 @@ export function ChatView({
               </p>
             </div>
           ) : (
-            rows
+            <div ref={rowsRef}>{rows}</div>
           )}
 
           {compacting && !runningCompaction && <CompactionBusy />}

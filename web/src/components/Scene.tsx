@@ -7,6 +7,7 @@ const STILL_TIME = 6;
 const CURSOR_RADIUS = 150;
 const SPOTLIGHT_RADIUS = 290;
 const SPOTLIGHT_GAP = 26;
+const SPOTLIGHT_SPAN = 1280;
 const VARIANTS = ["spotlight", "magnetic", "split", "ripple", "diagonal"] as const;
 
 export type SceneVariant = (typeof VARIANTS)[number];
@@ -34,6 +35,7 @@ export function Scene({
     const reduced =
       still || window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     const pointer = { x: -9999, y: -9999 };
+    const pointerClient = { x: -9999, y: -9999 };
     const cursor = { x: 0, y: 0, power: 0 };
     let width = 0;
     let height = 0;
@@ -47,6 +49,9 @@ export function Scene({
     let blank = true;
     let lastBox: { x: number; y: number; w: number; h: number } | null = null;
     let seenPointer = false;
+    let originX = 0;
+    let originY = 0;
+    let hasOrigin = false;
 
     const readPalette = () => {
       const style = getComputedStyle(canvas);
@@ -197,7 +202,7 @@ export function Scene({
         const base = (index - 1) * SPOTLIGHT_GAP;
         context.beginPath();
         for (let x = from; x <= to; x += STEP) {
-          const y = wave(x, base, index, time, width);
+          const y = wave(x + originX, base, index, time, SPOTLIGHT_SPAN);
           if (x === from) context.moveTo(x, y);
           else context.lineTo(x, y);
         }
@@ -253,6 +258,17 @@ export function Scene({
       width = rect.width;
       height = rect.height;
       if (!width || !height) return;
+      if (hasOrigin) {
+        cursor.x -= rect.left - originX;
+        cursor.y -= rect.top - originY;
+      }
+      originX = rect.left;
+      originY = rect.top;
+      hasOrigin = true;
+      if (pointerClient.x > -9999) {
+        pointer.x = pointerClient.x - rect.left;
+        pointer.y = pointerClient.y - rect.top;
+      }
       const dpr = Math.min(window.devicePixelRatio || 1, chosen === "spotlight" ? 1.5 : 2);
       canvas.width = Math.round(width * dpr);
       canvas.height = Math.round(height * dpr);
@@ -305,6 +321,8 @@ export function Scene({
 
     const move = (event: MouseEvent) => {
       const rect = canvas.getBoundingClientRect();
+      pointerClient.x = event.clientX;
+      pointerClient.y = event.clientY;
       pointer.x = event.clientX - rect.left;
       pointer.y = event.clientY - rect.top;
       seenPointer = true;
@@ -328,6 +346,8 @@ export function Scene({
     const leave = () => {
       pointer.x = -9999;
       pointer.y = -9999;
+      pointerClient.x = -9999;
+      pointerClient.y = -9999;
       if (!still) return;
       cursor.power = 0;
       paint(STILL_TIME);

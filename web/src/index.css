@@ -23,6 +23,8 @@
   --input: oklch(0.9 0.006 250);
   --ring: oklch(0.55 0.02 260);
   --spark: oklch(0.62 0.16 45);
+  --attention: oklch(0.74 0.15 85);
+  --success: oklch(0.64 0.15 155);
   --radius: 0.625rem;
 }
 
@@ -47,6 +49,8 @@
   --input: oklch(0.3 0.01 260);
   --ring: oklch(0.65 0.02 255);
   --spark: oklch(0.78 0.14 55);
+  --attention: oklch(0.84 0.14 90);
+  --success: oklch(0.75 0.16 155);
 }
 
 @theme inline {
@@ -297,30 +301,65 @@
     display: none;
   }
 
-  .waiting-glow::after {
-    content: "";
-    position: absolute;
-    inset: 0;
-    border-radius: inherit;
-    pointer-events: none;
-    animation: waiting-glow 3.2s ease-in-out infinite;
+  .session-state {
+    --sweep: var(--attention);
+    background-image:
+      linear-gradient(
+        105deg,
+        transparent 10%,
+        color-mix(in oklab, var(--sweep) 26%, transparent) 36%,
+        color-mix(in oklab, var(--sweep) 8%, transparent) 52%,
+        color-mix(in oklab, var(--sweep) 28%, transparent) 68%,
+        transparent 90%
+      ),
+      radial-gradient(
+        130% 170% at 50% 120%,
+        color-mix(in oklab, var(--sweep) 18%, transparent),
+        transparent 70%
+      );
+    background-size: 220% 100%, 100% 100%;
+    background-repeat: no-repeat;
+    box-shadow: inset 0 0 18px color-mix(in oklab, var(--sweep) 12%, transparent);
+  }
+
+  .session-state-live {
+    animation:
+      session-sweep 3.2s cubic-bezier(0.45, 0, 0.25, 1) infinite,
+      session-breathe 3.2s ease-in-out infinite;
+  }
+
+  .session-waiting {
+    --sweep: var(--attention);
+  }
+
+  .session-failed {
+    --sweep: var(--destructive);
+  }
+
+  .session-done {
+    --sweep: var(--success);
   }
 
   .waiting-dot {
     animation: waiting-dot 3.2s ease-in-out infinite;
   }
 
-  @keyframes waiting-glow {
+  @keyframes session-sweep {
+    from {
+      background-position: 200% 0, 0 0;
+    }
+    to {
+      background-position: -100% 0, 0 0;
+    }
+  }
+
+  @keyframes session-breathe {
     0%,
     100% {
-      opacity: 0.55;
-      box-shadow: 0 0 0 1px color-mix(in oklab, var(--spark) 20%, transparent);
+      box-shadow: inset 0 0 14px color-mix(in oklab, var(--sweep) 8%, transparent);
     }
     50% {
-      opacity: 1;
-      box-shadow:
-        0 0 0 2px color-mix(in oklab, var(--spark) 40%, transparent),
-        0 0 16px 2px color-mix(in oklab, var(--spark) 18%, transparent);
+      box-shadow: inset 0 0 28px color-mix(in oklab, var(--sweep) 24%, transparent);
     }
   }
 
@@ -437,7 +476,7 @@
   }
 
   @media (prefers-reduced-motion: reduce) {
-    .waiting-glow::after,
+    .session-state-live,
     .waiting-dot,
     .compaction-enter .compaction-line,
     .compaction-enter .compaction-pill,

@@ -194,6 +194,11 @@ export default function App() {
   });
   const [forms, setForms] = useState<FormInfo[]>([]);
   const [backgroundWaitingIds, setBackgroundWaitingIds] = useState<Set<string>>(new Set());
+  const [failedIds, setFailedIds] = useState<Set<string>>(() => new Set());
+  const [doneIds, setDoneIds] = useState<Set<string>>(() => new Set());
+  const failedRef = useRef<Set<string>>(new Set());
+  const doneTimers = useRef(new Map<string, number>());
+  const [notifyOn, setNotifyOn] = useState(() => localStorage.getItem("nit-gui.notify") === "on");
   const [hiddenIds, setHiddenIds] = useState<Set<string>>(() => {
     try {
       const value = JSON.parse(localStorage.getItem("nit-gui.hidden") ?? "[]");
@@ -285,7 +290,38 @@ export default function App() {
     () => mergeWaitingSessionIds(selectedId, forms, backgroundWaitingIds),
     [backgroundWaitingIds, forms, selectedId],
   );
-  useAttention(waitingIds);
+  const flashDone = useCallback((id: string) => {
+    if (failedRef.current.has(id)) return;
+    setDoneIds((previous) => new Set(previous).add(id));
+    const timer = doneTimers.current.get(id);
+    if (timer !== undefined) window.clearTimeout(timer);
+    doneTimers.current.set(
+      id,
+      window.setTimeout(() => {
+        doneTimers.current.delete(id);
+        setDoneIds((previous) => {
+          if (!previous.has(id)) return previous;
+          const next = new Set(previous);
+          next.delete(id);
+          return next;
+        });
+      }, 8_000),
+    );
+  }, []);
+  const markFailed = useCallback((id: string) => {
+    failedRef.current.add(id);
+    setFailedIds(new Set(failedRef.current));
+    setDoneIds((previous) => {
+      if (!previous.has(id)) return previous;
+      const next = new Set(previous);
+      next.delete(id);
+      return next;
+    });
+  }, []);
+  const clearFailed = useCallback((id: string) => {
+    if (!failedRef.current.delete(id)) return;
+    setFailedIds(new Set(failedRef.current));
+  }, []);
   const runningNow = selectedId ? isRunning(selectedId) : false;
   const modelInfo =
     models.find(
@@ -670,6 +706,31 @@ export default function App() {
     setSidebarOpen(false);
     swipe.close();
   }, [saveCurrentTranscript, swipe.close]);
+
+  const notifications =
+    notifyOn && typeof Notification !== "undefined" && Notification.permission === "granted";
+
+  const toggleNotify = useCallback(async () => {
+    if (notifications) {
+      localStorage.setItem("nit-gui.notify", "off");
+      setNotifyOn(false);
+      return;
+    }
+    if (typeof Notification === "undefined" || !window.isSecureContext) {
+      setBanner("Desktop notifications need https:// or http://127.0.0.1");
+      return;
+    }
+    const permission =
+      Notification.permission === "granted" ? "granted" : await Notification.requestPermission();
+    if (permission !== "granted") {
+      setBanner("Notifications are blocked for this site");
+      return;
+    }
+    localStorage.setItem("nit-gui.notify", "on");
+    setNotifyOn(true);
+  }, [notifications]);
+
+  useAttention(waitingIds, { enabled: notifications, sessions, onOpen: selectSession });
 
   const selectWorkspace = useCallback((directory: string) => {
     saveCurrentTranscript();

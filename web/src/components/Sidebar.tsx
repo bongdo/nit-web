@@ -23,6 +23,8 @@ function SessionRow({
   active,
   running,
   waiting,
+  failed,
+  done,
   animated,
   hidden,
   now,
@@ -36,6 +38,8 @@ function SessionRow({
   active: boolean;
   running: boolean;
   waiting: boolean;
+  failed: boolean;
+  done: boolean;
   animated: boolean;
   hidden: boolean;
   now: number;
@@ -45,6 +49,7 @@ function SessionRow({
   onDelete: () => void;
 }) {
   const title = session.title?.trim() || (session.parentID ? "Subagent" : "New chat");
+  const state = waiting ? "session-waiting" : failed ? "session-failed" : done ? "session-done" : null;
   return (
     <div
       className="group relative"
@@ -61,8 +66,7 @@ function SessionRow({
           "flex w-full flex-col gap-1 rounded-lg px-2.5 py-2 text-left transition-colors",
           depth > 0 && "py-1.5",
           hidden && "opacity-60",
-          waiting && "relative ring-spark/30 ring-1",
-          waiting && animated && "waiting-glow",
+          state && cn("session-state", state, animated && "session-state-live"),
           active ? "bg-accent text-accent-foreground" : "hover:bg-accent/60",
         )}
       >
@@ -177,6 +181,8 @@ export const Sidebar = memo(function Sidebar({
   onToggleHidden,
   isRunning,
   waitingIds,
+  failedIds,
+  doneIds,
   motion,
 }: {
   sessions: Session[];
@@ -201,6 +207,8 @@ export const Sidebar = memo(function Sidebar({
   onToggleHidden: () => void;
   isRunning: (id: string) => boolean;
   waitingIds: Set<string>;
+  failedIds: Set<string>;
+  doneIds: Set<string>;
   motion: "animated" | "static";
 }) {
   const [now, setNow] = useState(Date.now());
@@ -350,6 +358,8 @@ export const Sidebar = memo(function Sidebar({
                 active={session.id === selectedId}
                 running={isRunning(session.id)}
                 waiting={waitingIds.has(session.id)}
+                failed={failedIds.has(session.id)}
+                done={doneIds.has(session.id)}
                 animated={animated}
                 hidden={hiddenIds.has(session.id)}
                 now={now}

@@ -204,3 +204,15 @@ Why: the steps block is closed by default, so its data should cost nothing until
 Rejected: keeping input previews (contradicts the request), loading the full transcript on panel open (wasteful), and per-row-only loading (the opened steps list would show bare verbs without targets).
 
 Cost: opening steps triggers one request per assistant message in the turn; a failed row can be retried by opening it.
+
+## 2026-11-06 — Questions are transcript input, not steps
+
+Context: the `question` tool was stripped like any other step, so answered questions disappeared from the transcript and pending questions existed only in the composer form.
+
+Decision: `question` tool parts pass through light mode unchanged, including input, answer content and metadata. A `QuestionCard` renders them outside the collapsed steps panel with the question, options, the chosen answer and a waiting state. Pending questions still use the composer form.
+
+Why: a question is the user's input, so it belongs with user messages and final answers rather than behind steps.
+
+Rejected: leaving questions in the steps panel (hidden), and rendering only the form (no answered-question history).
+
+Cost: question parts add a few KB to the light payload; they are never lazily loaded.

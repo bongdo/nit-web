@@ -92,12 +92,12 @@ export function mergeTail(existing: Message[], tail: Message[]): Message[] {
   return [...base, ...tail];
 }
 
-export function mergeTranscript(base: Message[], current: Message[]): Message[] {
-  const currentById = new Map(current.map((message) => [message.id, message]));
-  const baseIds = new Set(base.map((message) => message.id));
-  const merged = base.map((message) => currentById.get(message.id) ?? message);
-  const extra = current.filter((message) => !baseIds.has(message.id));
-  return extra.length > 0 ? [...merged, ...extra] : merged;
+export function mergeSnapshot(snapshot: Message[], current: Message[]): Message[] {
+  const ids = new Set(snapshot.map((message) => message.id));
+  const extra = current.filter(
+    (message) => !message.id.startsWith("local-") && !ids.has(message.id),
+  );
+  return extra.length > 0 ? [...snapshot, ...extra] : snapshot;
 }
 
 export function prependMessages(existing: Message[], older: Message[]): Message[] {

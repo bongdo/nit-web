@@ -5,9 +5,7 @@ import {
   ChevronDown,
   ChevronRight,
   Copy,
-  GitFork,
   Loader2,
-  Undo2,
 } from "lucide-react";
 import type { Agent, Message, Model, ReasoningPart, ToolPart } from "../lib/types";
 import { activityLine } from "../lib/activity";
@@ -38,9 +36,6 @@ type AssistantTurnProps = {
   agents: Agent[];
   workspace?: string | null;
   streaming: boolean;
-  actionsDisabled?: boolean;
-  onRevert: (message: Message) => void;
-  onFork: (message: Message) => void;
   onLoadMessage?: (messageID: string) => void | Promise<void>;
 };
 
@@ -50,14 +45,10 @@ export const AssistantTurn = memo(function AssistantTurn({
   agents,
   workspace,
   streaming,
-  actionsDisabled,
-  onRevert,
-  onFork,
   onLoadMessage,
 }: AssistantTurnProps) {
   const [open, setOpen] = useState(false);
   const wasStreaming = useRef(streaming);
-  const [fresh] = useState(streaming);
   const [copied, setCopied] = useState(false);
   const [loadingSteps, setLoadingSteps] = useState(false);
   const last = messages[messages.length - 1];
@@ -153,7 +144,6 @@ export const AssistantTurn = memo(function AssistantTurn({
 
   return (
     <div className="px-1 py-3">
-      {fresh && <span aria-hidden="true" className="row-sheen-turn-line mb-2" />}
       <div className="mb-1.5 flex min-w-0 items-center gap-2 text-xs">
         <span className="bg-secondary text-secondary-foreground flex size-6 items-center justify-center rounded-full">
           <Bot className="size-3.5" />
@@ -171,32 +161,6 @@ export const AssistantTurn = memo(function AssistantTurn({
             {copied ? <Check /> : <Copy />}
             <span>{copied ? "Copied" : "Copy"}</span>
           </Button>
-        )}
-        {last && (
-          <>
-            <Button
-              variant="ghost"
-              size="icon-xs"
-              className="text-muted-foreground shrink-0"
-              onClick={() => onRevert(last)}
-              disabled={actionsDisabled}
-              title="Revert to the prompt that produced this reply"
-              aria-label="Revert to the prompt"
-            >
-              <Undo2 />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon-xs"
-              className="text-muted-foreground shrink-0"
-              onClick={() => onFork(last)}
-              disabled={actionsDisabled}
-              title="Fork before this reply"
-              aria-label="Fork before this reply"
-            >
-              <GitFork />
-            </Button>
-          </>
         )}
         <span className="text-muted-foreground ml-auto shrink-0 text-[10px]">
           {streaming ? "running" : new Date(last?.time.created ?? Date.now()).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
@@ -305,12 +269,9 @@ export const AssistantTurn = memo(function AssistantTurn({
 function sameTurn(left: AssistantTurnProps, right: AssistantTurnProps): boolean {
   return (
     left.streaming === right.streaming &&
-    left.actionsDisabled === right.actionsDisabled &&
     left.workspace === right.workspace &&
     left.models === right.models &&
     left.agents === right.agents &&
-    left.onRevert === right.onRevert &&
-    left.onFork === right.onFork &&
     left.onLoadMessage === right.onLoadMessage &&
     sameMessages(left.messages, right.messages)
   );

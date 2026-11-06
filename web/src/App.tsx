@@ -21,8 +21,8 @@ import {
   normalizeMessages,
 } from "./lib/stream";
 import {
+  mergeSnapshot,
   mergeTail,
-  mergeTranscript,
   prependMessages,
   TranscriptCache,
 } from "./lib/transcripts";
@@ -442,7 +442,7 @@ export default function App() {
               const existing = transcriptCache.get(session.id);
               transcriptCache.set(session.id, {
                 messages: lightMessages(
-                  existing ? mergeTranscript(full, existing.messages) : full,
+                  existing ? mergeSnapshot(full, existing.messages) : full,
                 ),
                 previous: page.previous ?? null,
                 complete: page.previous === null,

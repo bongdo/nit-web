@@ -190,28 +190,6 @@ export const MessageRow = memo(function MessageRow({
             <span>{copied ? "Copied" : "Copy"}</span>
           </Button>
         )}
-        <Button
-          variant="ghost"
-          size="icon-xs"
-          className="text-muted-foreground shrink-0"
-          onClick={() => onRevert(message)}
-          disabled={actionsDisabled}
-          title="Revert to the prompt that produced this reply"
-          aria-label="Revert to the prompt"
-        >
-          <Undo2 />
-        </Button>
-        <Button
-          variant="ghost"
-          size="icon-xs"
-          className="text-muted-foreground shrink-0"
-          onClick={() => onFork(message)}
-          disabled={actionsDisabled}
-          title="Fork before this reply"
-          aria-label="Fork before this reply"
-        >
-          <GitFork />
-        </Button>
         <span className="text-muted-foreground ml-auto shrink-0 text-[10px]">
           {streaming ? "streaming" : timeLabel(message.time.created)}
         </span>

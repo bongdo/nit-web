@@ -274,9 +274,6 @@ export function ChatView({
             agents={agents}
             workspace={workspace}
             streaming={Boolean(running && index === messages.length - 1)}
-            actionsDisabled={running}
-            onRevert={onRevert}
-            onFork={onFork}
             onLoadMessage={onLoadMessage}
           />,
         );

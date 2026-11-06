@@ -207,6 +207,15 @@ describe("light transcripts", () => {
     expect(lightMessages([message])[0]).toBe(message);
   });
 
+  it("does not create an empty message from a step event", () => {
+    const step = event("session.step.started", { assistantMessageID: "msg_1" });
+    expect(lightenEvent(step, [])).toBeNull();
+    const cached = [
+      { id: "msg_1", type: "assistant", time: { created: 1 }, content: [] } as Message,
+    ];
+    expect(lightenEvent(step, cached)).toBe(step);
+  });
+
   it("drops tool events from the visible cache", () => {
     expect(
       lightenEvent(

@@ -42,6 +42,11 @@ function isQuestionEvent(
   return questionIDs?.has(id) === true || cachedQuestion(event, messages);
 }
 
+function hasMessage(event: StreamEvent, messages: Message[]): boolean {
+  const id = str((event.data ?? {}).assistantMessageID);
+  return Boolean(id) && messages.some((message) => message.id === id);
+}
+
 export function normalizeMessages(messages: Message[]): Message[] {
   return messages.map((message) => {
     if (message.type !== "assistant" || !message.content) return message;
@@ -99,6 +104,10 @@ export function lightenEvent(
     return { ...event, data: { ...data, name: "question" } };
   }
   switch (event.type) {
+    case "session.step.started":
+    case "session.step.ended":
+    case "session.step.failed":
+      return hasMessage(event, messages) ? event : null;
     case "session.reasoning.started":
     case "session.reasoning.delta":
     case "session.reasoning.ended":

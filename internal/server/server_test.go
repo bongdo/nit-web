@@ -675,6 +675,52 @@ func TestAllowsUppercaseLocalhost(t *testing.T) {
 	}
 }
 
+func TestAllowsConfiguredHost(t *testing.T) {
+	t.Setenv("NIT_GUI_ALLOWED_HOSTS", "public.example, 100.64.0.1")
+	upstream := httptest.NewServer(auth(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, `{"version":"2.2.5"}`)
+	}))
+	defer upstream.Close()
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "http://public.example:7792/api/health", nil)
+	newHandler(t, upstream.URL).ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200: %s", rec.Code, rec.Body)
+	}
+}
+
+func TestRejectsUnconfiguredHost(t *testing.T) {
+	upstream := httptest.NewServer(auth(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, `{}`)
+	}))
+	defer upstream.Close()
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "http://evil.example/api/health", nil)
+	newHandler(t, upstream.URL).ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("status = %d, want 403", rec.Code)
+	}
+}
+
+func TestConfiguredHostAllowsMatchingOrigin(t *testing.T) {
+	t.Setenv("NIT_GUI_ALLOWED_HOSTS", "public.example")
+	upstream := httptest.NewServer(auth(func(w http.ResponseWriter, r *http.Request) {}))
+	defer upstream.Close()
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "http://public.example:7792/api/unknown", nil)
+	req.Header.Set("Origin", "http://public.example:7792")
+	newHandler(t, upstream.URL).ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("status = %d, want 404", rec.Code)
+	}
+}
+
 func TestConfigDefaults(t *testing.T) {
 	upstream := httptest.NewServer(auth(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {

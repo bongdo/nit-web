@@ -13,6 +13,23 @@ source of truth for sessions, messages, models and agents.
 Open <http://127.0.0.1:7788>. `bin/run` installs frontend dependencies if
 needed, builds the web bundle when sources are newer, builds the Go binary and
 serves it on loopback.
+
+## Deploy
+
+```sh
+bin/nixos       # copy to nixos and restart 127.0.0.1:7791 there
+bin/frankfurt   # build here and expose through Caddy on :7792
+```
+
+`bin/nixos` is `bin/deploy nixos`. It cross-compiles for the remote architecture
+and restarts the binary in `~/Projects/nit-gui` on the `nixos` SSH host.
+
+`bin/frankfurt` builds locally, restarts the app on `127.0.0.1:7791`, and starts
+a user Caddy on `:7792` with basic auth. It reuses the first `basicauth` entry
+from `/etc/caddy/Caddyfile`; set `NIT_GUI_PUBLIC_PASSWORD` to use another
+password. The public port must be open in the OCI security list. The tailnet URL
+works without opening it.
+
 ```sh
 ./bin/check
 ```
@@ -88,6 +105,10 @@ rewritten to loopback. Credentials in a server URL are discarded.
 | `OPENCODE_SERVER` | Same, OpenCode-native name. |
 | `OPENCODE_URL` | Same, supported for parity with `nit`. |
 | `XDG_CONFIG_HOME` | Used to locate `opencode/service.json`. |
+| `NIT_GUI_ALLOWED_HOSTS` | Comma-separated extra `Host` names accepted behind a reverse proxy. Loopback is always accepted. |
+| `NIT_GUI_PUBLIC_PORT` | Public Caddy port for `bin/frankfurt`, default `7792`. |
+| `NIT_GUI_PUBLIC_HOST` | Public host printed by `bin/frankfurt`, default `92.5.143.242`. |
+| `NIT_GUI_PUBLIC_PASSWORD` | Password for `bin/frankfurt`; otherwise reuse `/etc/caddy/Caddyfile`. |
 | `--addr` | Listener address, default `127.0.0.1:7788`. |
 
 If the service is down, the GUI still starts and shows an offline screen with a
@@ -123,7 +144,9 @@ OpenCode's plural resource paths are singular (`/api/session`, `/api/model`,
 
 ## Security model
 
-- The listener is hard-coded to `127.0.0.1:7788`; there is no remote mode.
+- The Go listener stays on loopback. `bin/frankfurt` puts a separate user Caddy
+  with basic auth in front; it proxies only to `127.0.0.1:7791`. The app trusts a
+  `Host` name only when it is loopback or listed in `NIT_GUI_ALLOWED_HOSTS`.
 - The service password stays in the Go process and is not logged. OpenCode
   content can contain it because a tool can read `service.json`, so every
   pass-through JSON response from OpenCode and every SSE `data` payload is
@@ -235,8 +258,8 @@ The dictionary licenses are served from `web/public/licenses`.
 - Uploaded files live under `/tmp` on the OpenCode host. Nothing cleans them up.
 - No syntax highlighting in code blocks; copy and HTML preview are implemented.
 - The HTML preview is a fixed-height iframe, not a full-window renderer.
-- One browser origin only; there is no authentication in front of the GUI
-  because it is loopback-only.
+- The Go app has no authentication of its own. `bin/frankfurt` puts basic auth
+  in front of the public listener; any other remote exposure needs the same.
 
 ## Decisions
 

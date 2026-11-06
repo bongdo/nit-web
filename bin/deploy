@@ -28,19 +28,22 @@ deploy_nixos() {
   local host="${NIT_GUI_DEPLOY_HOST:-nixos}"
   local port="${NIT_GUI_DEPLOY_PORT:-7791}"
   local remote_dir="${NIT_GUI_DEPLOY_DIR:-Projects/nit-gui}"
-  local arch
-
-  case "$(ssh "$host" uname -m)" in
+  local arch remote_arch
+  remote_arch="$(ssh -o ConnectTimeout=10 "$host" uname -m)" || {
+    echo "deploy: cannot reach $host" >&2
+    return 1
+  }
+  case "$remote_arch" in
     x86_64) arch=amd64 ;;
     aarch64 | arm64) arch=arm64 ;;
     *)
-      echo "deploy: unsupported remote architecture" >&2
+      echo "deploy: unsupported remote architecture: $remote_arch" >&2
       return 1
       ;;
   esac
 
   CGO_ENABLED=0 GOOS=linux GOARCH="$arch" go build -trimpath -o "$tmp/nit-gui" .
-  scp -q "$tmp/nit-gui" "$host:$remote_dir/nit-gui.new"
+  scp -q -o ConnectTimeout=10 "$tmp/nit-gui" "$host:$remote_dir/nit-gui.new"
 
   ssh "$host" bash -s -- "$remote_dir" "$port" <<'REMOTE'
 set -euo pipefail
@@ -137,10 +140,7 @@ deploy_frankfurt() {
 	basicauth {
 		$auth_user $auth_hash
 	}
-	reverse_proxy 127.0.0.1:$port {
-		header_up Host 127.0.0.1:$port
-		header_up Origin http://127.0.0.1:$port
-	}
+	reverse_proxy 127.0.0.1:$port
 }
 EOF
 
@@ -170,13 +170,17 @@ EOF
   echo "deploy: open tcp/$public_port in the OCI security list for public access"
 }
 
+case "$target" in
+  nixos | frankfurt) ;;
+  *)
+    echo "usage: deploy [nixos|frankfurt]" >&2
+    exit 2
+    ;;
+esac
+
 npm --prefix web run build
 
 case "$target" in
   nixos) deploy_nixos ;;
   frankfurt) deploy_frankfurt ;;
-  *)
-    echo "usage: deploy [nixos|frankfurt]" >&2
-    exit 2
-    ;;
 esac

@@ -1,4 +1,5 @@
 export const SWIPE_SETTLE_MS = 140;
+export const SWIPE_TRIGGER_PX = 48;
 
 const SWIPE_TRAVEL_RATIO = 0.6;
 const OPEN_AT = 0.6;
@@ -23,4 +24,10 @@ export function settleSwipe(position: number, lastStep: number): boolean {
   if (position >= OPEN_AT) return true;
   if (position <= CLOSE_AT) return false;
   return lastStep > 0;
+}
+
+export function swipeIntent(travel: number): "open" | "close" | null {
+  if (travel <= -SWIPE_TRIGGER_PX) return "open";
+  if (travel >= SWIPE_TRIGGER_PX) return "close";
+  return null;
 }

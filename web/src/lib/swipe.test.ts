@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { advanceSwipe, horizontalScroll, settleSwipe } from "./swipe";
+import { advanceSwipe, horizontalScroll, settleSwipe, swipeIntent } from "./swipe";
 
 const wheel = (deltaX: number, deltaY = 0, overrides: Partial<WheelEvent> = {}) =>
   ({ deltaX, deltaY, deltaMode: 0, ctrlKey: false, ...overrides }) as WheelEvent;
@@ -39,5 +39,17 @@ describe("settleSwipe", () => {
   it("uses the last direction in the middle", () => {
     expect(settleSwipe(0.4, 0.01)).toBe(true);
     expect(settleSwipe(0.4, -0.01)).toBe(false);
+  });
+});
+
+describe("swipeIntent", () => {
+  it("turns a long enough swipe into one toggle", () => {
+    expect(swipeIntent(-48)).toBe("open");
+    expect(swipeIntent(48)).toBe("close");
+  });
+
+  it("ignores short drags", () => {
+    expect(swipeIntent(-20)).toBeNull();
+    expect(swipeIntent(0)).toBeNull();
   });
 });

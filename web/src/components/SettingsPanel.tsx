@@ -176,9 +176,9 @@ export function SettingsPanel({
                 onSidebar(event.target.value as "button" | "hover" | "swipe")
               }
             >
-              <option value="button">Button</option>
+              <option value="button">Button + swipe</option>
               <option value="hover">Hover at the left edge</option>
-              <option value="swipe">Swipe on the touchpad</option>
+              <option value="swipe">Swipe · follows fingers</option>
             </Select>
           </label>
 

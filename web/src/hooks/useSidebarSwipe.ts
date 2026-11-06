@@ -1,5 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { advanceSwipe, horizontalScroll, settleSwipe, SWIPE_SETTLE_MS } from "../lib/swipe";
+import {
+  advanceSwipe,
+  horizontalScroll,
+  settleSwipe,
+  swipeIntent,
+  SWIPE_SETTLE_MS,
+} from "../lib/swipe";
+
+export type SidebarSwipeMode = "off" | "follow" | "trigger";
 
 function isScrollableX(target: EventTarget | null, deltaX: number): boolean {
   let node = target instanceof Element ? target : null;
@@ -19,12 +27,16 @@ function isScrollableX(target: EventTarget | null, deltaX: number): boolean {
   return false;
 }
 
-export function useSidebarSwipe(enabled: boolean) {
+export function useSidebarSwipe(mode: SidebarSwipeMode, onTrigger: (open: boolean) => void) {
   const ref = useRef<HTMLElement | null>(null);
+  const [opened, setOpened] = useState(false);
   const position = useRef(0);
   const lastStep = useRef(0);
+  const travel = useRef(0);
+  const fired = useRef(false);
   const settleTimer = useRef<number | null>(null);
-  const [opened, setOpened] = useState(false);
+  const trigger = useRef(onTrigger);
+  trigger.current = onTrigger;
 
   const paint = useCallback((value: number, animate: boolean) => {
     const element = ref.current;
@@ -46,47 +58,64 @@ export function useSidebarSwipe(enabled: boolean) {
   );
 
   const open = useCallback(() => {
-    if (enabled) snap(1);
-  }, [enabled, snap]);
+    if (mode === "follow") snap(1);
+  }, [mode, snap]);
 
   const close = useCallback(() => {
-    if (enabled) snap(0);
-  }, [enabled, snap]);
+    if (mode === "follow") snap(0);
+  }, [mode, snap]);
 
   const toggle = useCallback(() => {
-    if (enabled) snap(position.current >= 0.5 ? 0 : 1);
-  }, [enabled, snap]);
+    if (mode === "follow") snap(position.current >= 0.5 ? 0 : 1);
+  }, [mode, snap]);
 
   useEffect(() => {
     const element = ref.current;
-    if (!enabled) {
+    position.current = 0;
+    lastStep.current = 0;
+    travel.current = 0;
+    fired.current = false;
+    setOpened(false);
+    element?.style.removeProperty("--sidebar-swipe");
+    element?.removeAttribute("data-dragging");
+
+    if (mode === "off") {
       if (settleTimer.current !== null) window.clearTimeout(settleTimer.current);
       settleTimer.current = null;
-      position.current = 0;
-      lastStep.current = 0;
-      setOpened(false);
-      element?.style.removeProperty("--sidebar-swipe");
-      element?.removeAttribute("data-dragging");
       return;
     }
 
-    paint(position.current, true);
+    if (mode === "follow") paint(0, true);
+
+    const settle = () => {
+      settleTimer.current = null;
+      if (mode === "follow") snap(settleSwipe(position.current, lastStep.current) ? 1 : 0);
+      lastStep.current = 0;
+      travel.current = 0;
+      fired.current = false;
+    };
 
     const onWheel = (event: WheelEvent) => {
       if (!window.matchMedia("(min-width: 48rem)").matches) return;
       const deltaX = horizontalScroll(event);
       if (deltaX === null || isScrollableX(event.target, deltaX)) return;
       event.preventDefault();
-      const width = element?.offsetWidth || 280;
-      const next = advanceSwipe(position.current, deltaX, width);
-      lastStep.current = next - position.current;
-      position.current = next;
-      paint(next, false);
+      if (mode === "follow") {
+        const width = element?.offsetWidth || 280;
+        const next = advanceSwipe(position.current, deltaX, width);
+        lastStep.current = next - position.current;
+        position.current = next;
+        paint(next, false);
+      } else if (!fired.current) {
+        travel.current += deltaX;
+        const intent = swipeIntent(travel.current);
+        if (intent) {
+          fired.current = true;
+          trigger.current(intent === "open");
+        }
+      }
       if (settleTimer.current !== null) window.clearTimeout(settleTimer.current);
-      settleTimer.current = window.setTimeout(() => {
-        settleTimer.current = null;
-        snap(settleSwipe(position.current, lastStep.current) ? 1 : 0);
-      }, SWIPE_SETTLE_MS);
+      settleTimer.current = window.setTimeout(settle, SWIPE_SETTLE_MS);
     };
 
     window.addEventListener("wheel", onWheel, { passive: false });
@@ -95,7 +124,7 @@ export function useSidebarSwipe(enabled: boolean) {
       if (settleTimer.current !== null) window.clearTimeout(settleTimer.current);
       settleTimer.current = null;
     };
-  }, [enabled, paint, snap]);
+  }, [mode, paint, snap]);
 
   return { ref, opened, open, close, toggle };
 }

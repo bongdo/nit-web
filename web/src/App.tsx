@@ -146,8 +146,15 @@ export default function App() {
     return stored === "hover" || stored === "swipe" ? stored : "button";
   });
   const [sidebarHovered, setSidebarHovered] = useState(false);
+  const setExpanded = useCallback((open: boolean) => {
+    setCollapsed(!open);
+    localStorage.setItem("nit-gui.collapsed", open ? "0" : "1");
+  }, []);
   const swipeMode = sidebarMode === "swipe";
-  const swipe = useSidebarSwipe(swipeMode);
+  const swipe = useSidebarSwipe(
+    swipeMode ? "follow" : sidebarMode === "button" ? "trigger" : "off",
+    setExpanded,
+  );
   const [dictationMode, setDictationMode] = useState<"fast" | "accurate">(() =>
     localStorage.getItem("nit-gui.dictation") === "accurate" ? "accurate" : "fast",
   );

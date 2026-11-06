@@ -42,7 +42,6 @@ function SessionRow({
   runningSubagents = 0,
   expanded = false,
   showDirectory = true,
-  enterIndex,
   onClick,
   onToggle,
   onHide,
@@ -63,7 +62,6 @@ function SessionRow({
   runningSubagents?: number;
   expanded?: boolean;
   showDirectory?: boolean;
-  enterIndex?: number;
   onClick: () => void;
   onToggle?: () => void;
   onHide: () => void;
@@ -94,16 +92,7 @@ function SessionRow({
     return () => window.clearTimeout(timer);
   }, [runningSubagents, animated]);
   return (
-    <div
-      data-session-row={session.id}
-      className={cn("group relative mx-1.5", enterIndex !== undefined && "sidebar-sheen-enter")}
-      style={{
-        animationDelay:
-          enterIndex !== undefined
-            ? `calc(var(--sidebar-sheen-step, 34ms) * ${enterIndex})`
-            : undefined,
-      }}
-    >
+    <div data-session-row={session.id} className="group relative mx-1.5">
       <button
         type="button"
         data-session-id={session.id}
@@ -381,38 +370,12 @@ export const Sidebar = memo(function Sidebar({
     })
     .join("|");
   const listRef = useRef<HTMLDivElement | null>(null);
-  const [activeLine, setActiveLine] = useState<number | null>(null);
   const positions = useRef(new Map<string, number>());
   const lastOrder = useRef("");
   const selectedSession = selectedId
     ? ([...sessions, ...subagents].find((session) => session.id === selectedId) ?? null)
     : null;
   const selectedRank = selectedSession ? rank(selectedSession) : null;
-
-  const lineTop = useRef<number | null>(null);
-  useLayoutEffect(() => {
-    const list = listRef.current;
-    const row =
-      list && selectedId
-        ? list.querySelector<HTMLElement>(`[data-session-id="${selectedId}"]`)
-        : null;
-    if (!list || !row) {
-      if (lineTop.current !== null) {
-        lineTop.current = null;
-        setActiveLine(null);
-      }
-      return;
-    }
-    let top = 0;
-    let element: HTMLElement | null = row;
-    while (element && element !== list) {
-      top += element.offsetTop;
-      element = element.offsetParent as HTMLElement | null;
-    }
-    if (lineTop.current === top) return;
-    lineTop.current = top;
-    setActiveLine(top);
-  });
 
   useLayoutEffect(() => {
     positions.current = new Map();
@@ -473,13 +436,7 @@ export const Sidebar = memo(function Sidebar({
           className="hover:bg-accent/60 -mx-1 min-w-0 flex-1 rounded-md px-1 py-0.5 text-left"
           title={workspace ?? "Choose a workspace"}
         >
-          <div
-            key={workspace ?? "none"}
-            className={cn(
-              "sidebar-sheen-workspace relative overflow-hidden rounded-sm",
-              animated && "sidebar-sheen-workspace-live",
-            )}
-          >
+          <div>
             <div className="truncate text-[13px] font-semibold leading-tight">
               {workspace ? basename(workspace) : "No workspace"}
             </div>
@@ -509,9 +466,7 @@ export const Sidebar = memo(function Sidebar({
       </div>
 
       <div className="px-3 pb-2">
-        <div
-          className={cn("sidebar-sheen-search relative", animated && "sidebar-sheen-search-live")}
-        >
+        <div className="relative">
           <Search className="text-muted-foreground pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2" />
           <Input
             ref={searchRef}
@@ -589,16 +544,6 @@ export const Sidebar = memo(function Sidebar({
         ref={listRef}
         className="scrollbar-thin relative min-h-0 flex-1 overflow-y-auto px-2 pb-2"
       >
-        {activeLine !== null && (
-          <span
-            aria-hidden
-            className={cn(
-              "sidebar-sheen-active-line",
-              animated && "sidebar-sheen-active-line-live",
-            )}
-            style={{ transform: `translateY(${activeLine}px)` }}
-          />
-        )}
         {loading && sessions.length === 0 ? (
           <div className="space-y-2 px-1 py-2">
             {[0, 1, 2, 3].map((item) => (
@@ -618,10 +563,7 @@ export const Sidebar = memo(function Sidebar({
                 : "No chats yet."}
           </div>
         ) : (
-          <div
-            key={workspace ?? "none"}
-            className={cn("relative space-y-0.5", animated && "sidebar-sheen-list")}
-          >
+          <div className="relative space-y-0.5">
             {visible.map(({ session, depth }, index) => {
               const children = childrenByParent.get(session.id) ?? [];
               const runningChildren = children.filter((child) => isRunning(child.id)).length;
@@ -649,7 +591,6 @@ export const Sidebar = memo(function Sidebar({
                     animated={animated}
                     hidden={hiddenIds.has(session.id)}
                     now={now}
-                    enterIndex={animated ? Math.min(index, 8) : undefined}
                     showDirectory={scope !== "directory"}
                     subagentCount={children.length}
                     runningSubagents={runningChildren}
@@ -668,7 +609,7 @@ export const Sidebar = memo(function Sidebar({
                     onDelete={() => onDelete(session.id)}
                   />
                   {open && (
-                    <div className="sidebar-sheen-unfold space-y-0.5">
+                    <div className="space-y-0.5">
                       {children.map((child, childIndex) => (
                         <SessionRow
                           key={child.id}
@@ -682,7 +623,6 @@ export const Sidebar = memo(function Sidebar({
                           animated={animated}
                           hidden={hiddenIds.has(child.id)}
                           now={now}
-                          enterIndex={animated ? Math.min(childIndex, 8) : undefined}
                           onClick={() => onSelect(child.id)}
                           onHide={() => onHide(child.id)}
                           onUnhide={() => onUnhide(child.id)}

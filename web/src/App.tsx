@@ -197,7 +197,6 @@ export default function App() {
   const [failedIds, setFailedIds] = useState<Set<string>>(() => new Set());
   const [doneIds, setDoneIds] = useState<Set<string>>(() => new Set());
   const failedRef = useRef<Set<string>>(new Set());
-  const doneTimers = useRef(new Map<string, number>());
   const [notifyOn, setNotifyOn] = useState(() => localStorage.getItem("nit-gui.notify") === "on");
   const [hiddenIds, setHiddenIds] = useState<Set<string>>(() => {
     try {
@@ -290,27 +289,11 @@ export default function App() {
     () => mergeWaitingSessionIds(selectedId, forms, backgroundWaitingIds),
     [backgroundWaitingIds, forms, selectedId],
   );
-  const flashDone = useCallback((id: string) => {
+  const markDone = useCallback((id: string) => {
     if (failedRef.current.has(id)) return;
-    setDoneIds((previous) => new Set(previous).add(id));
-    const timer = doneTimers.current.get(id);
-    if (timer !== undefined) window.clearTimeout(timer);
-    doneTimers.current.set(
-      id,
-      window.setTimeout(() => {
-        doneTimers.current.delete(id);
-        setDoneIds((previous) => {
-          if (!previous.has(id)) return previous;
-          const next = new Set(previous);
-          next.delete(id);
-          return next;
-        });
-      }, 8_000),
-    );
+    setDoneIds((previous) => (previous.has(id) ? previous : new Set(previous).add(id)));
   }, []);
-  const markFailed = useCallback((id: string) => {
-    failedRef.current.add(id);
-    setFailedIds(new Set(failedRef.current));
+  const clearDone = useCallback((id: string) => {
     setDoneIds((previous) => {
       if (!previous.has(id)) return previous;
       const next = new Set(previous);
@@ -318,6 +301,14 @@ export default function App() {
       return next;
     });
   }, []);
+  const markFailed = useCallback(
+    (id: string) => {
+      failedRef.current.add(id);
+      setFailedIds(new Set(failedRef.current));
+      clearDone(id);
+    },
+    [clearDone],
+  );
   const clearFailed = useCallback((id: string) => {
     if (!failedRef.current.delete(id)) return;
     setFailedIds(new Set(failedRef.current));
@@ -451,8 +442,10 @@ export default function App() {
   }, [forms, selectedId]);
 
   useEffect(() => {
-    if (selectedId) clearFailed(selectedId);
-  }, [clearFailed, selectedId]);
+    if (!selectedId) return;
+    clearFailed(selectedId);
+    clearDone(selectedId);
+  }, [clearDone, clearFailed, selectedId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -960,6 +953,7 @@ export default function App() {
         runningEventsAt.current[sessionID] = Date.now();
         setRunningIds((previous) => ({ ...previous, [sessionID]: true }));
         clearFailed(sessionID);
+        clearDone(sessionID);
       }
       if (
         event.type === "session.idle" ||
@@ -981,7 +975,7 @@ export default function App() {
         (event.type === "session.idle" || event.type === "session.execution.succeeded") &&
         !failedRef.current.has(sessionID)
       ) {
-        flashDone(sessionID);
+        markDone(sessionID);
       }
       if (event.type === "session.compaction.started") {
         markCompacting(sessionID);

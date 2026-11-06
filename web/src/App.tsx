@@ -709,6 +709,8 @@ export default function App() {
       setHistoryCursor(previous);
       setMessages((current) => prependMessages(current, older));
     } catch (error) {
+      historyCursorRef.current = null;
+      setHistoryCursor(null);
       setBanner(messageOf(error));
     } finally {
       loadingEarlierRef.current = false;

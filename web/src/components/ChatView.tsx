@@ -94,6 +94,8 @@ export function ChatView({
   const contentRef = useRef<HTMLDivElement>(null);
   const stick = useRef(true);
   const scrollFrame = useRef<number | null>(null);
+  const messagesRef = useRef(messages);
+  messagesRef.current = messages;
   const earlierAnchor = useRef<{
     height: number;
     top: number;
@@ -125,11 +127,11 @@ export function ChatView({
     earlierAnchor.current = {
       height: element.scrollHeight,
       top: element.scrollTop,
-      first: messages[0]?.id ?? "",
+      first: messagesRef.current[0]?.id ?? "",
       session: session?.id ?? "",
     };
     void onLoadEarlier();
-  }, [hasEarlier, loadingEarlier, messages, onLoadEarlier, session?.id]);
+  }, [hasEarlier, loadingEarlier, onLoadEarlier, session?.id]);
 
   useEffect(
     () => () => {
@@ -184,7 +186,7 @@ export function ChatView({
     if (element.scrollHeight <= element.clientHeight + EARLIER_THRESHOLD) {
       requestEarlier();
     }
-  }, [hasEarlier, loadingEarlier, messages, requestEarlier]);
+  }, [hasEarlier, loadingEarlier, requestEarlier, session?.id]);
 
   useLayoutEffect(() => {
     const anchor = earlierAnchor.current;

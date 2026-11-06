@@ -20,6 +20,7 @@ import { Button } from "./ui/button";
 import { CompactionRow } from "./Compaction";
 import { HtmlMessagePreview } from "./HtmlMessagePreview";
 import { Markdown } from "./Markdown";
+import { QuestionCard } from "./QuestionCard";
 import { Reasoning } from "./Reasoning";
 import { ToolCall } from "./ToolCall";
 
@@ -295,6 +296,9 @@ export const MessageRow = memo(function MessageRow({
                 onLoad={onLoad}
               />
             );
+          }
+          if (part.type === "tool" && part.name === "question") {
+            return <QuestionCard key={`question-${part.id}`} part={part} />;
           }
           if (part.type === "tool") {
             return <ToolCall key={`tool-${part.id}`} part={part} onLoad={onLoad} />;

@@ -18,6 +18,7 @@ import { modelLabel, replyText } from "../lib/format";
 import { Button } from "./ui/button";
 import { HtmlMessagePreview } from "./HtmlMessagePreview";
 import { Markdown } from "./Markdown";
+import { QuestionCard } from "./QuestionCard";
 import { Reasoning } from "./Reasoning";
 import { ToolCall } from "./ToolCall";
 
@@ -66,9 +67,12 @@ export const AssistantTurn = memo(function AssistantTurn({
     }
   }
   const content = messages.flatMap((message) => message.content ?? []);
+  const questionParts = content.filter(
+    (part): part is ToolPart => part.type === "tool" && part.name === "question",
+  );
   const activity = content.filter(
     (part): part is ReasoningPart | ToolPart =>
-      part.type === "tool" || part.type === "reasoning",
+      part.type === "reasoning" || (part.type === "tool" && part.name !== "question"),
   );
   const textParts = content.filter((part) => part.type === "text");
   const toolCount = activity.filter((part) => part.type === "tool").length;
@@ -176,6 +180,10 @@ export const AssistantTurn = memo(function AssistantTurn({
       </div>
 
       <div className="min-w-0 pl-8">
+        {questionParts.map((part) => (
+          <QuestionCard key={`question-${part.id}`} part={part} />
+        ))}
+
         {activity.length > 0 && (
           <div className="border-border bg-card/40 my-2 overflow-hidden rounded-lg border">
             <button

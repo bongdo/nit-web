@@ -35,6 +35,7 @@ export function lightMessages(messages: Message[]): Message[] {
         return { ...part, text: "", light: true };
       }
       if (part.type !== "tool") return part;
+      if (part.name === "question") return part;
       const hasContent = Boolean(part.state.content?.length);
       const hasInput = part.state.input !== undefined;
       const hasMetadata = part.state.metadata !== undefined;
@@ -57,6 +58,7 @@ export function lightMessages(messages: Message[]): Message[] {
 
 export function lightenEvent(event: StreamEvent): StreamEvent | null {
   const data = event.data ?? {};
+  if (str(data.name) === "question") return event;
   switch (event.type) {
     case "session.reasoning.delta":
     case "session.tool.input.delta":

@@ -600,6 +600,7 @@ func TestMessagesLight(t *testing.T) {
 			{"id":"m2","type":"assistant","time":{"created":2},"content":[
 				{"type":"reasoning","text":%q,"ordinal":0},
 				{"type":"tool","id":"t1","name":"read","state":{"status":"completed","input":{"filePath":"/tmp/a"},"content":[{"type":"text","text":"tool output"}],"metadata":{"lines":3}}},
+				{"type":"tool","id":"q1","name":"question","state":{"status":"completed","input":{"questions":[{"question":"Pick","options":[{"label":"A"}]}]},"content":[{"type":"text","text":"User answered: A"}],"metadata":{"answers":[["A"]]}}},
 				{"type":"text","text":%q,"ordinal":0}
 			]},
 			{"id":"m3","type":"compaction","time":{"created":3},"summary":"kept summary"}
@@ -638,7 +639,7 @@ func TestMessagesLight(t *testing.T) {
 		t.Fatalf("user or compaction changed: %s", rec.Body)
 	}
 	parts := body.Data[1].Content
-	if len(parts) != 3 {
+	if len(parts) != 4 {
 		t.Fatalf("parts = %d: %s", len(parts), rec.Body)
 	}
 	if parts[0].Type != "reasoning" || parts[0].Text != "" || !parts[0].Light {
@@ -655,8 +656,16 @@ func TestMessagesLight(t *testing.T) {
 	if parts[1].State["status"] != "completed" {
 		t.Fatalf("tool status lost: %+v", parts[1].State)
 	}
-	if parts[2].Type != "text" || len(parts[2].Text) != 300 {
-		t.Fatalf("answer changed: %+v", parts[2])
+	if parts[2].Type != "tool" || parts[2].Light {
+		t.Fatalf("question marked light: %+v", parts[2])
+	}
+	for _, key := range []string{"input", "content", "metadata"} {
+		if _, ok := parts[2].State[key]; !ok {
+			t.Fatalf("question lost %s: %+v", key, parts[2].State)
+		}
+	}
+	if parts[3].Type != "text" || len(parts[3].Text) != 300 {
+		t.Fatalf("answer changed: %+v", parts[3])
 	}
 }
 

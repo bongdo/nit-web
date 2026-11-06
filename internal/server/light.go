@@ -84,6 +84,9 @@ func lightenPart(raw []byte) (json.RawMessage, bool, error) {
 	if err := json.Unmarshal(raw, &part); err != nil {
 		return nil, false, err
 	}
+	if part.Name == "question" {
+		return raw, false, nil
+	}
 	part.Light = true
 	if kind.Type == "reasoning" {
 		empty := ""

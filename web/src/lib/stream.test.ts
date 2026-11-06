@@ -226,6 +226,35 @@ describe("light transcripts", () => {
     ).toBeNull();
   });
 
+  it("keeps question tools out of the lazy step path", () => {
+    const question = {
+      type: "tool",
+      id: "q1",
+      name: "question",
+      state: {
+        status: "completed",
+        input: { questions: [{ question: "Pick" }] },
+        content: [{ type: "text", text: "A" }],
+        metadata: { answers: [["A"]] },
+      },
+    } as ToolPart;
+    const messages: Message[] = [
+      { id: "m1", type: "assistant", time: { created: 1 }, content: [question] },
+    ];
+    expect(lightMessages(messages)[0].content?.[0]).toBe(question);
+    const next = lightenEvent(
+      event("session.tool.success", {
+        assistantMessageID: "msg_1",
+        id: "q1",
+        name: "question",
+        content: [{ type: "text", text: "A" }],
+        metadata: { answers: [["A"]] },
+      }),
+    );
+    expect(next?.data.content).toEqual([{ type: "text", text: "A" }]);
+    expect(next?.data.light).toBeUndefined();
+  });
+
   it("lists messages whose steps are still light", () => {
     const light = {
       id: "m1",

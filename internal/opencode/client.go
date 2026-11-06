@@ -109,38 +109,56 @@ func (c *Client) newRequest(ctx context.Context, method, path string, body any) 
 }
 
 func (c *Client) Do(ctx context.Context, method, path string, body, out any) error {
-	req, err := c.newRequest(ctx, method, path, body)
+	raw, err := c.doRaw(ctx, method, path, body, false)
 	if err != nil {
 		return err
-	}
-	resp, err := c.HTTP.Do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode == http.StatusUnauthorized && c.refreshPassword() {
-		req, err = c.newRequest(ctx, method, path, body)
-		if err != nil {
-			return err
-		}
-		resp.Body.Close()
-		resp, err = c.HTTP.Do(req)
-		if err != nil {
-			return err
-		}
-		defer resp.Body.Close()
-	}
-	raw, err := io.ReadAll(io.LimitReader(resp.Body, maxUpstreamBody))
-	if err != nil {
-		return err
-	}
-	if resp.StatusCode >= 400 {
-		return &HTTPError{Status: resp.StatusCode, Body: c.redact(raw)}
 	}
 	if out == nil || len(raw) == 0 {
 		return nil
 	}
 	return json.Unmarshal(raw, out)
+}
+
+func (c *Client) Raw(ctx context.Context, method, path string) ([]byte, error) {
+	return c.doRaw(ctx, method, path, nil, true)
+}
+
+func (c *Client) doRaw(ctx context.Context, method, path string, body any, identity bool) ([]byte, error) {
+	req, err := c.newRequest(ctx, method, path, body)
+	if err != nil {
+		return nil, err
+	}
+	if identity {
+		req.Header.Set("Accept-Encoding", "identity")
+	}
+	resp, err := c.HTTP.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode == http.StatusUnauthorized && c.refreshPassword() {
+		req, err = c.newRequest(ctx, method, path, body)
+		if err != nil {
+			return nil, err
+		}
+		if identity {
+			req.Header.Set("Accept-Encoding", "identity")
+		}
+		resp.Body.Close()
+		resp, err = c.HTTP.Do(req)
+		if err != nil {
+			return nil, err
+		}
+		defer resp.Body.Close()
+	}
+	raw, err := io.ReadAll(io.LimitReader(resp.Body, maxUpstreamBody))
+	if err != nil {
+		return nil, err
+	}
+	if resp.StatusCode >= 400 {
+		return nil, &HTTPError{Status: resp.StatusCode, Body: c.redact(raw)}
+	}
+	return raw, nil
 }
 
 func (c *Client) WriteFile(ctx context.Context, dir, path string, data []byte) (string, error) {

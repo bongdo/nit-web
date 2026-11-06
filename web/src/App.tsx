@@ -224,7 +224,7 @@ export default function App() {
   const formsOwnerRef = useRef<string | null>(null);
   const messagesRef = useRef(messages);
   messagesRef.current = messages;
-  const transcriptCache = useRef(new TranscriptCache());
+  const [transcriptCache] = useState(() => new TranscriptCache());
   const loadedIdRef = useRef<string | null>(null);
   const lastEpochRef = useRef(0);
 
@@ -524,7 +524,7 @@ export default function App() {
     }
     const force = lastEpochRef.current !== messageEpoch;
     lastEpochRef.current = messageEpoch;
-    const cached = transcriptCache.current.get(selectedId);
+    const cached = transcriptCache.get(selectedId);
     if (cached && !force) {
       setMessages(cached);
       setMessagesLoading(false);
@@ -538,7 +538,7 @@ export default function App() {
       .then((data) => {
         if (cancelled) return;
         const normalized = normalizeMessages(data);
-        transcriptCache.current.set(selectedId, normalized);
+        transcriptCache.set(selectedId, normalized);
         loadedIdRef.current = selectedId;
         setMessages(normalized);
         const session = sessionsRef.current.find((item) => item.id === selectedId);
@@ -564,6 +564,7 @@ export default function App() {
   useEffect(() => {
     if (!selectedId || sessionsLoading) return;
     if (!sessions.some((session) => session.id === selectedId)) {
+      transcriptCache.delete(selectedId);
       setSelectedIdState(null);
       localStorage.removeItem("nit-gui.session");
     }
@@ -579,9 +580,9 @@ export default function App() {
     const current = selectedIdRef.current;
     if (id !== current) {
       if (current && loadedIdRef.current === current) {
-        transcriptCache.current.set(current, messagesRef.current);
+        transcriptCache.set(current, messagesRef.current);
       }
-      const cached = id ? transcriptCache.current.get(id) : undefined;
+      const cached = id ? transcriptCache.get(id) : undefined;
       loadedIdRef.current = cached && id ? id : null;
       setMessages(cached ?? []);
       setMessagesLoading(Boolean(id) && !cached);
@@ -693,7 +694,7 @@ export default function App() {
       setBanner(null);
       try {
         await api.deleteSession(id);
-        transcriptCache.current.delete(id);
+        transcriptCache.delete(id);
         setSessions((current) => current.filter((item) => item.id !== id));
         setHiddenIds((current) => {
           if (!current.has(id)) return current;
@@ -702,7 +703,10 @@ export default function App() {
           saveHidden(next);
           return next;
         });
-        if (selectedIdRef.current === id) selectSession(null);
+        if (selectedIdRef.current === id) {
+          loadedIdRef.current = null;
+          selectSession(null);
+        }
         void loadSessions();
       } catch (error) {
         setBanner(messageOf(error));
@@ -725,6 +729,19 @@ export default function App() {
     if (!selectedIdRef.current) return;
     setMessageEpoch((value) => value + 1);
   }, []);
+
+  const openPicker = useCallback(() => setPickerOpen(true), []);
+  const closePicker = useCallback(() => setPickerOpen(false), []);
+  const openSettings = useCallback(() => setSettingsOpen(true), []);
+  const closeSettings = useCallback(() => setSettingsOpen(false), []);
+  const openSidebar = useCallback(() => setSidebarOpen(true), []);
+  const toggleHidden = useCallback(() => setShowHidden((value) => !value), []);
+  const clearComposerDraft = useCallback(() => setComposerDraft(null), []);
+  const clearComposerInsert = useCallback(() => setComposerInsert(null), []);
+  const finishForm = useCallback(() => {
+    setForms((current) => current.slice(1));
+    reloadSelected();
+  }, [reloadSelected]);
 
   const onEvent = (event: StreamEvent) => {
     const data = event.data ?? {};
@@ -783,12 +800,12 @@ export default function App() {
         reloadSelected();
       }
     } else if (sessionID && isMessageStreamEvent(event.type)) {
-      const cached = transcriptCache.current.get(sessionID);
-      if (cached) transcriptCache.current.set(sessionID, applyEvent(cached, event));
+      const cached = transcriptCache.get(sessionID);
+      if (cached) transcriptCache.set(sessionID, applyEvent(cached, event));
     }
 
     if (event.type === "session.deleted" && sessionID) {
-      transcriptCache.current.delete(sessionID);
+      transcriptCache.delete(sessionID);
     }
 
     if (
@@ -814,6 +831,7 @@ export default function App() {
       firstStreamOpen.current = false;
       return;
     }
+    transcriptCache.clear();
     void loadSessions();
     void loadChildren();
     void loadForms();
@@ -980,6 +998,17 @@ export default function App() {
     [previousUser, runningNow, selectSession, selectedSession],
   );
 
+  const revertRef = useRef(revertAt);
+  revertRef.current = revertAt;
+  const forkRef = useRef(forkAt);
+  forkRef.current = forkAt;
+  const revertMessage = useCallback((message: Message) => {
+    void revertRef.current(message);
+  }, []);
+  const forkMessage = useCallback((message: Message) => {
+    void forkRef.current(message);
+  }, []);
+
   const compactSession = useCallback(async () => {
     const id = selectedIdRef.current;
     if (!id) return;
@@ -1061,6 +1090,9 @@ export default function App() {
     },
     [compactSession, cycle, forkAt, lastUser, newChat, retryLast, revertLast],
   );
+  const runCommandRef = useRef(runCommand);
+  runCommandRef.current = runCommand;
+  const runCommandStable = useCallback((id: string) => runCommandRef.current(id), []);
 
   const cycleSessions = useMemo(
     () =>
@@ -1072,6 +1104,14 @@ export default function App() {
         waitingIds,
       ).map((row) => row.session),
     [agents, hiddenIds, scope, search, sessions, showHidden, waitingIds],
+  );
+  const hiddenCount = useMemo(
+    () => sessions.filter((session) => hiddenIds.has(session.id)).length,
+    [hiddenIds, sessions],
+  );
+  const visibleSessions = useMemo(
+    () => listedSessions(scopeSessions(sessions, scope, agents), hiddenIds, showHidden),
+    [agents, hiddenIds, scope, sessions, showHidden],
   );
 
   const quoteSelection = useCallback((text: string) => {
@@ -1148,18 +1188,8 @@ export default function App() {
   const offlineBanner = health && !health.ok ? "OpenCode service is offline." : null;
   const activeError = banner ?? offlineBanner;
   const running = selectedId ? isRunning(selectedId) : false;
-  const hiddenCount = sessions.filter((session) => hiddenIds.has(session.id)).length;
-  const visibleSessions = listedSessions(
-    scopeSessions(sessions, scope, agents),
-    hiddenIds,
-    showHidden,
-  );
   const hoverSidebar = sidebarMode === "hover";
   const questionForm = forms[0] && questionField(forms[0]) ? forms[0] : null;
-  const finishForm = () => {
-    setForms((current) => current.slice(1));
-    reloadSelected();
-  };
 
   return (
     <div className="flex h-full min-h-0 overflow-hidden">
@@ -1223,13 +1253,13 @@ export default function App() {
             showHidden={showHidden}
             onSearch={setSearch}
             onScope={changeScope}
-            onWorkspace={() => setPickerOpen(true)}
+            onWorkspace={openPicker}
             onSelect={selectSession}
             onNew={newChat}
             onHide={hideSession}
             onUnhide={unhideSession}
             onDelete={deleteSession}
-            onToggleHidden={() => setShowHidden((value) => !value)}
+            onToggleHidden={toggleHidden}
             isRunning={isRunning}
             waitingIds={waitingIds}
             motion={motion}
@@ -1265,10 +1295,10 @@ export default function App() {
           parent={parentSession}
           onOpenSubagent={openSubagent}
           onBack={backToParent}
-          onSettings={() => setSettingsOpen(true)}
+          onSettings={openSettings}
           onToggleSidebar={toggleSidebar}
           onTheme={cycle}
-          onMenu={() => setSidebarOpen(true)}
+          onMenu={openSidebar}
         />
 
         {activeError && (
@@ -1303,11 +1333,11 @@ export default function App() {
           motion={motion}
           background={background}
           onRetry={reloadSelected}
-          onRevert={(message) => void revertAt(message)}
-          onFork={(message) => void forkAt(message)}
+          onRevert={revertMessage}
+          onFork={forkMessage}
           onQuote={quoteSelection}
           onPickWorkspace={selectWorkspace}
-          onBrowseWorkspace={() => setPickerOpen(true)}
+          onBrowseWorkspace={openPicker}
         />
 
         <BottomDock>
@@ -1317,7 +1347,7 @@ export default function App() {
                 form={forms[0]}
                 sessionID={selectedSession.id}
                 onDone={finishForm}
-                onError={(message) => setBanner(message)}
+                onError={setBanner}
               />
             </div>
           )}
@@ -1342,12 +1372,12 @@ export default function App() {
               autofix={autofix}
               form={questionForm}
               onSend={send}
-              onStop={() => void stop()}
-              onCommand={runCommand}
-              onError={(message) => setBanner(message)}
+              onStop={stop}
+              onCommand={runCommandStable}
+              onError={setBanner}
               onFormDone={finishForm}
-              onDraftApplied={() => setComposerDraft(null)}
-              onInsertApplied={() => setComposerInsert(null)}
+              onDraftApplied={clearComposerDraft}
+              onInsertApplied={clearComposerInsert}
             />
           </div>
         </BottomDock>
@@ -1361,7 +1391,7 @@ export default function App() {
           motion={motion}
           variant={background}
           onPick={selectWorkspace}
-          onClose={() => setPickerOpen(false)}
+          onClose={closePicker}
         />
       )}
 
@@ -1407,7 +1437,7 @@ export default function App() {
             setBackground(value);
             localStorage.setItem("nit-gui.background", value);
           }}
-          onClose={() => setSettingsOpen(false)}
+          onClose={closeSettings}
         />
       )}
     </div>

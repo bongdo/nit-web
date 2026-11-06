@@ -17,12 +17,12 @@ describe("TranscriptCache", () => {
     expect(cache.get("ses_6")).toEqual(messages("msg_6"));
   });
 
-  it("refreshes recency on write", () => {
+  it("refreshes recency on read and write", () => {
     const cache = new TranscriptCache();
     for (let index = 1; index <= 5; index += 1) {
       cache.set(`ses_${index}`, messages(`msg_${index}`));
     }
-    cache.set("ses_1", messages("msg_1"));
+    cache.get("ses_1");
     cache.set("ses_6", messages("msg_6"));
     expect(cache.get("ses_2")).toBeUndefined();
     expect(cache.get("ses_1")).toBeDefined();

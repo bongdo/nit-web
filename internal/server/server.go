@@ -331,33 +331,64 @@ func (s *Server) messages(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	redactor := c.Redactor()
-	data := []json.RawMessage{}
+	pages := []json.RawMessage{}
 	cursor := ""
 	for page := 0; page < 20; page++ {
 		path := fmt.Sprintf("/api/session/%s/message?order=asc&limit=100", url.PathEscape(id))
 		if cursor != "" {
 			path = fmt.Sprintf("/api/session/%s/message?limit=100&cursor=%s", url.PathEscape(id), url.QueryEscape(cursor))
 		}
+		raw, err := c.Raw(r.Context(), http.MethodGet, path)
+		if err != nil {
+			s.upstreamError(w, err)
+			return
+		}
 		var env struct {
-			Data   []json.RawMessage `json:"data"`
+			Data   json.RawMessage `json:"data"`
 			Cursor struct {
 				Next *string `json:"next"`
 			} `json:"cursor"`
 		}
-		if err := c.Do(r.Context(), http.MethodGet, path, nil, &env); err != nil {
+		if err := json.Unmarshal(raw, &env); err != nil {
 			s.upstreamError(w, err)
 			return
 		}
-		for i, item := range env.Data {
-			env.Data[i] = redactor.JSON(item)
+		data := bytes.TrimSpace(env.Data)
+		if len(data) == 0 || bytes.Equal(data, []byte("null")) {
+			break
 		}
-		data = append(data, env.Data...)
-		if len(env.Data) == 0 || env.Cursor.Next == nil || *env.Cursor.Next == "" {
+		if data[0] != '[' {
+			writeError(w, http.StatusBadGateway, "OpenCode returned an invalid transcript")
+			return
+		}
+		pages = append(pages, redactor.JSON(data))
+		if env.Cursor.Next == nil || *env.Cursor.Next == "" {
 			break
 		}
 		cursor = *env.Cursor.Next
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"data": data})
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write([]byte(`{"data":[`))
+	wrote := false
+	for _, page := range pages {
+		body := bytes.TrimSpace(page)
+		if len(body) < 2 || body[0] != '[' || body[len(body)-1] != ']' {
+			continue
+		}
+		body = bytes.TrimSpace(body[1 : len(body)-1])
+		if len(body) == 0 {
+			continue
+		}
+		if wrote {
+			_, _ = w.Write([]byte(","))
+		}
+		wrote = true
+		if _, err := w.Write(body); err != nil {
+			return
+		}
+	}
+	_, _ = w.Write([]byte("]}"))
 }
 
 func (s *Server) children(w http.ResponseWriter, r *http.Request) {

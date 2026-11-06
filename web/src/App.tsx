@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { CircleAlert, Menu, Plus, RefreshCw, Settings, X } from "lucide-react";
+import { CircleAlert, Plus, RefreshCw, X } from "lucide-react";
 import { api } from "./lib/api";
 import type {
   Agent,
@@ -47,7 +47,6 @@ import {
   scopeSessions,
   type Scope,
 } from "./lib/sessions";
-import { themeLabel } from "./lib/themes";
 import { cn } from "./lib/utils";
 import { useAttention } from "./hooks/useAttention";
 import { useTheme } from "./hooks/useTheme";
@@ -56,7 +55,7 @@ import { useSidebarSwipe } from "./hooks/useSidebarSwipe";
 import { ChatView } from "./components/ChatView";
 import { VARIANTS, type SceneSetting } from "./components/Scene";
 import { Composer, type Attachment, type ComposerCommand } from "./components/Composer";
-import { Header, ThemeIcon } from "./components/Header";
+import { Header, SessionPill } from "./components/Header";
 import { SubagentMenu } from "./components/SubagentMenu";
 import { Sidebar } from "./components/Sidebar";
 import { WorkspacePicker } from "./components/WorkspacePicker";
@@ -229,6 +228,7 @@ export default function App() {
   const [booting, setBooting] = useState(true);
   const [search, setSearch] = useState("");
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const sheetPull = useRef<number | null>(null);
   const [preferredModel, setPreferredModel] = useState<ModelRef | null>(null);
   const [preferredAgent, setPreferredAgent] = useState<string | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
@@ -1784,6 +1784,10 @@ export default function App() {
             onUnhide={unhideSession}
             onDelete={deleteSession}
             onToggleHidden={toggleHidden}
+            onSettings={() => {
+              setSidebarOpen(false);
+              openSettings();
+            }}
             isRunning={isRunning}
             waitingIds={waitingIds}
             failedIds={failedIds}
@@ -1917,22 +1921,42 @@ export default function App() {
 
           <nav
             aria-label="Mobile navigation"
-            className="border-border bg-background/95 pointer-events-auto flex items-center justify-around border-t px-1 pb-[env(safe-area-inset-bottom)] md:hidden"
+            className="border-border bg-background/95 pointer-events-auto flex items-center gap-1.5 border-t px-2 pt-1 pb-[env(safe-area-inset-bottom)] md:hidden"
           >
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              className="size-11"
+            <button
+              type="button"
               onClick={openSidebar}
-              aria-label="Chats"
-              title="Chats"
+              onPointerDown={(event) => {
+                sheetPull.current = event.clientY;
+                event.currentTarget.setPointerCapture(event.pointerId);
+              }}
+              onPointerUp={(event) => {
+                const start = sheetPull.current;
+                sheetPull.current = null;
+                if (start !== null && start - event.clientY > 28) openSidebar();
+              }}
+              onPointerCancel={() => {
+                sheetPull.current = null;
+              }}
+              className="min-w-0 flex-1 touch-none text-left"
+              aria-label="Open chats"
             >
-              <Menu />
-            </Button>
+              <SessionPill
+                session={selectedSession}
+                directory={workspace}
+                models={models}
+                model={currentModel}
+                agent={currentAgent}
+                contextPercent={shownContext}
+                cost={shownCost}
+                estimatedCost={sessionCost === 0 && estimated > 0}
+                className="w-full"
+              />
+            </button>
             <Button
               variant="ghost"
               size="icon-sm"
-              className="size-11"
+              className="size-11 shrink-0"
               onClick={newChat}
               disabled={!health?.ok}
               aria-label="New chat"
@@ -1944,28 +1968,8 @@ export default function App() {
               sessions={subagents}
               onOpen={openSubagent}
               placement="up"
-              className="size-11"
+              className="size-11 shrink-0"
             />
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              className="size-11"
-              onClick={openSettings}
-              aria-label="Settings"
-              title="Settings"
-            >
-              <Settings />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              className="size-11"
-              onClick={openTheme}
-              aria-label={`Theme: ${themeLabel(theme)}`}
-              title={`Theme: ${themeLabel(theme)}`}
-            >
-              <ThemeIcon theme={theme} />
-            </Button>
           </nav>
         </BottomDock>
       </main>

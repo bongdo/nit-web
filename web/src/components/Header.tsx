@@ -202,8 +202,6 @@ export const Header = memo(function Header({
   onTheme: () => void;
   onNotify: () => void;
 }) {
-  const directory = session?.location?.directory ?? fallbackDirectory;
-  const title = session?.title?.trim() || (session ? "New chat" : "nit-gui");
   const live = streamStatus === "online" && health?.ok;
   const wasLive = useRef(Boolean(live));
   const booted = useRef(false);
@@ -218,8 +216,6 @@ export const Header = memo(function Header({
     if (live && !wasLive.current) setReconnected((count) => count + 1);
     wasLive.current = Boolean(live);
   }, [live]);
-
-  const pill = "border-border/60 bg-card/90 rounded-lg border shadow-sm backdrop-blur-2xl";
 
   return (
     <header className="pointer-events-none absolute inset-x-0 top-0 z-10 flex items-center gap-2 px-2.5 py-2">
@@ -236,30 +232,17 @@ export const Header = memo(function Header({
         </Button>
       )}
 
-      <div className={cn(pill, "pointer-events-auto min-w-0 max-w-2xl overflow-hidden px-3.5 py-1")}>
-        <h1 className="truncate text-[13px] font-semibold leading-tight">{title}</h1>
-        <div className="text-muted-foreground flex min-w-0 items-center gap-1 text-[10px] leading-tight">
-          <Folder className="size-3 shrink-0" />
-          <span className="truncate" title={directory ?? undefined}>
-            {directory ? basename(directory) : "no directory"}
-          </span>
-          {(agent || model) && (
-            <ModelChip label={`${agent ?? "agent"} · ${modelLabel(model, models) || "model"}`} />
-          )}
-          {contextPercent != null && (
-            <span className="flex shrink-0 items-center gap-1" title="Context used">
-              <span>· ctx {contextPercent}%</span>
-              <ContextMeter value={contextPercent} session={session?.id} />
-            </span>
-          )}
-          {(cost ?? 0) > 0 && (
-            <span className="shrink-0" title={estimatedCost ? "Estimated cost" : "Session cost"}>
-              · {estimatedCost ? "~" : ""}
-              {formatCost(cost)}
-            </span>
-          )}
-        </div>
-      </div>
+      <SessionPill
+        session={session}
+        directory={fallbackDirectory}
+        models={models}
+        model={model}
+        agent={agent}
+        contextPercent={contextPercent}
+        cost={cost}
+        estimatedCost={estimatedCost}
+        className="pointer-events-auto max-w-2xl max-md:hidden"
+      />
 
       <div className="pointer-events-auto ml-auto flex shrink-0 items-center gap-2">
         {parent && (

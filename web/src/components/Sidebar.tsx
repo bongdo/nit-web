@@ -18,6 +18,7 @@ import {
   MessageSquare,
   Plus,
   Search,
+  Settings,
   Trash2,
 } from "lucide-react";
 import type { Health, Session } from "../lib/types";
@@ -274,6 +275,7 @@ export const Sidebar = memo(function Sidebar({
   onUnhide,
   onDelete,
   onToggleHidden,
+  onSettings,
   isRunning,
   waitingIds,
   failedIds,
@@ -301,6 +303,7 @@ export const Sidebar = memo(function Sidebar({
   onUnhide: (id: string) => void;
   onDelete: (id: string) => void;
   onToggleHidden: () => void;
+  onSettings: () => void;
   isRunning: (id: string) => boolean;
   waitingIds: Set<string>;
   failedIds: Set<string>;
@@ -666,6 +669,18 @@ export const Sidebar = memo(function Sidebar({
         <span className={cn("font-mono", hiddenCount === 0 && "ml-auto")}>
           {sessions.length}
         </span>
+      </div>
+
+      <div className="border-border border-t p-1.5 md:hidden">
+        <Button
+          variant="ghost"
+          size="sm"
+          className="w-full justify-start"
+          onClick={onSettings}
+        >
+          <Settings />
+          Settings
+        </Button>
       </div>
     </div>
   );

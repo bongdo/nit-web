@@ -20,12 +20,13 @@ export function attachmentKind(file: { name?: string; mime?: string }): Attachme
 
 export function attachmentHref(file: UserFile): string | undefined {
   const uri = fileUri(file);
+  const inline = file.data && file.mime ? `data:${file.mime};base64,${file.data}` : undefined;
   if (uri) {
     if (/^(data|blob):/i.test(uri) || /^https?:/i.test(uri)) return uri;
+    if (/^file:/i.test(uri) && !uri.startsWith("file:///tmp/nit-gui-") && inline) return inline;
     return `/api/file?path=${encodeURIComponent(uri)}`;
   }
-  if (file.data && file.mime) return `data:${file.mime};base64,${file.data}`;
-  return undefined;
+  return inline;
 }
 
 export function attachmentWarning(

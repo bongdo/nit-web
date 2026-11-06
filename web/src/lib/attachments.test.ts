@@ -34,6 +34,16 @@ describe("attachments", () => {
     ).toBe("/api/file?path=file%3A%2F%2F%2Ftmp%2Fnit-gui-1-a.png");
   });
 
+  it("uses inline data when the source is outside the served upload root", () => {
+    expect(
+      attachmentHref({
+        data: "UEJEUg==",
+        mime: "application/pdf",
+        source: { uri: "file:///home/ubuntu/secret.pdf" },
+      }),
+    ).toBe("data:application/pdf;base64,UEJEUg==");
+  });
+
   it("warns when the model cannot read the attachment", () => {
     expect(attachmentWarning({ name: "a.pdf" }, model(["text", "image"]))).toContain("PDF");
     expect(attachmentWarning({ name: "a.png" }, model(["text"]))).toContain("images");

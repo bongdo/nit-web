@@ -1,7 +1,12 @@
 import { memo } from "react";
+import { CheckCheck } from "lucide-react";
 import type { ToolPart } from "../lib/types";
 import { questionRecords } from "../lib/questions";
 import { cn } from "../lib/utils";
+
+function timeLabel(ms: number): string {
+  return new Date(ms).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+}
 
 export const QuestionCard = memo(function QuestionCard({ part }: { part: ToolPart }) {
   const questions = questionRecords(part);
@@ -10,6 +15,7 @@ export const QuestionCard = memo(function QuestionCard({ part }: { part: ToolPar
   const answered = questions.some((question) => question.answers.length > 0);
   if (pending && !answered) return null;
   const complete = questions.every((question) => question.answers.length > 0);
+  const answeredAt = part.time?.completed ?? part.time?.ran ?? part.time?.created;
 
   return (
     <div className="my-3 space-y-3">
@@ -21,8 +27,18 @@ export const QuestionCard = memo(function QuestionCard({ part }: { part: ToolPar
           <div className="text-sm">{question.question}</div>
           {question.answers.length > 0 ? (
             <div className="flex justify-end">
-              <div className="bg-secondary max-w-[85%] rounded-2xl rounded-br-sm px-4 py-2.5 text-sm whitespace-pre-wrap">
-                {question.answers.join(", ")}
+              <div className="bg-secondary max-w-[85%] min-w-0 rounded-2xl rounded-br-sm px-3 py-2 text-sm shadow-sm">
+                <div className="border-primary/70 mb-1.5 border-l-2 pl-2">
+                  <div className="text-primary text-[11px] leading-4 font-medium">Assistant</div>
+                  <div className="text-muted-foreground line-clamp-2 text-xs leading-4">
+                    {question.question}
+                  </div>
+                </div>
+                <div className="whitespace-pre-wrap">{question.answers.join(", ")}</div>
+                <div className="text-muted-foreground mt-1 flex items-center justify-end gap-1 text-[10px] leading-none">
+                  {answeredAt ? <span>{timeLabel(answeredAt)}</span> : null}
+                  <CheckCheck className="size-3" />
+                </div>
               </div>
             </div>
           ) : (

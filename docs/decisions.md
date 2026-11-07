@@ -583,3 +583,23 @@ need), and clearing only the local mirror (the stale copy comes back).
 
 Cost: a failed upload after earlier files were uploaded can leave those earlier
 temporary files behind; sent files still need a separate cleanup story.
+
+## 2026-11-07 — Questions inline in the composer; answers as chat bubbles
+
+Context: multi-field question forms appeared as a separate card above the
+composer, and answered questions stayed a tool card inside the assistant turn.
+Both hid the conversational shape of the exchange.
+
+Decision: render every string question form inside the composer with `1/N`
+steps, `Next`/`Back` and a final `Answer`. After the reply, show the question as
+assistant text and each answer as a right-aligned bubble with a quoted question,
+time and double check. Non-string forms still use the form card.
+
+Why: the request and the reply read like a normal chat, while the composer keeps
+focus and draft behavior for the active answer.
+
+Rejected: a separate step card above the composer, and answers only inside the
+tool card.
+
+Cost: question forms with non-string fields keep the old card and do not get the
+step UI.

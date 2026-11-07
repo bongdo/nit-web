@@ -128,7 +128,7 @@ function SessionRow({
       />
       <div
         className={cn(
-          "pointer-events-none relative flex flex-col gap-1 px-2.5 py-2",
+          "pointer-events-none relative flex flex-col gap-1 px-2.5 py-2 pointer-coarse:pr-16 any-pointer-coarse:pr-16",
           depth > 0 && "pl-9",
         )}
       >
@@ -240,7 +240,7 @@ function SessionRow({
           </div>
         )}
       </div>
-      <div className="absolute top-1 right-1 hidden items-center gap-0.5 group-hover:flex">
+      <div className="absolute top-1 right-1 hidden items-center gap-0.5 group-hover:flex pointer-coarse:flex any-pointer-coarse:flex">
         {hidden ? (
           <Button
             variant="ghost"

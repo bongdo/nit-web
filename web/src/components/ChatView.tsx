@@ -20,7 +20,8 @@ import {
   anchorIndex,
   BOTTOM_GAP,
   EARLIER_THRESHOLD,
-  needsEarlier,
+  isAtTop,
+  shouldLoadEarlier,
   type ScrollAnchor,
 } from "../lib/scroll";
 import { cn } from "../lib/utils";
@@ -100,6 +101,7 @@ export function ChatView({
   onBrowseWorkspace,
   hasEarlier,
   loadingEarlier,
+  earlierFailed,
   onLoadEarlier,
   onLoadMessage,
 }: {
@@ -126,6 +128,7 @@ export function ChatView({
   onBrowseWorkspace: () => void;
   hasEarlier: boolean;
   loadingEarlier: boolean;
+  earlierFailed: boolean;
   onLoadEarlier: () => void | Promise<void>;
   onLoadMessage: (messageID: string) => void | Promise<void>;
 }) {
@@ -140,6 +143,7 @@ export function ChatView({
   const pendingRestore = useRef<string | null>(null);
   const settle = useRef<{ id: string; anchor: ScrollAnchor } | null>(null);
   const settleTop = useRef<number | null>(null);
+  const touchY = useRef<number | null>(null);
   const earlierAnchor = useRef<{
     height: number;
     top: number;
@@ -202,6 +206,24 @@ export function ChatView({
     };
     void onLoadEarlier();
   }, [hasEarlier, loadingEarlier, onLoadEarlier, session?.id]);
+
+  const pullEarlier = useCallback(() => {
+    const element = scrollRef.current;
+    if (!element || !isAtTop(element.scrollTop)) return;
+    if (
+      !shouldLoadEarlier({
+        scrollTop: element.scrollTop,
+        scrollHeight: element.scrollHeight,
+        clientHeight: element.clientHeight,
+        hasEarlier,
+        loading: loadingEarlier,
+        pull: true,
+      })
+    ) {
+      return;
+    }
+    requestEarlier();
+  }, [hasEarlier, loadingEarlier, requestEarlier]);
 
   const applyAnchor = useCallback((anchor: ScrollAnchor): boolean => {
     const element = scrollRef.current;

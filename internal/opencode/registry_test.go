@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 )
@@ -267,5 +268,120 @@ func TestFreePort(t *testing.T) {
 	}
 	if port <= 0 || port > 65535 {
 		t.Fatalf("freePort = %d", port)
+	}
+}
+
+func TestRegistryReplaceWritesAndReloads(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "instances.json")
+	t.Setenv("NIT_GUI_INSTANCES", path)
+	r := NewRegistry()
+	defer r.Close()
+
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/info" {
+			t.Errorf("unexpected path %s", r.URL.Path)
+		}
+		if user, pass, ok := r.BasicAuth(); !ok || user != "opencode" || pass != "pw" {
+			t.Errorf("unexpected auth %q %q %v", user, pass, ok)
+		}
+		_, _ = io.WriteString(w, `{"version":"9.9.9"}`)
+	}))
+	defer upstream.Close()
+
+	if err := r.Replace([]InstanceSpec{
+		{Name: "frankfurt", URL: "auto"},
+		{Name: "office", URL: upstream.URL, PasswordFile: filepath.Join(dir, "office.password")},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := r.ClientFor(context.Background(), "office"); err == nil {
+		t.Fatal("missing password file should fail the connection")
+	}
+
+	pw := filepath.Join(dir, "office.password")
+	if err := os.WriteFile(pw, []byte("pw\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.Replace([]InstanceSpec{
+		{Name: "frankfurt", URL: "auto"},
+		{Name: "office", URL: upstream.URL, PasswordFile: pw, Dir: "/srv/projects"},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if got := r.DefaultInstance(); got != "frankfurt" {
+		t.Fatalf("DefaultInstance() = %q", got)
+	}
+	specs := r.Instances()
+	if len(specs) != 2 || specs[0].Name != "frankfurt" || specs[1].Name != "office" {
+		t.Fatalf("Instances() = %+v", specs)
+	}
+	if !r.HasInstance("office") || r.Transport("office") != "url" {
+		t.Fatalf("office not loaded: %+v", specs)
+	}
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info.Mode().Perm() != 0o600 {
+		t.Fatalf("config mode = %o, want 600", info.Mode().Perm())
+	}
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(raw), `"name": "office"`) || strings.Contains(string(raw), "pw\n") {
+		t.Fatalf("unexpected config: %s", raw)
+	}
+	client, err := r.ClientFor(context.Background(), "office")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var out struct {
+		Version string `json:"version"`
+	}
+	if err := client.Do(context.Background(), http.MethodGet, "/api/info", nil, &out); err != nil {
+		t.Fatal(err)
+	}
+	if out.Version != "9.9.9" {
+		t.Fatalf("version = %q", out.Version)
+	}
+}
+
+func TestRegistryReplaceValidation(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "instances.json")
+	t.Setenv("NIT_GUI_INSTANCES", path)
+	r := NewRegistry()
+	defer r.Close()
+	cases := [][]InstanceSpec{
+		nil,
+		{{Name: "bad name"}},
+		{{Name: "a"}, {Name: "a"}},
+		{{Name: "a", Dir: "relative"}},
+		{{Name: "a", URL: "http://x", SSH: "host"}},
+	}
+	for _, specs := range cases {
+		if err := r.Replace(specs); err == nil {
+			t.Fatalf("Replace(%+v) succeeded", specs)
+		}
+	}
+	if _, err := os.Stat(path); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("invalid Replace wrote config: %v", err)
+	}
+}
+
+func TestRegistryReloadInvalidKeepsOld(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "instances.json")
+	t.Setenv("NIT_GUI_INSTANCES", path)
+	r := NewRegistry()
+	defer r.Close()
+	if err := os.WriteFile(path, []byte(`{"instances":[{"name":"bad name"}]}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.Reload(); err == nil {
+		t.Fatal("Reload accepted invalid config")
+	}
+	if got := r.DefaultInstance(); got != "local" {
+		t.Fatalf("DefaultInstance() = %q after failed reload", got)
 	}
 }

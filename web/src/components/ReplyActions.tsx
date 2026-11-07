@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Check, Copy, Volume2 } from "lucide-react";
+import { api } from "../lib/api";
 import { copyText } from "../lib/clipboard";
 import { cn } from "../lib/utils";
 import { Button } from "./ui/button";
@@ -15,17 +16,23 @@ export function ReplyActions({
 }) {
   const [copied, setCopied] = useState(false);
   const [speaking, setSpeaking] = useState(false);
+  const [unavailable, setUnavailable] = useState(false);
   const timer = useRef<number | null>(null);
   const owner = useRef(Symbol("reply"));
+  const generation = useRef(0);
   const supported = typeof window !== "undefined" && "speechSynthesis" in window;
 
   useEffect(() => {
     const onSpeak = (event: Event) => {
-      if ((event as CustomEvent).detail !== owner.current) setSpeaking(false);
+      if ((event as CustomEvent).detail !== owner.current) {
+        generation.current += 1;
+        setSpeaking(false);
+      }
     };
     window.addEventListener("nit-gui:speech", onSpeak);
     return () => {
       window.removeEventListener("nit-gui:speech", onSpeak);
+      generation.current += 1;
       if (timer.current !== null) window.clearTimeout(timer.current);
       if (supported) window.speechSynthesis.cancel();
     };
@@ -38,21 +45,48 @@ export function ReplyActions({
     timer.current = window.setTimeout(() => setCopied(false), 1500);
   };
 
-  const speak = () => {
-    if (!supported) return;
-    if (speaking) {
-      window.speechSynthesis.cancel();
-      setSpeaking(false);
+  const stop = () => {
+    void api.ttsStop().catch(() => {});
+    if (supported) window.speechSynthesis.cancel();
+    if (timer.current !== null) window.clearTimeout(timer.current);
+    timer.current = null;
+    setSpeaking(false);
+  };
+
+  const speakBrowser = (): void => {
+    if (!supported) {
+      setUnavailable(true);
       return;
     }
     window.speechSynthesis.cancel();
-    window.dispatchEvent(new CustomEvent("nit-gui:speech", { detail: owner.current }));
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.lang = /[А-Яа-яЁё]/.test(text) ? "ru-RU" : "en-US";
     utterance.onend = () => setSpeaking(false);
     utterance.onerror = () => setSpeaking(false);
     window.speechSynthesis.speak(utterance);
     setSpeaking(true);
+  };
+
+  const speak = async (): Promise<void> => {
+    if (speaking) {
+      stop();
+      return;
+    }
+    const gen = ++generation.current;
+    window.dispatchEvent(new CustomEvent("nit-gui:speech", { detail: owner.current }));
+    try {
+      await api.tts(text);
+      if (gen !== generation.current) return;
+      if (timer.current !== null) window.clearTimeout(timer.current);
+      timer.current = window.setTimeout(
+        () => setSpeaking(false),
+        Math.min(180_000, Math.max(4_000, text.length * 55)),
+      );
+      setSpeaking(true);
+    } catch {
+      if (gen !== generation.current) return;
+      speakBrowser();
+    }
   };
 
   return (
@@ -67,12 +101,12 @@ export function ReplyActions({
         {copied ? <Check /> : <Copy />}
         <span>{copied ? "Copied" : "Copy"}</span>
       </Button>
-      {supported && (
+      {!unavailable && (
         <Button
           variant="ghost"
           size="xs"
           className="text-muted-foreground"
-          onClick={speak}
+          onClick={() => void speak()}
           aria-label={speaking ? "Stop reading" : "Read aloud"}
           title={speaking ? "Stop reading" : "Read aloud"}
         >

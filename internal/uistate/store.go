@@ -240,6 +240,31 @@ func (s *Store) SetAgent(instance, agent string) error {
 	return s.saveLocked()
 }
 
+func (s *Store) Has(instance string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	_, ok := s.state.Instances[instance]
+	return ok
+}
+
+func (s *Store) Rename(old, next string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if old == next {
+		return nil
+	}
+	state, ok := s.state.Instances[old]
+	if !ok {
+		return nil
+	}
+	if _, exists := s.state.Instances[next]; exists {
+		return errors.New("ui state already exists for the new instance name")
+	}
+	delete(s.state.Instances, old)
+	s.state.Instances[next] = state
+	return s.saveLocked()
+}
+
 func (s *Store) Remove(instance, id string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()

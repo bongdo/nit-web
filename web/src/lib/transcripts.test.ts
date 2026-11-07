@@ -126,4 +126,9 @@ describe("transcript merging", () => {
       "m4",
     ]);
   });
+
+  it("does not grow when every older message is already loaded", () => {
+    const existing = [{ id: "m1" }, { id: "m2" }] as Message[];
+    expect(prependMessages(existing, existing)).toHaveLength(existing.length);
+  });
 });

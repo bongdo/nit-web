@@ -435,3 +435,15 @@ device speech as host TTS.
 Cost: speech quality and voice availability depend on the device; a browser
 without a voice gets no speech. This supersedes the TTS clause of the
 2026-11-06 Frankfurt-only decision.
+
+## 2026-11-07 — Earlier pages load at the top and keep loading there
+
+Context: earlier-page loading was driven only by scroll events. At `scrollTop = 0` a new event never fires, so the user hit the ceiling and had to scroll down and up to trigger the next page.
+
+Decision: `shouldLoadEarlier` treats the exact top (and negative overscroll) as a load trigger. After a page lands while the viewport is still at or near the top, the effect keeps loading until the viewport is pushed past the threshold or there are no earlier pages. Wheel, touch and keyboard gestures at the top also request a page, which gives a retry after a failure. A failed earlier request keeps the cursor and shows the error instead of disabling the cursor; a stale request is ignored by session and request tokens.
+
+Why: the top is the only place where scroll events cannot express intent, so it needs an explicit trigger and a continuation rule.
+
+Rejected: requiring a scroll-down before retrying, and clearing the cursor on every earlier-page error.
+
+Cost: staying at the top loads the remaining history in a chain; the loading pill stays visible while it runs.

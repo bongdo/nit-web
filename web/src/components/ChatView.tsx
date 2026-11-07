@@ -196,7 +196,7 @@ export function ChatView({
 
   const requestEarlier = useCallback(() => {
     const element = scrollRef.current;
-    if (!element || !hasEarlier || loadingEarlier) return;
+    if (!element || !hasEarlier || loadingEarlier || loading) return;
     earlierAnchor.current = {
       height: element.scrollHeight,
       top: element.scrollTop,
@@ -204,7 +204,7 @@ export function ChatView({
       session: session?.id ?? "",
     };
     void onLoadEarlier();
-  }, [hasEarlier, loadingEarlier, onLoadEarlier, session?.id]);
+  }, [hasEarlier, loading, loadingEarlier, onLoadEarlier, session?.id]);
 
   const pullEarlier = useCallback(() => {
     const element = scrollRef.current;
@@ -391,7 +391,7 @@ export function ChatView({
   }, [messages, running, scheduleScroll]);
 
   useEffect(() => {
-    if (!hasEarlier || loadingEarlier || earlierFailed) return;
+    if (loading || !hasEarlier || loadingEarlier || earlierFailed) return;
     const element = scrollRef.current;
     if (!element) return;
     if (
@@ -405,7 +405,7 @@ export function ChatView({
     ) {
       requestEarlier();
     }
-  }, [earlierFailed, hasEarlier, loadingEarlier, requestEarlier, session?.id]);
+  }, [earlierFailed, hasEarlier, loading, loadingEarlier, requestEarlier, session?.id]);
 
   useLayoutEffect(() => {
     const anchor = earlierAnchor.current;

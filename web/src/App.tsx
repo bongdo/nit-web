@@ -986,7 +986,7 @@ export default function App({
       const previous = page.previous ?? null;
       const current = messagesRef.current;
       const next = prependMessages(current, older);
-      if (older.length === 0 || next.length === current.length) {
+      if (older.length === 0 || next.length === current.length || previous === cursor) {
         earlierFailedRef.current = false;
         setEarlierFailed(false);
         historyCursorRef.current = null;
@@ -1160,6 +1160,11 @@ export default function App({
 
   const reloadSelected = useCallback(() => {
     if (!selectedIdRef.current) return;
+    earlierRequest.current += 1;
+    earlierFailedRef.current = false;
+    setEarlierFailed(false);
+    loadingEarlierRef.current = false;
+    setLoadingEarlier(false);
     setMessageEpoch((value) => value + 1);
   }, []);
 

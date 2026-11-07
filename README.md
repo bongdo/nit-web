@@ -57,9 +57,11 @@ workspaces, models, agents and the event stream. The menu header shows
 `This app: nit-gui @ <host>` separately, so the app and the instance are not
 confused.
 
-Open the menu from the instance chip in the header, `/instances`, or Settings →
-Instances. Each row shows the transport (`local`, `url`, `ssh`), the OpenCode
-version and the state. The detail panel has three layers and a capability row:
+Open the menu from the network icon in the sidebar footer, `/instances`, or
+Settings → Instances. The icon already carries the live/offline state; clicking
+it is the instance picker. Each row shows the transport (`local`, `url`, `ssh`),
+the OpenCode version and the state. The detail panel has three layers and a
+capability row:
 
 ```
 Browser      UI · microphone · audio · spelling (this device)

@@ -17,7 +17,8 @@ export function ReplyActions({
   const [copied, setCopied] = useState(false);
   const [speaking, setSpeaking] = useState(false);
   const [unavailable, setUnavailable] = useState(false);
-  const timer = useRef<number | null>(null);
+  const copyTimer = useRef<number | null>(null);
+  const speechTimer = useRef<number | null>(null);
   const owner = useRef(Symbol("reply"));
   const generation = useRef(0);
   const supported = typeof window !== "undefined" && "speechSynthesis" in window;
@@ -33,7 +34,8 @@ export function ReplyActions({
     return () => {
       window.removeEventListener("nit-gui:speech", onSpeak);
       generation.current += 1;
-      if (timer.current !== null) window.clearTimeout(timer.current);
+      if (copyTimer.current !== null) window.clearTimeout(copyTimer.current);
+      if (speechTimer.current !== null) window.clearTimeout(speechTimer.current);
       if (supported) window.speechSynthesis.cancel();
     };
   }, [supported]);
@@ -41,15 +43,15 @@ export function ReplyActions({
   const copy = async () => {
     if (!(await copyText(text))) return;
     setCopied(true);
-    if (timer.current !== null) window.clearTimeout(timer.current);
-    timer.current = window.setTimeout(() => setCopied(false), 1500);
+    if (copyTimer.current !== null) window.clearTimeout(copyTimer.current);
+    copyTimer.current = window.setTimeout(() => setCopied(false), 1500);
   };
 
   const stop = () => {
     void api.ttsStop().catch(() => {});
     if (supported) window.speechSynthesis.cancel();
-    if (timer.current !== null) window.clearTimeout(timer.current);
-    timer.current = null;
+    if (speechTimer.current !== null) window.clearTimeout(speechTimer.current);
+    speechTimer.current = null;
     setSpeaking(false);
   };
 
@@ -77,8 +79,8 @@ export function ReplyActions({
     try {
       await api.tts(text);
       if (gen !== generation.current) return;
-      if (timer.current !== null) window.clearTimeout(timer.current);
-      timer.current = window.setTimeout(
+      if (speechTimer.current !== null) window.clearTimeout(speechTimer.current);
+      speechTimer.current = window.setTimeout(
         () => setSpeaking(false),
         Math.min(180_000, Math.max(4_000, text.length * 55)),
       );

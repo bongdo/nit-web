@@ -1281,9 +1281,10 @@ func TestStaticFallback(t *testing.T) {
 }
 
 type multiProvider struct {
-	clients map[string]*opencode.Client
-	specs   []opencode.InstanceSpec
-	def     string
+	clients    map[string]*opencode.Client
+	specs      []opencode.InstanceSpec
+	def        string
+	configPath string
 }
 
 func (p *multiProvider) Client(context.Context) (*opencode.Client, error) {
@@ -1316,7 +1317,29 @@ func (p *multiProvider) Transport(string) string { return "local" }
 
 func (p *multiProvider) Detail(name string) string { return name }
 
-func (p *multiProvider) ConfigPath() string { return "/tmp/instances.json" }
+func (p *multiProvider) ConfigPath() string {
+	if p.configPath != "" {
+		return p.configPath
+	}
+	return "/tmp/instances.json"
+}
+
+func (p *multiProvider) HasInstance(name string) bool {
+	for _, spec := range p.specs {
+		if spec.Name == name {
+			return true
+		}
+	}
+	return false
+}
+
+func (p *multiProvider) Replace(specs []opencode.InstanceSpec) error {
+	p.specs = append([]opencode.InstanceSpec(nil), specs...)
+	if len(specs) > 0 {
+		p.def = specs[0].Name
+	}
+	return nil
+}
 
 func newMultiHandler(t *testing.T, provider *multiProvider) http.Handler {
 	t.Helper()
@@ -1407,5 +1430,90 @@ func TestInstancesAndRouting(t *testing.T) {
 	handler.ServeHTTP(unknown, request)
 	if unknown.Code != http.StatusBadRequest {
 		t.Fatalf("unknown instance health = %d: %s", unknown.Code, unknown.Body)
+	}
+}
+
+func TestInstanceSaveRenameAndDelete(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("NIT_GUI_STATE", filepath.Join(dir, "ui-state.json"))
+	provider := &multiProvider{
+		clients:    map[string]*opencode.Client{},
+		specs:      []opencode.InstanceSpec{{Name: "local"}},
+		def:        "local",
+		configPath: filepath.Join(dir, "instances.json"),
+	}
+	handler := newMultiHandler(t, provider)
+
+	post := func(body string) *httptest.ResponseRecorder {
+		rec := httptest.NewRecorder()
+		request := httptest.NewRequest(http.MethodPost, "http://127.0.0.1:7788/api/instances", strings.NewReader(body))
+		request.Header.Set("Content-Type", "application/json")
+		handler.ServeHTTP(rec, request)
+		return rec
+	}
+
+	if rec := post(`{"name":"office","transport":"url","url":"http://10.0.0.5:49374","password":"pw"}`); rec.Code != http.StatusOK {
+		t.Fatalf("create = %d: %s", rec.Code, rec.Body)
+	}
+	specs := provider.Instances()
+	if len(specs) != 2 || specs[1].Name != "office" || specs[1].URL != "http://10.0.0.5:49374" {
+		t.Fatalf("specs = %+v", specs)
+	}
+	if specs[1].Password != "" || !strings.HasSuffix(specs[1].PasswordFile, "office.password") {
+		t.Fatalf("password not moved to a file: %+v", specs[1])
+	}
+	password, err := os.ReadFile(specs[1].PasswordFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.TrimSpace(string(password)) != "pw" {
+		t.Fatalf("password file = %q", password)
+	}
+	if info, err := os.Stat(specs[1].PasswordFile); err != nil || info.Mode().Perm() != 0o600 {
+		t.Fatalf("password mode = %v, %v", info, err)
+	}
+	if rec := post(`{"name":"office","transport":"local"}`); rec.Code != http.StatusConflict {
+		t.Fatalf("duplicate = %d: %s", rec.Code, rec.Body)
+	}
+	if rec := post(`{"name":"remote","transport":"url","url":"http://10.0.0.6:49374"}`); rec.Code != http.StatusBadRequest {
+		t.Fatalf("remote without password = %d: %s", rec.Code, rec.Body)
+	}
+	if rec := post(`{"name":"bad name","transport":"local"}`); rec.Code != http.StatusBadRequest {
+		t.Fatalf("bad name = %d: %s", rec.Code, rec.Body)
+	}
+
+	draft := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "http://127.0.0.1:7788/api/ui/drafts", strings.NewReader(`{"key":"k","text":"v"}`))
+	request.Header.Set("Content-Type", "application/json")
+	request.Header.Set("X-Nit-Instance", "local")
+	handler.ServeHTTP(draft, request)
+	if draft.Code != http.StatusOK {
+		t.Fatalf("draft = %d: %s", draft.Code, draft.Body)
+	}
+	if rec := post(`{"original":"local","name":"frankfurt","transport":"local"}`); rec.Code != http.StatusOK {
+		t.Fatalf("rename = %d: %s", rec.Code, rec.Body)
+	}
+	draft = httptest.NewRecorder()
+	request = httptest.NewRequest(http.MethodGet, "http://127.0.0.1:7788/api/ui/drafts?key=k", nil)
+	request.Header.Set("X-Nit-Instance", "frankfurt")
+	handler.ServeHTTP(draft, request)
+	if !strings.Contains(draft.Body.String(), `"text":"v"`) {
+		t.Fatalf("draft did not move: %s", draft.Body)
+	}
+
+	del := func(id string) *httptest.ResponseRecorder {
+		rec := httptest.NewRecorder()
+		request := httptest.NewRequest(http.MethodDelete, "http://127.0.0.1:7788/api/instances/"+id, nil)
+		handler.ServeHTTP(rec, request)
+		return rec
+	}
+	if rec := del("missing"); rec.Code != http.StatusNotFound {
+		t.Fatalf("delete missing = %d: %s", rec.Code, rec.Body)
+	}
+	if rec := del("office"); rec.Code != http.StatusOK {
+		t.Fatalf("delete office = %d: %s", rec.Code, rec.Body)
+	}
+	if rec := del("frankfurt"); rec.Code != http.StatusBadRequest {
+		t.Fatalf("delete last = %d: %s", rec.Code, rec.Body)
 	}
 }

@@ -183,7 +183,7 @@ export function InstancesMenu({
     }
     if (form.transport === "ssh") input.ssh = ssh;
     if (dir) input.dir = dir;
-    if (passwordFile) input.passwordFile = passwordFile;
+    if (passwordFile && form.transport !== "local") input.passwordFile = passwordFile;
     setSaving(true);
     setActionError("");
     try {

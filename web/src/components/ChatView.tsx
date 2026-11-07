@@ -541,10 +541,23 @@ export function ChatView({
     workspace,
   ]);
 
+  const scene = (
+    <Scene
+      key={sceneKey}
+      variant={background}
+      motion={motion}
+      paused={Boolean(session)}
+      className={cn(
+        "transition-opacity duration-500 ease-out motion-reduce:transition-none starting:opacity-0",
+        session ? "opacity-0" : "opacity-100",
+      )}
+    />
+  );
+
   if (!session) {
     return (
       <div className="relative flex min-h-0 flex-1 items-center justify-center overflow-y-auto px-6 py-10">
-        <Scene key={sceneKey} variant={background} motion={motion} />
+        {scene}
         <div className="relative max-w-md text-center">
           <div
             className={cn(
@@ -583,7 +596,10 @@ export function ChatView({
   if (loading) {
     return (
       <div className="relative min-h-0 flex-1 overflow-y-auto">
-        <Skeleton />
+        {scene}
+        <div className="relative">
+          <Skeleton />
+        </div>
       </div>
     );
   }
@@ -597,6 +613,7 @@ export function ChatView({
 
   return (
     <div className="relative flex min-h-0 flex-1 flex-col">
+      {scene}
       {loadingEarlier && (
         <div className="pointer-events-none absolute inset-x-0 top-2 z-10 flex justify-center">
           <span className="bg-background/85 text-muted-foreground border-border flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] shadow-sm backdrop-blur">
@@ -609,7 +626,7 @@ export function ChatView({
       <div
         ref={scrollRef}
         data-transcript
-        className="scrollbar-thin min-h-0 flex-1 overflow-y-auto overflow-x-hidden [overflow-anchor:none] [scrollbar-gutter:stable]"
+        className="scrollbar-thin relative min-h-0 flex-1 overflow-y-auto overflow-x-hidden [overflow-anchor:none] [scrollbar-gutter:stable]"
         onWheel={(event) => {
           jumping.current = false;
           if (event.deltaY < 0) pullEarlier();

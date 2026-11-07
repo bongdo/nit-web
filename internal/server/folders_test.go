@@ -106,3 +106,17 @@ func TestFoldersMissingAndRelative(t *testing.T) {
 		t.Fatalf("relative path status = %d: %s", rec.Code, rec.Body)
 	}
 }
+
+func TestFoldersUnsupportedEndpoint(t *testing.T) {
+	upstream := httptest.NewServer(auth(func(w http.ResponseWriter, r *http.Request) {
+		http.NotFound(w, r)
+	}))
+	defer upstream.Close()
+
+	rec := httptest.NewRecorder()
+	newHandler(t, upstream.URL).ServeHTTP(rec,
+		httptest.NewRequest(http.MethodGet, "http://127.0.0.1:7788/api/fs?path=/home/ubuntu", nil))
+	if rec.Code != http.StatusBadGateway {
+		t.Fatalf("status = %d: %s", rec.Code, rec.Body)
+	}
+}

@@ -15,6 +15,7 @@ import type { FolderListing, Project } from "../lib/types";
 import { basename, formatRelative } from "../lib/format";
 import { isAbsolutePath, joinPath, normalizePath, parentPath, pathCrumbs, splitPathInput } from "../lib/paths";
 import { ApiError, api } from "../lib/api";
+import { useModalFocus } from "../hooks/useModalFocus";
 import { cn } from "../lib/utils";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
@@ -66,11 +67,13 @@ export function WorkspacePicker({
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [active, setActive] = useState(0);
   const [suggestOpen, setSuggestOpen] = useState(false);
+  const panel = useModalFocus<HTMLDivElement>();
 
   const known = useMemo(
     () => new Map(projects.map((project) => [project.canonical, project])),
     [projects],
   );
+  const workspaces = workspaceOptions(projects, recent);
 
   useEffect(() => {
     if (browse !== null && listingRef.current?.path === browse) return;
@@ -176,11 +179,13 @@ export function WorkspacePicker({
 
   const body = (
     <div
+      ref={panel}
       role={onClose ? "dialog" : undefined}
       aria-modal={onClose ? true : undefined}
       aria-label={onClose ? "Choose a workspace" : undefined}
+      tabIndex={-1}
       onClick={onClose ? (event) => event.stopPropagation() : undefined}
-      className="overlay-modal bg-background border-border relative flex w-full max-w-xl flex-col overflow-hidden rounded-xl border shadow-xl"
+      className="overlay-modal bg-background border-border relative flex w-full max-w-xl flex-col overflow-hidden rounded-xl border shadow-xl outline-none"
     >
       <div className="border-border flex items-center gap-2 border-b px-4 py-3">
         <Folder className="text-muted-foreground size-4" />
@@ -245,12 +250,12 @@ export function WorkspacePicker({
         {loading && <Loader2 className="text-muted-foreground size-3.5 shrink-0 animate-spin" />}
       </div>
 
-      {recent.length > 0 && (
+      {workspaces.length > 0 && (
         <div className="border-border flex flex-wrap items-center gap-1 border-b px-3 py-2">
           <span className="text-muted-foreground mr-1 text-[10px] font-medium tracking-wide uppercase">
-            Recent
+            Workspaces
           </span>
-          {recent.slice(0, 6).map((directory) => (
+          {workspaces.slice(0, 6).map((directory) => (
             <button
               key={directory}
               type="button"
@@ -346,7 +351,6 @@ export function WorkspacePicker({
                 setPath(event.target.value);
                 setSuggestOpen(true);
               }}
-              onFocus={() => setSuggestOpen(true)}
               onKeyDown={(event) => {
                 if (event.key === "Escape") {
                   if (suggestOpen) {
@@ -382,12 +386,15 @@ export function WorkspacePicker({
               }}
               placeholder="Jump to a path, e.g. /home/ubuntu/Projects"
               aria-label="Folder path"
+              role="combobox"
+              aria-controls="folder-suggestions"
               aria-autocomplete="list"
               aria-expanded={suggestOpen && suggestions.length > 0}
               className="h-8 font-mono text-xs"
             />
           {suggestOpen && suggestions.length > 0 && (
             <div
+              id="folder-suggestions"
               role="listbox"
               aria-label="Matching folders"
               className="overlay-popover border-border bg-popover absolute bottom-full left-0 z-20 mb-1 w-full rounded-lg border p-1 shadow-lg"
@@ -441,7 +448,7 @@ export function WorkspacePicker({
             {status === "missing" && (
               <span className="text-destructive flex items-center gap-1">
                 <X className="size-3" />
-                No such folder.
+                {suggestions.length > 0 ? "No exact match. Pick a suggestion." : "No such folder."}
               </span>
             )}
             {status === "error" && "Cannot read this folder."}

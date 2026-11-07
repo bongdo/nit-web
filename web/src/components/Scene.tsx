@@ -34,10 +34,12 @@ export type SceneSetting = SceneVariant | "random";
 export function Scene({
   variant = "spotlight",
   motion = "animated",
+  paused = false,
   className,
 }: {
   variant?: SceneSetting;
   motion?: "animated" | "static";
+  paused?: boolean;
   className?: string;
 }) {
   const ref = useRef<HTMLCanvasElement>(null);
@@ -640,7 +642,7 @@ export function Scene({
       if (document.hidden) {
         cancelAnimationFrame(frame);
         frame = 0;
-      } else if (!reduced && !frame) {
+      } else if (!reduced && !paused && !frame) {
         painted = 0;
         frame = requestAnimationFrame(loop);
       }
@@ -656,15 +658,17 @@ export function Scene({
       attributes: true,
       attributeFilter: ["class", "data-theme"],
     });
-    const tracksPointer = window.matchMedia("(pointer: fine)").matches;
+    const tracksPointer = window.matchMedia("(pointer: fine)").matches && !paused;
     if (tracksPointer) {
       window.addEventListener("pointermove", move);
       window.addEventListener("mouseleave", leave);
     }
     document.addEventListener("visibilitychange", visibility);
-    resize();
-    if (!reduced) frame = requestAnimationFrame(loop);
     started = performance.now();
+    if (!paused) {
+      resize();
+      if (!reduced) frame = requestAnimationFrame(loop);
+    }
 
     return () => {
       cancelAnimationFrame(frame);
@@ -676,7 +680,7 @@ export function Scene({
       }
       document.removeEventListener("visibilitychange", visibility);
     };
-  }, [motion, variant]);
+  }, [motion, paused, variant]);
 
   return (
     <canvas

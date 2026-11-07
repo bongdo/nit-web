@@ -1,6 +1,7 @@
 package server
 
 import (
+	"encoding/json"
 	"errors"
 	"net/http"
 	"net/url"
@@ -59,7 +60,14 @@ func (s *Server) folders(w http.ResponseWriter, r *http.Request) {
 	if err := c.Do(r.Context(), http.MethodGet, "/api/fs/list?"+query.Encode(), nil, &raw); err != nil {
 		var upstream *opencode.HTTPError
 		if errors.As(err, &upstream) && upstream.Status == http.StatusNotFound {
-			writeError(w, http.StatusNotFound, "no such folder")
+			var body struct {
+				Tag string `json:"_tag"`
+			}
+			if json.Unmarshal(upstream.Body, &body) == nil && strings.Contains(body.Tag, "LocationNotFound") {
+				writeError(w, http.StatusNotFound, "no such folder")
+				return
+			}
+			writeError(w, http.StatusBadGateway, "OpenCode cannot list folders")
 			return
 		}
 		s.upstreamError(w, r, err)

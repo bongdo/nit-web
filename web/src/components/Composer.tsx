@@ -725,7 +725,11 @@ export const Composer = memo(function Composer({
           const result = await api.upload(item.file, dir);
           uploaded.push({ ...item, path: result.path, name: result.name });
         } catch (error) {
-          onError(error instanceof Error ? error.message : "Upload failed");
+          const message = error instanceof Error ? error.message : "Upload failed";
+          setAttachments((current) =>
+            current.map((entry) => (entry.id === item.id ? { ...entry, error: message } : entry)),
+          );
+          onError(message);
           return;
         }
       }

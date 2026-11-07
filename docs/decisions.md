@@ -524,3 +524,62 @@ browser speech as the primary path; streaming per sentence (not needed yet).
 Cost: the first piper call loads a ~63 MB model; long replies take seconds and
 need a cancel; edge-tts sends reply text to the network; each read synthesizes a
 temporary file under `/tmp`.
+
+## 2026-11-07 — Instance config edits from the browser are untrusted input
+
+Context: the Instances menu now writes `instances.json` from a browser form, so
+`ssh` and `passwordFile` no longer come only from a root-owned file.
+
+Decision: validate every SSH host against a strict host grammar before it
+reaches `ssh` (no leading `-`, no whitespace or shell characters) and add
+`BatchMode=yes`; accept a browser-supplied password file only inside the nit-gui
+config directory, reject symlinks and non-regular files, and derive the default
+path from the instance name. Existing configs keep working; the browser cannot
+choose an arbitrary host path.
+
+Why: `ssh -oProxyCommand=...` executes a command and a writable password path
+can overwrite `~/.ssh/authorized_keys`; a shared GUI password must not become a
+host shell or host file write.
+
+Rejected: trusting the form, and blacklisting only `ProxyCommand` (other ssh
+options remain dangerous).
+
+Cost: custom password files outside `~/.config/nit-gui/` are no longer accepted
+from the menu; a host alias must look like an ssh host, not an option.
+
+## 2026-11-07 — Permission requests are a first-class UI state
+
+Context: OpenCode v2 exposes permission requests separately from forms, and an
+agent blocks until one is answered.
+
+Decision: proxy `GET /api/sessions/{id}/permissions` and the reply endpoint with
+`once`/`always`/`reject`; show one card above the composer, poll pending
+requests for running and background chats, include them in waiting markers and
+notifications.
+
+Why: pre-approving every action is unsafe, and a GUI with no approval card
+makes ordinary file or shell tools hang.
+
+Rejected: auto-approving everything, and showing permissions only for the
+selected chat (a background run would stay blocked silently).
+
+Cost: one extra poll per running or waiting chat every five seconds.
+
+## 2026-11-07 — Attach on Send; clear drafts with a tombstone
+
+Context: uploading on selection left every removed or unsent file in `/tmp`,
+and deleting a cleared draft made another device resurrect its old copy.
+
+Decision: keep the browser `File` until Send and upload then; store a cleared
+draft as an empty draft with `updatedAt` instead of deleting it. Clients apply
+remote text or a clear only when its timestamp is newer than the local mirror,
+so an edit on another device still wins.
+
+Why: no files are written for drafts that never send, and a send on one device
+clears the same draft on the others without losing a genuinely newer edit.
+
+Rejected: a periodic `/tmp` sweep (it can delete files old transcripts still
+need), and clearing only the local mirror (the stale copy comes back).
+
+Cost: a failed upload after earlier files were uploaded can leave those earlier
+temporary files behind; sent files still need a separate cleanup story.

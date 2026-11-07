@@ -204,6 +204,8 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("GET /api/sessions/{id}/form", s.forms)
 	s.mux.HandleFunc("POST /api/sessions/{id}/form/{formID}/reply", s.replyForm)
 	s.mux.HandleFunc("DELETE /api/sessions/{id}/form/{formID}", s.cancelForm)
+	s.mux.HandleFunc("GET /api/sessions/{id}/permissions", s.permissions)
+	s.mux.HandleFunc("POST /api/sessions/{id}/permissions/{requestID}/reply", s.replyPermission)
 	s.mux.HandleFunc("POST /api/sessions/{id}/model", s.switchModel)
 	s.mux.HandleFunc("POST /api/sessions/{id}/agent", s.switchAgent)
 	s.mux.HandleFunc("GET /api/models", s.models)
@@ -254,7 +256,9 @@ func (s *Server) middleware(next http.Handler) http.Handler {
 			writeError(w, http.StatusForbidden, "origin not allowed")
 			return
 		}
-		if r.URL.Path != "/api/events" {
+		switch r.URL.Path {
+		case "/api/events", "/api/file", "/api/tts/audio":
+		default:
 			_ = http.NewResponseController(w).SetWriteDeadline(time.Now().Add(30 * time.Second))
 		}
 		defer func() {
@@ -399,6 +403,9 @@ func (s *Server) sessions(w http.ResponseWriter, r *http.Request) {
 	}
 	if search := strings.TrimSpace(r.URL.Query().Get("search")); search != "" {
 		q.Set("search", search)
+	}
+	if cursor := strings.TrimSpace(r.URL.Query().Get("cursor")); cursor != "" {
+		q.Set("cursor", cursor)
 	}
 	var raw json.RawMessage
 	if err := c.Do(r.Context(), http.MethodGet, "/api/session?"+q.Encode(), nil, &raw); err != nil {
@@ -1547,6 +1554,7 @@ func (s *Server) getDraft(w http.ResponseWriter, r *http.Request) {
 	draft := s.ui.Draft(s.instanceName(r), key)
 	writeJSON(w, http.StatusOK, map[string]any{
 		"text":      draft.Text,
+		"cleared":   draft.Cleared,
 		"updatedAt": draft.UpdatedAt,
 	})
 }

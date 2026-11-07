@@ -403,8 +403,10 @@ export default function App({
       sessionRunning(sessions.find((session) => session.id === id)),
     [runningIds, sessions],
   );
-  const activePermissions =
-    permissionsOwnerRef.current === selectedId ? permissions : [];
+  const activePermissions = useMemo(
+    () => (permissionsOwnerRef.current === selectedId ? permissions : []),
+    [permissions, selectedId],
+  );
   const waitingIds = useMemo(() => {
     const ids = mergeWaitingSessionIds(selectedId, forms, backgroundWaitingIds);
     for (const id of backgroundPermissionIds) ids.add(id);

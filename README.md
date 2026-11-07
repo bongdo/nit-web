@@ -117,8 +117,9 @@ Missing or empty means one auto-discovered local instance named `local`.
 - A malformed file does not stop the app: it falls back to `local` and shows the
   error in the menu.
 
-The instance list is read once at startup; password files are re-read on a
-`401`. Restart the app after editing the instance list.
+The instance menu writes `instances.json` and reloads the registry without a
+restart; password files are re-read on a `401`. External edits to the file are
+read on `Reconnect` or the next app start.
 
 ### Switching
 
@@ -278,6 +279,11 @@ server, so hiding a chat or continuing a draft works on the next device.
 - The personal dictionary grows from `ignore`, from undoing an auto-fix, and
   from words you send three times while they are still flagged. This is how
   project terms and names stop being underlined.
+- A permission request from the agent appears as a card above the composer:
+  `Allow once`, `Always` or `Reject`, with an optional rejection reason. A
+  request in a background chat shows the waiting marker and desktop
+  notification; open that chat to answer. Denying or allowing is never
+  automatic.
 - Hover a user message for Copy, Revert and Fork. Revert commits the revert and
   puts the message text back into the composer; Fork opens a new session before
   that message. The composer also has a fast `Undo` button for the last prompt.
@@ -374,12 +380,15 @@ All `/api` endpoints except `/api/instances*` accept `X-Nit-Instance: <id>` or
 | `POST /api/tts/stop` | Stop playback on the host audio client. |
 | `GET /api/config` | Directory, default model and primary agent. |
 | `GET /api/projects` | Known projects from OpenCode `/api/project`, for the workspace picker. |
-| `GET /api/sessions?dir=&children=true` | Newest sessions; `children=true` includes subagent sessions. |
+| `GET /api/sessions?dir=&children=true&search=&cursor=` | Newest sessions; `children=true` includes subagent sessions; `search` and `cursor` go upstream; the response keeps OpenCode's `cursor`. |
 | `POST /api/sessions` | Create `{directory, title?, agent?, model?}`. |
+| `DELETE /api/sessions/{id}` | Delete a session and its child sessions. |
 | `GET /api/sessions/{id}` | One session, used to restore a selected subagent after reload. |
 | `GET /api/sessions/{id}/messages` | Full transcript, ascending, paginated upstream, redacted. `light=1` returns only the visible transcript: user messages, assistant text, `question` tools and compaction, with `steps`/`tools`/`errors` counters instead of tool and reasoning parts. `limit=N` returns the newest N; `before=` loads the previous page. |
 | `GET /api/sessions/{id}/messages/{messageID}` | One full message, used to load tool output or reasoning on demand. |
 | `GET /api/sessions/{id}/children` | Subagent sessions with this parent. |
+| `GET /api/sessions/{id}/permissions` | Pending permission requests for this session. |
+| `POST /api/sessions/{id}/permissions/{requestID}/reply` | `{decision: "once"\|"always"\|"reject", message?}`. |
 | `POST /api/sessions/{id}/prompt` | Send `{text, files?}`. |
 | `POST /api/sessions/{id}/interrupt` | Stop the active execution. |
 | `POST /api/sessions/{id}/revert` | Stage and commit a revert at `{messageID}`. |
@@ -393,8 +402,8 @@ All `/api` endpoints except `/api/instances*` accept `X-Nit-Instance: <id>` or
 | `GET /api/models`, `GET /api/agents` | Pickers. |
 | `GET /api/ui` | Shared `{hidden, status, model, agent}` UI state for the active instance. |
 | `POST /api/ui/hidden` | `{ids, hidden}`; hide or unhide chats. |
-| `GET /api/ui/drafts?key=` | Read one shared draft with its `updatedAt`. |
-| `POST /api/ui/drafts` | `{key, text}`; save or clear a shared draft. |
+| `GET /api/ui/drafts?key=` | Read one shared draft with its `updatedAt` and `cleared` flag. |
+| `POST /api/ui/drafts` | `{key, text}`; save or clear a shared draft. A clear keeps a tombstone so other devices drop their stale copy. |
 | `POST /api/ui/model` | `{model}`; save the preferred model. |
 | `POST /api/ui/agent` | `{agent}`; save the preferred agent. |
 | `POST /api/ui/sessions/{id}/status` | `{status}`: `done`, `failed` or empty (seen). |
@@ -573,13 +582,17 @@ own startup warmup.
 
 ## Known limits
 
-- Sessions are listed up to OpenCode's newest 100. Search filters that window
+- Sessions start with OpenCode's newest 100 per scope. `Load older chats` pages
+  upstream, and a search query goes upstream instead of filtering that window
   client-side.
 - The UI opens the full visible transcript; tool and reasoning payloads load
   when a steps block is opened. The full endpoint is assembled from at most 100
   upstream pages (100 messages each); longer sessions are truncated at 10,000
   messages.
-- No permission prompt UI, shell panel, PTY or VCS panel yet.
+- No shell panel, PTY or VCS panel yet.
+- Permission requests are a card in the composer: `Allow once`, `Always` or
+  `Reject`, with an optional reason. A request in a background chat marks that
+  chat as waiting and notifies you; switch to it to approve.
 - There is one production nit-gui on Frankfurt, and every visitor shares the
   same set of OpenCode instances, sessions and workspace namespaces. There are
   no per-user accounts or quotas; an instance is a separate OpenCode namespace,
@@ -625,8 +638,11 @@ own startup warmup.
   the labeled fallback; with no browser voice, speech is `off`.
 - The TTS hub still listens on `0.0.0.0:7787`; only the token protects it. Bind
   it to `127.0.0.1` when the host is exposed beyond the tailnet.
-- Uploaded files live under `/tmp/nit-gui-*` on the OpenCode host. Nothing
-  cleans them up. Only those paths can be served back through `/api/file`.
+- Attachments are uploaded when you press Send, not when you select them, so an
+  unsent or removed file never reaches the host. Sent files live under
+  `/tmp/nit-gui-*` on the OpenCode host; nothing cleans them up, because old
+  transcripts still preview them. Only those paths can be served back through
+  `/api/file`.
 - PDF support depends on the model. The default DeepSeek model reads images but
   not PDFs; Gemini and Claude models advertise PDF input. The composer warns
   before sending a file the current model cannot read.

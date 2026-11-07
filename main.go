@@ -37,7 +37,6 @@ func main() {
 		Addr:              *addr,
 		Handler:           handler,
 		ReadHeaderTimeout: 5 * time.Second,
-		ReadTimeout:       30 * time.Second,
 		IdleTimeout:       60 * time.Second,
 	}
 

@@ -377,11 +377,13 @@ func (a *authGate) cookiePath() string {
 }
 
 func safeNext(raw, base string) string {
-	if raw == "" || !strings.HasPrefix(raw, "/") || strings.HasPrefix(raw, "//") {
+	if raw == "" || raw[0] != '/' || strings.HasPrefix(raw, "//") {
 		return base + "/"
 	}
-	if strings.ContainsAny(raw, "\r\n") {
-		return base + "/"
+	for _, r := range raw {
+		if r < 0x20 || r == 0x7f || r == '\\' {
+			return base + "/"
+		}
 	}
 	if base != "" && raw != base && !strings.HasPrefix(raw, base+"/") {
 		if raw == "/" {

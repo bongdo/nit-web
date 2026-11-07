@@ -531,8 +531,7 @@ nspell worker. It is not implemented yet.
   Selecting text in the transcript shows a Quote button that drops it into the
   composer as a markdown quote.
 - Layout: persistent or hover-revealed sidebar at 1280px and 900px,
-  collapsible drawer on narrow screens; on touch screens every chat row keeps
-  its hide and delete buttons visible; code blocks and tables scroll inside
+  collapsible drawer on narrow screens; code blocks and tables scroll inside
   themselves, not the transcript.
 
 ## Dependencies

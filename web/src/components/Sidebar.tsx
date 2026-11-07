@@ -115,7 +115,7 @@ function SessionRow({
       />
       <div
         className={cn(
-          "pointer-events-none relative flex flex-col gap-1 px-2.5 py-2 pointer-coarse:pr-16 any-pointer-coarse:pr-16",
+          "pointer-events-none relative flex flex-col gap-1 px-2.5 py-2",
           depth > 0 && "pl-9",
         )}
       >
@@ -136,11 +136,7 @@ function SessionRow({
                     onClick={onToggle}
                     aria-expanded={expanded}
                     aria-label={expanded ? "Hide subagents" : "Show subagents"}
-                    title={
-                      runningSubagents > 0
-                        ? `${runningSubagents} of ${subagentCount} subagents running`
-                        : `${subagentCount} subagents`
-                    }
+                    title={expanded ? "Hide subagents" : "Show subagents"}
                     className="pointer-events-auto flex size-4 items-center justify-center rounded text-muted-foreground hover:text-foreground"
                   >
                     <ChevronRight
@@ -211,7 +207,7 @@ function SessionRow({
           </div>
         )}
       </div>
-      <div className="absolute top-1 right-1 hidden items-center gap-0.5 group-hover:flex pointer-coarse:flex any-pointer-coarse:flex">
+      <div className="absolute top-1 right-1 hidden items-center gap-0.5 group-hover:flex">
         {hidden ? (
           <Button
             variant="ghost"

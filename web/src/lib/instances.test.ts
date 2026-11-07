@@ -47,4 +47,26 @@ describe("instances", () => {
       owner: "opencode",
     });
   });
+
+  it("keeps the browser voice when the host hub has no audio client", () => {
+    const speech: InstanceCapability = {
+      id: "speech",
+      label: "Speech",
+      owner: "opencode",
+      state: "fallback",
+      detail: "host TTS hub up · no audio client",
+    };
+    expect(mergeDeviceCapabilities([speech], true)[0]).toEqual({
+      ...speech,
+      owner: "browser",
+      state: "fallback",
+      detail: "device voice; host TTS has no audio client",
+    });
+    expect(mergeDeviceCapabilities([speech], false)[0]).toEqual({
+      ...speech,
+      owner: "opencode",
+      state: "off",
+      detail: "host TTS hub up · no audio client; no device voice",
+    });
+  });
 });

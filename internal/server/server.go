@@ -44,6 +44,8 @@ type MultiProvider interface {
 	Transport(string) string
 	Detail(string) string
 	ConfigPath() string
+	HasInstance(string) bool
+	Replace([]opencode.InstanceSpec) error
 }
 
 type singleProvider struct {
@@ -74,6 +76,12 @@ func (p singleProvider) LastError(string) string { return "" }
 func (p singleProvider) Transport(string) string { return "local" }
 func (p singleProvider) Detail(string) string    { return "local" }
 func (p singleProvider) ConfigPath() string      { return "" }
+
+func (p singleProvider) HasInstance(name string) bool { return name == "local" }
+
+func (p singleProvider) Replace([]opencode.InstanceSpec) error {
+	return errors.New("instance editing is not available")
+}
 
 type Server struct {
 	multi        MultiProvider
@@ -125,20 +133,15 @@ func New(provider ClientProvider, static fs.FS, log *slog.Logger) http.Handler {
 }
 
 func (s *Server) instanceGuard(next http.Handler) http.Handler {
-	known := make(map[string]struct{}, len(s.multi.Instances()))
-	for _, spec := range s.multi.Instances() {
-		known[spec.Name] = struct{}{}
-	}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if !strings.HasPrefix(r.URL.Path, "/api/") || r.URL.Path == "/api/instances" {
+		if !strings.HasPrefix(r.URL.Path, "/api/") ||
+			strings.HasPrefix(r.URL.Path, "/api/instances") {
 			next.ServeHTTP(w, r)
 			return
 		}
-		if name := instanceID(r); name != "" {
-			if _, ok := known[name]; !ok {
-				writeError(w, http.StatusBadRequest, "unknown instance")
-				return
-			}
+		if name := instanceID(r); name != "" && !s.multi.HasInstance(name) {
+			writeError(w, http.StatusBadRequest, "unknown instance")
+			return
 		}
 		next.ServeHTTP(w, r)
 	})
@@ -171,6 +174,8 @@ func (s *Server) warm() {
 func (s *Server) routes() {
 	s.mux.HandleFunc("GET /api/health", s.health)
 	s.mux.HandleFunc("GET /api/instances", s.instances)
+	s.mux.HandleFunc("POST /api/instances", s.saveInstance)
+	s.mux.HandleFunc("DELETE /api/instances/{id}", s.deleteInstance)
 	s.mux.HandleFunc("GET /api/config", s.config)
 	s.mux.HandleFunc("GET /api/projects", s.projects)
 	s.mux.HandleFunc("GET /api/sessions", s.sessions)

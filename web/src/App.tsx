@@ -285,7 +285,9 @@ export default function App({
   historyCursorRef.current = historyCursor;
   const earlierFailedRef = useRef(false);
   const [loadingEarlier, setLoadingEarlier] = useState(false);
+  const [earlierFailed, setEarlierFailed] = useState(false);
   const loadingEarlierRef = useRef(false);
+  const earlierRequest = useRef(0);
   const loadedIdRef = useRef<string | null>(null);
   const lastEpochRef = useRef(0);
 
@@ -900,7 +902,9 @@ export default function App({
     if (id !== current) {
       saveCurrentTranscript();
       const cached = id ? transcriptCache.get(id) : undefined;
+      earlierRequest.current += 1;
       earlierFailedRef.current = false;
+      setEarlierFailed(false);
       loadedIdRef.current = cached && id ? id : null;
       setMessages(cached?.messages ?? []);
       setHistoryCursor(cached?.previous ?? null);
@@ -961,6 +965,9 @@ export default function App({
     setMessagesLoading(false);
     setHistoryCursor(null);
     setLoadingEarlier(false);
+    earlierRequest.current += 1;
+    earlierFailedRef.current = false;
+    setEarlierFailed(false);
     loadingEarlierRef.current = false;
     setPickerOpen(false);
   }, [saveCurrentTranscript]);
@@ -969,25 +976,38 @@ export default function App({
     const id = selectedIdRef.current;
     const cursor = historyCursorRef.current;
     if (!id || !cursor || loadingEarlierRef.current) return;
+    const token = ++earlierRequest.current;
     loadingEarlierRef.current = true;
     setLoadingEarlier(true);
     try {
       const page = await api.messages(id, { light: true, limit: TAIL_LIMIT, before: cursor });
-      if (selectedIdRef.current !== id) return;
+      if (selectedIdRef.current !== id || token !== earlierRequest.current) return;
       const older = lightMessages(normalizeMessages(page.data));
       const previous = page.previous ?? null;
+      const current = messagesRef.current;
+      const next = prependMessages(current, older);
+      if (older.length === 0 || next.length === current.length) {
+        earlierFailedRef.current = false;
+        setEarlierFailed(false);
+        historyCursorRef.current = null;
+        setHistoryCursor(null);
+        return;
+      }
       earlierFailedRef.current = false;
+      setEarlierFailed(false);
       historyCursorRef.current = previous;
       setHistoryCursor(previous);
-      setMessages((current) => prependMessages(current, older));
+      setMessages(next);
     } catch (error) {
+      if (selectedIdRef.current !== id || token !== earlierRequest.current) return;
       earlierFailedRef.current = true;
-      historyCursorRef.current = null;
-      setHistoryCursor(null);
+      setEarlierFailed(true);
       setBanner(messageOf(error));
     } finally {
-      loadingEarlierRef.current = false;
-      setLoadingEarlier(false);
+      if (token === earlierRequest.current) {
+        loadingEarlierRef.current = false;
+        setLoadingEarlier(false);
+      }
     }
   }, []);
 
@@ -1932,6 +1952,7 @@ export default function App({
           onBrowseWorkspace={openPicker}
           hasEarlier={Boolean(historyCursor)}
           loadingEarlier={loadingEarlier}
+          earlierFailed={earlierFailed}
           onLoadEarlier={loadEarlier}
           onLoadMessage={loadMessage}
         />

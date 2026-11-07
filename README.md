@@ -262,7 +262,10 @@ server, so hiding a chat or continuing a draft works on the next device.
   forks) the mic falls back to the host: 16 kHz mono WAV is uploaded in segments
   to `/api/stt` and text is appended as you pause. Dictation appends to the
   existing input and never sends or clears what you typed. The browser does not
-  run local STT itself.
+  run local STT itself. The composer is a normal `<textarea>`, so the system
+  keyboard's own dictation (Gboard, Windows voice typing, macOS Dictation) also
+  works there and is usually the fastest option where the browser has no Web
+  Speech.
 - Spelling is checked by an nspell worker in the browser for Russian and
   English today. Misspelled words are red with a wavy underline; put the caret
   in a word (or click it) and a gray `→ ...` chip shows replacements next to

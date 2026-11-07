@@ -270,6 +270,7 @@ export const Composer = memo(function Composer({
     active: boolean;
   } | null>(null);
   const webUnavailable = useRef(false);
+  const fallbackWarned = useRef(false);
   const queue = useRef<Promise<void>>(Promise.resolve());
   const pendingRef = useRef(0);
 

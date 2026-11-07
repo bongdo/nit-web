@@ -210,6 +210,9 @@ func loadInstances() ([]InstanceSpec, error) {
 	if err := json.Unmarshal(b, &f); err != nil {
 		return nil, fmt.Errorf("parse instances config: %w", err)
 	}
+	if len(f.Instances) == 0 {
+		return nil, nil
+	}
 	if err := validateSpecs(f.Instances); err != nil {
 		return nil, err
 	}
@@ -247,15 +250,17 @@ func instancesPath() string {
 }
 
 func (r *Registry) Client(ctx context.Context) (*Client, error) {
-	return r.ClientFor(ctx, r.defaultName)
+	return r.ClientFor(ctx, r.DefaultInstance())
 }
 
 func (r *Registry) Drop() {
-	r.DropFor(r.defaultName)
+	r.DropFor(r.DefaultInstance())
 }
 
 func (r *Registry) ClientFor(ctx context.Context, name string) (*Client, error) {
+	r.mu.RLock()
 	in, ok := r.byName[name]
+	r.mu.RUnlock()
 	if !ok {
 		return nil, fmt.Errorf("%w: %q", ErrUnknownInstance, name)
 	}
@@ -263,7 +268,9 @@ func (r *Registry) ClientFor(ctx context.Context, name string) (*Client, error) 
 }
 
 func (r *Registry) DropFor(name string) {
+	r.mu.RLock()
 	in, ok := r.byName[name]
+	r.mu.RUnlock()
 	if !ok {
 		return
 	}
@@ -429,6 +436,8 @@ func readSSHPassword(ctx context.Context, host string) (string, error) {
 }
 
 func (r *Registry) Instances() []InstanceSpec {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
 	out := make([]InstanceSpec, 0, len(r.instances))
 	for _, in := range r.instances {
 		out = append(out, in.spec)
@@ -437,10 +446,14 @@ func (r *Registry) Instances() []InstanceSpec {
 }
 
 func (r *Registry) DefaultInstance() string {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
 	return r.defaultName
 }
 
 func (r *Registry) ConfigError() string {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
 	return r.configErr
 }
 
@@ -449,7 +462,9 @@ func (r *Registry) ConfigPath() string {
 }
 
 func (r *Registry) Connected(name string) bool {
+	r.mu.RLock()
 	in, ok := r.byName[name]
+	r.mu.RUnlock()
 	if !ok {
 		return false
 	}
@@ -462,7 +477,9 @@ func (r *Registry) Connected(name string) bool {
 }
 
 func (r *Registry) LastError(name string) string {
+	r.mu.RLock()
 	in, ok := r.byName[name]
+	r.mu.RUnlock()
 	if !ok {
 		return ""
 	}
@@ -472,12 +489,16 @@ func (r *Registry) LastError(name string) string {
 }
 
 func (r *Registry) HasInstance(name string) bool {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
 	_, ok := r.byName[name]
 	return ok
 }
 
 func (r *Registry) Spec(name string) (InstanceSpec, bool) {
+	r.mu.RLock()
 	in, ok := r.byName[name]
+	r.mu.RUnlock()
 	if !ok {
 		return InstanceSpec{}, false
 	}
@@ -485,7 +506,9 @@ func (r *Registry) Spec(name string) (InstanceSpec, bool) {
 }
 
 func (r *Registry) Transport(name string) string {
+	r.mu.RLock()
 	in, ok := r.byName[name]
+	r.mu.RUnlock()
 	if !ok {
 		return ""
 	}
@@ -493,7 +516,9 @@ func (r *Registry) Transport(name string) string {
 }
 
 func (r *Registry) Detail(name string) string {
+	r.mu.RLock()
 	in, ok := r.byName[name]
+	r.mu.RUnlock()
 	if !ok {
 		return ""
 	}
@@ -502,7 +527,10 @@ func (r *Registry) Detail(name string) string {
 
 func (r *Registry) Close() {
 	r.cancel()
-	for _, in := range r.instances {
+	r.mu.RLock()
+	instances := append([]*instance(nil), r.instances...)
+	r.mu.RUnlock()
+	for _, in := range instances {
 		in.mu.Lock()
 		in.closeTunnel()
 		in.client = nil

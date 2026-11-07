@@ -307,6 +307,8 @@ export const Sidebar = memo(function Sidebar({
   notify,
   onNotify,
   onTheme,
+  instance,
+  onInstances,
   isRunning,
   waitingIds,
   failedIds,
@@ -340,6 +342,8 @@ export const Sidebar = memo(function Sidebar({
   notify: boolean;
   onNotify: () => void;
   onTheme: () => void;
+  instance: string;
+  onInstances: () => void;
   isRunning: (id: string) => boolean;
   waitingIds: Set<string>;
   failedIds: Set<string>;
@@ -678,7 +682,12 @@ export const Sidebar = memo(function Sidebar({
       </div>
 
       <div className="border-border text-muted-foreground flex items-center gap-0.5 border-t px-1.5 py-1.5 text-[10px]">
-        <ConnectionStatus health={health} streamStatus={streamStatus} />
+        <ConnectionStatus
+          health={health}
+          streamStatus={streamStatus}
+          instance={instance}
+          onOpen={onInstances}
+        />
         <Button
           variant="ghost"
           size="icon-sm"

@@ -208,6 +208,19 @@ export type Health = {
 
 export type CapabilityState = "on" | "fallback" | "off" | "unknown";
 
+export type InstanceTransport = "local" | "url" | "ssh";
+
+export type InstanceInput = {
+  original?: string;
+  name: string;
+  transport: InstanceTransport;
+  url?: string;
+  ssh?: string;
+  dir?: string;
+  password?: string;
+  passwordFile?: string;
+};
+
 export type InstanceCapability = {
   id: string;
   label: string;
@@ -220,11 +233,13 @@ export type InstanceCapability = {
 export type Instance = {
   id: string;
   name: string;
-  transport: "local" | "url" | "ssh";
+  transport: InstanceTransport;
   detail: string;
   state: "connected" | "offline" | "unknown";
   error?: string;
   opencode?: { ok: boolean; version?: string; server?: string };
+  url?: string;
+  ssh?: string;
   defaultDirectory?: string;
   capabilities: InstanceCapability[];
 };

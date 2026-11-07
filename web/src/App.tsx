@@ -1850,6 +1850,8 @@ export default function App({
             notify={notifications}
             onNotify={() => void toggleNotify()}
             onTheme={openTheme}
+            instance={instance}
+            onInstances={onOpenInstances}
             isRunning={isRunning}
             waitingIds={waitingIds}
             failedIds={failedIds}
@@ -1883,9 +1885,6 @@ export default function App({
           sidebarMode={sidebarMode}
           subagents={subagents}
           parent={parentSession}
-          instance={instance}
-          online={Boolean(health?.ok)}
-          onOpenInstances={onOpenInstances}
           onOpenSubagent={openSubagent}
           onBack={backToParent}
           onToggleSidebar={toggleSidebar}

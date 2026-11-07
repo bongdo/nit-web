@@ -3,6 +3,7 @@ import type {
   Config,
   FormInfo,
   Health,
+  InstanceInput,
   InstancesResponse,
   Message,
   MessagesResponse,
@@ -93,6 +94,13 @@ export const api = {
   setInstance,
   instances: (probe = false) =>
     request<InstancesResponse>(probe ? "/api/instances?probe=all" : "/api/instances"),
+  saveInstance: (input: InstanceInput) =>
+    request<{ ok: boolean }>("/api/instances", { method: "POST", body: input }),
+  deleteInstance: (id: string) =>
+    request<{ ok: boolean }>(`/api/instances/${encodeURIComponent(id)}`, { method: "DELETE" }),
+  tts: (text: string) =>
+    request<{ ok: boolean; clients?: number }>("/api/tts", { method: "POST", body: { text } }),
+  ttsStop: () => request<void>("/api/tts/stop", { method: "POST" }),
   health: () => request<Health>("/api/health"),
   config: () => request<Config>("/api/config"),
   projects: () => request<Project[]>("/api/projects"),

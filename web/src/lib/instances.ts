@@ -17,14 +17,29 @@ export function mergeDeviceCapabilities(
   caps: InstanceCapability[],
   supportsSpeech: boolean,
 ): InstanceCapability[] {
-  return caps.map((cap) =>
-    cap.id === "speech" && cap.state === "off" && supportsSpeech
-      ? {
-          ...cap,
-          state: "fallback",
-          owner: "browser",
-          detail: "device voice; host TTS not connected",
-        }
-      : cap,
-  );
+  return caps.map((cap) => {
+    if (cap.id !== "speech") return cap;
+    if (cap.state === "off" && supportsSpeech)
+      return {
+        ...cap,
+        state: "fallback",
+        owner: "browser",
+        detail: "device voice; host TTS not connected",
+      };
+    if (cap.state === "fallback" && supportsSpeech)
+      return {
+        ...cap,
+        state: "fallback",
+        owner: "browser",
+        detail: "device voice; host TTS has no audio client",
+      };
+    if (cap.state === "fallback" && !supportsSpeech)
+      return {
+        ...cap,
+        state: "off",
+        owner: "opencode",
+        detail: "host TTS hub up · no audio client; no device voice",
+      };
+    return cap;
+  });
 }

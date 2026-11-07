@@ -2,6 +2,7 @@ package uistate
 
 import (
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"sort"

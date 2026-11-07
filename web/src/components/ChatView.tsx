@@ -19,7 +19,6 @@ import type { Agent, Message, Model, Project, Session } from "../lib/types";
 import {
   anchorIndex,
   BOTTOM_GAP,
-  EARLIER_THRESHOLD,
   isAtTop,
   shouldLoadEarlier,
   type ScrollAnchor,
@@ -392,13 +391,21 @@ export function ChatView({
   }, [messages, running, scheduleScroll]);
 
   useEffect(() => {
-    if (!hasEarlier || loadingEarlier) return;
+    if (!hasEarlier || loadingEarlier || earlierFailed) return;
     const element = scrollRef.current;
     if (!element) return;
-    if (element.scrollHeight <= element.clientHeight + EARLIER_THRESHOLD) {
+    if (
+      shouldLoadEarlier({
+        scrollTop: element.scrollTop,
+        scrollHeight: element.scrollHeight,
+        clientHeight: element.clientHeight,
+        hasEarlier,
+        loading: loadingEarlier,
+      })
+    ) {
       requestEarlier();
     }
-  }, [hasEarlier, loadingEarlier, requestEarlier, session?.id]);
+  }, [earlierFailed, hasEarlier, loadingEarlier, requestEarlier, session?.id]);
 
   useLayoutEffect(() => {
     const anchor = earlierAnchor.current;
@@ -587,14 +594,32 @@ export function ChatView({
         ref={scrollRef}
         data-transcript
         className="scrollbar-thin min-h-0 flex-1 overflow-y-auto overflow-x-hidden [overflow-anchor:none] [scrollbar-gutter:stable]"
-        onWheel={() => {
+        onWheel={(event) => {
           jumping.current = false;
+          if (event.deltaY < 0) pullEarlier();
         }}
         onPointerDown={() => {
           jumping.current = false;
         }}
-        onKeyDown={() => {
+        onTouchStart={(event) => {
           jumping.current = false;
+          touchY.current = event.touches[0]?.clientY ?? null;
+        }}
+        onTouchMove={(event) => {
+          const y = event.touches[0]?.clientY;
+          if (y !== undefined && touchY.current !== null && y > touchY.current) {
+            pullEarlier();
+          }
+          if (y !== undefined) touchY.current = y;
+        }}
+        onTouchEnd={() => {
+          touchY.current = null;
+        }}
+        onKeyDown={(event) => {
+          jumping.current = false;
+          if (event.key === "ArrowUp" || event.key === "PageUp" || event.key === "Home") {
+            pullEarlier();
+          }
         }}
         onScroll={(event) => {
           const element = event.currentTarget;
@@ -616,7 +641,15 @@ export function ChatView({
           if (!programmatic) settle.current = null;
           settleTop.current = null;
           if (session?.id) saveAnchor(session.id, nearBottom);
-          if (needsEarlier(element.scrollTop, element.scrollHeight, element.clientHeight)) {
+          if (
+            shouldLoadEarlier({
+              scrollTop: element.scrollTop,
+              scrollHeight: element.scrollHeight,
+              clientHeight: element.clientHeight,
+              hasEarlier,
+              loading: loadingEarlier,
+            })
+          ) {
             requestEarlier();
           }
         }}

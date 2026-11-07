@@ -222,3 +222,36 @@ func fileMode(t *testing.T, path string) os.FileMode {
 	}
 	return info.Mode().Perm()
 }
+
+func TestRenameMovesInstanceState(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "state.json")
+	store, err := Open(path, "local")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.SetDraft("local", "key", "hello"); err != nil {
+		t.Fatal(err)
+	}
+	if !store.Has("local") || store.Has("office") {
+		t.Fatalf("unexpected Has before rename: %v %v", store.Has("local"), store.Has("office"))
+	}
+	if err := store.Rename("local", "office"); err != nil {
+		t.Fatal(err)
+	}
+	if store.Has("local") || !store.Has("office") {
+		t.Fatalf("unexpected Has after rename: %v %v", store.Has("local"), store.Has("office"))
+	}
+	if got := store.Draft("office", "key").Text; got != "hello" {
+		t.Fatalf("draft = %q", got)
+	}
+	reopened, err := Open(path, "local")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := reopened.Draft("office", "key").Text; got != "hello" {
+		t.Fatalf("reopened draft = %q", got)
+	}
+	if err := reopened.Rename("office", "local"); err != nil {
+		t.Fatal(err)
+	}
+}

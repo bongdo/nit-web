@@ -90,6 +90,7 @@ type Server struct {
 	mux          *http.ServeMux
 	fast         *fastSTT
 	grammar      *grammarChecker
+	tts          *ttsHub
 	auth         *authGate
 	ui           *uistate.Store
 	basePath     string
@@ -116,6 +117,7 @@ func New(provider ClientProvider, static fs.FS, log *slog.Logger) http.Handler {
 		mux:          http.NewServeMux(),
 		fast:         newFastSTT(log),
 		grammar:      newGrammarChecker(log),
+		tts:          newTTSHub(),
 		auth:         newAuthGate(log),
 		ui:           ui,
 		basePath:     strings.TrimRight(os.Getenv("NIT_GUI_BASE_PATH"), "/"),
@@ -191,6 +193,8 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("POST /api/sessions/{id}/fork", s.fork)
 	s.mux.HandleFunc("POST /api/sessions/{id}/compact", s.compact)
 	s.mux.HandleFunc("POST /api/stt", s.stt)
+	s.mux.HandleFunc("POST /api/tts", s.ttsSay)
+	s.mux.HandleFunc("POST /api/tts/stop", s.ttsStop)
 	s.mux.HandleFunc("POST /api/grammar", s.grammarCheck)
 	s.mux.HandleFunc("POST /api/upload", s.upload)
 	s.mux.HandleFunc("GET /api/file", s.file)
@@ -1212,6 +1216,36 @@ func (s *Server) cancelForm(w http.ResponseWriter, r *http.Request) {
 		s.upstreamError(w, r, err)
 		return
 	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (s *Server) ttsSay(w http.ResponseWriter, r *http.Request) {
+	if s.tts == nil {
+		writeError(w, http.StatusServiceUnavailable, "host TTS not configured")
+		return
+	}
+	var body struct {
+		Text string `json:"text"`
+	}
+	decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, 64<<10))
+	if err := decoder.Decode(&body); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request")
+		return
+	}
+	clients, err := s.tts.say(r.Context(), body.Text)
+	if err != nil {
+		writeError(w, http.StatusServiceUnavailable, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "clients": clients})
+}
+
+func (s *Server) ttsStop(w http.ResponseWriter, r *http.Request) {
+	if s.tts == nil {
+		writeError(w, http.StatusServiceUnavailable, "host TTS not configured")
+		return
+	}
+	_ = s.tts.stop(r.Context())
 	w.WriteHeader(http.StatusNoContent)
 }
 

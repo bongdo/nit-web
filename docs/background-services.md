@@ -72,13 +72,19 @@ OpenCode servers:
 - Passwords stay on the nit-gui host. A config with an inline password should be
   mode `0600`; the app warns otherwise. A malformed file falls back to `local`
   and the error is shown in the Instances menu.
+- The Instances menu creates, edits and deletes entries. Saving writes the file
+  atomically with mode `0600` and reloads the registry in place. A password
+  typed in the form is written to a separate `0600` file next to the config; it
+  is never returned to the browser. Renaming moves the saved drafts, hidden
+  chats and done/failed markers. Deleting keeps that state in `ui-state.json`,
+  so recreating the same name re-attaches it.
 
 The browser sends `X-Nit-Instance: <id>` on every API request and `?instance=`
 on `EventSource` and `/api/file` links. Only the active instance keeps an event
 stream; switching remounts the chat view and reloads that instance's sessions,
-models, agents and drafts. Dictation and grammar run on the nit-gui host and are
-therefore shared by all instances; sessions, models, agents and workspaces are
-per instance.
+models, agents and drafts. Dictation, grammar and host TTS run on the nit-gui
+host and are therefore shared by all instances; sessions, models, agents and
+workspaces are per instance.
 
 Only Tailscale Funnel is public. Caddy, OpenCode, nit-gui, LanguageTool, Whisper
 and the TTS hub stay on loopback; the TTS hub does not meet that yet. The host
@@ -98,8 +104,10 @@ The browser may:
 - read hidden, done/failed, drafts, model and agent state from `/api/ui`;
 - hold the session in an HttpOnly cookie; the password is never stored in the
   browser;
-- use `speechSynthesis` only as a labeled device fallback when the host TTS
-  plugin is not connected. It is never presented as host speech.
+- ask `/api/tts` to publish reply text to the host TTS hub; the hub token never
+  reaches the browser;
+- use `speechSynthesis` only as a labeled device fallback when the hub has no
+  audio client or is down. It is never presented as host speech.
 
 The browser must not be required to:
 
@@ -159,6 +167,10 @@ is not measured here.
 | `NIT_GUI_WHISPER_SERVER` | fast dictation server binary |
 | `NIT_GUI_STT_FAST_MODEL` | fast model path |
 | `NIT_GUI_WHISPER`, `NIT_GUI_WHISPER_MODEL`, `NIT_GUI_STT_LANG` | accurate dictation |
+| `NIT_GUI_TTS_URL` | OpenCode TTS hub, default `http://127.0.0.1:7787` |
+| `NIT_GUI_TTS_TOKEN_FILE` | hub token file, default `$XDG_STATE_HOME/opencode-tts/token` |
+| `NIT_GUI_TTS_TOKEN` | direct hub token, overrides the file |
+| `NIT_GUI_TTS` | `off` disables host TTS |
 | `NIT_GUI_WARM` | `0` disables startup warmup |
 | `NIT_GUI_PUBLIC_PORT` | Caddy loopback port, default `7792` |
 | `NIT_GUI_PUBLIC_HOST` | Funnel hostname, default `frankfurt.tailf358cb.ts.net` |
@@ -169,10 +181,11 @@ is not measured here.
 | `NIT_GUI_STATE` | Shared UI state path, default `~/.local/state/nit-gui/ui-state.json` |
 | `NIT_GUI_DEPLOY_*` | deploy host, port and directory |
 
-TTS is configured in the OpenCode TTS plugin, not in nit-gui. nit-gui has no
-TTS environment variable and does not proxy the hub. The reply `Read` button
-uses the browser's `speechSynthesis` as a labeled device fallback when no host
-voice is connected.
+TTS is published by nit-gui to the OpenCode TTS hub with
+`NIT_GUI_TTS_URL`/`NIT_GUI_TTS_TOKEN_FILE` (or `NIT_GUI_TTS_TOKEN`). The hub
+broadcasts text to an audio client; it does not synthesize audio. The reply
+`Read` button uses the browser's `speechSynthesis` only when the hub is down or
+has no audio client.
 
 ## Security boundary
 
@@ -212,11 +225,14 @@ voice is connected.
   in a browser worker. The target is `POST /api/spell` on Frankfurt, with the
   client only rendering issues. Until then, a browser without Web Workers or
   the dictionaries gets no spelling.
-- **TTS is not proxied by nit-gui.** The OpenCode TTS plugin currently listens
-  on `0.0.0.0:7787` and is not part of the app. It must bind to `127.0.0.1` and
-  be reached through the app or Caddy. Until then the reply `Read` button uses
-  the browser's `speechSynthesis` as a labeled device fallback; the Instances
-  menu reports it as `fallback` or `off`, never as host speech.
+- **The TTS hub needs an audio client.** nit-gui publishes text, but the hub
+  only broadcasts it; no client means no playback. The menu then shows
+  `fallback` and the reply `Read` button uses the browser voice. The hub still
+  listens on `0.0.0.0:7787`; only the token protects it. Bind it to
+  `127.0.0.1` when the host is exposed beyond the tailnet.
+- **Instance editing writes on the host.** The menu writes `instances.json` and
+  password files with mode `0600`; a custom `NIT_GUI_INSTANCES` path must be
+  writable by the app user. External edits are read on reload/restart.
 - **SSH tunnels are not reconnected automatically.** A tunnel lives until
   `DropFor` or app shutdown. Use `Reconnect` or switch to the instance again
   after a network drop. There is no background health check for inactive

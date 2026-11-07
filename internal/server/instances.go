@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"os"
 	"strings"
@@ -62,12 +63,14 @@ func (s *Server) instances(w http.ResponseWriter, r *http.Request) {
 type sharedCapabilities struct {
 	dictation capabilityOut
 	grammar   capabilityOut
+	speech    capabilityOut
 }
 
 func (s *Server) sharedCapabilities(ctx context.Context) sharedCapabilities {
 	return sharedCapabilities{
 		dictation: s.dictationCapability(),
 		grammar:   s.grammarCapability(ctx),
+		speech:    s.speechCapability(ctx),
 	}
 }
 
@@ -122,7 +125,7 @@ func (s *Server) capabilities(version, chatState, chatDetail string, shared shar
 		{ID: "chat", Label: "Chat & sessions", Owner: "opencode", State: chatState, Required: true, Detail: chatDetail},
 		shared.dictation,
 		shared.grammar,
-		{ID: "speech", Label: "Speech", Owner: "opencode", State: "off", Detail: "host TTS not connected"},
+		shared.speech,
 		{ID: "spelling", Label: "Spelling", Owner: "browser", State: "fallback", Detail: "nspell RU+EN · this device"},
 	}
 }
@@ -141,6 +144,21 @@ func (s *Server) dictationCapability() capabilityOut {
 		state, detail = "on", "accurate only"
 	}
 	return capabilityOut{ID: "dictation", Label: "Dictation", Owner: "nit-gui", State: state, Detail: detail}
+}
+
+func (s *Server) speechCapability(ctx context.Context) capabilityOut {
+	ok, clients, detail := false, 0, "host TTS not configured"
+	if s.tts != nil {
+		ok, clients, detail = s.tts.status(ctx)
+	}
+	switch {
+	case ok && clients > 0:
+		return capabilityOut{ID: "speech", Label: "Speech", Owner: "opencode", State: "on", Detail: fmt.Sprintf("host TTS · %d audio client(s)", clients)}
+	case ok:
+		return capabilityOut{ID: "speech", Label: "Speech", Owner: "browser", State: "fallback", Detail: "host TTS hub up · no audio client"}
+	default:
+		return capabilityOut{ID: "speech", Label: "Speech", Owner: "opencode", State: "off", Detail: detail}
+	}
 }
 
 func (s *Server) grammarCapability(ctx context.Context) capabilityOut {

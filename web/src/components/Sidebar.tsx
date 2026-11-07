@@ -16,7 +16,6 @@ import {
   EyeOff,
   Folder,
   FolderOpen,
-  GitBranch,
   MessageSquare,
   Monitor,
   Moon,
@@ -109,18 +108,28 @@ function SessionRow({
     return () => window.clearTimeout(timer);
   }, [runningSubagents, animated]);
   return (
-    <div data-session-row={session.id} className="group relative mx-1.5">
+    <div
+      data-session-row={session.id}
+      className={cn(
+        "group relative mx-1.5 rounded-lg transition-colors",
+        hidden && "opacity-60",
+        active ? "bg-accent text-accent-foreground" : "hover:bg-accent/60",
+      )}
+    >
       <button
         type="button"
         data-session-id={session.id}
         onClick={onClick}
         onDoubleClick={hasSubagents ? onToggle : undefined}
+        aria-label={session.agent ? `${title} · ${session.agent}` : title}
+        title={session.agent ? `${title} · ${session.agent}` : title}
+        style={{ position: "absolute" }}
+        className={cn("absolute inset-0 rounded-lg", state && cn("session-state", state))}
+      />
+      <div
         className={cn(
-          "flex w-full flex-col gap-1 rounded-lg px-2.5 py-2 text-left transition-colors",
-          depth > 0 && "py-1.5 pl-6",
-          hidden && "opacity-60",
-          state && cn("session-state", state),
-          active ? "bg-accent text-accent-foreground" : "hover:bg-accent/60",
+          "pointer-events-none relative flex flex-col gap-1 px-2.5 py-2",
+          depth > 0 && "pl-9",
         )}
       >
         <div className="flex min-w-0 items-center gap-2">
@@ -132,29 +141,70 @@ function SessionRow({
               )}
             />
           ) : (
-            <span
-              className={cn(
-                "size-1.5 shrink-0 rounded-full",
-                waiting
-                  ? cn("bg-spark ring-spark/30 ring-2", animated && "waiting-dot")
-                  : running
-                    ? "animate-pulse bg-success"
-                    : doneHere
-                      ? "bg-success ring-success/20 ring-2"
-                      : "bg-border",
-              )}
-              title={
-                waiting
-                  ? "Waiting for your answer"
-                  : running
-                    ? "Running"
-                    : doneHere
-                      ? "Done"
-                      : "Idle"
-              }
-            />
+            <>
+              <span className="flex size-4 shrink-0 items-center justify-center">
+                {hasSubagents && (
+                  <button
+                    type="button"
+                    onClick={onToggle}
+                    aria-expanded={expanded}
+                    aria-label={expanded ? "Hide subagents" : "Show subagents"}
+                    title={
+                      runningSubagents > 0
+                        ? `${runningSubagents} of ${subagentCount} subagents running`
+                        : `${subagentCount} subagents`
+                    }
+                    className="pointer-events-auto flex size-4 items-center justify-center rounded text-muted-foreground hover:text-foreground"
+                  >
+                    <ChevronRight
+                      className={cn(
+                        "size-3 transition-transform",
+                        expanded && "rotate-90",
+                      )}
+                    />
+                  </button>
+                )}
+              </span>
+              <span
+                className={cn(
+                  "size-1.5 shrink-0 rounded-full",
+                  waiting
+                    ? cn("bg-spark ring-spark/30 ring-2", animated && "waiting-dot")
+                    : running
+                      ? "animate-pulse bg-success"
+                      : doneHere
+                        ? "bg-success ring-success/20 ring-2"
+                        : "bg-border",
+                )}
+                title={
+                  waiting
+                    ? "Waiting for your answer"
+                    : running
+                      ? "Running"
+                      : doneHere
+                        ? "Done"
+                        : "Idle"
+                }
+              />
+            </>
           )}
           <span className="min-w-0 flex-1 truncate text-[13px] font-medium">{title}</span>
+          {hasSubagents && (
+            <span
+              className={cn(
+                "sidebar-sheen-badge inline-flex shrink-0 items-center rounded px-1 text-[10px] tabular-nums",
+                runningSubagents > 0 ? "text-success" : "text-muted-foreground",
+                settling && "sidebar-sheen-badge-settle",
+              )}
+              title={
+                runningSubagents > 0
+                  ? `${runningSubagents} of ${subagentCount} subagents running`
+                  : `${subagentCount} subagents`
+              }
+            >
+              {runningSubagents > 0 ? `${runningSubagents}/${subagentCount}` : subagentCount}
+            </span>
+          )}
           <span
             className={cn(
               "shrink-0 text-[10px] transition-opacity group-hover:opacity-0",
@@ -181,55 +231,15 @@ function SessionRow({
                 : formatRelative(session.time.updated, now)}
           </span>
         </div>
-        {depth === 0 ? (
-          (showDirectory || hasSubagents) && (
-            <div
-              className={cn(
-                "text-muted-foreground flex min-h-3 min-w-0 items-center gap-1 pl-3.5 text-[10px]",
-                hasSubagents && "pr-16",
-              )}
-            >
-              {showDirectory && (
-                <>
-                  <Folder className="size-3 shrink-0" />
-                  <span className="truncate" title={session.location?.directory}>
-                    {basename(session.location?.directory) || "unknown"}
-                  </span>
-                </>
-              )}
-            </div>
-          )
-        ) : session.agent ? (
-          <div className="text-muted-foreground truncate pl-3.5 text-[10px]">
-            {session.agent}
+        {depth === 0 && showDirectory && (
+          <div className="text-muted-foreground flex min-w-0 items-center gap-1 pl-10 text-[10px]">
+            <Folder className="size-3 shrink-0" />
+            <span className="truncate" title={session.location?.directory}>
+              {basename(session.location?.directory) || "unknown"}
+            </span>
           </div>
-        ) : null}
-      </button>
-      {hasSubagents && (
-        <button
-          type="button"
-          onClick={onToggle}
-          aria-expanded={expanded}
-          aria-label={expanded ? "Hide subagents" : "Show subagents"}
-          title={
-            runningSubagents > 0
-              ? `${runningSubagents} of ${subagentCount} subagents running`
-              : `${subagentCount} subagents`
-          }
-          className={cn(
-            "text-muted-foreground hover:text-foreground sidebar-sheen-badge absolute right-2 bottom-1.5 z-10 inline-flex items-center gap-0.5 rounded px-0.5 text-[10px]",
-            settling && "sidebar-sheen-badge-settle",
-          )}
-        >
-          <ChevronRight
-            className={cn("size-3 transition-transform", expanded && "rotate-90")}
-          />
-          <GitBranch className="size-3" />
-          <span className={cn(runningSubagents > 0 && "text-success")}>
-            {runningSubagents > 0 ? `${runningSubagents}/${subagentCount}` : subagentCount}
-          </span>
-        </button>
-      )}
+        )}
+      </div>
       <div className="absolute top-1 right-1 hidden items-center gap-0.5 group-hover:flex">
         {hidden ? (
           <Button

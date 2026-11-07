@@ -74,6 +74,14 @@ never shown as errors: `off` names what still works. An offline instance shows
 the reason and a `Reconnect` action; switching to another instance leaves it
 untouched. If every instance is offline, the offline screen has `Switch instance`.
 
+The menu edits the list: `New instance`, `Edit`, `Delete`, `Switch` and
+`Reconnect`. Saving writes `instances.json` on the nit-gui host and reloads the
+registry without a restart. A password typed in the form is written to a `0600`
+file next to `instances.json`; it is never returned to the browser. Renaming an
+instance moves its saved drafts, hidden chats and done/failed markers. Deleting
+an instance keeps that state in `ui-state.json`, so recreating the same name
+re-attaches it.
+
 ### Configuration
 
 The file is `$NIT_GUI_INSTANCES` or
@@ -311,14 +319,19 @@ rewritten to loopback. Credentials in a server URL are discarded.
 | `NIT_GUI_LANGUAGETOOL_PORT` | Spawned server port, default `8179`. |
 | `NIT_GUI_LANGUAGETOOL_JAVA_OPTS` | JVM options, default `-Xms256m -Xmx512m`. |
 | `NIT_GUI_WHISPER_SERVER` | Fast dictation server binary, default `whisper-server` on `PATH`. |
+| `NIT_GUI_TTS_URL` | OpenCode TTS hub, default `http://127.0.0.1:7787`. |
+| `NIT_GUI_TTS_TOKEN_FILE` | Hub token file, default `$XDG_STATE_HOME/opencode-tts/token` or `~/.local/state/opencode-tts/token`. |
+| `NIT_GUI_TTS_TOKEN` | Direct hub token, overrides the token file. |
+| `NIT_GUI_TTS` | Set to `off` to disable host TTS. |
 | `NIT_GUI_WARM` | Set to `0` to skip eager LanguageTool and fast-dictation warmup. |
 | `--addr` | Listener address, default `127.0.0.1:7788`. |
 
-TTS is configured in the OpenCode TTS plugin on the same host; nit-gui has no
-TTS variable and does not proxy the hub. The reply `Read` button uses the
-browser's `speechSynthesis` as an explicit device fallback; the Instances menu
-labels it as a fallback, never as host TTS. A browser without a voice simply
-shows speech as `off`.
+TTS: the reply `Read` button publishes the text to the OpenCode TTS hub on the
+host. The hub broadcasts to an audio client; the browser never receives the
+token. If the hub is up but no audio client is connected, the menu shows
+`fallback` and the button uses the browser's `speechSynthesis` as a labeled
+device fallback. If the hub is down and the browser has no voice, speech is
+`off`. The menu names the fallback; it never presents device speech as host TTS.
 
 If the active instance is down, the GUI still starts and shows an offline screen
 with a retry button and a `Switch instance` action. Health is polled every 20
@@ -328,14 +341,18 @@ seconds for the active instance.
 
 The browser only talks to these same-origin endpoints:
 
-All `/api` endpoints except `GET /api/instances` accept `X-Nit-Instance: <id>`
-or `?instance=<id>` and default to the first configured instance. `EventSource`
-and `<img>` links use the query parameter because they cannot set headers.
+All `/api` endpoints except `/api/instances*` accept `X-Nit-Instance: <id>` or
+`?instance=<id>` and default to the first configured instance. `EventSource` and
+`<img>` links use the query parameter because they cannot set headers.
 
 | Endpoint | Purpose |
 | --- | --- |
 | `GET /api/health` | `{ok, instance, server, version}` from OpenCode `/api/info`. |
-| `GET /api/instances` | App identity, default instance, config error and every instance with its capabilities. `?probe=all` also connects idle SSH instances. |
+| `GET /api/instances` | App identity, default instance, config path/error and every instance with its capabilities, `url`, `ssh` and default directory. `?probe=all` also connects idle SSH instances. |
+| `POST /api/instances` | Create or edit `{original?, name, transport, url?, ssh?, dir?, password?, passwordFile?}`. Writes the config on the host and reloads the registry. |
+| `DELETE /api/instances/{id}` | Remove an instance; the last one cannot be removed. |
+| `POST /api/tts` | `{text}`; publish to the host TTS hub. `503` when the hub is down or has no audio client. |
+| `POST /api/tts/stop` | Stop playback on the host audio client. |
 | `GET /api/config` | Directory, default model and primary agent. |
 | `GET /api/projects` | Known projects from OpenCode `/api/project`, for the workspace picker. |
 | `GET /api/sessions?dir=&children=true` | Newest sessions; `children=true` includes subagent sessions. |
@@ -388,10 +405,13 @@ nspell worker. It is not implemented yet.
   Password values are never logged or put in a URL.
 - Instance passwords and SSH hosts stay in the Go process and in
   `instances.json`; they are never logged or sent to the browser.
-  `GET /api/instances` exposes only the name, transport, version and state. The
-  config file should be mode `0600` when it contains an inline password; the app
-  warns otherwise. `X-Nit-Instance` and `?instance=` are validated against the
-  configured names; an unknown name is rejected with `400`.
+  `GET /api/instances` exposes only the name, transport, sanitized URL, SSH
+  host, default directory, version and state. Passwords and password-file
+  contents are never returned. The config file should be mode `0600` when it
+  contains an inline password; the app warns otherwise. The editor writes a
+  typed password to a separate `0600` file. `X-Nit-Instance` and `?instance=`
+  are validated against the configured names; an unknown name is rejected with
+  `400`.
 - OpenCode content can contain a service password because a tool can read
   `service.json`, so every pass-through JSON response from OpenCode and every
   SSE `data` payload is redacted before it is written to the browser. For the
@@ -426,11 +446,13 @@ nspell worker. It is not implemented yet.
 
 - Sidebar: search, new session, title, directory, relative age, running dot,
   and a per-chat subagent counter that expands that chat's subagents.
-- The header instance chip opens the Instances menu: transport, state, OpenCode
+- The sidebar network icon opens the Instances menu: transport, state, OpenCode
   version, the Browser → nit-gui → OpenCode flow and a capability row for every
-  instance. `/instances` opens the same menu. Switching remounts the chat view,
-  so the new instance starts from its own sessions and drafts. Offline and boot
-  screens also have `Switch instance`.
+  instance. The same icon carries the live/offline state. `/instances` opens the
+  same menu. Switching remounts the chat view, so the new instance starts from
+  its own sessions and drafts. Offline and boot screens also have `Switch
+  instance`. The menu creates, edits and deletes instances; saving writes
+  `instances.json` on the host.
 - Streaming text, reasoning, tool calls collapsed by default, code copy,
   GFM tables/task lists.
 - Composer: Enter sends, Shift+Enter adds a line, stop while streaming, token
@@ -543,9 +565,10 @@ own startup warmup.
   same set of OpenCode instances, sessions and workspace namespaces. There are
   no per-user accounts or quotas; an instance is a separate OpenCode namespace,
   not a security boundary.
-- Instances are read from `instances.json` at startup; editing the file needs a
-  restart. The menu does not add or edit instances. SSH tunnels are not
-  reconnected automatically: use `Reconnect` or switch to the instance again.
+- The menu edits `instances.json` and reloads the registry without a restart.
+  External edits to the file are read on `Reconnect` or the next app start. SSH
+  tunnels are not reconnected automatically: use `Reconnect` or switch to the
+  instance again.
 - Only the active instance keeps an event stream. Inactive instances do not
   accumulate unread counts or approvals in the background; switching to one
   reloads its list and transcript.
@@ -575,10 +598,12 @@ own startup warmup.
   first request (3–4 s), then Russian checks take about 250 ms and English
   about 30–40 ms. Capitalization and spelling rules are disabled so the
   composer does not duplicate nspell; some Russian commas are still missed.
-- TTS is not proxied by nit-gui. The OpenCode TTS plugin is a Frankfurt host
-  service; the reply `Read` button uses the browser's `speechSynthesis` as a
-  labeled device fallback. A client with no local voice gets no speech output,
-  and the Instances menu reports it as `fallback` or `off`, never as host TTS.
+- Host TTS publishes text to the OpenCode TTS hub, not audio. The hub needs an
+  audio client to play it. With no audio client the menu shows `fallback` and
+  the reply `Read` button uses the browser's `speechSynthesis`; with no browser
+  voice the menu shows `off`. The menu never presents device speech as host TTS.
+- The TTS hub still listens on `0.0.0.0:7787`; only the token protects it. Bind
+  it to `127.0.0.1` when the host is exposed beyond the tailnet.
 - Uploaded files live under `/tmp/nit-gui-*` on the OpenCode host. Nothing
   cleans them up. Only those paths can be served back through `/api/file`.
 - PDF support depends on the model. The default DeepSeek model reads images but

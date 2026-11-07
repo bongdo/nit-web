@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Check, Copy, Loader2, Volume2 } from "lucide-react";
 import { api } from "../lib/api";
 import { copyText } from "../lib/clipboard";
+import { speakHost, type SpeechHandle } from "../lib/speech";
 import { cn } from "../lib/utils";
 import { Button } from "./ui/button";
 
@@ -18,11 +19,14 @@ export function ReplyActions({
   const [speaking, setSpeaking] = useState(false);
   const [loading, setLoading] = useState(false);
   const [unavailable, setUnavailable] = useState(false);
+  const [selection, setSelection] = useState(false);
   const copyTimer = useRef<number | null>(null);
   const speechTimer = useRef<number | null>(null);
   const audio = useRef<HTMLAudioElement | null>(null);
   const audioUrl = useRef<string | null>(null);
   const abort = useRef<AbortController | null>(null);
+  const speech = useRef<SpeechHandle | null>(null);
+  const root = useRef<HTMLDivElement | null>(null);
   const owner = useRef(Symbol("reply"));
   const generation = useRef(0);
   const supported = typeof window !== "undefined" && "speechSynthesis" in window;
@@ -41,12 +45,25 @@ export function ReplyActions({
     }
   };
 
+  const selectedText = (): string => {
+    const picked = window.getSelection();
+    if (!picked || picked.isCollapsed || picked.rangeCount === 0) return "";
+    const container = root.current?.closest("[data-message-id]");
+    if (!container || !container.contains(picked.anchorNode) || !container.contains(picked.focusNode)) {
+      return "";
+    }
+    const value = picked.toString().trim();
+    return value.length >= 3 ? value : "";
+  };
+
   useEffect(() => {
     const onSpeak = (event: Event) => {
       if ((event as CustomEvent).detail !== owner.current) {
         generation.current += 1;
         abort.current?.abort();
         abort.current = null;
+        speech.current?.stop();
+        speech.current = null;
         releaseAudio();
         if (speechTimer.current !== null) window.clearTimeout(speechTimer.current);
         setSpeaking(false);
@@ -61,6 +78,8 @@ export function ReplyActions({
       if (speechTimer.current !== null) window.clearTimeout(speechTimer.current);
       abort.current?.abort();
       abort.current = null;
+      speech.current?.stop();
+      speech.current = null;
       releaseAudio();
       if (supported) window.speechSynthesis.cancel();
     };
@@ -76,6 +95,8 @@ export function ReplyActions({
   const stop = () => {
     abort.current?.abort();
     abort.current = null;
+    speech.current?.stop();
+    speech.current = null;
     void api.ttsStop().catch(() => {});
     if (supported) window.speechSynthesis.cancel();
     if (speechTimer.current !== null) window.clearTimeout(speechTimer.current);
@@ -85,14 +106,14 @@ export function ReplyActions({
     setLoading(false);
   };
 
-  const speakBrowser = (): void => {
+  const speakBrowser = (target: string): void => {
     if (!supported) {
       setUnavailable(true);
       return;
     }
     window.speechSynthesis.cancel();
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = /[А-Яа-яЁё]/.test(text) ? "ru-RU" : "en-US";
+    const utterance = new SpeechSynthesisUtterance(target);
+    utterance.lang = /[А-Яа-яЁё]/.test(target) ? "ru-RU" : "en-US";
     utterance.onend = () => setSpeaking(false);
     utterance.onerror = () => setSpeaking(false);
     window.speechSynthesis.speak(utterance);
@@ -108,24 +129,39 @@ export function ReplyActions({
     const controller = new AbortController();
     abort.current = controller;
     window.dispatchEvent(new CustomEvent("nit-gui:speech", { detail: owner.current }));
+    const target = selectedText() || text;
+    setSelection(false);
     setLoading(true);
-    try {
-      await api.tts(text, controller.signal);
+
+    let started = false;
+    const handle = speakHost(target, () => {
       if (gen !== generation.current) return;
-      abort.current = null;
-      if (speechTimer.current !== null) window.clearTimeout(speechTimer.current);
-      speechTimer.current = window.setTimeout(
-        () => setSpeaking(false),
-        Math.min(180_000, Math.max(4_000, text.length * 55)),
-      );
-      setSpeaking(true);
+      started = true;
       setLoading(false);
-      return;
-    } catch {
-      if (gen !== generation.current || controller.signal.aborted) return;
+      setSpeaking(true);
+    });
+    if (handle) {
+      speech.current = handle;
+      try {
+        await handle.done;
+      } catch {}
+      if (gen !== generation.current) return;
+      speech.current = null;
+      abort.current = null;
+      if (started || handle.started()) {
+        setLoading(false);
+        setSpeaking(false);
+        return;
+      }
+      if (controller.signal.aborted) {
+        setLoading(false);
+        setSpeaking(false);
+        return;
+      }
     }
+
     try {
-      const blob = await api.ttsAudio(text, controller.signal);
+      const blob = await api.ttsAudio(target, controller.signal);
       if (gen !== generation.current || controller.signal.aborted) return;
       abort.current = null;
       const url = URL.createObjectURL(blob);
@@ -147,17 +183,37 @@ export function ReplyActions({
       }
       setSpeaking(true);
       setLoading(false);
+      return;
     } catch {
       if (gen !== generation.current || controller.signal.aborted) return;
       abort.current = null;
       releaseAudio();
-      speakBrowser();
+    }
+
+    try {
+      await api.tts(target, controller.signal);
+      if (gen !== generation.current || controller.signal.aborted) return;
+      abort.current = null;
+      if (speechTimer.current !== null) window.clearTimeout(speechTimer.current);
+      speechTimer.current = window.setTimeout(
+        () => setSpeaking(false),
+        Math.min(180_000, Math.max(4_000, target.length * 55)),
+      );
+      setSpeaking(true);
+      setLoading(false);
+    } catch {
+      if (gen !== generation.current || controller.signal.aborted) return;
+      abort.current = null;
+      speakBrowser(target);
       setLoading(false);
     }
   };
 
   return (
-    <div className={cn("flex items-center gap-1", enter && "reply-actions-enter", className)}>
+    <div
+      ref={root}
+      className={cn("flex items-center gap-1", enter && "reply-actions-enter", className)}
+    >
       <Button
         variant="ghost"
         size="xs"
@@ -173,9 +229,30 @@ export function ReplyActions({
           variant="ghost"
           size="xs"
           className="text-muted-foreground"
+          onMouseDown={(event) => {
+            setSelection(Boolean(selectedText()));
+            event.preventDefault();
+          }}
+          onTouchStart={() => setSelection(Boolean(selectedText()))}
           onClick={() => void speak()}
-          aria-label={loading ? "Cancel speech preparation" : speaking ? "Stop reading" : "Read aloud"}
-          title={loading ? "Cancel speech preparation" : speaking ? "Stop reading" : "Read aloud"}
+          aria-label={
+            loading
+              ? "Cancel speech preparation"
+              : speaking
+                ? "Stop reading"
+                : selection
+                  ? "Read selection"
+                  : "Read aloud"
+          }
+          title={
+            loading
+              ? "Cancel speech preparation"
+              : speaking
+                ? "Stop reading"
+                : selection
+                  ? "Read selection"
+                  : "Read aloud"
+          }
         >
           {loading ? (
             <Loader2 className="animate-spin" />

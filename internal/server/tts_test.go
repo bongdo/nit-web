@@ -494,6 +494,49 @@ func TestTTSSpeechCapabilityPrecedence(t *testing.T) {
 	}
 }
 
+func TestTTSStreamHandler(t *testing.T) {
+	voiceEnv(t)
+	model := filepath.Join(t.TempDir(), "voice.onnx")
+	if err := os.WriteFile(model, []byte("model"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("NIT_GUI_TTS_ENGINE", "piper")
+	t.Setenv("NIT_GUI_TTS_PIPER", fakeVoiceScript(t, "cat >/dev/null\nprintf 'rawpcm'"))
+	t.Setenv("NIT_GUI_TTS_PIPER_MODEL", model)
+	server := &Server{voice: newHostVoice(), log: slog.Default()}
+
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/api/tts/stream", strings.NewReader(`{"text":"привет"}`))
+	server.ttsStream(recorder, request)
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", recorder.Code, recorder.Body.String())
+	}
+	if got := recorder.Header().Get("Content-Type"); got != "audio/L16" {
+		t.Fatalf("content type = %q", got)
+	}
+	if got := recorder.Header().Get("X-Audio-Rate"); got != "22050" {
+		t.Fatalf("rate = %q", got)
+	}
+	if got := recorder.Body.String(); got != "rawpcm" {
+		t.Fatalf("body = %q", got)
+	}
+
+	recorder = httptest.NewRecorder()
+	request = httptest.NewRequest(http.MethodPost, "/api/tts/stream", strings.NewReader(`{"text":"  "}`))
+	server.ttsStream(recorder, request)
+	if recorder.Code != http.StatusBadRequest {
+		t.Fatalf("empty status = %d", recorder.Code)
+	}
+
+	edge := &Server{voice: &hostVoice{engine: "edge"}, log: slog.Default()}
+	recorder = httptest.NewRecorder()
+	request = httptest.NewRequest(http.MethodPost, "/api/tts/stream", strings.NewReader(`{"text":"hello"}`))
+	edge.ttsStream(recorder, request)
+	if recorder.Code != http.StatusServiceUnavailable {
+		t.Fatalf("edge status = %d", recorder.Code)
+	}
+}
+
 func TestTTSAudioHandler(t *testing.T) {
 	s := &Server{voice: fakePiperVoice(t)}
 	recorder := httptest.NewRecorder()

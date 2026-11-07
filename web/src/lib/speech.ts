@@ -67,9 +67,10 @@ class PcmPlayer {
   private ended = false;
   private active = new Set<AudioBufferSourceNode>();
   private pending = new Uint8Array(0);
-  private resolveDone: () => void = () => {};
+  private settled = false;
+  private settleDone: (value: "done" | "stopped") => void = () => {};
   readonly done = new Promise<"done" | "stopped">((resolve) => {
-    this.resolveDone = () => resolve("done");
+    this.settleDone = resolve;
   });
 
   constructor(context: AudioContext) {
@@ -104,9 +105,7 @@ class PcmPlayer {
       } catch {}
     }
     this.active.clear();
-    this.resolveDone = () => {};
-    this.done.then(() => {});
-    this.ended = true;
+    this.settle("stopped");
   }
 
   private push(chunk: Uint8Array, rate: number, onStart?: () => void): void {
@@ -153,7 +152,13 @@ class PcmPlayer {
   }
 
   private maybeDone(): void {
-    if (this.ended && this.active.size === 0) this.resolveDone();
+    if (this.ended && this.active.size === 0) this.settle("done");
+  }
+
+  private settle(value: "done" | "stopped"): void {
+    if (this.settled) return;
+    this.settled = true;
+    this.settleDone(value);
   }
 }
 

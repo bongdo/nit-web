@@ -21,6 +21,12 @@ import { shouldCaptureKey } from "../lib/keys";
 import { applyIssue, issueAtCaret, issueKey, maskedAt, safeAutoFix, type SpellIssue } from "../lib/spell";
 import { useSpellcheck } from "../hooks/useSpellcheck";
 import { checkSpelling } from "../lib/spell-client";
+import {
+  dictationText,
+  speechRecognition,
+  type DictationMode,
+  type SpeechRecognitionLike,
+} from "../lib/web-speech";
 import { cn } from "../lib/utils";
 import { FileTypeIcon } from "./Attachment";
 import { CommandPalette } from "./CommandPalette";
@@ -109,7 +115,7 @@ export const Composer = memo(function Composer({
   draft?: { text: string; id: number } | null;
   insert?: { text: string; id: number } | null;
   commands: ComposerCommand[];
-  dictationMode: "fast" | "accurate";
+  dictationMode: DictationMode;
   spellcheck: boolean;
   autofix: boolean;
   form?: FormInfo | null;
@@ -131,6 +137,7 @@ export const Composer = memo(function Composer({
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [dropActive, setDropActive] = useState(false);
   const [recording, setRecording] = useState(false);
+  const [webLive, setWebLive] = useState(false);
   const [finishing, setFinishing] = useState(false);
   const [pending, setPending] = useState(0);
   const [elapsed, setElapsed] = useState(0);
@@ -245,7 +252,19 @@ export const Composer = memo(function Composer({
     silence: number;
     timer: number;
     started: number;
+    fast: boolean;
   } | null>(null);
+  const web = useRef<{
+    recognition: SpeechRecognitionLike | null;
+    base: string;
+    spoken: string;
+    interim: string;
+    shown: string;
+    timer: number;
+    started: number;
+    active: boolean;
+  } | null>(null);
+  const webUnavailable = useRef(false);
   const queue = useRef<Promise<void>>(Promise.resolve());
   const pendingRef = useRef(0);
 
@@ -608,7 +627,109 @@ export const Composer = memo(function Composer({
     enqueueSegment(chunks, state.context.sampleRate);
   };
 
+  const renderWeb = (state: NonNullable<typeof web.current>) => {
+    if (valueRef.current !== state.shown) {
+      state.base = valueRef.current;
+      state.spoken = "";
+    }
+    const text = dictationText(state.base, state.spoken, state.interim);
+    state.shown = text;
+    if (text !== valueRef.current) updateValue(text);
+    requestAnimationFrame(() => {
+      const area = ref.current;
+      if (!area) return;
+      area.scrollTop = area.scrollHeight;
+      setCaret(area.value.length);
+    });
+  };
+
+  const stopWeb = (state: NonNullable<typeof web.current>, message?: string) => {
+    if (!state.active) return;
+    state.active = false;
+    window.clearInterval(state.timer);
+    state.recognition?.stop();
+    if (web.current === state) web.current = null;
+    setWebLive(false);
+    setRecording(false);
+    setPending(0);
+    if (message) onError(message);
+  };
+
+  const wireWeb = (state: NonNullable<typeof web.current>, Ctor: new () => SpeechRecognitionLike) => {
+    const recognition = new Ctor();
+    recognition.lang = "ru-RU";
+    recognition.continuous = true;
+    recognition.interimResults = true;
+    recognition.maxAlternatives = 1;
+    recognition.onresult = (event) => {
+      let interim = "";
+      for (let index = event.resultIndex; index < event.results.length; index += 1) {
+        const result = event.results[index];
+        const transcript = result[0]?.transcript ?? "";
+        if (result.isFinal) state.spoken += transcript;
+        else interim += transcript;
+      }
+      state.interim = interim;
+      renderWeb(state);
+    };
+    recognition.onerror = (event) => {
+      if (event.error === "no-speech" || event.error === "aborted") return;
+      if (event.error === "network" || event.error === "service-not-allowed") {
+        webUnavailable.current = true;
+      }
+      stopWeb(
+        state,
+        event.error === "not-allowed"
+          ? "Microphone access was denied."
+          : "Browser speech failed. The next dictation uses the host model.",
+      );
+    };
+    recognition.onend = () => {
+      if (!state.active) return;
+      try {
+        wireWeb(state, Ctor);
+        state.recognition?.start();
+      } catch {
+        stopWeb(state, "Browser speech stopped.");
+      }
+    };
+    state.recognition = recognition;
+  };
+
+  const startWebDictation = (Ctor: new () => SpeechRecognitionLike) => {
+    const state: NonNullable<typeof web.current> = {
+      recognition: null,
+      base: valueRef.current,
+      spoken: "",
+      interim: "",
+      shown: valueRef.current,
+      timer: 0,
+      started: Date.now(),
+      active: true,
+    };
+    wireWeb(state, Ctor);
+    web.current = state;
+    setElapsed(0);
+    setRecording(true);
+    setWebLive(true);
+    state.timer = window.setInterval(() => {
+      const seconds = Math.floor((Date.now() - state.started) / 1000);
+      setElapsed(seconds);
+      if (seconds >= MAX_RECORDING) stopWeb(state);
+    }, 500);
+    try {
+      state.recognition?.start();
+    } catch {
+      stopWeb(state, "Browser speech could not start.");
+    }
+  };
+
   const stopDictation = async () => {
+    const live = web.current;
+    if (live) {
+      stopWeb(live);
+      return;
+    }
     const state = audio.current;
     if (!state) return;
     audio.current = null;
@@ -622,7 +743,7 @@ export const Composer = memo(function Composer({
     await state.context.close().catch(() => undefined);
     setFinishing(true);
     try {
-      if (dictationMode === "fast") {
+      if (state.fast) {
         flushSegment(state);
         await queue.current;
       } else {
@@ -638,6 +759,14 @@ export const Composer = memo(function Composer({
   };
 
   const startDictation = async () => {
+    if (dictationMode === "instant" && !webUnavailable.current) {
+      const Ctor = speechRecognition();
+      if (Ctor) {
+        startWebDictation(Ctor);
+        return;
+      }
+      webUnavailable.current = true;
+    }
     if (!navigator.mediaDevices?.getUserMedia) {
       onError("This browser does not expose a microphone API.");
       return;
@@ -665,11 +794,12 @@ export const Composer = memo(function Composer({
         silence: 0,
         timer: 0,
         started: Date.now(),
+        fast: dictationMode !== "accurate",
       };
       processor.onaudioprocess = (event) => {
         const block = new Float32Array(event.inputBuffer.getChannelData(0));
         chunks.push(block);
-        if (dictationMode !== "fast") return;
+        if (!state.fast) return;
         let sum = 0;
         for (let index = 0; index < block.length; index += 1) sum += block[index] * block[index];
         const rms = Math.sqrt(sum / block.length);
@@ -1281,9 +1411,11 @@ export const Composer = memo(function Composer({
                   : recording
                     ? pending > 0
                       ? `Recording · ${pending} segment${pending === 1 ? "" : "s"} queued`
-                      : dictationMode === "fast"
-                        ? "Recording · text appears as you pause"
-                        : "Recording · transcribing when you stop"
+                      : webLive
+                        ? "Recording · text appears as you speak"
+                        : dictationMode === "fast"
+                          ? "Recording · text appears as you pause"
+                          : "Recording · transcribing when you stop"
                     : "Enter to send · Shift+Enter for a new line · / commands"}
             </span>
             <div className="ml-auto flex items-center gap-1">

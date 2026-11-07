@@ -2,8 +2,10 @@ package server
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"math"
 	"os"
 	"os/exec"
@@ -28,6 +30,7 @@ type hostVoice struct {
 	model       string
 	voice       string
 	rate        float64
+	sampleRate  int
 }
 
 func newHostVoice() *hostVoice {
@@ -46,6 +49,7 @@ func newHostVoice() *hostVoice {
 		voice.detail = "host voice · piper"
 		voice.binary = ttsPiperBinary()
 		voice.model = ttsPiperModel()
+		voice.sampleRate = piperSampleRate(voice.model)
 	case "edge":
 		voice.engine = "edge"
 		voice.contentType = "audio/mpeg"
@@ -157,6 +161,60 @@ func (v *hostVoice) synthesize(ctx context.Context, text string) ([]byte, string
 	}
 	return nil, "", errors.New("host voice is not configured")
 }
+
+func (v *hostVoice) streamAvailable() bool {
+	return v != nil && v.engine == "piper" && v.available()
+}
+
+func (v *hostVoice) stream(ctx context.Context, text string, out io.Writer) error {
+	if !v.streamAvailable() {
+		return errors.New("host voice streaming is not available")
+	}
+	runCtx, cancel := context.WithTimeout(ctx, hostVoiceTimeout)
+	defer cancel()
+	lengthScale := strconv.FormatFloat(1/v.rate, 'f', -1, 64)
+	cmd := exec.CommandContext(runCtx, v.binary, "-m", v.model, "-f", "-", "--output_raw", "-q", "--length_scale", lengthScale)
+	cmd.Stdin = strings.NewReader(text + "\n")
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		return errors.New("host voice could not start")
+	}
+	if err := cmd.Start(); err != nil {
+		return errors.New("host voice could not start")
+	}
+	if _, err := io.Copy(out, stdout); err != nil {
+		_ = cmd.Wait()
+		return voiceRunError(runCtx, "piper")
+	}
+	if err := cmd.Wait(); err != nil {
+		return voiceRunError(runCtx, "piper")
+	}
+	return nil
+}
+
+func (v *hostVoice) rateHz() int {
+	if v == nil || v.sampleRate <= 0 {
+		return 22050
+	}
+	return v.sampleRate
+}
+
+func piperSampleRate(model string) int {
+	raw, err := os.ReadFile(model + ".json")
+	if err != nil {
+		return 22050
+	}
+	var config struct {
+		Audio struct {
+			SampleRate int `json:"sample_rate"`
+		} `json:"audio"`
+	}
+	if json.Unmarshal(raw, &config) != nil || config.Audio.SampleRate <= 0 {
+		return 22050
+	}
+	return config.Audio.SampleRate
+}
+
 
 func (v *hostVoice) piper(ctx context.Context, text string) ([]byte, string, error) {
 	path, cleanup, err := voiceTempFile("*.wav")

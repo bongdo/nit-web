@@ -199,6 +199,7 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("POST /api/stt", s.stt)
 	s.mux.HandleFunc("POST /api/tts", s.ttsSay)
 	s.mux.HandleFunc("POST /api/tts/audio", s.ttsAudio)
+	s.mux.HandleFunc("POST /api/tts/stream", s.ttsStream)
 	s.mux.HandleFunc("POST /api/tts/stop", s.ttsStop)
 	s.mux.HandleFunc("POST /api/grammar", s.grammarCheck)
 	s.mux.HandleFunc("POST /api/upload", s.upload)
@@ -259,7 +260,7 @@ func (s *Server) middleware(next http.Handler) http.Handler {
 			return
 		}
 		switch r.URL.Path {
-		case "/api/events", "/api/file", "/api/tts/audio":
+		case "/api/events", "/api/file", "/api/tts/audio", "/api/tts/stream":
 		default:
 			_ = http.NewResponseController(w).SetWriteDeadline(time.Now().Add(30 * time.Second))
 		}
@@ -1269,8 +1270,18 @@ func (s *Server) ttsAudio(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid request")
 		return
 	}
+	text, err := ttsText(body.Text)
+	if err != nil {
+		writeTTSInputError(w, err)
+		return
+	}
+	text = speechText(text)
+	if text == "" {
+		writeTTSInputError(w, errTTSTextEmpty)
+		return
+	}
 	_ = http.NewResponseController(w).SetWriteDeadline(time.Now().Add(hostVoiceTimeout + 5*time.Second))
-	audio, contentType, err := s.voice.synthesize(r.Context(), body.Text)
+	audio, contentType, err := s.voice.synthesize(r.Context(), text)
 	if err != nil {
 		switch {
 		case errors.Is(err, errTTSTextLong):
@@ -1287,6 +1298,62 @@ func (s *Server) ttsAudio(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Length", strconv.Itoa(len(audio)))
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write(audio)
+}
+
+func (s *Server) ttsStream(w http.ResponseWriter, r *http.Request) {
+	if s.voice == nil || !s.voice.streamAvailable() {
+		writeError(w, http.StatusServiceUnavailable, "host voice streaming not available")
+		return
+	}
+	var body struct {
+		Text string `json:"text"`
+	}
+	decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, 64<<10))
+	if err := decoder.Decode(&body); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request")
+		return
+	}
+	text, err := ttsText(body.Text)
+	if err != nil {
+		writeTTSInputError(w, err)
+		return
+	}
+	text = speechText(text)
+	if text == "" {
+		writeTTSInputError(w, errTTSTextEmpty)
+		return
+	}
+	controller := http.NewResponseController(w)
+	_ = controller.SetWriteDeadline(time.Now().Add(hostVoiceTimeout + 5*time.Second))
+	w.Header().Set("Content-Type", "audio/L16")
+	w.Header().Set("X-Audio-Rate", strconv.Itoa(s.voice.rateHz()))
+	w.Header().Set("Cache-Control", "no-store")
+	w.WriteHeader(http.StatusOK)
+	_ = controller.Flush()
+	if err := s.voice.stream(r.Context(), text, flushWriter{w: w, flush: controller.Flush}); err != nil && r.Context().Err() == nil {
+		s.log.Warn("tts stream failed", "error", err)
+	}
+}
+
+func writeTTSInputError(w http.ResponseWriter, err error) {
+	if errors.Is(err, errTTSTextLong) {
+		writeError(w, http.StatusRequestEntityTooLarge, err.Error())
+		return
+	}
+	writeError(w, http.StatusBadRequest, err.Error())
+}
+
+type flushWriter struct {
+	w     http.ResponseWriter
+	flush func() error
+}
+
+func (f flushWriter) Write(p []byte) (int, error) {
+	n, err := f.w.Write(p)
+	if err == nil {
+		_ = f.flush()
+	}
+	return n, err
 }
 
 func (s *Server) ttsStop(w http.ResponseWriter, r *http.Request) {

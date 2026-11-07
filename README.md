@@ -23,7 +23,7 @@ fallback for every one of them.
 | Authentication | nit-gui host, `/auth` + session cookie | one shared password |
 | Sessions, messages, models, agents | each OpenCode instance | source of truth |
 | Instance list, SSH tunnels | nit-gui host, `~/.config/nit-gui/instances.json` | implemented |
-| STT | nit-gui host, `/api/stt` + `whisper-server` / `whisper-cli` | optional |
+| STT | nit-gui host `/api/stt`, or the browser's Web Speech service in Instant mode | optional |
 | TTS | nit-gui publishes to the OpenCode TTS hub or synthesizes with host `piper`/`edge-tts`; browser voice is the fallback | implemented |
 | Spelling | browser nspell worker today; target nit-gui `/api/spell` | migration gap |
 | Grammar | nit-gui host LanguageTool sidecar through `/api/grammar` | optional |
@@ -254,10 +254,15 @@ server, so hiding a chat or continuing a draft works on the next device.
 - The selected model must accept the input type. The composer warns when the
   current model cannot read an image or PDF; pick a model whose capabilities
   include `image` or `pdf` (for example Gemini or Claude for PDFs).
-- The microphone records 16 kHz mono WAV in the browser and sends it to
-  `/api/stt` on Frankfurt; the transcript is appended to the existing input. It
-  never sends and never clears what you typed. Transcription happens when you
-  stop, not as a live stream. The browser does not run STT itself.
+- The microphone has three dictation modes. Instant uses the browser's speech
+  service (`SpeechRecognition` / `webkitSpeechRecognition`): words appear while
+  you speak, with near-zero delay. The audio goes to that browser vendor's cloud,
+  not to Frankfurt; it needs a secure context and browser support, otherwise the
+  mic falls back to Fast. Fast records 16 kHz mono WAV in the browser, uploads
+  segments to `/api/stt` on Frankfurt and appends text as you pause. Accurate
+  sends the whole recording there when you stop. Fast and Accurate never leave
+  the host. All modes append to the existing input and never send or clear what
+  you typed. The browser does not run local STT itself.
 - Spelling is checked by an nspell worker in the browser for Russian and
   English today. Misspelled words are red with a wavy underline; put the caret
   in a word (or click it) and a gray `→ ...` chip shows replacements next to
@@ -625,14 +630,20 @@ own startup warmup.
 - Drafts, hidden chats and done/failed markers are scoped by instance. The
   default instance keeps the old unscoped `localStorage` keys; other instances
   use a `:<instance>` suffix.
-- Dictation runs on Frankfurt and has two modes. Fast needs `whisper-server`
-  (override with `NIT_GUI_WHISPER_SERVER`) and
+- Dictation runs on Frankfurt or in the browser, depending on the mode. Instant
+  uses `SpeechRecognition` / `webkitSpeechRecognition` and streams interim text;
+  it needs HTTPS (or localhost), a supporting browser and a network path to that
+  vendor, exports the audio outside the host, and falls back to Fast when the API
+  is missing. Fast needs `whisper-server` (override with
+  `NIT_GUI_WHISPER_SERVER`) and
   `~/.local/share/whisper/ggml-small-q5_1.bin` (override with
   `NIT_GUI_STT_FAST_MODEL`); the server warms at app startup and transcribes
-  segments while you record. Accurate needs `whisper-cli` and
+  segments while you record. On a loaded CPU-only host this still lags behind
+  speech. Accurate needs `whisper-cli` and
   `~/.local/share/whisper/ggml-large-v3-turbo-q5_0.bin`; it runs one pass when
   you stop. Override the accurate model with `NIT_GUI_WHISPER_MODEL` and the
-  language with `NIT_GUI_STT_LANG`. The client only captures and uploads audio.
+  language with `NIT_GUI_STT_LANG`. Fast and Accurate only capture and upload
+  audio from the client.
 - Spelling still runs in a browser worker. It is the remaining client-side
   capability: a thin browser without Web Workers or the ~4 MB dictionaries gets
   no spelling until `/api/spell` lands on Frankfurt. It is spellcheck only:

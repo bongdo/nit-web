@@ -686,6 +686,7 @@ export const Composer = memo(function Composer({
     };
     recognition.onend = () => {
       if (!state.active) return;
+      state.interim = "";
       try {
         wireWeb(state, Ctor);
         state.recognition?.start();

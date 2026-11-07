@@ -215,7 +215,6 @@ func piperSampleRate(model string) int {
 	return config.Audio.SampleRate
 }
 
-
 func (v *hostVoice) piper(ctx context.Context, text string) ([]byte, string, error) {
 	path, cleanup, err := voiceTempFile("*.wav")
 	if err != nil {

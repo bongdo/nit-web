@@ -82,6 +82,7 @@ class PcmPlayer {
   }
 
   async consume(response: Response, onStart?: () => void): Promise<void> {
+    this.pending = new Uint8Array(0);
     const rate = Number(response.headers.get("X-Audio-Rate")) || 22050;
     const reader = response.body?.getReader();
     if (!reader) throw new Error("no audio stream");
@@ -124,7 +125,7 @@ class PcmPlayer {
     const used = samples * 2;
     if (used < data.length) this.pending = data.slice(used);
     const view = new DataView(data.buffer, data.byteOffset, used);
-    const floats = new Float32Array(samples);
+    const floats: Float32Array<ArrayBuffer> = new Float32Array(samples);
     for (let index = 0; index < samples; index += 1) {
       floats[index] = view.getInt16(index * 2, true) / 32768;
     }
@@ -135,7 +136,7 @@ class PcmPlayer {
     }
   }
 
-  private schedule(floats: Float32Array, rate: number): void {
+  private schedule(floats: Float32Array<ArrayBuffer>, rate: number): void {
     const buffer = this.context.createBuffer(1, floats.length, rate);
     buffer.copyToChannel(floats, 0);
     const source = this.context.createBufferSource();

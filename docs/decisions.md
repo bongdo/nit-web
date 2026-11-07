@@ -624,3 +624,39 @@ Rejected: auto-writing old IDs to the shared hidden list, and a persisted
 
 Cost: "inactive" means no session update for 12 hours, not "not opened"; a chat
 read without new messages can leave the list once it is no longer selected.
+
+## 2026-11-07 — Read aloud streams piper and rewrites Markdown for speech
+
+Context: the reply `Read` button synthesized the whole answer before returning
+audio. A 1500-character answer took 15 seconds and a 3000-character answer hit
+the 60-second host timeout, so the user saw a spinner and heard nothing. The
+OpenCode TTS hub had no connected audio client, so publishing to it was a dead
+path for the GUI.
+
+Decision: the browser is the speaker. `Read` splits the reply into paragraphs
+and sentences and calls `POST /api/tts/stream`, which runs `piper` with
+`--output_raw` and forwards 16-bit mono PCM as it is synthesized; the browser
+schedules it with Web Audio. The next segment is prefetched while the current
+one plays. The server rewrites Markdown before synthesis: fenced code becomes
+`Блок кода на Go, 12 строк`, paths become `файл tts.go в папке internal
+server`, bare URLs become `ссылка на <host>`, tables become `Таблица`, long
+hashes become `хеш`, flags are read as `флаг`. Selecting text in a reply makes
+`Read` speak the selection. The fallback order is streamed piper, whole-file
+`edge-tts`/piper, TTS hub, browser voice.
+
+Why: the first audio now starts in 0.5–1.7 seconds, piper stays local, and
+removing code and paths from the spoken text cuts synthesis time without
+losing the context: the listener hears what the block is and where the file is.
+Measured on Frankfurt: piper medium, 370 characters, 2.9 seconds of synthesis,
+0.47 seconds to the first chunk; edge-tts 1.2 seconds warm but 12.7 seconds
+cold.
+
+Rejected: waiting for the whole reply (the current regression), making
+`edge-tts` the default (cloud and slow cold start), requiring an external audio
+client, and reading code and paths literally.
+
+Cost: piper still loads a ~63 MB model per segment, so with many short
+paragraphs the next segment can be late; a persistent piper worker is the next
+step. Web Audio must be unlocked by the click; browser speech remains the last
+fallback. Auto-read of new replies and starting from an arbitrary line are not
+part of this change.

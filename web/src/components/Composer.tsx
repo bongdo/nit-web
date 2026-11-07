@@ -818,6 +818,14 @@ export const Composer = memo(function Composer({
         return;
       }
       webUnavailable.current = true;
+      if (!fallbackWarned.current) {
+        fallbackWarned.current = true;
+        onError(
+          window.isSecureContext
+            ? "This browser has no speech recognition. Use the keyboard microphone for instant dictation; the host model is slower."
+            : "Browser dictation needs HTTPS. Open the https:// address for instant dictation; the host model is slower.",
+        );
+      }
     }
     if (!navigator.mediaDevices?.getUserMedia) {
       onError("This browser does not expose a microphone API.");

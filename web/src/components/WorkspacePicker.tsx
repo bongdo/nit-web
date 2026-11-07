@@ -33,7 +33,6 @@ function messageOf(error: unknown): string {
 
 export function WorkspacePicker({
   projects,
-  recent,
   current,
   startDirectory,
   motion = "animated",
@@ -44,7 +43,6 @@ export function WorkspacePicker({
   onInstances,
 }: {
   projects: Project[];
-  recent: string[];
   current?: string | null;
   startDirectory?: string;
   motion?: "animated" | "static";
@@ -73,7 +71,6 @@ export function WorkspacePicker({
     () => new Map(projects.map((project) => [project.canonical, project])),
     [projects],
   );
-  const workspaces = workspaceOptions(projects, recent);
 
   useEffect(() => {
     if (browse !== null && listingRef.current?.path === browse) return;
@@ -175,7 +172,28 @@ export function WorkspacePicker({
     goTo(path);
   };
 
-  const target = status === "exists" ? normalizePath(path) : (listing?.path ?? null);
+  const typed = isAbsolutePath(path) ? normalizePath(path) : "";
+  const invalid = status === "relative" || status === "missing" || status === "error";
+  const target =
+    typed && (status === "exists" || typed === listing?.path)
+      ? typed
+      : path.trim() === ""
+        ? (listing?.path ?? null)
+        : null;
+  const statusText =
+    status === "relative"
+      ? "Use an absolute path, starting with /."
+      : status === "checking"
+        ? "Checking the folder."
+        : status === "exists"
+          ? "Folder exists."
+          : status === "missing"
+            ? suggestions.length > 0
+              ? "No exact match. Pick a suggestion."
+              : "No such folder."
+            : status === "error"
+              ? "Cannot read this folder."
+              : "";
 
   const body = (
     <div
@@ -250,28 +268,6 @@ export function WorkspacePicker({
         {loading && <Loader2 className="text-muted-foreground size-3.5 shrink-0 animate-spin" />}
       </div>
 
-      {workspaces.length > 0 && (
-        <div className="border-border flex flex-wrap items-center gap-1 border-b px-3 py-2">
-          <span className="text-muted-foreground mr-1 text-[10px] font-medium tracking-wide uppercase">
-            Workspaces
-          </span>
-          {workspaces.slice(0, 6).map((directory) => (
-            <button
-              key={directory}
-              type="button"
-              title={`Use ${directory}`}
-              onClick={() => onPick(directory)}
-              className={cn(
-                "hover:bg-accent max-w-40 truncate rounded-full border px-2 py-0.5 text-[11px]",
-                directory === listing?.path && "bg-accent",
-              )}
-            >
-              {basename(directory)}
-            </button>
-          ))}
-        </div>
-      )}
-
       <div className="scrollbar-thin h-64 min-h-0 overflow-y-auto p-2">
         {browseError ? (
           <div className="px-2 py-8 text-center">
@@ -342,56 +338,70 @@ export function WorkspacePicker({
         )}
       </div>
 
-      <div className="border-border flex flex-col gap-2 border-t px-3 py-3">
-        <div className="flex items-center gap-2">
-          <div className="relative min-w-0 flex-1">
-            <Input
-              value={path}
-              onChange={(event) => {
-                setPath(event.target.value);
+      <div className="border-border flex items-center gap-2 border-t px-3 py-3">
+        <div className="relative min-w-0 flex-1">
+          <Input
+            value={path}
+            onChange={(event) => {
+              setPath(event.target.value);
+              setSuggestOpen(true);
+            }}
+            onKeyDown={(event) => {
+              if (event.key === "Escape") {
+                if (suggestOpen) {
+                  event.stopPropagation();
+                  setSuggestOpen(false);
+                }
+                return;
+              }
+              if (event.key === "ArrowDown" && suggestions.length > 0) {
+                event.preventDefault();
                 setSuggestOpen(true);
-              }}
-              onKeyDown={(event) => {
-                if (event.key === "Escape") {
-                  if (suggestOpen) {
-                    event.stopPropagation();
-                    setSuggestOpen(false);
-                  }
-                  return;
-                }
-                if (event.key === "ArrowDown" && suggestions.length > 0) {
-                  event.preventDefault();
-                  setSuggestOpen(true);
-                  setActive((value) => (value + 1) % suggestions.length);
-                  return;
-                }
-                if (event.key === "ArrowUp" && suggestions.length > 0) {
-                  event.preventDefault();
-                  setSuggestOpen(true);
-                  setActive((value) => (value - 1 + suggestions.length) % suggestions.length);
-                  return;
-                }
-                if (event.key === "Tab") {
-                  const suggestion = suggestions[active];
-                  if (!suggestion) return;
-                  event.preventDefault();
-                  setPath(`${suggestion}/`);
-                  setSuggestOpen(true);
-                  return;
-                }
-                if (event.key === "Enter") {
-                  event.preventDefault();
-                  pickTyped();
-                }
-              }}
-              placeholder="Jump to a path, e.g. /home/ubuntu/Projects"
-              aria-label="Folder path"
-              role="combobox"
-              aria-controls="folder-suggestions"
-              aria-autocomplete="list"
-              aria-expanded={suggestOpen && suggestions.length > 0}
-              className="h-8 font-mono text-xs"
-            />
+                setActive((value) => (value + 1) % suggestions.length);
+                return;
+              }
+              if (event.key === "ArrowUp" && suggestions.length > 0) {
+                event.preventDefault();
+                setSuggestOpen(true);
+                setActive((value) => (value - 1 + suggestions.length) % suggestions.length);
+                return;
+              }
+              if (event.key === "Tab") {
+                const suggestion = suggestions[active];
+                if (!suggestion) return;
+                event.preventDefault();
+                setPath(`${suggestion}/`);
+                setSuggestOpen(true);
+                return;
+              }
+              if (event.key === "Enter") {
+                event.preventDefault();
+                pickTyped();
+              }
+            }}
+            placeholder="Jump to a path, e.g. /home/ubuntu/Projects"
+            aria-label="Folder path"
+            role="combobox"
+            aria-controls="folder-suggestions"
+            aria-autocomplete="list"
+            aria-expanded={suggestOpen && suggestions.length > 0}
+            aria-invalid={invalid || undefined}
+            title={statusText || undefined}
+            className={cn(
+              "h-8 pr-8 font-mono text-xs",
+              invalid &&
+                "border-destructive focus-visible:border-destructive focus-visible:ring-destructive/20",
+            )}
+          />
+          <span className="pointer-events-none absolute top-1/2 right-2 -translate-y-1/2">
+            {status === "checking" ? (
+              <Loader2 className="text-muted-foreground size-3.5 animate-spin" />
+            ) : status === "exists" ? (
+              <Check className="text-success size-3.5" />
+            ) : invalid ? (
+              <X className="text-destructive size-3.5" />
+            ) : null}
+          </span>
           {suggestOpen && suggestions.length > 0 && (
             <div
               id="folder-suggestions"
@@ -419,50 +429,28 @@ export function WorkspacePicker({
               ))}
             </div>
           )}
-          </div>
-          <Button
-            variant="secondary"
-            size="sm"
-            disabled={status !== "exists"}
-            onClick={browseTyped}
-            title="Show this folder in the list"
-          >
-            Browse
-          </Button>
         </div>
-        <div className="flex items-center gap-2">
-          <div className="text-muted-foreground min-w-0 flex-1 text-[11px]" aria-live="polite">
-            {status === "relative" && "Use an absolute path, starting with /."}
-            {status === "checking" && (
-              <span className="flex items-center gap-1">
-                <Loader2 className="size-3 animate-spin" />
-                Checking…
-              </span>
-            )}
-            {status === "exists" && (
-              <span className="text-success flex items-center gap-1">
-                <Check className="size-3" />
-                Folder exists. Enter uses it.
-              </span>
-            )}
-            {status === "missing" && (
-              <span className="text-destructive flex items-center gap-1">
-                <X className="size-3" />
-                {suggestions.length > 0 ? "No exact match. Pick a suggestion." : "No such folder."}
-              </span>
-            )}
-            {status === "error" && "Cannot read this folder."}
-            {status === "idle" && "Type a path to jump, or browse the folders above."}
-          </div>
-          <Button
-            size="sm"
-            disabled={!target}
-            onClick={() => target && onPick(target)}
-            title={target ? `Use ${target}` : undefined}
-          >
-            {target ? `Use “${basename(target)}”` : "Use folder"}
-          </Button>
-        </div>
+        <Button
+          variant="secondary"
+          size="sm"
+          disabled={status !== "exists"}
+          onClick={browseTyped}
+          title="Show this folder in the list"
+        >
+          Browse
+        </Button>
+        <Button
+          size="sm"
+          className="max-w-44 shrink-0"
+          disabled={!target}
+          onClick={() => target && onPick(target)}
+          title={target ? `Use ${target}` : undefined}
+        >
+          <span className="truncate">{target ? `Use “${basename(target)}”` : "Use folder"}</span>
+        </Button>
+        <span className="sr-only" role="status" aria-live="polite">
+          {statusText}
+        </span>
       </div>
     </div>
   );

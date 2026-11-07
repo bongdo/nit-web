@@ -208,8 +208,8 @@ Vite proxies `/api` to the backend.
 Every chat belongs to one directory for its whole lifetime; it cannot be moved
 later. On first start the GUI asks for a workspace and remembers it in
 `localStorage`. The picker browses the server's folders with breadcrumbs and a
-parent button, offers recent workspaces, and completes absolute paths as you
-type. The folder is checked live: a missing path is reported before you use it.
+parent button and completes absolute paths as you type. The folder is checked
+live: a missing path is reported before you use it.
 
 The sidebar has three scopes:
 

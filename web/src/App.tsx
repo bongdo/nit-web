@@ -2000,7 +2000,6 @@ export default function App({
     return (
       <WorkspacePicker
         projects={projects}
-        recent={recent}
         motion={motion}
         variant={background}
         startDirectory={defaultDirectory}
@@ -2302,7 +2301,6 @@ export default function App({
       {pickerOpen && (
         <WorkspacePicker
           projects={projects}
-          recent={recent}
           current={workspace}
           motion={motion}
           variant={background}

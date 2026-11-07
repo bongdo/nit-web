@@ -30,6 +30,8 @@ import {
   lightenEvent,
   lightMessages,
   normalizeMessages,
+  planRetry,
+  retryDelay,
 } from "./lib/stream";
 import {
   mergeSnapshot,
@@ -287,6 +289,8 @@ export default function App({
   const [transcriptCache] = useState(() => new TranscriptCache());
   const [messageLoads] = useState(() => new Set<string>());
   const questionIDs = useRef(new Set<string>());
+  const retryTimers = useRef<Record<string, number>>({});
+  const retryAttempts = useRef<Record<string, number>>({});
   const prefetchedAt = useRef(new Map<string, number>());
   const prefetching = useRef(new Set<string>());
   const prefetchTimer = useRef<number | null>(null);
@@ -1292,6 +1296,47 @@ export default function App({
       next.delete(sessionID);
       return next;
     });
+  }, []);
+
+  const clearRetry = useCallback((sessionID: string) => {
+    const timer = retryTimers.current[sessionID];
+    if (timer !== undefined) {
+      window.clearTimeout(timer);
+      delete retryTimers.current[sessionID];
+    }
+    delete retryAttempts.current[sessionID];
+  }, []);
+
+  const scheduleRetry = useCallback(
+    (sessionID: string, plan: NonNullable<ReturnType<typeof planRetry>>, start = 1) => {
+      clearRetry(sessionID);
+      const run = (attempt: number) => {
+        const delay = retryDelay(attempt, plan.retryAfterMs);
+        retryAttempts.current[sessionID] = attempt;
+        setBanner(
+          `Upstream overloaded — retrying ${attempt > 1 ? `(${attempt}) ` : ""}in ${Math.ceil(delay / 1000)}s…`,
+        );
+        retryTimers.current[sessionID] = window.setTimeout(async () => {
+          delete retryTimers.current[sessionID];
+          try {
+            await api.prompt(sessionID, plan.text, plan.files, undefined, plan.id);
+            delete retryAttempts.current[sessionID];
+            setBanner(null);
+          } catch {
+            run(attempt + 1);
+          }
+        }, delay);
+      };
+      run(start);
+    },
+    [clearRetry],
+  );
+
+  useEffect(() => {
+    return () => {
+      for (const timer of Object.values(retryTimers.current)) window.clearTimeout(timer);
+      retryTimers.current = {};
+    };
   }, []);
 
   const openPicker = useCallback(() => setPickerOpen(true), []);

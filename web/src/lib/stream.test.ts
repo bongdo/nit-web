@@ -197,9 +197,11 @@ describe("provider retry", () => {
   it("reuses the last user message and its id", () => {
     const plan = planRetry([user, { id: "msg_a", type: "assistant", time: { created: 2 } }], overloaded, 1);
     expect(plan).toEqual({
+      id: "msg_user",
       text: "hello",
       files: [{ uri: "file:///tmp/a.txt", name: "a.txt" }],
       delay: 2_290,
+      retryAfterMs: 2_290,
     });
   });
 

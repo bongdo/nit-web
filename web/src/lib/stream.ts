@@ -129,7 +129,13 @@ export function planRetry(
   messages: Message[],
   error: Message["error"] | undefined,
   attempt: number,
-): { text: string; files: { uri: string; name?: string }[]; delay: number } | null {
+): {
+  id: string;
+  text: string;
+  files: { uri: string; name?: string }[];
+  delay: number;
+  retryAfterMs?: number;
+} | null {
   if (!isRetryableFailure(error)) return null;
   const user = [...messages].reverse().find((item) => item.type === "user");
   if (!user?.id || user.id.startsWith("local-")) return null;
@@ -137,9 +143,11 @@ export function planRetry(
     typeof file.uri === "string" ? [{ uri: file.uri, name: file.name }] : [],
   );
   return {
+    id: user.id,
     text: user.text ?? "",
     files,
     delay: retryDelay(attempt, error?.retryAfterMs),
+    retryAfterMs: error?.retryAfterMs,
   };
 }
 

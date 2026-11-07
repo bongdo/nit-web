@@ -3,6 +3,7 @@ package uistate
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"sort"
@@ -19,6 +20,7 @@ type ModelRef struct {
 type Draft struct {
 	Text      string `json:"text"`
 	UpdatedAt int64  `json:"updatedAt"`
+	Cleared   bool   `json:"cleared,omitempty"`
 }
 
 type InstanceState struct {
@@ -75,6 +77,10 @@ func Open(path, defaultInstance string) (*Store, error) {
 	}
 	if err := json.Unmarshal(raw, &store.state); err != nil {
 		store.state = newState()
+		corrupt := fmt.Sprintf("%s.corrupt-%d", path, time.Now().Unix())
+		if renameErr := os.Rename(path, corrupt); renameErr != nil {
+			return store, err
+		}
 		return store, err
 	}
 	if store.state.Instances == nil {
@@ -202,9 +208,10 @@ func (s *Store) SetDraft(instance, key, text string) (Draft, error) {
 	defer s.mu.Unlock()
 	state := s.instanceLocked(instance)
 	if text == "" {
-		delete(state.Drafts, key)
+		draft := Draft{UpdatedAt: time.Now().UnixMilli(), Cleared: true}
+		state.Drafts[key] = draft
 		s.state.Instances[instance] = state
-		return Draft{}, s.saveLocked()
+		return draft, s.saveLocked()
 	}
 	draft := Draft{Text: text, UpdatedAt: time.Now().UnixMilli()}
 	state.Drafts[key] = draft

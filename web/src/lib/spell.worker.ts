@@ -18,7 +18,12 @@ type WorkerScope = {
 };
 
 const scope = self as unknown as WorkerScope;
-const files = ["/dictionaries/ru.aff", "/dictionaries/ru.dic", "/dictionaries/en.aff", "/dictionaries/en.dic"];
+const files = [
+  `${import.meta.env.BASE_URL}dictionaries/ru.aff`,
+  `${import.meta.env.BASE_URL}dictionaries/ru.dic`,
+  `${import.meta.env.BASE_URL}dictionaries/en.aff`,
+  `${import.meta.env.BASE_URL}dictionaries/en.dic`,
+];
 
 async function load() {
   const [ruAff, ruDic, enAff, enDic] = await Promise.all(

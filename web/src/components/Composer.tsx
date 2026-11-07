@@ -34,6 +34,7 @@ export type Attachment = {
   size: number;
   mime: string;
   path?: string;
+  file?: File;
   preview?: string;
   error?: string;
 };
@@ -177,10 +178,14 @@ export const Composer = memo(function Composer({
     let cancelled = false;
     const local: DraftState = loadDraftState(draftKey);
     api.draft(draftKey, instance)
-      .then((remote) => {
+      .then((remote: { text: string; updatedAt: number; cleared?: boolean }) => {
         if (cancelled) return;
         if (!editedRef.current) {
-          if (remote.text && remote.updatedAt >= local.updatedAt) {
+          if (remote.updatedAt >= local.updatedAt && remote.cleared) {
+            valueRef.current = "";
+            setText("");
+            saveDraftState(draftKey, "", remote.updatedAt);
+          } else if (remote.updatedAt >= local.updatedAt && remote.text) {
             valueRef.current = remote.text;
             setText(remote.text);
             saveDraftState(draftKey, remote.text, remote.updatedAt);
@@ -542,25 +547,9 @@ export const Composer = memo(function Composer({
       offset += 1;
       setAttachments((current) => [
         ...current,
-        { id, name: file.name || "file", size: file.size, mime: file.type, preview },
+        { id, name: file.name || "file", size: file.size, mime: file.type, preview, file },
       ]);
       if (warning) onError(warning);
-      void api
-        .upload(file, workspace)
-        .then((result) => {
-          setAttachments((current) =>
-            current.map((item) =>
-              item.id === id ? { ...item, path: result.path, name: result.name } : item,
-            ),
-          );
-        })
-        .catch((error: unknown) => {
-          const message = error instanceof Error ? error.message : "Upload failed";
-          setAttachments((current) =>
-            current.map((item) => (item.id === id ? { ...item, error: message } : item)),
-          );
-          onError(message);
-        });
     }
   };
 
@@ -717,16 +706,30 @@ export const Composer = memo(function Composer({
   };
 
   const visibleAttachments = attachments.filter((item) => !removing.includes(item.id));
-  const uploading = visibleAttachments.some((item) => !item.path && !item.error);
-  const readyFiles = visibleAttachments.filter((item) => item.path && !item.error);
+  const readyFiles = visibleAttachments.filter((item) => !item.error);
 
   const submit = async () => {
     const text = value.trim();
-    if ((!text && readyFiles.length === 0) || !workspace || disabled || submitting || uploading || finishing)
+    if ((!text && readyFiles.length === 0) || !workspace || disabled || submitting || finishing)
       return;
+    const dir = workspace;
     setSubmitting(true);
     try {
-      await onSend(text, readyFiles, running ? "steer" : undefined);
+      const uploaded: Attachment[] = [];
+      for (const item of readyFiles) {
+        if (item.path || !item.file) {
+          uploaded.push(item);
+          continue;
+        }
+        try {
+          const result = await api.upload(item.file, dir);
+          uploaded.push({ ...item, path: result.path, name: result.name });
+        } catch (error) {
+          onError(error instanceof Error ? error.message : "Upload failed");
+          return;
+        }
+      }
+      await onSend(text, uploaded, running ? "steer" : undefined);
       const misspelled = issues
         .filter((issue) => issue.source !== "grammar")
         .map((issue) => issue.word.toLowerCase());
@@ -934,7 +937,7 @@ export const Composer = memo(function Composer({
                     <span className="max-w-40 truncate">{item.name}</span>
                     <span className="text-muted-foreground">{formatBytes(item.size)}</span>
                     {warning && <AlertTriangle className="size-3 text-amber-500" />}
-                    {!item.path && !item.error && <Loader2 className="size-3 animate-spin" />}
+                    {submitting && !item.path && <Loader2 className="size-3 animate-spin" />}
                     <button
                       type="button"
                       onClick={() => removeAttachment(item.id)}
@@ -1259,7 +1262,6 @@ export const Composer = memo(function Composer({
                     disabled ||
                     (!value.trim() && readyFiles.length === 0) ||
                     submitting ||
-                    uploading ||
                     finishing
                   }
                   aria-label={running ? "Steer message" : "Send"}

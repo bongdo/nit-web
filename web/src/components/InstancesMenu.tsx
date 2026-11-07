@@ -184,11 +184,16 @@ export function InstancesMenu({
     if (form.transport === "ssh") input.ssh = ssh;
     if (dir) input.dir = dir;
     if (passwordFile && form.transport !== "local") input.passwordFile = passwordFile;
+    const follow = form.original === active && form.original !== name;
     setSaving(true);
     setActionError("");
     try {
       await api.saveInstance(input);
       await onRefresh();
+      if (follow) {
+        onSelect(name);
+        setSelected(name);
+      }
       setForm(null);
     } catch (cause) {
       setActionError(cause instanceof Error ? cause.message : "Could not save instance");

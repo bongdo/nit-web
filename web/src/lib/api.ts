@@ -9,6 +9,8 @@ import type {
   MessagesResponse,
   Model,
   ModelRef,
+  PermissionDecision,
+  PermissionRequest,
   Project,
   Session,
   SessionList,
@@ -211,6 +213,22 @@ export const api = {
         message ? `?message=${encodeURIComponent(message)}` : ""
       }`,
       { method: "DELETE" },
+    ),
+  permissions: async (id: string) =>
+    (
+      await request<{ data: PermissionRequest[] }>(
+        `/api/sessions/${encodeURIComponent(id)}/permissions`,
+      )
+    ).data,
+  replyPermission: (
+    id: string,
+    requestID: string,
+    decision: PermissionDecision,
+    message?: string,
+  ) =>
+    request<unknown>(
+      `/api/sessions/${encodeURIComponent(id)}/permissions/${encodeURIComponent(requestID)}/reply`,
+      { method: "POST", body: { decision, ...(message ? { message } : {}) } },
     ),
   upload: async (file: File, dir: string) => {
     const query = new URLSearchParams({ name: file.name, dir });

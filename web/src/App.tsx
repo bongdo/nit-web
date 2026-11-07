@@ -1379,6 +1379,7 @@ export default function App({
         .filter((item) => item.path)
         .map((item) => ({ uri: `file://${item.path}`, name: item.name }));
       let id = selectedIdRef.current;
+      let createdSession = false;
       if (!id) {
         const directory = workspaceRef.current;
         if (!directory) {
@@ -1392,19 +1393,13 @@ export default function App({
             model: currentModel,
           });
           id = session.id;
+          createdSession = true;
           skipLoadRef.current = session.id;
           setSessions((previous) => [
             session,
             ...previous.filter((item) => item.id !== session.id),
           ]);
           setRunningIds((previous) => ({ ...previous, [session.id]: false }));
-          setSelectedIdState(session.id);
-          localStorage.setItem(sessionKey, session.id);
-          loadedIdRef.current = session.id;
-          setMessages([]);
-          setHistoryCursor(null);
-          setLoadingEarlier(false);
-          loadingEarlierRef.current = false;
           setSidebarOpen(false);
         } catch (error) {
           setBanner(messageOf(error));
@@ -1427,6 +1422,14 @@ export default function App({
         const admitted = (await api.prompt(sessionId, text, files, delivery)) as {
           data?: { id?: string };
         };
+        if (createdSession) {
+          setSelectedIdState(sessionId);
+          localStorage.setItem(sessionKey, sessionId);
+          loadedIdRef.current = sessionId;
+          setHistoryCursor(null);
+          setLoadingEarlier(false);
+          loadingEarlierRef.current = false;
+        }
         const messageID = admitted?.data?.id;
         if (messageID) {
           setMessages((current) =>
@@ -1434,12 +1437,13 @@ export default function App({
           );
         }
       } catch (error) {
+        setMessages((current) => current.filter((item) => item.id !== optimistic.id));
         setRunningIds((previous) => ({ ...previous, [sessionId]: false }));
         setBanner(messageOf(error));
         throw error;
       }
     },
-    [currentAgent, currentModel],
+    [currentAgent, currentModel, sessionKey],
   );
 
   const stop = useCallback(async () => {

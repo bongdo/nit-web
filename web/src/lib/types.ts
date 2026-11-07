@@ -54,6 +54,19 @@ export type FormInfo = {
   fields: FormField[];
 };
 
+export type PermissionDecision = "once" | "always" | "reject";
+
+export type PermissionRequest = {
+  id: string;
+  sessionID: string;
+  action: string;
+  resources: string[];
+  save?: string[];
+  metadata?: Record<string, unknown>;
+  source?: unknown;
+  message?: string;
+};
+
 export type ToolContent = {
   type: string;
   text?: string;

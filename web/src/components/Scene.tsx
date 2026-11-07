@@ -649,10 +649,10 @@ export function Scene({
     };
 
     const observer = new ResizeObserver(resize);
-    observer.observe(canvas);
+    if (!paused) observer.observe(canvas);
     const theme = new MutationObserver(() => {
       readPalette();
-      paint(still ? STILL_TIME : (performance.now() - started) / 1000);
+      if (!paused) paint(still ? STILL_TIME : (performance.now() - started) / 1000);
     });
     theme.observe(document.documentElement, {
       attributes: true,

@@ -12,12 +12,10 @@
     --card: oklch(0.195 0.009 260);
     --popover: oklch(0.205 0.009 260);
     --sec: oklch(0.245 0.01 260);
-    --muted: oklch(0.235 0.008 260);
     --muted-fg: oklch(0.66 0.012 255);
     --border: oklch(0.29 0.01 260);
     --spark: oklch(0.78 0.14 55);
     --success: oklch(0.75 0.16 155);
-    --destructive: oklch(0.62 0.19 25);
     --radius: 10px;
   }
   * { box-sizing: border-box; }
@@ -31,10 +29,7 @@
   svg { display: block; }
   .mono { font-family: ui-monospace, "SFMono-Regular", "Cascadia Code", "Liberation Mono", monospace; }
   .row { display: flex; flex-wrap: wrap; gap: 18px; justify-content: center; align-items: flex-start; }
-  .caption {
-    margin: 0 0 12px; font-size: 10px; letter-spacing: .14em; text-transform: uppercase;
-    color: var(--muted-fg); font-family: ui-monospace, "SFMono-Regular", monospace;
-  }
+  .caption { margin: 0 0 12px; font-size: 10px; letter-spacing: .14em; text-transform: uppercase; color: var(--muted-fg); font-family: ui-monospace, monospace; }
   .phone {
     width: 300px; height: 640px; border-radius: 34px; overflow: hidden; position: relative;
     background: var(--bg); border: 1px solid var(--border);
@@ -42,65 +37,42 @@
     display: flex; flex-direction: column;
   }
   .notch { position: absolute; top: 7px; left: 50%; transform: translateX(-50%); width: 78px; height: 18px; border-radius: 11px; background: #08090b; z-index: 9; }
-  .hdr {
-    padding: 28px 12px 9px; display: flex; align-items: center; gap: 9px;
-    border-bottom: 1px solid var(--border); background: var(--bg); position: relative;
-  }
-  .hdr::after {
-    content: ""; position: absolute; inset: 0 0 auto 0; height: 1px;
-    background: linear-gradient(90deg, transparent, color-mix(in oklab, var(--spark) 26%, transparent), transparent);
-  }
+  .hdr { padding: 28px 12px 9px; display: flex; align-items: center; gap: 9px; border-bottom: 1px solid var(--border); background: var(--bg); position: relative; }
+  .hdr::after { content: ""; position: absolute; inset: 0 0 auto 0; height: 1px; background: linear-gradient(90deg, transparent, color-mix(in oklab, var(--spark) 26%, transparent), transparent); }
   .hdr .t { min-width: 0; flex: 1; }
   .hdr b { display: block; font-size: 13px; font-weight: 600; letter-spacing: -.01em; }
   .hdr .s { display: block; margin-top: 1px; font-size: 9.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted-fg); }
-  .iconbtn { width: 26px; height: 26px; border-radius: 7px; display: grid; place-items: center; color: var(--muted-fg); }
-  .iconbtn:hover { background: var(--sec); }
+  .iconbtn { width: 26px; height: 26px; border-radius: 7px; display: grid; place-items: center; color: var(--muted-fg); flex: none; }
 
-  .thread { flex: 1; overflow: hidden; padding: 12px 12px 0; display: flex; flex-direction: column; gap: 14px; }
-
-  .docbar {
-    display: flex; align-items: center; gap: 9px; padding: 7px 8px;
-    border: 1px solid var(--border); border-radius: var(--radius); background: var(--card);
-  }
-  .docbar .pg { width: 26px; height: 32px; border-radius: 4px; background: linear-gradient(160deg, #efe9dc, #d5cdbd); flex: none; position: relative; }
-  .docbar .pg::after { content: ""; position: absolute; inset: 6px 5px auto 5px; height: 2px; background: #8f8776; box-shadow: 0 5px 0 #aaa292, 0 10px 0 #bbb3a3; }
-  .docbar .n { flex: 1; min-width: 0; }
-  .docbar .n b { display: block; font-size: 11.5px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .docbar .n span { font-size: 9px; letter-spacing: .07em; text-transform: uppercase; color: var(--muted-fg); }
-  .docbar .open { font-size: 10px; color: var(--spark); }
-
+  .thread { flex: 1; overflow: hidden; padding: 12px 12px 0; display: flex; flex-direction: column; gap: 13px; }
   .me { align-self: flex-end; max-width: 84%; }
-  .me .photo { width: 150px; height: 96px; border-radius: 7px; margin-bottom: 5px; background: linear-gradient(165deg,#e9e3d6,#cfc7b6); position: relative; overflow: hidden; border: 1px solid #3a3f48; }
-  .me .photo::before { content: ""; position: absolute; inset: 12px 14px auto 14px; height: 4px; border-radius: 2px; background: #6d6555; box-shadow: 0 10px 0 #9a9282, 0 20px 0 #9a9282, 0 30px 0 #b4ac9c, 0 40px 0 #9a9282, 0 50px 0 #b4ac9c; }
   .me .b { background: var(--sec); border-radius: 15px 15px 4px 15px; padding: 8px 11px; font-size: 12.5px; line-height: 1.45; }
   .stamp { margin-top: 3px; text-align: right; font-size: 9px; color: var(--muted-fg); }
-
   .ai { display: flex; gap: 8px; }
   .ai .av { width: 20px; height: 20px; border-radius: 50%; background: var(--sec); display: grid; place-items: center; flex: none; margin-top: 1px; }
   .ai .body { min-width: 0; flex: 1; }
   .ai .who { display: flex; align-items: baseline; gap: 6px; font-size: 10px; color: var(--muted-fg); margin-bottom: 3px; }
   .ai .who b { font-size: 11px; font-weight: 500; color: var(--fg); }
   .ai .who span { font-family: ui-monospace, monospace; letter-spacing: .04em; }
-  .ai p { margin: 0 0 7px; font-size: 12.5px; line-height: 1.55; }
+  .ai p { margin: 0 0 6px; font-size: 12.5px; line-height: 1.55; }
   .ai p:last-child { margin-bottom: 0; }
-  .quote { margin: 7px 0; padding: 6px 9px; border-left: 2px solid var(--spark); background: color-mix(in oklab, var(--spark) 7%, transparent); font-size: 11.5px; line-height: 1.5; color: color-mix(in oklab, var(--fg) 88%, var(--spark)); border-radius: 0 5px 5px 0; }
-  .cite {
-    display: inline-flex; align-items: center; gap: 6px; margin-top: 2px; padding: 4px 7px;
-    border: 1px solid var(--border); border-radius: 6px; background: var(--card);
-    font-size: 9.5px; letter-spacing: .04em; color: var(--muted-fg);
-  }
-  .cite .p { width: 12px; height: 15px; border-radius: 2px; background: color-mix(in oklab, var(--spark) 24%, var(--sec)); border: 1px solid color-mix(in oklab, var(--spark) 36%, var(--border)); }
-  .actions { display: flex; gap: 4px; margin-top: 8px; color: var(--muted-fg); }
+  .fix { margin: 6px 0 7px; padding: 6px 9px; border-left: 2px solid var(--success); background: color-mix(in oklab, var(--success) 8%, transparent); border-radius: 0 5px 5px 0; font-size: 12px; }
+  .why { margin: 0; padding: 0; list-style: none; font-size: 11.5px; color: var(--muted-fg); }
+  .why li { margin: 0 0 2px; }
+  .why b { color: var(--fg); font-weight: 500; }
+  .try { margin-top: 7px; font-size: 11.5px; color: color-mix(in oklab, var(--fg) 82%, var(--spark)); }
+  .actions { display: flex; gap: 4px; margin-top: 7px; color: var(--muted-fg); }
   .actions .a { display: inline-flex; align-items: center; gap: 4px; padding: 3px 6px; border-radius: 5px; font-size: 9.5px; }
-  .actions .a:hover { background: var(--sec); color: var(--fg); }
+
+  .chips { display: flex; gap: 5px; padding: 0 10px 6px; overflow: hidden; }
+  .chip { padding: 4px 8px; border-radius: 999px; border: 1px solid var(--border); background: var(--card); font-size: 10px; color: var(--muted-fg); white-space: nowrap; }
+  .chip.drop { border-style: dashed; background: transparent; color: var(--muted-fg); }
 
   .composer { padding: 0 10px 9px; }
   .box { border: 1px solid var(--border); background: var(--card); border-radius: 13px; padding: 8px 9px 6px; }
   .box .ph { font-size: 11.5px; color: var(--muted-fg); min-height: 18px; }
   .box .tools { display: flex; align-items: center; gap: 2px; margin-top: 5px; color: var(--muted-fg); }
   .box .tools .send { margin-left: auto; width: 26px; height: 26px; border-radius: 50%; background: var(--fg); color: var(--bg); display: grid; place-items: center; }
-  .box .tools .mic { width: 26px; height: 26px; border-radius: 50%; background: var(--sec); display: grid; place-items: center; }
-  .hintline { margin: 5px 2px 0; display: flex; justify-content: space-between; font-size: 8.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted-fg); }
 
   .sheetwrap { position: absolute; inset: 0; background: rgba(6,7,9,.62); display: flex; align-items: flex-end; }
   .sheet { width: 100%; background: var(--popover); border-radius: 18px 18px 0 0; border-top: 1px solid var(--border); padding: 8px 10px 20px; position: relative; }
@@ -113,18 +85,18 @@
   .opt b { display: block; font-size: 12px; font-weight: 500; }
   .opt span { font-size: 10px; color: var(--muted-fg); }
   .opt .k { margin-left: auto; font-size: 8.5px; letter-spacing: .08em; color: var(--muted-fg); }
+  .note { margin: 0 2px 6px; font-size: 9.5px; color: var(--muted-fg); }
 
-  .pagebar { padding: 26px 10px 8px; display: flex; align-items: center; gap: 8px; border-bottom: 1px solid var(--border); }
-  .pagebar b { font-size: 12px; font-weight: 500; flex: 1; }
-  .pagebar span { font-size: 9px; letter-spacing: .08em; color: var(--muted-fg); }
-  .page { flex: 1; margin: 10px; background: #f4efe6; border-radius: 7px; position: relative; overflow: hidden; border: 1px solid #4a4f59; }
-  .page .ln { position: absolute; left: 12px; right: 12px; height: 2px; border-radius: 1px; background: #b8b0a0; }
-  .page .hi { position: absolute; left: 8px; right: 8px; top: 196px; height: 54px; background: color-mix(in oklab, var(--spark) 34%, transparent); border-left: 2px solid var(--spark); border-radius: 2px; }
-  .page .hi i { display: block; height: 2px; margin: 9px 10px; border-radius: 1px; background: #a98b5a; opacity: .55; }
-  .page .q { position: absolute; right: 7px; top: 186px; width: 16px; height: 16px; border-radius: 50%; background: var(--spark); color: #201705; display: grid; place-items: center; font-size: 9px; font-weight: 700; }
-  .page .num { position: absolute; bottom: 6px; left: 0; right: 0; text-align: center; font-size: 8px; color: #8b8476; }
-  .pagefoot { padding: 0 10px 10px; }
-  .pagefoot .box { border-radius: 11px; }
+  .themes { position: absolute; inset: 0; background: var(--bg); display: flex; flex-direction: column; }
+  .thgrid { flex: 1; display: grid; grid-template-columns: 1fr 1fr; gap: 6px; padding: 10px; overflow: hidden; align-content: start; }
+  .th { display: flex; align-items: center; gap: 7px; padding: 5px 6px; border: 1px solid var(--border); border-radius: 8px; background: var(--card); }
+  .th.on { box-shadow: 0 0 0 1.5px color-mix(in oklab, var(--spark) 60%, transparent); border-color: transparent; }
+  .th .aa { width: 26px; height: 26px; border-radius: 5px; display: grid; place-items: center; font-size: 10px; font-weight: 600; flex: none; border: 1px solid rgba(128,128,128,.25); }
+  .th .nm { min-width: 0; flex: 1; }
+  .th .nm b { display: block; font-size: 9.5px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .th .nm span { display: block; font-size: 7.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted-fg); }
+  .th .dots { display: flex; gap: 2px; }
+  .th .dots i { width: 4px; height: 4px; border-radius: 50%; display: block; }
 
   .app { position: absolute; inset: 0; background: #eef1f4; color: #14181d; padding: 42px 14px; }
   .app h4 { margin: 0 0 2px; font-size: 14px; }
@@ -137,12 +109,15 @@
   .scrim { position: absolute; inset: 0; background: rgba(8,10,14,.42); }
   .src { position: absolute; top: 32px; right: 12px; z-index: 2; font-size: 8.5px; letter-spacing: .06em; text-transform: uppercase; color: color-mix(in oklab, var(--fg) 74%, transparent); border: 1px solid rgba(255,255,255,.14); background: rgba(12,16,22,.7); padding: 3px 6px; border-radius: 5px; }
   .lasso { position: absolute; left: 20px; right: 20px; top: 96px; height: 76px; z-index: 2; border: 1.5px dashed var(--spark); border-radius: 14px; background: color-mix(in oklab, var(--spark) 8%, transparent); box-shadow: 0 0 26px color-mix(in oklab, var(--spark) 30%, transparent); }
-  .lasso::after { content: "выделено"; position: absolute; top: -9px; left: 9px; height: 16px; display: flex; align-items: center; padding: 0 6px; border-radius: 4px; background: var(--spark); color: #221806; font-size: 8px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; }
+  .lasso::after { content: "область"; position: absolute; top: -9px; left: 9px; height: 16px; display: flex; align-items: center; padding: 0 6px; border-radius: 4px; background: var(--spark); color: #221806; font-size: 8px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; }
   .overlay { position: absolute; left: 10px; right: 10px; bottom: 12px; z-index: 3; background: var(--popover); border: 1px solid var(--border); border-radius: 14px; padding: 7px; box-shadow: 0 18px 40px rgba(0,0,0,.55); }
   .overlay::before { content: ""; position: absolute; inset: 0 0 auto 0; height: 1px; background: linear-gradient(90deg, transparent, color-mix(in oklab, var(--spark) 34%, transparent), transparent); }
-  .ovacts { display: flex; gap: 2px; margin-bottom: 6px; }
-  .ovacts .a { flex: 1; text-align: center; font-size: 10px; padding: 6px 0; border-radius: 6px; color: var(--fg); background: var(--sec); }
-  .ovacts .a.hot { color: var(--spark); background: color-mix(in oklab, var(--spark) 11%, var(--sec)); }
+  .attach { display: flex; align-items: center; gap: 7px; margin-bottom: 6px; }
+  .attach .crop { width: 44px; height: 24px; border-radius: 4px; border: 1px solid var(--border); background: linear-gradient(160deg,#f4efe6,#d9d2c4); flex: none; }
+  .attach .t { min-width: 0; flex: 1; }
+  .attach .t b { display: block; font-size: 9.5px; font-weight: 500; }
+  .attach .t span { display: block; font-size: 8px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted-fg); }
+  .attach .x { width: 18px; height: 18px; border-radius: 50%; background: var(--sec); color: var(--muted-fg); display: grid; place-items: center; font-size: 10px; }
   .ask { display: flex; align-items: center; gap: 6px; padding: 7px 8px; background: var(--card); border: 1px solid var(--border); border-radius: 9px; font-size: 10.5px; color: var(--muted-fg); }
   .ask .send { margin-left: auto; width: 22px; height: 22px; border-radius: 50%; background: var(--fg); color: var(--bg); display: grid; place-items: center; }
   .tag { font-size: 8.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted-fg); }
@@ -152,32 +127,31 @@
 <div class="row">
 
   <div>
-    <div class="caption">01 · чат</div>
+    <div class="caption">01 · сценарий «турецкий»</div>
     <div class="phone">
       <div class="notch"></div>
       <div class="hdr">
         <svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" color="var(--muted-fg)"><path d="M12.5 4l-6 6 6 6"/></svg>
-        <div class="t"><b>Договор аренды</b><span class="s mono">pdf · 12 стр · 2,8 МБ</span></div>
+        <div class="t"><b>Турецкий</b><span class="s mono">репетитор · уровень a2</span></div>
         <div class="iconbtn"><svg width="15" height="15" viewBox="0 0 20 20" fill="currentColor"><circle cx="4" cy="10" r="1.4"/><circle cx="10" cy="10" r="1.4"/><circle cx="16" cy="10" r="1.4"/></svg></div>
       </div>
       <div class="thread">
-        <div class="docbar">
-          <div class="pg"></div>
-          <div class="n"><b>Договор аренды.pdf</b><span class="mono">12 страниц · загружен</span></div>
-          <div class="open">Открыть</div>
-        </div>
         <div class="me">
-          <div class="photo"></div>
-          <div class="b">Что тут про расторжение?</div>
-          <div class="stamp mono">18:42</div>
+          <div class="b">Ben dun gittim okula</div>
+          <div class="stamp mono">19:06</div>
         </div>
         <div class="ai">
           <div class="av"><svg width="11" height="11" viewBox="0 0 20 20" fill="var(--spark)"><path d="M10 0l2.2 7.8L20 10l-7.8 2.2L10 20l-2.2-7.8L0 10l7.8-2.2z"/></svg></div>
           <div class="body">
-            <div class="who"><b>Ассистент</b><span>gemini · 6,2 с</span></div>
-            <p>Расторгнуть можно в любой момент, если предупредить письменно за 30 дней. Депозит возвращают в течение 10 дней после приёмки.</p>
-            <div class="quote">«Арендатор вправе отказаться от Договора, письменно уведомив Арендодателя за 30 календарных дней…»</div>
-            <div class="cite"><span class="p"></span> СТР. 7 · ДОГОВОР АРЕНДЫ.PDF</div>
+            <div class="who"><b>Ассистент</b><span>deepseek · 1,4 с</span></div>
+            <p>Почти! Правильно:</p>
+            <div class="fix">Ben <b>dün</b> <b>okula</b> gittim.</div>
+            <ul class="why">
+              <li><b>dün</b> — «вчера», с умляутом</li>
+              <li><b>okula</b> — направление на <b>-a</b></li>
+              <li>глагол в конце: <b>gittim</b></li>
+            </ul>
+            <div class="try">Попробуйте: «я завтра пойду в школу»</div>
             <div class="actions">
               <div class="a"><svg width="11" height="11" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="6" y="6" width="10" height="11" rx="2"/><path d="M4 14V5a2 2 0 0 1 2-2h7"/></svg> копировать</div>
               <div class="a"><svg width="11" height="11" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 10a6 6 0 1 1 2 4.5M4 16v-4h4"/></svg> ещё</div>
@@ -185,13 +159,18 @@
           </div>
         </div>
       </div>
+      <div class="chips">
+        <div class="chip">Исправь</div>
+        <div class="chip">Переведи</div>
+        <div class="chip">Объясни правило</div>
+        <div class="chip drop">…</div>
+      </div>
       <div class="composer">
         <div class="box">
-          <div class="ph">Спросить про документ…</div>
+          <div class="ph">Напишите по-турецки…</div>
           <div class="tools">
             <div class="iconbtn"><svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M10 3.5v13M3.5 10h13"/></svg></div>
             <div class="iconbtn"><svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path d="M13.5 7.5l-6 6a2.3 2.3 0 0 0 3.2 3.2l6.4-6.4a3.7 3.7 0 0 0-5.2-5.2L5.6 11.4"/></svg></div>
-            <div class="mic"><svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><rect x="7.5" y="3" width="5" height="9" rx="2.5"/><path d="M5 9.5a5 5 0 0 0 10 0M10 14.5V17"/></svg></div>
             <div class="send"><svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M8 12.5V4M4 8l4-4 4 4"/></svg></div>
           </div>
         </div>
@@ -200,41 +179,83 @@
   </div>
 
   <div>
-    <div class="caption">02 · страница и цитата</div>
+    <div class="caption">02 · темы</div>
     <div class="phone">
       <div class="notch"></div>
-      <div class="pagebar">
-        <svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" color="var(--muted-fg)"><path d="M12.5 4l-6 6 6 6"/></svg>
-        <b>стр. 7 / 12</b>
-        <span class="mono">125%</span>
-        <div class="iconbtn"><svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="9" cy="9" r="5.5"/><path d="M13 13l4 4"/></svg></div>
-      </div>
-      <div class="page">
-        <div class="ln" style="top:34px"></div>
-        <div class="ln" style="top:46px;right:70px"></div>
-        <div class="ln" style="top:66px;left:12px;right:44px"></div>
-        <div class="ln" style="top:78px;left:12px;right:60px"></div>
-        <div class="ln" style="top:90px;left:12px;right:36px"></div>
-        <div class="ln" style="top:110px;left:12px;right:88px"></div>
-        <div class="ln" style="top:130px;left:12px;right:40px"></div>
-        <div class="ln" style="top:142px;left:12px;right:56px"></div>
-        <div class="ln" style="top:154px;left:12px;right:70px"></div>
-        <div class="hi"><i></i><i></i><i></i></div>
-        <div class="q">?</div>
-        <div class="ln" style="top:264px;left:12px;right:50px"></div>
-        <div class="ln" style="top:276px;left:12px;right:78px"></div>
-        <div class="ln" style="top:288px;left:12px;right:42px"></div>
-        <div class="ln" style="top:306px;left:12px;right:64px"></div>
-        <div class="ln" style="top:318px;left:12px;right:34px"></div>
-        <div class="ln" style="top:330px;left:12px;right:74px"></div>
-        <div class="num mono">— 7 —</div>
-      </div>
-      <div class="pagefoot">
-        <div class="box">
-          <div class="ph">Спросить про эту страницу…</div>
-          <div class="tools">
-            <div class="iconbtn"><svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M10 3.5v13M3.5 10h13"/></svg></div>
-            <div class="send"><svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M8 12.5V4M4 8l4-4 4 4"/></svg></div>
+      <div class="themes">
+        <div class="hdr">
+          <div class="t"><b>Тема</b><span class="s mono">13 тем · системная сверху</span></div>
+          <div class="iconbtn"><svg width="13" height="13" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M5 5l10 10M15 5L5 15"/></svg></div>
+        </div>
+        <div class="thgrid">
+          <div class="th on" style="--tb:#1a1d22;--tc:#eceef0;--tp:#e7e9ec;--ts:#f0a35e">
+            <div class="aa" style="background:#1a1d22;color:#eceef0">Aa</div>
+            <div class="nm"><b>Stock dark</b><span>тёмная</span></div>
+            <div class="dots"><i style="background:#e7e9ec"></i><i style="background:#f0a35e"></i></div>
+          </div>
+          <div class="th" style="--tb:#2e3440;--tc:#eceff4">
+            <div class="aa" style="background:#2e3440;color:#eceff4">Aa</div>
+            <div class="nm"><b>Nord</b><span>тёмная</span></div>
+            <div class="dots"><i style="background:#88c0d0"></i><i style="background:#ebcb8b"></i></div>
+          </div>
+          <div class="th" style="--tb:#282828;--tc:#ebdbb2">
+            <div class="aa" style="background:#282828;color:#ebdbb2">Aa</div>
+            <div class="nm"><b>Gruvbox</b><span>тёмная</span></div>
+            <div class="dots"><i style="background:#fabd2f"></i><i style="background:#b8bb26"></i></div>
+          </div>
+          <div class="th" style="--tb:#282a36;--tc:#f8f8f2">
+            <div class="aa" style="background:#282a36;color:#f8f8f2">Aa</div>
+            <div class="nm"><b>Dracula</b><span>тёмная</span></div>
+            <div class="dots"><i style="background:#bd93f9"></i><i style="background:#ffb86c"></i></div>
+          </div>
+          <div class="th" style="--tb:#1c1714;--tc:#f0e3d6">
+            <div class="aa" style="background:#1c1714;color:#f0e3d6">Aa</div>
+            <div class="nm"><b>Ember</b><span>тёмная</span></div>
+            <div class="dots"><i style="background:#e8794a"></i><i style="background:#ffb066"></i></div>
+          </div>
+          <div class="th" style="--tb:#1a1310;--tc:#f3e6db">
+            <div class="aa" style="background:#1a1310;color:#f3e6db">Aa</div>
+            <div class="nm"><b>Kiln</b><span>тёмная</span></div>
+            <div class="dots"><i style="background:#ff8a3d"></i><i style="background:#9bc47a"></i></div>
+          </div>
+          <div class="th" style="--tb:#221f1b;--tc:#ece4d8">
+            <div class="aa" style="background:#221f1b;color:#ece4d8">Aa</div>
+            <div class="nm"><b>Paper dark</b><span>тёмная</span></div>
+            <div class="dots"><i style="background:#d6b184"></i><i style="background:#8fbc85"></i></div>
+          </div>
+          <div class="th" style="--tb:#121212;--tc:#e5e6e6">
+            <div class="aa" style="background:#121212;color:#e5e6e6">Aa</div>
+            <div class="nm"><b>Ash dark</b><span>тёмная</span></div>
+            <div class="dots"><i style="background:#8ab6d6"></i><i style="background:#8fbf87"></i></div>
+          </div>
+          <div class="th" style="--tb:#ffffff;--tc:#33383f">
+            <div class="aa" style="background:#fff;color:#33383f">Aa</div>
+            <div class="nm"><b>Stock light</b><span>светлая</span></div>
+            <div class="dots"><i style="background:#43474f"></i><i style="background:#c96a2e"></i></div>
+          </div>
+          <div class="th" style="--tb:#fdf6e3;--tc:#586e75">
+            <div class="aa" style="background:#fdf6e3;color:#586e75">Aa</div>
+            <div class="nm"><b>Solarized</b><span>светлая</span></div>
+            <div class="dots"><i style="background:#268bd2"></i><i style="background:#cb4b16"></i></div>
+          </div>
+          <div class="th" style="--tb:#f7f3ea;--tc:#2f2a24">
+            <div class="aa" style="background:#f7f3ea;color:#2f2a24">Aa</div>
+            <div class="nm"><b>Paper</b><span>светлая</span></div>
+            <div class="dots"><i style="background:#7a5c3e"></i><i style="background:#c2703a"></i></div>
+          </div>
+          <div class="th" style="--tb:#f6f6f3;--tc:#2b3238">
+            <div class="aa" style="background:#f6f6f3;color:#2b3238">Aa</div>
+            <div class="nm"><b>Mist</b><span>светлая</span></div>
+            <div class="dots"><i style="background:#3f739c"></i><i style="background:#4f7a4a"></i></div>
+          </div>
+          <div class="th" style="--tb:#e9e9e7;--tc:#26292b">
+            <div class="aa" style="background:#e9e9e7;color:#26292b">Aa</div>
+            <div class="nm"><b>Ash</b><span>светлая</span></div>
+            <div class="dots"><i style="background:#3f739c"></i><i style="background:#4a7045"></i></div>
+          </div>
+          <div class="th" style="--tb:#ffffff;--tc:#33383f">
+            <div class="aa" style="background:linear-gradient(135deg,#fff 50%,#1a1d22 50%);color:#888">Aa</div>
+            <div class="nm"><b>Системная</b><span>авто</span></div>
           </div>
         </div>
       </div>
@@ -247,17 +268,17 @@
       <div class="notch"></div>
       <div class="hdr">
         <svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" color="var(--muted-fg)"><path d="M12.5 4l-6 6 6 6"/></svg>
-        <div class="t"><b>Новый чат</b><span class="s mono">deepseek v4.1 · fast</span></div>
+        <div class="t"><b>Новый чат</b><span class="s mono">просто · deepseek v4.1</span></div>
       </div>
       <div class="thread" style="gap:10px">
         <div class="tag">недавние</div>
-        <div class="docbar" style="opacity:.72">
-          <div class="pg"></div>
-          <div class="n"><b>Анализы.pdf</b><span class="mono">3 страницы · вчера</span></div>
+        <div class="opt" style="border:1px solid var(--border);background:var(--card);border-radius:10px">
+          <div class="i"><svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M5 3h7l3 3v11H5z"/><path d="M12 3v3h3"/></svg></div>
+          <div><b>Анализы.pdf</b><span>3 страницы · вчера</span></div>
         </div>
-        <div class="docbar" style="opacity:.72">
-          <div class="pg" style="background:linear-gradient(160deg,#dfe8d8,#c3d2b6)"></div>
-          <div class="n"><b>Школа.xlsx</b><span class="mono">2 листа · 5 нояб</span></div>
+        <div class="opt" style="border:1px solid var(--border);background:var(--card);border-radius:10px">
+          <div class="i"><svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="4" width="14" height="12" rx="2"/><path d="M3 8.5h14M8.5 8.5V16"/></svg></div>
+          <div><b>Школа.xlsx</b><span>2 листа · 5 нояб</span></div>
         </div>
       </div>
       <div class="composer">
@@ -265,7 +286,6 @@
           <div class="ph">Сообщение…</div>
           <div class="tools">
             <div class="iconbtn"><svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M10 3.5v13M3.5 10h13"/></svg></div>
-            <div class="mic"><svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><rect x="7.5" y="3" width="5" height="9" rx="2.5"/><path d="M5 9.5a5 5 0 0 0 10 0M10 14.5V17"/></svg></div>
             <div class="send"><svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M8 12.5V4M4 8l4-4 4 4"/></svg></div>
           </div>
         </div>
@@ -275,24 +295,25 @@
           <div class="grab"></div>
           <div class="opt">
             <div class="i hot"><svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M3 7V4.5A1.5 1.5 0 0 1 4.5 3H7M13 3h2.5A1.5 1.5 0 0 1 17 4.5V7M17 13v2.5a1.5 1.5 0 0 1-1.5 1.5H13M7 17H4.5A1.5 1.5 0 0 1 3 15.5V13M4 10h12"/></svg></div>
-            <div><b>Сканировать документ</b><span>автокроп, много страниц, ровно</span></div>
+            <div><b>Документ</b><span>скан страниц: ровно, без перспективы, много страниц</span></div>
             <div class="k mono">PDF</div>
           </div>
           <div class="opt">
             <div class="i"><svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="2" y="5.5" width="16" height="11" rx="2.5"/><circle cx="10" cy="11" r="3"/><path d="M7 5.5l1.2-2h3.6l1.2 2"/></svg></div>
-            <div><b>Камера</b><span>чек, доска, фото</span></div>
+            <div><b>Фото</b><span>обычный снимок: доска, чек, этикетка, цветок</span></div>
             <div class="k mono">JPG</div>
           </div>
           <div class="opt">
             <div class="i"><svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="3" width="14" height="14" rx="2.5"/><circle cx="7.5" cy="7.5" r="1.4"/><path d="M3.5 14l4-4 3 3 2.5-2.5 3.5 3.5"/></svg></div>
-            <div><b>Из галереи</b><span>скриншоты, готовые фото</span></div>
+            <div><b>Из галереи</b><span>скриншоты и готовые фото</span></div>
             <div class="k mono">PNG HEIC</div>
           </div>
           <div class="opt">
             <div class="i"><svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path d="M13.5 7.5l-6 6a2.3 2.3 0 0 0 3.2 3.2l6.4-6.4a3.7 3.7 0 0 0-5.2-5.2L5.6 11.4"/></svg></div>
-            <div><b>Файл</b><span>документы, таблицы</span></div>
+            <div><b>Файл</b><span>документы и таблицы</span></div>
             <div class="k mono">PDF XLSX DOCX</div>
           </div>
+          <div class="note">Документ — это скан в PDF. Фото — просто снимок, без обработки.</div>
         </div>
       </div>
     </div>
@@ -314,12 +335,12 @@
       <div class="src mono">скриншот · РЖД</div>
       <div class="lasso"></div>
       <div class="overlay">
-        <div class="ovacts">
-          <div class="a hot">Перевести</div>
-          <div class="a">Объяснить</div>
-          <div class="a">Копировать</div>
+        <div class="attach">
+          <div class="crop"></div>
+          <div class="t"><b>Фрагмент экрана</b><span class="mono">240 × 120 · текст приложен</span></div>
+          <div class="x">×</div>
         </div>
-        <div class="ask">Спросите об этом… <div class="send"><svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M8 12.5V4M4 8l4-4 4 4"/></svg></div></div>
+        <div class="ask">Спросите что угодно… <div class="send"><svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M8 12.5V4M4 8l4-4 4 4"/></svg></div></div>
       </div>
     </div>
   </div>

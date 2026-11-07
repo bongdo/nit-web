@@ -1,5 +1,5 @@
 {
-  "updated": 1794086879,
+  "updated": 1794095000,
   "items": [
     {
       "id": "vision-diagrams",
@@ -7,7 +7,7 @@
       "status": "proposed",
       "title": "Диаграммы без исходника",
       "quote": "в чате Я никогда не захочу посмотреть исходники и диаграмм",
-      "source": "диалог 2026-11-07",
+      "source": "ses_e489feeacffeKQhDgPsPs8MDY8",
       "note": "vault/features/diagrams.md",
       "body": "В чате mermaid рендерится как диаграмма; исходник не показывается. Ошибка парсинга показывает текст блока.",
       "created": 1794086879
@@ -22,6 +22,127 @@
       "note": "vault/features/copy-reply.md",
       "body": "bin/check зелёный; тест в transcripts.test.ts.",
       "created": 1794086879
+    },
+    {
+      "id": "vision-tab-cycle",
+      "kind": "vision",
+      "status": "proposed",
+      "title": "Tab: было переключение чатов, стало автодополнение",
+      "quote": "давай уберем переключение чатов по табу, только по ctrl+tab.",
+      "source": "ses_e4d1e2b7dffescvDUtCkfXUSV8",
+      "note": "vault/features/composer.md",
+      "body": "Было: «а tab для циркулирования между списком чатов?» (ses_e52a99964ffe6pTe5NPH7BLeMc). Стало: чаты только Ctrl+Tab; Tab в текстовом поле — автодополнение команд и орфографии. Подтвердить, что старый биндинг удалён везде.",
+      "created": 1794095000
+    },
+    {
+      "id": "vision-subagent-counter",
+      "kind": "vision",
+      "status": "proposed",
+      "title": "Счётчик субагентов отменён",
+      "quote": "Ладно я нахожу счётчик агентов помощников бесполезным Так что думаю стоит отказаться от счётчика и иметь только открывалку",
+      "source": "ses_e4df6c2f5ffeM6YqwpnD94hqIN",
+      "note": "vault/features/sidebar.md",
+      "body": "Было в той же сессии: «нужен счетчик активных субагентов и возможность и раскрыть их список». Стало: только открывалка списка, без числа. Проверить, что счётчик не остался в карточке чата.",
+      "created": 1794095000
+    },
+    {
+      "id": "vision-mobile-hide",
+      "kind": "vision",
+      "status": "proposed",
+      "title": "На телефоне нет скрытия и удаления чатов",
+      "quote": "Лучше вообще без этой функции тогда на мобильных устройствах.",
+      "source": "ses_e48ae257affeeBRKdJlLO6uP34",
+      "note": "vault/features/sidebar.md",
+      "body": "Было в той же сессии: «нужно подумать о пользовательском опции как эту функцию можно всё-таки реализовать». Стало: на мобильных функции нет. Критерий скрытия/удаления в vault должен быть явно помечен только для десктопа.",
+      "created": 1794095000
+    },
+    {
+      "id": "vision-cost-counter",
+      "kind": "vision",
+      "status": "proposed",
+      "title": "Счётчик стоимости расходится с реальностью",
+      "quote": "ты уверен, что счетчик стоимости считает стоимость правильно? мне кажется он сильно расходится с реальностью. убедись пожалуйста",
+      "source": "ses_e4dbab4adffemGqzkU1wc3BW37",
+      "note": "vault/features/composer.md",
+      "body": "В vault нет критерия точности: счётчик перенесён в шапку, но сверка с фактическим счётом провайдера не описана. Нужен проверяемый критерий или решение убрать `$`.",
+      "created": 1794095000
+    },
+    {
+      "id": "vision-instance-requirements",
+      "kind": "vision",
+      "status": "proposed",
+      "title": "Чем инстанс отличается от голого OpenCode",
+      "quote": "хочу чтобы вся эта запутанность стала понятной в этом меню",
+      "source": "ses_e4d160bf8ffe6Xq4cf5CVJs7e0",
+      "note": "vault/features/instances.md",
+      "body": "Критерий требует показать, что нужно инстансу, но списка требований нет: пароль, сервис nit, tts/stt/spell, общее состояние. Без него критерий нельзя проверить.",
+      "created": 1794095000
+    },
+    {
+      "id": "vision-autonomous-launch",
+      "kind": "vision",
+      "status": "proposed",
+      "title": "Запуск независимого агента на директорию",
+      "quote": "как мне через это приложение запускать новых самодостаточных агентов на конкретную директорию?",
+      "source": "ses_e489feeacffeKQhDgPsPs8MDY8",
+      "note": "vault/features/autonomous-agents.md",
+      "body": "Пользователь спросил, как это встроить в воркфлоу, и не получил ответа. В vault есть критерий, но нет решения: где живёт агент, как помечается самодостаточность, что видно в списке чатов.",
+      "created": 1794095000
+    },
+    {
+      "id": "vision-review-surface",
+      "kind": "vision",
+      "status": "proposed",
+      "title": "Где показывать разбор видения",
+      "quote": "Либо отдельный вкладка либо маленькие уведомления снизу.",
+      "source": "ses_e489feeacffeKQhDgPsPs8MDY8",
+      "note": "vault/features/review.md",
+      "body": "Выбор поверхности не сделан: в decisions выбран лист ревью, но пользователь этот вариант не подтверждал. Нужно решение до реализации уведомлений.",
+      "created": 1794095000
+    },
+    {
+      "id": "vision-voice-auto",
+      "kind": "vision",
+      "status": "proposed",
+      "title": "Озвучивать ответ автоматически или по кнопке",
+      "quote": "стоит отправлять сообщения на озвучку как только оно пришло",
+      "source": "ses_e489697cbffeqjr40GiL09CtCJ",
+      "note": "vault/features/voice.md",
+      "body": "В decisions авточтение прямо исключено, поток идёт по кнопке Read. В vault это осталось желанием. Нужно выбрать: авточтение новых ответов или только кнопка.",
+      "created": 1794095000
+    },
+    {
+      "id": "vision-background-in-chat",
+      "kind": "vision",
+      "status": "proposed",
+      "title": "Фон остаётся в чате или гаснет",
+      "quote": "либо же просто банально его оставить на фоне когда будет происходить чат. Нужно обсудить",
+      "source": "ses_e4830b682ffeGSBuCo2QwvIZ93",
+      "note": "vault/features/appearance.md",
+      "body": "Пользователь предложил два варианта и не выбрал. В decisions сцена гаснет за 500 мс. Критерий в vault допускает оба, поэтому не проверяется однозначно.",
+      "created": 1794095000
+    },
+    {
+      "id": "vision-model-in-settings",
+      "kind": "vision",
+      "status": "proposed",
+      "title": "Выбор модели уезжает в настройки",
+      "quote": "думаю мы вполне можем вынести многие действия на /settings и все, даже выбор модели и прочего.",
+      "source": "ses_e53e653b6ffeB8Utrfras7gvci",
+      "note": "vault/features/settings.md",
+      "body": "В decisions выбор модели остаётся в шапке (session pill), а vault требует перенести его в настройки. Нужно решение, чтобы шапка не дублировала настройки.",
+      "created": 1794095000
+    },
+    {
+      "id": "vision-stt-path",
+      "kind": "vision",
+      "status": "proposed",
+      "title": "Google STT или серверный GigaAM",
+      "quote": "может оставим исключительно вот через а google stt?",
+      "source": "ses_e4894bf65ffeOFGArBGow3E91U",
+      "note": "vault/features/voice.md",
+      "body": "Пользователь хотел Google STT за скорость, но Firefox его не даёт. В decisions выбран серверный GigaAM как фолбэк. Основной путь не выбран: Google в браузере или сервер везде.",
+      "created": 1794095000
     }
   ]
 }

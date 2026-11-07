@@ -935,9 +935,9 @@ export const Composer = memo(function Composer({
                     <div className="scrollbar-thin mt-1.5 max-h-44 space-y-0.5 overflow-y-auto">
                       {question.options?.map((item) => (
                         <label
-                          key={item.value}
+                          key={`${question.key}-${item.value}`}
                           className={cn(
-                            "hover:bg-accent/50 flex cursor-pointer items-start gap-2 rounded-md px-2 py-1.5 text-[12px]",
+                            "form-sheen-option hover:bg-accent/50 flex cursor-pointer items-start gap-2 rounded-md px-2 py-1.5 text-[12px]",
                             value === item.value && "bg-accent/50",
                           )}
                         >

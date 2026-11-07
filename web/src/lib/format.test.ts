@@ -14,8 +14,9 @@ import {
   quoteText,
   replyText,
   sessionRunning,
+  turnBlocks,
 } from "./format";
-import type { Message, Model, Session } from "./types";
+import type { Message, Model, Part, Session } from "./types";
 
 const session = (overrides: Partial<Session> = {}): Session => ({
   id: "ses_1",
@@ -113,6 +114,34 @@ describe("format", () => {
       ],
     };
     expect(replyText(message)).toBe("# Heading\n\nA sentence.\n\n```ts\nconst x = 1;\n```");
+  });
+
+  it("keeps assistant text and questions in transcript order", () => {
+    const content: Part[] = [
+      { type: "reasoning", text: "thinking" },
+      { type: "text", text: "Before the question." },
+      { type: "tool", id: "q1", name: "question", state: { status: "completed" } },
+      { type: "text", text: "After the answer." },
+    ];
+    expect(turnBlocks(content, true).map((block) => block.kind)).toEqual([
+      "steps",
+      "text",
+      "question",
+      "text",
+    ]);
+    expect(turnBlocks(content, false).map((block) => block.kind)).toEqual([
+      "text",
+      "question",
+      "text",
+    ]);
+  });
+
+  it("puts the steps block where the steps happened", () => {
+    const text: Part = { type: "text", text: "Answer." };
+    const tool: Part = { type: "tool", id: "t1", name: "bash", state: { status: "completed" } };
+    expect(turnBlocks([tool, text], true).map((block) => block.kind)).toEqual(["steps", "text"]);
+    expect(turnBlocks([text, tool], true).map((block) => block.kind)).toEqual(["text", "steps"]);
+    expect(turnBlocks([text], true).map((block) => block.kind)).toEqual(["steps", "text"]);
   });
 
   it("refreshes running sessions unless a newer local event arrived", () => {

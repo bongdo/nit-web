@@ -22,8 +22,13 @@ import (
 var ErrUnknownInstance = errors.New("unknown instance")
 
 var instanceNameRE = regexp.MustCompile(`^[A-Za-z0-9._-]{1,64}$`)
+var sshHostRE = regexp.MustCompile(`^[A-Za-z0-9._@:\[\]-]{1,255}$`)
 
 const clientTTL = 10 * time.Second
+
+func ValidSSHHost(host string) bool {
+	return sshHostRE.MatchString(host) && !strings.HasPrefix(host, "-")
+}
 
 type InstanceSpec struct {
 	Name         string `json:"name"`
@@ -148,6 +153,9 @@ func validateSpecs(specs []InstanceSpec) error {
 		seen[spec.Name] = true
 		if spec.SSH != "" && spec.URL != "" && spec.URL != "auto" {
 			return fmt.Errorf("instance %q sets both url and ssh", spec.Name)
+		}
+		if spec.SSH != "" && !ValidSSHHost(spec.SSH) {
+			return fmt.Errorf("instance %q has an invalid ssh host", spec.Name)
 		}
 		if spec.Dir != "" && !filepath.IsAbs(spec.Dir) {
 			return fmt.Errorf("instance %q directory must be absolute", spec.Name)
@@ -354,7 +362,7 @@ func (r *Registry) connectSSH(ctx context.Context, spec InstanceSpec) (Endpoint,
 	host := spec.SSH
 	statusCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
-	out, err := exec.CommandContext(statusCtx, "ssh", host, "opencode service status").Output()
+	out, err := exec.CommandContext(statusCtx, "ssh", "-oBatchMode=yes", host, "opencode service status").Output()
 	if err != nil {
 		return Endpoint{}, nil, fmt.Errorf("ssh %s: opencode service status: %w", host, err)
 	}
@@ -408,7 +416,7 @@ func (r *Registry) connectSSH(ctx context.Context, spec InstanceSpec) (Endpoint,
 		return Endpoint{}, nil, err
 	}
 	t := &sshTunnel{}
-	t.cmd = exec.CommandContext(r.ctx, "ssh", "-N", "-o", "ExitOnForwardFailure=yes",
+	t.cmd = exec.CommandContext(r.ctx, "ssh", "-N", "-o", "BatchMode=yes", "-o", "ExitOnForwardFailure=yes",
 		"-L", fmt.Sprintf("127.0.0.1:%d:127.0.0.1:%s", local, port), host)
 	if err := t.cmd.Start(); err != nil {
 		return Endpoint{}, nil, fmt.Errorf("ssh %s: tunnel: %w", host, err)
@@ -422,7 +430,7 @@ func (r *Registry) connectSSH(ctx context.Context, spec InstanceSpec) (Endpoint,
 }
 
 func readSSHPassword(ctx context.Context, host string) (string, error) {
-	out, err := exec.CommandContext(ctx, "ssh", host, `cat "${XDG_CONFIG_HOME:-$HOME/.config}/opencode/service.json"`).Output()
+	out, err := exec.CommandContext(ctx, "ssh", "-oBatchMode=yes", host, `cat "${XDG_CONFIG_HOME:-$HOME/.config}/opencode/service.json"`).Output()
 	if err != nil {
 		return "", fmt.Errorf("ssh %s: read service.json: %w", host, err)
 	}

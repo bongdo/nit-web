@@ -1,6 +1,7 @@
 package server
 
 import (
+	"errors"
 	"net"
 	"net/http"
 	"net/url"
@@ -84,6 +85,10 @@ func (s *Server) saveInstance(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusBadRequest, "ssh host is required")
 			return
 		}
+		if !opencode.ValidSSHHost(in.SSH) {
+			writeError(w, http.StatusBadRequest, "invalid ssh host")
+			return
+		}
 		spec.SSH = in.SSH
 	default:
 		writeError(w, http.StatusBadRequest, "invalid transport")
@@ -95,7 +100,12 @@ func (s *Server) saveInstance(w http.ResponseWriter, r *http.Request) {
 		spec.PasswordFile = specs[index].PasswordFile
 	}
 	if in.PasswordFile != "" {
-		spec.PasswordFile = expandUser(in.PasswordFile)
+		path, err := s.confinedPasswordPath(in.PasswordFile)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		spec.PasswordFile = path
 		spec.Password = ""
 	}
 	if in.Password != "" {
@@ -176,8 +186,45 @@ func (s *Server) defaultPasswordPath(name string) (string, error) {
 	return filepath.Join(filepath.Dir(path), name+".password"), nil
 }
 
+func (s *Server) confinedPasswordPath(raw string) (string, error) {
+	path := expandUser(strings.TrimSpace(raw))
+	if path == "" || !filepath.IsAbs(path) {
+		return "", errors.New("password file must be an absolute path")
+	}
+	configPath := s.multi.ConfigPath()
+	if configPath == "" {
+		return "", errors.New("instance config path is empty")
+	}
+	base, err := filepath.Abs(filepath.Dir(configPath))
+	if err != nil {
+		return "", errors.New("could not resolve the instance config directory")
+	}
+	target, err := filepath.Abs(path)
+	if err != nil {
+		return "", errors.New("could not resolve the password file path")
+	}
+	if target != base && !strings.HasPrefix(target, base+string(os.PathSeparator)) {
+		return "", errors.New("password file must be inside the nit-gui config directory")
+	}
+	if info, err := os.Lstat(target); err == nil {
+		if info.Mode()&os.ModeSymlink != 0 || !info.Mode().IsRegular() {
+			return "", errors.New("password file must be a regular file, not a link")
+		}
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return "", errors.New("could not inspect the password file")
+	}
+	return target, nil
+}
+
 func writePasswordFile(path, password string) error {
 	path = expandUser(path)
+	if info, err := os.Lstat(path); err == nil {
+		if info.Mode()&os.ModeSymlink != 0 || !info.Mode().IsRegular() {
+			return errors.New("password file must be a regular file, not a link")
+		}
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
 	dir := filepath.Dir(path)
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return err

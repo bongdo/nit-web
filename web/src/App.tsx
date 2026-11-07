@@ -403,15 +403,17 @@ export default function App({
       sessionRunning(sessions.find((session) => session.id === id)),
     [runningIds, sessions],
   );
+  const activePermissions =
+    permissionsOwnerRef.current === selectedId ? permissions : [];
   const waitingIds = useMemo(() => {
     const ids = mergeWaitingSessionIds(selectedId, forms, backgroundWaitingIds);
     for (const id of backgroundPermissionIds) ids.add(id);
-    for (const permission of permissions) {
+    for (const permission of activePermissions) {
       if (permission.sessionID) ids.add(permission.sessionID);
       else if (selectedId) ids.add(selectedId);
     }
     return ids;
-  }, [backgroundPermissionIds, backgroundWaitingIds, forms, permissions, selectedId]);
+  }, [activePermissions, backgroundPermissionIds, backgroundWaitingIds, forms, selectedId]);
   const saveStatus = useCallback((id: string, status: "" | "done" | "failed") => {
     void api.setSessionStatus(id, status).catch((error) => setBanner(messageOf(error)));
   }, []);
@@ -1318,6 +1320,10 @@ export default function App({
     setForms((current) => current.slice(1));
     reloadSelected();
   }, [reloadSelected]);
+  const finishPermission = useCallback(() => {
+    setPermissions((current) => current.slice(1));
+    void loadPermissions();
+  }, [loadPermissions]);
 
   const onEvent = (event: StreamEvent) => {
     const data = event.data ?? {};
@@ -1393,6 +1399,9 @@ export default function App({
 
     if (sessionID === selectedIdRef.current && event.type.startsWith("form.")) {
       void loadForms();
+    }
+    if (sessionID === selectedIdRef.current && event.type.startsWith("permission.")) {
+      void loadPermissions();
     }
 
     if (sessionID === selectedIdRef.current) {
@@ -1471,6 +1480,7 @@ export default function App({
     void loadSessions();
     void loadChildren();
     void loadForms();
+    void loadPermissions();
     reloadSelected();
   };
 
@@ -2074,6 +2084,17 @@ export default function App({
         />
 
         <BottomDock>
+          {activePermissions[0] && selectedSession && (
+            <div className="pointer-events-auto">
+              <PermissionCard
+                permission={activePermissions[0]}
+                sessionID={selectedSession.id}
+                onDone={finishPermission}
+                onError={setBanner}
+              />
+            </div>
+          )}
+
           {forms[0] && selectedSession && !questionForm && (
             <div className="pointer-events-auto">
               <FormCard

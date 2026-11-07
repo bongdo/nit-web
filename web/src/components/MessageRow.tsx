@@ -45,6 +45,7 @@ export const MessageRow = memo(function MessageRow({
   running,
   alwaysShowActions,
   autoOpen,
+  peroURL,
   onRevert,
   onFork,
   onLoadMessage,
@@ -56,6 +57,7 @@ export const MessageRow = memo(function MessageRow({
   running?: boolean;
   alwaysShowActions?: boolean;
   autoOpen?: boolean;
+  peroURL: string;
   onRevert: (message: Message) => Promise<void>;
   onFork: (message: Message) => Promise<void>;
   onLoadMessage?: (messageID: string) => void | Promise<void>;
@@ -231,7 +233,14 @@ export const MessageRow = memo(function MessageRow({
             return <QuestionCard key={`question-${part.id}`} part={part} />;
           }
           if (part.type === "tool") {
-            return <ToolCall key={`tool-${part.id}`} part={part} onLoad={onLoad} />;
+            return (
+              <ToolCall
+                key={`tool-${part.id}`}
+                part={part}
+                peroURL={peroURL}
+                onLoad={onLoad}
+              />
+            );
           }
           const pureHtml = isPureHtml(part.text);
           return (

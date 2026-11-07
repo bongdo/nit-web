@@ -485,6 +485,7 @@ export function ChatView({
               models={models}
               agents={agents}
               workspace={workspace}
+              peroURL={peroURL}
               streaming={Boolean(running && index === messages.length - 1)}
               onLoadMessage={onLoadMessage}
             />
@@ -505,6 +506,7 @@ export function ChatView({
             running={running}
             alwaysShowActions={message.id === lastUserID}
             autoOpen={freshCompaction && message.id === lastCompactionId}
+            peroURL={peroURL}
             onRevert={onRevert}
             onFork={onFork}
             streaming={false}
@@ -523,6 +525,7 @@ export function ChatView({
     onFork,
     onLoadMessage,
     onRevert,
+    peroURL,
     running,
     workspace,
   ]);

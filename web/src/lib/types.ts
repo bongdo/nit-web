@@ -212,6 +212,7 @@ export type Config = {
   directory: string;
   model: ModelRef | null;
   agent: string | null;
+  peroURL: string;
 };
 
 export type Health = {

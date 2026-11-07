@@ -2069,6 +2069,7 @@ export default function App({
           projects={projects}
           recent={recent}
           workspace={workspace}
+          peroURL={config?.peroURL ?? "/pero/"}
           motion={motion}
           background={background}
           sceneKey={sceneEpoch}

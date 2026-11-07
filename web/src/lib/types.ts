@@ -169,7 +169,10 @@ export type Session = {
   location: { directory: string };
 };
 
-export type SessionList = { data: Session[] };
+export type SessionList = {
+  data: Session[];
+  cursor?: { next?: string | null; previous?: string | null } | null;
+};
 export type MessagesResponse = { data: Message[]; previous?: string | null };
 export type UiState = {
   hidden: string[];

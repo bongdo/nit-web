@@ -314,6 +314,9 @@ export const Sidebar = memo(function Sidebar({
   failedIds,
   doneIds,
   motion,
+  hasMore,
+  loadingMore,
+  onLoadMore,
 }: {
   sessions: Session[];
   subagents: Session[];
@@ -349,6 +352,9 @@ export const Sidebar = memo(function Sidebar({
   failedIds: Set<string>;
   doneIds: Set<string>;
   motion: "animated" | "static";
+  hasMore?: boolean;
+  loadingMore?: boolean;
+  onLoadMore?: () => void;
 }) {
   const [now, setNow] = useState(Date.now());
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
@@ -677,6 +683,16 @@ export const Sidebar = memo(function Sidebar({
                 </Fragment>
               );
             })}
+            {hasMore && (
+              <button
+                type="button"
+                onClick={onLoadMore}
+                disabled={loadingMore}
+                className="text-muted-foreground hover:bg-accent/60 hover:text-foreground mx-1.5 flex w-[calc(100%-0.75rem)] items-center justify-center rounded-lg py-2 text-[11px] disabled:opacity-60"
+              >
+                {loadingMore ? "Loading older chats…" : "Load older chats"}
+              </button>
+            )}
           </div>
         )}
       </div>

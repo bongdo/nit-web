@@ -62,13 +62,9 @@ export default function Root() {
     try {
       const result = await api.instances(true);
       setData(result);
-      setActive((current) => {
-        const next = result.instances.some((item) => item.id === current)
-          ? current
-          : result.default;
-        localStorage.setItem("nit-gui.instance", next);
-        return next;
-      });
+      setActive((current) =>
+        result.instances.some((item) => item.id === current) ? current : result.default,
+      );
     } catch (cause) {
       setError(messageOf(cause));
     }

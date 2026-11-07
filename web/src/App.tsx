@@ -14,6 +14,7 @@ import type {
   Agent,
   Config,
   FormInfo,
+  PermissionRequest,
   Health,
   Message,
   Model,
@@ -72,6 +73,7 @@ import { WorkspacePicker } from "./components/WorkspacePicker";
 import { SettingsPanel } from "./components/SettingsPanel";
 import { ThemePicker } from "./components/ThemePicker";
 import { FormCard } from "./components/FormCard";
+import { PermissionCard } from "./components/PermissionCard";
 import { BootScreen, OfflineScreen } from "./components/StatusScreens";
 import { Button } from "./components/ui/button";
 
@@ -229,7 +231,9 @@ export default function App({
   });
   const [sceneEpoch, setSceneEpoch] = useState(0);
   const [forms, setForms] = useState<FormInfo[]>([]);
+  const [permissions, setPermissions] = useState<PermissionRequest[]>([]);
   const [backgroundWaitingIds, setBackgroundWaitingIds] = useState<Set<string>>(new Set());
+  const [backgroundPermissionIds, setBackgroundPermissionIds] = useState<Set<string>>(new Set());
   const [failedIds, setFailedIds] = useState<Set<string>>(() => new Set());
   const [doneIds, setDoneIds] = useState<Set<string>>(() => new Set());
   const failedRef = useRef<Set<string>>(new Set());
@@ -256,6 +260,13 @@ export default function App({
   const [banner, setBanner] = useState<string | null>(null);
   const [booting, setBooting] = useState(true);
   const [search, setSearch] = useState("");
+  const searchQueryRef = useRef(search);
+  searchQueryRef.current = search;
+  const [sessionCursor, setSessionCursor] = useState<string | null>(null);
+  const sessionCursorRef = useRef<string | null>(null);
+  sessionCursorRef.current = sessionCursor;
+  const [loadingMore, setLoadingMore] = useState(false);
+  const loadingMoreRef = useRef(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const sheetPull = useRef<number | null>(null);
   const [preferredModel, setPreferredModel] = useState<ModelRef | null>(null);
@@ -267,7 +278,7 @@ export default function App({
   const runningEventsAt = useRef<Record<string, number>>({});
   const lastEscapeAt = useRef(0);
   const skipLoadRef = useRef<string | null>(null);
-  const lastQueryRef = useRef(`${scope}|${workspace}`);
+  const lastQueryRef = useRef(`${scope}|${workspace}|`);
   const streamQueue = useRef<StreamEvent[]>([]);
   const streamFrame = useRef<number | null>(null);
   const formsOwnerRef = useRef<string | null>(null);
@@ -372,6 +383,9 @@ export default function App({
   const runningSeen = useRef<Record<string, boolean>>({});
   const backgroundWaitingRef = useRef(backgroundWaitingIds);
   backgroundWaitingRef.current = backgroundWaitingIds;
+  const backgroundPermissionRef = useRef(backgroundPermissionIds);
+  backgroundPermissionRef.current = backgroundPermissionIds;
+  const permissionsOwnerRef = useRef<string | null>(null);
   const selectedSession = sessions.find((session) => session.id === selectedId) ?? null;
   const composerKey = selectedId ?? `new:${workspace ?? ""}`;
   const composerDraftKey =
@@ -389,10 +403,15 @@ export default function App({
       sessionRunning(sessions.find((session) => session.id === id)),
     [runningIds, sessions],
   );
-  const waitingIds = useMemo(
-    () => mergeWaitingSessionIds(selectedId, forms, backgroundWaitingIds),
-    [backgroundWaitingIds, forms, selectedId],
-  );
+  const waitingIds = useMemo(() => {
+    const ids = mergeWaitingSessionIds(selectedId, forms, backgroundWaitingIds);
+    for (const id of backgroundPermissionIds) ids.add(id);
+    for (const permission of permissions) {
+      if (permission.sessionID) ids.add(permission.sessionID);
+      else if (selectedId) ids.add(selectedId);
+    }
+    return ids;
+  }, [backgroundPermissionIds, backgroundWaitingIds, forms, permissions, selectedId]);
   const saveStatus = useCallback((id: string, status: "" | "done" | "failed") => {
     void api.setSessionStatus(id, status).catch((error) => setBanner(messageOf(error)));
   }, []);
@@ -484,12 +503,13 @@ export default function App({
   const loadSessions = useCallback(async () => {
     const requestedAt = Date.now();
     const scopedDirectory = scopeRef.current === "directory" ? workspaceRef.current : null;
+    const query = searchQueryRef.current.trim();
     try {
       // shortcut: children=true returns the newest 100 sessions, paginate when older subagents matter.
       const [list, nested] = await Promise.all([
-        api.sessions(scopedDirectory ?? undefined),
+        api.sessions(scopedDirectory ?? undefined, false, query || undefined),
         api
-          .sessions(scopedDirectory ?? undefined, true)
+          .sessions(scopedDirectory ?? undefined, true, query || undefined)
           .catch(() => ({ data: [] as Session[] })),
       ]);
       let data = list.data;
@@ -509,6 +529,9 @@ export default function App({
           if (keep) data = [keep, ...data];
         }
       }
+      const cursor = list.cursor?.next ?? null;
+      sessionCursorRef.current = cursor;
+      setSessionCursor(cursor);
       setSessions(data);
       setRunningIds((previous) =>
         mergeRunningStates(previous, data, runningEventsAt.current, requestedAt),
@@ -517,6 +540,36 @@ export default function App({
       setBanner(messageOf(error));
     } finally {
       setSessionsLoading(false);
+    }
+  }, []);
+
+  const loadMoreSessions = useCallback(async () => {
+    const cursor = sessionCursorRef.current;
+    if (!cursor || loadingMoreRef.current) return;
+    loadingMoreRef.current = true;
+    setLoadingMore(true);
+    const scopedDirectory = scopeRef.current === "directory" ? workspaceRef.current : null;
+    const query = searchQueryRef.current.trim();
+    try {
+      const page = await api.sessions(
+        scopedDirectory ?? undefined,
+        true,
+        query || undefined,
+        cursor,
+      );
+      setSessions((previous) => {
+        const known = new Set(previous.map((session) => session.id));
+        const add = page.data.filter((session) => !known.has(session.id));
+        return add.length > 0 ? [...previous, ...add] : previous;
+      });
+      const next = page.cursor?.next ?? null;
+      sessionCursorRef.current = next;
+      setSessionCursor(next);
+    } catch (error) {
+      setBanner(messageOf(error));
+    } finally {
+      loadingMoreRef.current = false;
+      setLoadingMore(false);
     }
   }, []);
 
@@ -621,10 +674,30 @@ export default function App({
     }
   }, []);
 
+  const loadPermissions = useCallback(async () => {
+    const id = selectedIdRef.current;
+    if (!id) {
+      permissionsOwnerRef.current = null;
+      setPermissions([]);
+      return;
+    }
+    try {
+      const data = await api.permissions(id);
+      if (selectedIdRef.current !== id) return;
+      permissionsOwnerRef.current = id;
+      setPermissions(data);
+    } catch {
+      if (selectedIdRef.current !== id) return;
+      permissionsOwnerRef.current = id;
+      setPermissions([]);
+    }
+  }, []);
+
   useEffect(() => {
     void loadChildren();
     void loadForms();
-  }, [loadChildren, loadForms, selectedId]);
+    void loadPermissions();
+  }, [loadChildren, loadForms, loadPermissions, selectedId]);
 
   useEffect(() => {
     if (!selectedId || formsOwnerRef.current !== selectedId) return;
@@ -654,29 +727,54 @@ export default function App({
         sessionsRef.current,
         selectedIdRef.current,
         runningIdsRef.current,
-        backgroundWaitingRef.current,
+        new Set([...backgroundWaitingRef.current, ...backgroundPermissionRef.current]),
       );
       if (ids.length === 0) return;
       polling = true;
       try {
         const results = await Promise.all(
           ids.map(async (id) => {
-            try {
-              return [id, (await api.forms(id)).length > 0] as const;
-            } catch {
-              return [id, backgroundWaitingRef.current.has(id)] as const;
-            }
+            const [formResult, permissionResult] = await Promise.allSettled([
+              api.forms(id),
+              api.permissions(id),
+            ]);
+            return {
+              id,
+              waiting:
+                formResult.status === "fulfilled"
+                  ? formResult.value.length > 0
+                  : backgroundWaitingRef.current.has(id),
+              permission:
+                permissionResult.status === "fulfilled"
+                  ? permissionResult.value.length > 0
+                  : backgroundPermissionRef.current.has(id),
+            };
           }),
         );
         if (cancelled) return;
+        const known = new Set(sessionsRef.current.map((session) => session.id));
         setBackgroundWaitingIds((previous) => {
           const next = new Set(previous);
-          for (const [id, waiting] of results) {
-            if (id === selectedIdRef.current) continue;
-            if (waiting) next.add(id);
-            else next.delete(id);
+          for (const item of results) {
+            if (item.id === selectedIdRef.current) continue;
+            if (item.waiting) next.add(item.id);
+            else next.delete(item.id);
           }
-          const known = new Set(sessionsRef.current.map((session) => session.id));
+          for (const id of next) {
+            if (!known.has(id)) next.delete(id);
+          }
+          if (next.size === previous.size && [...next].every((id) => previous.has(id))) {
+            return previous;
+          }
+          return next;
+        });
+        setBackgroundPermissionIds((previous) => {
+          const next = new Set(previous);
+          for (const item of results) {
+            if (item.id === selectedIdRef.current) continue;
+            if (item.permission) next.add(item.id);
+            else next.delete(item.id);
+          }
           for (const id of next) {
             if (!known.has(id)) next.delete(id);
           }
@@ -704,11 +802,17 @@ export default function App({
   }, []);
 
   useEffect(() => {
-    const key = `${scope}|${workspace}`;
+    const key = `${scope}|${workspace}|${search.trim()}`;
     if (lastQueryRef.current === key) return;
-    lastQueryRef.current = key;
-    if (healthRef.current?.ok) void loadSessions();
-  }, [loadSessions, scope, workspace]);
+    const timer = window.setTimeout(
+      () => {
+        lastQueryRef.current = key;
+        if (healthRef.current?.ok) void loadSessions();
+      },
+      search.trim() ? 250 : 0,
+    );
+    return () => window.clearTimeout(timer);
+  }, [loadSessions, scope, search, workspace]);
 
   useEffect(() => {
     if (agents.length === 0 || scopeRef.current !== "mine") return;
@@ -943,7 +1047,7 @@ export default function App({
     setNotifyOn(true);
   }, [notifications]);
 
-  useAttention(waitingIds, { enabled: notifications, sessions, onOpen: selectSession });
+  useAttention(waitingIds, { enabled: notifications, sessions, doneIds, onOpen: selectSession });
 
   const selectWorkspace = useCallback((directory: string) => {
     saveCurrentTranscript();
@@ -1860,6 +1964,9 @@ export default function App({
             theme={theme}
             search={search}
             searchRef={searchRef}
+            hasMore={Boolean(sessionCursor)}
+            loadingMore={loadingMore}
+            onLoadMore={() => void loadMoreSessions()}
             hiddenIds={hiddenIds}
             hiddenCount={hiddenCount}
             showHidden={showHidden}

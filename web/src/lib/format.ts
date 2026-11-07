@@ -1,4 +1,14 @@
-import type { Message, Model, ModelRef, Session, Tokens, UserFile } from "./types";
+import type {
+  Message,
+  Model,
+  ModelRef,
+  Part,
+  Session,
+  TextPart,
+  Tokens,
+  ToolPart,
+  UserFile,
+} from "./types";
 
 export function formatRelative(ms: number, now = Date.now()): string {
   if (!ms) return "";
@@ -63,6 +73,32 @@ export function formatTokens(n?: number): string {
   if (n < 1_000) return String(n);
   if (n < 1_000_000) return `${(n / 1_000).toFixed(1)}k`;
   return `${(n / 1_000_000).toFixed(1)}M`;
+}
+
+export type TurnBlock =
+  | { kind: "steps" }
+  | { kind: "text"; part: TextPart }
+  | { kind: "question"; part: ToolPart };
+
+export function turnBlocks(content: Part[], hasSteps: boolean): TurnBlock[] {
+  const blocks: TurnBlock[] = [];
+  const firstStep = content.findIndex(
+    (part) => part.type === "reasoning" || (part.type === "tool" && part.name !== "question"),
+  );
+  const stepsAt = firstStep === -1 ? 0 : firstStep;
+  let inserted = !hasSteps;
+  content.forEach((part, index) => {
+    if (part.type !== "text" && !(part.type === "tool" && part.name === "question")) return;
+    if (!inserted && (stepsAt === 0 || index > stepsAt)) {
+      blocks.push({ kind: "steps" });
+      inserted = true;
+    }
+    blocks.push(
+      part.type === "text" ? { kind: "text", part } : { kind: "question", part },
+    );
+  });
+  if (!inserted) blocks.push({ kind: "steps" });
+  return blocks;
 }
 
 export function replyText(message: Message): string {

@@ -5,7 +5,7 @@ import { activityLine } from "../lib/activity";
 import { editedFiles, mergeFiles } from "../lib/diff";
 import { stepMessageIDs } from "../lib/stream";
 import { isPureHtml, looksLikeHtml } from "../lib/html";
-import { modelLabel, replyText } from "../lib/format";
+import { modelLabel, replyText, turnBlocks } from "../lib/format";
 import { timeLabel, type TimeFormat } from "../lib/time";
 import { FileChips } from "./FileChips";
 import { HtmlMessagePreview } from "./HtmlMessagePreview";
@@ -60,9 +60,6 @@ export const AssistantTurn = memo(function AssistantTurn({
     }
   }
   const content = messages.flatMap((message) => message.content ?? []);
-  const questionParts = content.filter(
-    (part): part is ToolPart => part.type === "tool" && part.name === "question",
-  );
   const activity = content.filter(
     (part): part is ReasoningPart | ToolPart =>
       part.type === "reasoning" || (part.type === "tool" && part.name !== "question"),
@@ -97,6 +94,8 @@ export const AssistantTurn = memo(function AssistantTurn({
   const shownTools = toolCount + markerTools;
   const shownErrors = errorCount + markerErrors;
   const hasSteps = shownSteps > 0;
+  const blocks = turnBlocks(content, hasSteps);
+  const lastText = textParts[textParts.length - 1];
   const reply = messages.map(replyText).filter(Boolean).join("\n\n");
   const agent = agents.find((item) => item.id === last?.agent);
   const model = modelLabel(last?.model, models);
@@ -158,94 +157,99 @@ export const AssistantTurn = memo(function AssistantTurn({
       </div>
 
       <div className="min-w-0 pl-8">
-        {questionParts.map((part) => (
-          <QuestionCard
-            key={`question-${part.id}`}
-            part={part}
-            timeFormat={timeFormat}
-            showTime={showTime}
-          />
-        ))}
-
-        {hasSteps && (
-          <div className="border-border bg-card/40 my-2 overflow-hidden rounded-lg border">
-            <div className="hover:bg-accent/40 flex w-full items-center gap-2 px-2.5 py-1.5">
-              <button
-                type="button"
-                aria-expanded={open}
-                onClick={() => {
-                  const next = !open;
-                  setOpen(next);
-                  if (next) loadSteps();
-                }}
-                className="flex min-w-0 flex-1 items-center gap-2 text-left"
+        {blocks.map((block, index) => {
+          if (block.kind === "steps") {
+            return (
+              <div
+                key="steps"
+                className="border-border bg-card/40 my-2 overflow-hidden rounded-lg border"
               >
-                {open ? <ChevronDown className="size-3.5 shrink-0" /> : <ChevronRight className="size-3.5 shrink-0" />}
-                {streaming ? (
-                  <Loader2 className="size-3.5 shrink-0 animate-spin text-success" />
-                ) : null}
-                {loadingSteps ? (
-                  <Loader2 className="text-muted-foreground size-3.5 shrink-0 animate-spin" />
-                ) : null}
-                <span
-                  className={`min-w-0 flex-1 truncate text-left text-[11px] ${
-                    streaming ? "text-foreground" : "text-muted-foreground"
-                  }`}
-                >
-                  {summary}
-                </span>
-                {liveStats && (
-                  <span className="text-muted-foreground shrink-0 text-[10px]">{liveStats}</span>
+                <div className="hover:bg-accent/40 flex w-full items-center gap-2 px-2.5 py-1.5">
+                  <button
+                    type="button"
+                    aria-expanded={open}
+                    onClick={() => {
+                      const next = !open;
+                      setOpen(next);
+                      if (next) loadSteps();
+                    }}
+                    className="flex min-w-0 flex-1 items-center gap-2 text-left"
+                  >
+                    {open ? <ChevronDown className="size-3.5 shrink-0" /> : <ChevronRight className="size-3.5 shrink-0" />}
+                    {streaming ? (
+                      <Loader2 className="size-3.5 shrink-0 animate-spin text-success" />
+                    ) : null}
+                    {loadingSteps ? (
+                      <Loader2 className="text-muted-foreground size-3.5 shrink-0 animate-spin" />
+                    ) : null}
+                    <span
+                      className={`min-w-0 flex-1 truncate text-left text-[11px] ${
+                        streaming ? "text-foreground" : "text-muted-foreground"
+                      }`}
+                    >
+                      {summary}
+                    </span>
+                    {liveStats && (
+                      <span className="text-muted-foreground shrink-0 text-[10px]">{liveStats}</span>
+                    )}
+                  </button>
+                  <FileChips files={changedFiles} base={peroURL} max={2} />
+                </div>
+                {open && (
+                  <div className="border-border border-t px-1.5 py-1">
+                    {loadingSteps && activity.length === 0 && (
+                      <div className="text-muted-foreground px-2 py-1 text-xs">Loading steps…</div>
+                    )}
+                    {activity.map((part, index) => {
+                      const owner = owners.get(part);
+                      const onLoad =
+                        onLoadMessage && part.light && owner && !(streaming && owner.id === last?.id)
+                          ? () => onLoadMessage(owner.id)
+                          : undefined;
+                      return part.type === "reasoning" ? (
+                        <Reasoning
+                          key={`reasoning-${index}`}
+                          part={part}
+                          streaming={streaming && index === activity.length - 1}
+                          onLoad={onLoad}
+                        />
+                      ) : (
+                        <ToolCall
+                          key={`tool-${part.id ?? index}`}
+                          part={part}
+                          cwd={workspace}
+                          peroURL={peroURL}
+                          onLoad={onLoad}
+                        />
+                      );
+                    })}
+                  </div>
                 )}
-              </button>
-              <FileChips files={changedFiles} base={peroURL} max={2} />
-            </div>
-            {open && (
-              <div className="border-border border-t px-1.5 py-1">
-                {loadingSteps && activity.length === 0 && (
-                  <div className="text-muted-foreground px-2 py-1 text-xs">Loading steps…</div>
-                )}
-                {activity.map((part, index) => {
-                  const owner = owners.get(part);
-                  const onLoad =
-                    onLoadMessage && part.light && owner && !(streaming && owner.id === last?.id)
-                      ? () => onLoadMessage(owner.id)
-                      : undefined;
-                  return part.type === "reasoning" ? (
-                    <Reasoning
-                      key={`reasoning-${index}`}
-                      part={part}
-                      streaming={streaming && index === activity.length - 1}
-                      onLoad={onLoad}
-                    />
-                  ) : (
-                    <ToolCall
-                      key={`tool-${part.id ?? index}`}
-                      part={part}
-                      cwd={workspace}
-                      peroURL={peroURL}
-                      onLoad={onLoad}
-                    />
-                  );
-                })}
               </div>
-            )}
-          </div>
-        )}
-
-        {textParts.map((part, index) => {
-          const pureHtml = isPureHtml(part.text);
+            );
+          }
+          if (block.kind === "question") {
+            return (
+              <QuestionCard
+                key={`question-${block.part.id}`}
+                part={block.part}
+                timeFormat={timeFormat}
+                showTime={showTime}
+              />
+            );
+          }
+          const pureHtml = isPureHtml(block.part.text);
           return (
             <div key={`text-${index}`} className="min-w-0">
               {pureHtml ? (
-                <HtmlMessagePreview source={part.text} />
+                <HtmlMessagePreview source={block.part.text} />
               ) : (
                 <>
-                  <Markdown text={part.text} />
-                  {looksLikeHtml(part.text) && <HtmlMessagePreview source={part.text} />}
+                  <Markdown text={block.part.text} />
+                  {looksLikeHtml(block.part.text) && <HtmlMessagePreview source={block.part.text} />}
                 </>
               )}
-              {streaming && index === textParts.length - 1 && <span className="stream-caret" />}
+              {streaming && block.part === lastText && <span className="stream-caret" />}
             </div>
           );
         })}

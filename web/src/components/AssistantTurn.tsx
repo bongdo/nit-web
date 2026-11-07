@@ -32,6 +32,8 @@ type AssistantTurnProps = {
   workspace?: string | null;
   peroURL: string;
   streaming: boolean;
+  timeFormat: TimeFormat;
+  showTime: boolean;
   onLoadMessage?: (messageID: string) => void | Promise<void>;
 };
 
@@ -42,6 +44,8 @@ export const AssistantTurn = memo(function AssistantTurn({
   workspace,
   peroURL,
   streaming,
+  timeFormat,
+  showTime,
   onLoadMessage,
 }: AssistantTurnProps) {
   const [open, setOpen] = useState(false);
@@ -144,14 +148,23 @@ export const AssistantTurn = memo(function AssistantTurn({
         </span>
         <span className="font-medium">{agent?.name ?? last?.agent ?? "Assistant"}</span>
         {model && <span className="text-muted-foreground truncate">{model}</span>}
-        <span className="text-muted-foreground ml-auto shrink-0 text-[10px]">
-          {streaming ? "running" : new Date(last?.time.created ?? Date.now()).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-        </span>
+        {(streaming || showTime) && (
+          <span className="text-muted-foreground ml-auto shrink-0 text-[10px]">
+            {streaming
+              ? "running"
+              : timeLabel(last?.time.created ?? Date.now(), timeFormat)}
+          </span>
+        )}
       </div>
 
       <div className="min-w-0 pl-8">
         {questionParts.map((part) => (
-          <QuestionCard key={`question-${part.id}`} part={part} />
+          <QuestionCard
+            key={`question-${part.id}`}
+            part={part}
+            timeFormat={timeFormat}
+            showTime={showTime}
+          />
         ))}
 
         {hasSteps && (
@@ -262,6 +275,8 @@ function sameTurn(left: AssistantTurnProps, right: AssistantTurnProps): boolean 
     left.peroURL === right.peroURL &&
     left.models === right.models &&
     left.agents === right.agents &&
+    left.timeFormat === right.timeFormat &&
+    left.showTime === right.showTime &&
     left.onLoadMessage === right.onLoadMessage &&
     sameMessages(left.messages, right.messages)
   );

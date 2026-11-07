@@ -1862,15 +1862,15 @@ export default function App({
     }
     return ids;
   }, [isRunning, scopedSessions, selectedId, sessions, subagents, waitingIds]);
-  const { recent, older } = useMemo(
+  const { recent: recentSessions, older: olderSessions } = useMemo(
     () => splitByRecency(scopedSessions, ageKeepIds, ageNow),
     [ageKeepIds, ageNow, scopedSessions],
   );
   const visibleSessions = useMemo(
-    () => (showOlder || search.trim() ? scopedSessions : recent),
-    [recent, scopedSessions, search, showOlder],
+    () => (showOlder || search.trim() ? scopedSessions : recentSessions),
+    [recentSessions, scopedSessions, search, showOlder],
   );
-  const olderCount = search.trim() ? 0 : older.length;
+  const olderCount = search.trim() ? 0 : olderSessions.length;
   const hiddenCount = useMemo(
     () => sessions.filter((session) => hiddenIds.has(session.id)).length,
     [hiddenIds, sessions],
@@ -2076,6 +2076,8 @@ export default function App({
             hasMore={Boolean(sessionCursor)}
             loadingMore={loadingMore}
             onLoadMore={() => void loadMoreSessions()}
+            olderCount={olderCount}
+            onShowOlder={() => setShowOlder(true)}
             hiddenIds={hiddenIds}
             hiddenCount={hiddenCount}
             showHidden={showHidden}

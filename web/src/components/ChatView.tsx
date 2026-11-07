@@ -24,6 +24,7 @@ import {
   type ScrollAnchor,
 } from "../lib/scroll";
 import { cn } from "../lib/utils";
+import type { TimeFormat } from "../lib/time";
 import { Button } from "./ui/button";
 import { AssistantTurn } from "./AssistantTurn";
 import { CompactionBusy } from "./Compaction";
@@ -93,6 +94,8 @@ export function ChatView({
   motion,
   background,
   sceneKey,
+  timeFormat,
+  showTime,
   onRetry,
   onRevert,
   onFork,
@@ -121,6 +124,8 @@ export function ChatView({
   motion: "animated" | "static";
   background: SceneSetting;
   sceneKey: number;
+  timeFormat: TimeFormat;
+  showTime: boolean;
   onRetry: () => void;
   onRevert: (message: Message) => Promise<void>;
   onFork: (message: Message) => Promise<void>;
@@ -487,6 +492,8 @@ export function ChatView({
               workspace={workspace}
               peroURL={peroURL}
               streaming={Boolean(running && index === messages.length - 1)}
+              timeFormat={timeFormat}
+              showTime={showTime}
               onLoadMessage={onLoadMessage}
             />
           </div>,
@@ -507,6 +514,8 @@ export function ChatView({
             alwaysShowActions={message.id === lastUserID}
             autoOpen={freshCompaction && message.id === lastCompactionId}
             peroURL={peroURL}
+            timeFormat={timeFormat}
+            showTime={showTime}
             onRevert={onRevert}
             onFork={onFork}
             streaming={false}

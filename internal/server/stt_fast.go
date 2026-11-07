@@ -47,7 +47,14 @@ func fastSTTModel() string {
 	return filepath.Join(home, ".local/share/whisper/ggml-small-q5_1.bin")
 }
 
+func fastSTTURL() string {
+	return strings.TrimRight(strings.TrimSpace(os.Getenv("NIT_GUI_STT_FAST_URL")), "/")
+}
+
 func (f *fastSTT) available() (bool, string) {
+	if fastSTTURL() != "" {
+		return true, "fast"
+	}
 	model := fastSTTModel()
 	if _, err := os.Stat(model); err != nil {
 		return false, "fast model not installed"
@@ -74,6 +81,21 @@ func (f *fastSTT) running() bool {
 }
 
 func (f *fastSTT) ensure(ctx context.Context) error {
+	if url := fastSTTURL(); url != "" {
+		request, err := http.NewRequestWithContext(ctx, http.MethodGet, url+"/health", nil)
+		if err != nil {
+			return err
+		}
+		response, err := f.client.Do(request)
+		if err != nil {
+			return fmt.Errorf("fast stt service: %w", err)
+		}
+		defer response.Body.Close()
+		if response.StatusCode >= 400 {
+			return fmt.Errorf("fast stt service returned %d", response.StatusCode)
+		}
+		return nil
+	}
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	if f.running() {
@@ -133,27 +155,36 @@ func (f *fastSTT) transcribe(ctx context.Context, data []byte) (string, error) {
 	if err := f.ensure(ctx); err != nil {
 		return "", err
 	}
-	var body bytes.Buffer
-	writer := multipart.NewWriter(&body)
-	part, err := writer.CreateFormFile("file", "audio.wav")
+	var body io.Reader
+	contentType := "audio/wav"
+	endpoint := "http://" + fastSTTAddr + "/inference"
+	if url := fastSTTURL(); url != "" {
+		endpoint = url + "/inference"
+		body = bytes.NewReader(data)
+	} else {
+		var form bytes.Buffer
+		writer := multipart.NewWriter(&form)
+		part, err := writer.CreateFormFile("file", "audio.wav")
+		if err != nil {
+			return "", err
+		}
+		if _, err := part.Write(data); err != nil {
+			return "", err
+		}
+		_ = writer.WriteField("response_format", "json")
+		_ = writer.WriteField("language", "ru")
+		_ = writer.WriteField("temperature", "0")
+		if err := writer.Close(); err != nil {
+			return "", err
+		}
+		body = &form
+		contentType = writer.FormDataContentType()
+	}
+	request, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, body)
 	if err != nil {
 		return "", err
 	}
-	if _, err := part.Write(data); err != nil {
-		return "", err
-	}
-	_ = writer.WriteField("response_format", "json")
-	_ = writer.WriteField("language", "ru")
-	_ = writer.WriteField("temperature", "0")
-	if err := writer.Close(); err != nil {
-		return "", err
-	}
-	request, err := http.NewRequestWithContext(ctx, http.MethodPost,
-		"http://"+fastSTTAddr+"/inference", &body)
-	if err != nil {
-		return "", err
-	}
-	request.Header.Set("Content-Type", writer.FormDataContentType())
+	request.Header.Set("Content-Type", contentType)
 	response, err := f.client.Do(request)
 	if err != nil {
 		return "", err

@@ -688,3 +688,28 @@ segment, and a worker pool (one listener is the product).
 Cost: the server holds one piper process and ~140 MB more memory after warmup.
 One worker serializes segments; several simultaneous listeners would queue. A
 worker crash costs one restart and the current segment.
+
+## 2026-11-07 — GigaAM v3 for host dictation instead of whisper-small
+
+Context: browsers without Web Speech (Firefox, Electron) fall back to host STT.
+On this 4-core host a 1–6 second segment took 12–17 seconds with
+`whisper-server` and the small model, and small Whisper does not punctuate
+Russian reliably.
+
+Decision: `bin/gigaam` runs GigaAM v3 CTC with punctuation through sherpa-onnx
+(217 MB ONNX, MIT) on `127.0.0.1:8177`. `bin/frankfurt` starts the sidecar and
+exports `NIT_GUI_STT_FAST_URL`; the Go fast path posts raw 16 kHz WAV there and
+does not spawn `whisper-server`. Without the sidecar the old whisper path
+remains as a fallback.
+
+Why: measured RTF 0.10–0.13 on this host, so a 5-second segment returns in
+about 0.4–0.6 seconds with commas, full stops and capitals. The app already
+defaults to Russian, so the model's Russian-only coverage matches the product.
+
+Rejected: whisper `tiny`/`base` (still slower and less accurate), browser Web
+Speech in Firefox (Mozilla does not ship it), cloud STT (needs keys and sends
+audio out), Vosk WASM (no punctuation, lower accuracy).
+
+Cost: one Python venv with `sherpa-onnx`, about 300 MB RSS while warm, and a
+156 MB one-time model download. English or mixed-language host dictation is no
+longer covered by the fallback.

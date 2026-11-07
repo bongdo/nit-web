@@ -457,6 +457,33 @@ func TestSTT(t *testing.T) {
 	}
 }
 
+func TestSTTExternalFastService(t *testing.T) {
+	service := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/health":
+			w.WriteHeader(http.StatusOK)
+		case "/inference":
+			raw, err := io.ReadAll(r.Body)
+			if err != nil || string(raw) != "RIFF" {
+				t.Errorf("body = %q, err = %v", raw, err)
+			}
+			fmt.Fprint(w, `{"text":"привет, мир."}`)
+		default:
+			t.Errorf("unexpected path %s", r.URL.Path)
+		}
+	}))
+	defer service.Close()
+	t.Setenv("NIT_GUI_STT_FAST_URL", service.URL)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost,
+		"http://127.0.0.1:7788/api/stt?mode=fast", strings.NewReader("RIFF"))
+	newHandler(t, "http://127.0.0.1:1").ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), "привет, мир.") {
+		t.Fatalf("status = %d: %s", rec.Code, rec.Body)
+	}
+}
+
 func TestProjectsProxy(t *testing.T) {
 	upstream := httptest.NewServer(auth(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/api/project" {

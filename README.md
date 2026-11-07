@@ -171,6 +171,13 @@ When LanguageTool is configured (`NIT_GUI_LANGUAGETOOL` or
 detached sidecar on `8180` and passes its URL to the app, so grammar stays warm
 across app restarts.
 
+`bin/frankfurt` also runs `bin/gigaam ensure`: the first call creates a Python
+venv, installs `sherpa-onnx` and downloads the 156 MB GigaAM v3 CTC model into
+`~/.local/opt/gigaam`; later calls reuse the warm sidecar on `8177`. The app
+then gets `NIT_GUI_STT_FAST_URL` and sends host dictation there instead of
+spawning `whisper-server`. If the sidecar fails, fast dictation falls back to
+whisper and the deploy still succeeds.
+
 `bin/nixos` and `bin/deploy nixos` remain in the tree for the old NixOS host.
 That path is legacy and is not a supported production target; new features are
 only verified on Frankfurt.
@@ -343,6 +350,10 @@ rewritten to loopback. Credentials in a server URL are discarded.
 | `NIT_GUI_LANGUAGETOOL_PORT` | Spawned server port, default `8179`. |
 | `NIT_GUI_LANGUAGETOOL_JAVA_OPTS` | JVM options, default `-Xms256m -Xmx512m`. |
 | `NIT_GUI_WHISPER_SERVER` | Fast dictation server binary, default `whisper-server` on `PATH`. |
+| `NIT_GUI_STT_FAST_URL` | External fast dictation service (`/health`, `/inference`); skips spawning `whisper-server`. `bin/frankfurt` points it at GigaAM. |
+| `NIT_GUI_GIGAAM_HOME` | Install directory for `bin/gigaam`, default `~/.local/opt/gigaam`. |
+| `NIT_GUI_GIGAAM_PORT` | GigaAM sidecar port, default `8177`. |
+| `NIT_GUI_GIGAAM_THREADS` | GigaAM inference threads, default `2`. |
 | `NIT_GUI_TTS_URL` | OpenCode TTS hub, default `http://127.0.0.1:7787`. |
 | `NIT_GUI_TTS_TOKEN_FILE` | Hub token file, default `$XDG_STATE_HOME/opencode-tts/token` or `~/.local/state/opencode-tts/token`. |
 | `NIT_GUI_TTS_TOKEN` | Direct hub token, overrides the token file. |
@@ -635,11 +646,13 @@ own startup warmup.
   `webkitSpeechRecognition` streams interim text and needs HTTPS (or localhost), a
   supporting browser (Chrome, Edge, Safari) and a network path to that vendor.
   Firefox, Electron and most non-Chromium forks have no working recognition, so
-  the mic falls back to host segments through `/api/stt?mode=fast`, which needs
-  `whisper-server` (override with `NIT_GUI_WHISPER_SERVER`) and
+  the mic falls back to host segments through `/api/stt?mode=fast`. On Frankfurt
+  `bin/frankfurt` starts `bin/gigaam`: GigaAM v3 CTC with punctuation, 217 MB
+  model, ~300 MB RAM and an RTF around 0.1 on this host, so a short segment comes
+  back in about half a second. Without it the same endpoint spawns
+  `whisper-server` (override with `NIT_GUI_WHISPER_SERVER`) with
   `~/.local/share/whisper/ggml-small-q5_1.bin` (override with
-  `NIT_GUI_STT_FAST_MODEL`); the server warms at app startup. On a loaded
-  CPU-only host that fallback lags behind speech. The endpoint also runs
+  `NIT_GUI_STT_FAST_MODEL`); that path is much slower. The endpoint also runs
   `whisper-cli` with `ggml-large-v3-turbo-q5_0.bin` when `mode` is not `fast`
   (model override `NIT_GUI_WHISPER_MODEL`, language `NIT_GUI_STT_LANG`), but the
   UI no longer selects it. The mic bars use a second microphone stream for

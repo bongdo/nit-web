@@ -1775,12 +1775,12 @@ export default function App({
         localStorage.setItem(reviewSnoozeKey(instance, workspace), JSON.stringify(next));
         return;
       }
-      const note = item.note ? ` ${item.note}.` : "";
+      const note = item.note ? ` ${item.note}` : "";
       const prompt =
         action === "accept"
-          ? `Принято ${item.id}. Запиши формулировку в${note} поставь заметке статус «принято», обнови docs/review/queue.json (status accepted) и предложение в docs/proposals. Покажи, что изменил.`
+          ? `Принято ${item.id}. Запиши формулировку в${note}. Поставь заметке статус «принято», обнови docs/review/queue.json (status accepted) и предложение в docs/proposals. Покажи, что изменил.`
           : item.kind === "feature"
-            ? `Не работает ${item.id}: ${text}. Создай баг-задачу через tasks new с этими словами и --source${note} выставь пункту в queue.json status rejected.`
+            ? `Не работает ${item.id}: ${text}. Создай баг-задачу через tasks new с этими словами и --source${note}. Выставь пункту в queue.json status rejected.`
             : `Не так, ${item.id}: ${text}. Переформулируй только этот пункт и обнови docs/review/queue.json (status proposed). В vault не пиши.`;
       setReviewBusy(item.id);
       setReviewSent(null);

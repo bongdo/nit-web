@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Check, Clock, FileText, X } from "lucide-react";
 import type { ReviewItem } from "../lib/types";
 import { ageLabel, openItems, stripFrontmatter, type SnoozeMap } from "../lib/review";
+import { useModalFocus } from "../hooks/useModalFocus";
 import { cn } from "../lib/utils";
 import { Markdown } from "./Markdown";
 import { Button } from "./ui/button";
@@ -39,6 +40,15 @@ export function ReviewSheet({
   const [rejectId, setRejectId] = useState<string | null>(null);
   const [rejectText, setRejectText] = useState("");
   const open = useMemo(() => openItems(items), [items]);
+  const panel = useModalFocus<HTMLDivElement>();
+
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
 
   useEffect(() => {
     if (tab === "base" && !base && !baseLoading) onLoadBase();
@@ -66,6 +76,8 @@ export function ReviewSheet({
         role="dialog"
         aria-modal="true"
         aria-label="Review"
+        ref={panel}
+        tabIndex={-1}
         onClick={(event) => event.stopPropagation()}
         className="overlay-modal bg-background border-border flex max-h-[85dvh] w-full max-w-2xl flex-col overflow-hidden rounded-t-xl border shadow-xl outline-none sm:rounded-xl"
       >

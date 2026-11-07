@@ -734,3 +734,16 @@ side gutters, and a static tinted snapshot of the scene.
 Cost: one canvas backing store stays allocated while a chat is open, and the
 scene freezes during the 500 ms fade instead of continuing to animate.
 
+## 2026-11-07 — Review queue is a file, not a second store
+
+Context: a deferred card needs a place to come back to, and the app must show the current declaration without becoming a dashboard.
+
+Decision: `docs/review/queue.json` is the only queue. The curator writes it; the app reads it through the instance fs API and sends accept or reject as a prompt to the curator session. "Later" is a 24-hour local snooze.
+
+Why: repo files diff and survive clients; the app stays a reader; vault writes happen only after an explicit "Accepted" prompt.
+
+Rejected: SQLite or app-side review state (a second source of truth); editing vault from the UI (two write paths); a separate tab (a dashboard).
+
+Cost: decisions are asynchronous, up to one model turn each; the queue refreshes on a 10-second poll.
+
+

@@ -86,8 +86,6 @@ function SessionRow({
 }) {
   const title = session.title?.trim() || (session.parentID ? "Subagent" : "New chat");
   const doneHere = done && runningSubagents === 0;
-  const previousRunning = useRef(runningSubagents);
-  const [settling, setSettling] = useState(false);
   const state = waiting
     ? "session-waiting"
     : failed
@@ -96,17 +94,6 @@ function SessionRow({
         ? "session-done"
         : null;
   const hasSubagents = depth === 0 && subagentCount > 0;
-  useEffect(() => {
-    const wasRunning = previousRunning.current > 0;
-    previousRunning.current = runningSubagents;
-    if (!animated || !wasRunning || runningSubagents > 0) {
-      setSettling(false);
-      return;
-    }
-    setSettling(true);
-    const timer = window.setTimeout(() => setSettling(false), 900);
-    return () => window.clearTimeout(timer);
-  }, [runningSubagents, animated]);
   return (
     <div
       data-session-row={session.id}
@@ -189,22 +176,6 @@ function SessionRow({
             </>
           )}
           <span className="min-w-0 flex-1 truncate text-[13px] font-medium">{title}</span>
-          {hasSubagents && (
-            <span
-              className={cn(
-                "sidebar-sheen-badge inline-flex shrink-0 items-center rounded px-1 text-[10px] tabular-nums",
-                runningSubagents > 0 ? "text-success" : "text-muted-foreground",
-                settling && "sidebar-sheen-badge-settle",
-              )}
-              title={
-                runningSubagents > 0
-                  ? `${runningSubagents} of ${subagentCount} subagents running`
-                  : `${subagentCount} subagents`
-              }
-            >
-              {runningSubagents > 0 ? `${runningSubagents}/${subagentCount}` : subagentCount}
-            </span>
-          )}
           <span
             className={cn(
               "shrink-0 text-[10px] transition-opacity group-hover:opacity-0",

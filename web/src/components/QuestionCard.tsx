@@ -1,14 +1,18 @@
 import { memo } from "react";
-import { CheckCheck } from "lucide-react";
 import type { ToolPart } from "../lib/types";
 import { questionRecords } from "../lib/questions";
+import { timeLabel, type TimeFormat } from "../lib/time";
 import { cn } from "../lib/utils";
 
-function timeLabel(ms: number): string {
-  return new Date(ms).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-}
-
-export const QuestionCard = memo(function QuestionCard({ part }: { part: ToolPart }) {
+export const QuestionCard = memo(function QuestionCard({
+  part,
+  timeFormat,
+  showTime,
+}: {
+  part: ToolPart;
+  timeFormat: TimeFormat;
+  showTime: boolean;
+}) {
   const questions = questionRecords(part);
   if (questions.length === 0) return null;
   const pending = part.state.status === "running" || part.state.status === "streaming";
@@ -35,10 +39,11 @@ export const QuestionCard = memo(function QuestionCard({ part }: { part: ToolPar
                   </div>
                 </div>
                 <div className="whitespace-pre-wrap">{question.answers.join(", ")}</div>
-                <div className="text-muted-foreground mt-1 flex items-center justify-end gap-1 text-[10px] leading-none">
-                  {answeredAt ? <span>{timeLabel(answeredAt)}</span> : null}
-                  <CheckCheck className="size-3" />
-                </div>
+                {showTime && answeredAt ? (
+                  <div className="text-muted-foreground mt-1 text-right text-[10px] leading-none">
+                    {timeLabel(answeredAt, timeFormat)}
+                  </div>
+                ) : null}
               </div>
             </div>
           ) : (

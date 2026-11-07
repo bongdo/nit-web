@@ -5,6 +5,7 @@ import { attachmentHref } from "../lib/attachments";
 import { copyText } from "../lib/clipboard";
 import { isPureHtml, looksLikeHtml } from "../lib/html";
 import { modelLabel, replyText } from "../lib/format";
+import { timeLabel, type TimeFormat } from "../lib/time";
 import { AttachmentPreview } from "./Attachment";
 import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
@@ -15,10 +16,6 @@ import { QuestionCard } from "./QuestionCard";
 import { Reasoning } from "./Reasoning";
 import { ReplyActions } from "./ReplyActions";
 import { ToolCall } from "./ToolCall";
-
-function timeLabel(ms: number): string {
-  return new Date(ms).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-}
 
 function FilePreview({ file }: { file: UserFile }) {
   const href = attachmentHref(file);
@@ -46,6 +43,8 @@ export const MessageRow = memo(function MessageRow({
   alwaysShowActions,
   autoOpen,
   peroURL,
+  timeFormat,
+  showTime,
   onRevert,
   onFork,
   onLoadMessage,
@@ -58,6 +57,8 @@ export const MessageRow = memo(function MessageRow({
   alwaysShowActions?: boolean;
   autoOpen?: boolean;
   peroURL: string;
+  timeFormat: TimeFormat;
+  showTime: boolean;
   onRevert: (message: Message) => Promise<void>;
   onFork: (message: Message) => Promise<void>;
   onLoadMessage?: (messageID: string) => void | Promise<void>;
@@ -87,9 +88,11 @@ export const MessageRow = memo(function MessageRow({
               </div>
             )}
             <Markdown text={message.text ?? ""} />
-            <div className="text-muted-foreground mt-1 text-right text-[10px]">
-              {timeLabel(message.time.created)}
-            </div>
+            {showTime && (
+              <div className="text-muted-foreground mt-1 text-right text-[10px]">
+                {timeLabel(message.time.created, timeFormat)}
+              </div>
+            )}
           </div>
           <div
             className={`message-actions mt-1 flex justify-end gap-0.5 pointer-events-none opacity-0 transition-opacity group-focus-within:pointer-events-auto group-focus-within:opacity-100 group-hover:pointer-events-auto group-hover:opacity-100${
@@ -209,9 +212,11 @@ export const MessageRow = memo(function MessageRow({
         </span>
         <span className="font-medium">{agent?.name ?? message.agent ?? "Assistant"}</span>
         {model && <span className="text-muted-foreground truncate">{model}</span>}
-        <span className="text-muted-foreground ml-auto shrink-0 text-[10px]">
-          {streaming ? "streaming" : timeLabel(message.time.created)}
-        </span>
+        {(streaming || showTime) && (
+          <span className="text-muted-foreground ml-auto shrink-0 text-[10px]">
+            {streaming ? "streaming" : timeLabel(message.time.created, timeFormat)}
+          </span>
+        )}
       </div>
       <div className="min-w-0 pl-8">
         {content.map((part, index) => {
@@ -230,7 +235,14 @@ export const MessageRow = memo(function MessageRow({
             );
           }
           if (part.type === "tool" && part.name === "question") {
-            return <QuestionCard key={`question-${part.id}`} part={part} />;
+            return (
+              <QuestionCard
+                key={`question-${part.id}`}
+                part={part}
+                timeFormat={timeFormat}
+                showTime={showTime}
+              />
+            );
           }
           if (part.type === "tool") {
             return (

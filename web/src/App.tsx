@@ -58,6 +58,7 @@ import {
   pollSessionIds,
   SCOPES,
   scopeSessions,
+  splitByRecency,
   type Scope,
 } from "./lib/sessions";
 import { cn } from "./lib/utils";
@@ -243,6 +244,8 @@ export default function App({
   const [notifyOn, setNotifyOn] = useState(() => localStorage.getItem("nit-gui.notify") === "on");
   const [hiddenIds, setHiddenIds] = useState<Set<string>>(() => new Set());
   const [showHidden, setShowHidden] = useState(false);
+  const [showOlder, setShowOlder] = useState(false);
+  const [ageNow, setAgeNow] = useState(() => Date.now());
   const [sessions, setSessions] = useState<Session[]>([]);
   const [sessionsLoading, setSessionsLoading] = useState(true);
   const [selectedId, setSelectedIdState] = useState<string | null>(() =>
@@ -380,6 +383,11 @@ export default function App({
       document.removeEventListener("visibilitychange", refresh);
     };
   }, [loadUiState]);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setAgeNow(Date.now()), 60_000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   const sessionsRef = useRef(sessions);
   sessionsRef.current = sessions;
@@ -1834,24 +1842,45 @@ export default function App({
   runCommandRef.current = runCommand;
   const runCommandStable = useCallback((id: string) => runCommandRef.current(id), []);
 
-  const cycleSessions = useMemo(
-    () =>
-      groupSessions(
-        filterSessions(
-          listedSessions(scopeSessions(sessions, scope, agents), hiddenIds, showHidden),
-          search,
-        ),
-        waitingIds,
-      ).map((row) => row.session),
-    [agents, hiddenIds, scope, search, sessions, showHidden, waitingIds],
+  const scopedSessions = useMemo(
+    () => listedSessions(scopeSessions(sessions, scope, agents), hiddenIds, showHidden),
+    [agents, hiddenIds, scope, sessions, showHidden],
   );
+  const ageKeepIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const session of scopedSessions) {
+      if (session.id === selectedId || isRunning(session.id) || waitingIds.has(session.id)) {
+        ids.add(session.id);
+      }
+    }
+    const selected = sessions.find((session) => session.id === selectedId);
+    if (selected?.parentID) ids.add(selected.parentID);
+    for (const child of subagents) {
+      if (child.parentID && (isRunning(child.id) || waitingIds.has(child.id))) {
+        ids.add(child.parentID);
+      }
+    }
+    return ids;
+  }, [isRunning, scopedSessions, selectedId, sessions, subagents, waitingIds]);
+  const { recent, older } = useMemo(
+    () => splitByRecency(scopedSessions, ageKeepIds, ageNow),
+    [ageKeepIds, ageNow, scopedSessions],
+  );
+  const visibleSessions = useMemo(
+    () => (showOlder || search.trim() ? scopedSessions : recent),
+    [recent, scopedSessions, search, showOlder],
+  );
+  const olderCount = search.trim() ? 0 : older.length;
   const hiddenCount = useMemo(
     () => sessions.filter((session) => hiddenIds.has(session.id)).length,
     [hiddenIds, sessions],
   );
-  const visibleSessions = useMemo(
-    () => listedSessions(scopeSessions(sessions, scope, agents), hiddenIds, showHidden),
-    [agents, hiddenIds, scope, sessions, showHidden],
+  const cycleSessions = useMemo(
+    () =>
+      groupSessions(filterSessions(visibleSessions, search), waitingIds).map(
+        (row) => row.session,
+      ),
+    [search, visibleSessions, waitingIds],
   );
   const visibleSubagents = useMemo(() => {
     const parentIds = new Set(visibleSessions.map((session) => session.id));

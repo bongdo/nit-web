@@ -6,6 +6,7 @@ import { editedFiles, mergeFiles } from "../lib/diff";
 import { stepMessageIDs } from "../lib/stream";
 import { isPureHtml, looksLikeHtml } from "../lib/html";
 import { modelLabel, replyText } from "../lib/format";
+import { timeLabel, type TimeFormat } from "../lib/time";
 import { FileChips } from "./FileChips";
 import { HtmlMessagePreview } from "./HtmlMessagePreview";
 import { Markdown } from "./Markdown";

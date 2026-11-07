@@ -8,7 +8,9 @@ import {
   newlyRunning,
   nextSessionId,
   pollSessionIds,
+  RECENT_WINDOW_MS,
   scopeSessions,
+  splitByRecency,
   waitingSessionIds,
 } from "./sessions";
 import type { Agent, FormInfo, Session } from "./types";
@@ -85,6 +87,35 @@ describe("sessions", () => {
         (item) => item.id,
       ),
     ).toEqual(["hidden", "child"]);
+  });
+
+  it("keeps every chat when the scope has ten or fewer", () => {
+    const now = 1_000_000_000_000;
+    const list = Array.from({ length: 10 }, (_, index) =>
+      session({ id: `s${index}`, time: { created: 0, updated: 0 } }),
+    );
+    const split = splitByRecency(list, new Set(), now);
+    expect(split.recent.map((item) => item.id)).toEqual(list.map((item) => item.id));
+    expect(split.older).toEqual([]);
+  });
+
+  it("moves chats older than twelve hours behind the older list unless kept", () => {
+    const now = 1_000_000_000_000;
+    const recent = Array.from({ length: 6 }, (_, index) =>
+      session({
+        id: `r${index}`,
+        time: { created: 0, updated: now - index * 1000 },
+      }),
+    );
+    const older = Array.from({ length: 5 }, (_, index) =>
+      session({
+        id: `o${index}`,
+        time: { created: 0, updated: now - RECENT_WINDOW_MS - 1000 - index },
+      }),
+    );
+    const split = splitByRecency([...recent, ...older], new Set(["o4"]), now);
+    expect(split.recent.map((item) => item.id)).toEqual(["r0", "r1", "r2", "r3", "r4", "r5", "o4"]);
+    expect(split.older.map((item) => item.id)).toEqual(["o0", "o1", "o2", "o3"]);
   });
 
   it("nests children under their parent and leaves orphans as roots", () => {

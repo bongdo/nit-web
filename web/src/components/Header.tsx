@@ -1,5 +1,5 @@
 import { memo, useEffect, useRef, useState } from "react";
-import { ArrowLeft, Folder, PanelLeftClose, PanelLeftOpen, Server } from "lucide-react";
+import { ArrowLeft, Folder, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import type { Model, ModelRef, Session } from "../lib/types";
 import { basename, formatCost, modelLabel } from "../lib/format";
 import { cn } from "../lib/utils";
@@ -142,9 +142,6 @@ export const Header = memo(function Header({
   sidebarMode,
   subagents,
   parent,
-  instance,
-  online,
-  onOpenInstances,
   onOpenSubagent,
   onBack,
   onToggleSidebar,
@@ -161,9 +158,6 @@ export const Header = memo(function Header({
   sidebarMode: "button" | "hover" | "swipe";
   subagents: Session[];
   parent?: Session | null;
-  instance: string;
-  online: boolean;
-  onOpenInstances: () => void;
   onOpenSubagent: (session: Session) => void;
   onBack: () => void;
   onToggleSidebar: () => void;
@@ -196,20 +190,6 @@ export const Header = memo(function Header({
       />
 
       <div className="pointer-events-auto ml-auto flex shrink-0 items-center gap-2">
-        <button
-          type="button"
-          onClick={onOpenInstances}
-          title="OpenCode instances"
-          aria-label={`OpenCode instances: ${instance}`}
-          className="border-border bg-background/70 hover:bg-accent pointer-events-auto flex h-9 max-w-40 items-center gap-1.5 rounded-md border px-2 backdrop-blur"
-        >
-          <Server className="size-3.5 shrink-0" />
-          <span className="hidden max-w-24 truncate text-xs min-[480px]:inline">{instance}</span>
-          <span
-            aria-hidden
-            className={cn("size-2 shrink-0 rounded-full", online ? "bg-success" : "bg-destructive")}
-          />
-        </button>
         {parent && (
           <Button variant="ghost" size="sm" className="h-9" onClick={onBack} title="Back to parent">
             <ArrowLeft />

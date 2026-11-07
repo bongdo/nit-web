@@ -26,12 +26,16 @@ var instanceNameRE = regexp.MustCompile(`^[A-Za-z0-9._-]{1,64}$`)
 const clientTTL = 10 * time.Second
 
 type InstanceSpec struct {
-	Name         string
-	URL          string
-	SSH          string
-	Dir          string
-	Password     string
-	PasswordFile string
+	Name         string `json:"name"`
+	URL          string `json:"url,omitempty"`
+	SSH          string `json:"ssh,omitempty"`
+	Dir          string `json:"dir,omitempty"`
+	Password     string `json:"password,omitempty"`
+	PasswordFile string `json:"passwordFile,omitempty"`
+}
+
+func ValidInstanceName(name string) bool {
+	return instanceNameRE.MatchString(name)
 }
 
 type instance struct {
@@ -44,6 +48,7 @@ type instance struct {
 }
 
 type Registry struct {
+	mu          sync.RWMutex
 	instances   []*instance
 	byName      map[string]*instance
 	defaultName string
@@ -64,13 +69,127 @@ func NewRegistry() *Registry {
 	if len(specs) == 0 {
 		specs = []InstanceSpec{{Name: "local"}}
 	}
-	for _, spec := range specs {
-		in := &instance{spec: spec}
-		r.instances = append(r.instances, in)
-		r.byName[spec.Name] = in
-	}
+	r.instances, r.byName = buildInstances(specs, nil)
 	r.defaultName = r.instances[0].spec.Name
 	return r
+}
+
+func buildInstances(specs []InstanceSpec, reuse map[string]*instance) ([]*instance, map[string]*instance) {
+	list := make([]*instance, 0, len(specs))
+	byName := make(map[string]*instance, len(specs))
+	for _, spec := range specs {
+		if old, ok := reuse[spec.Name]; ok && old.spec == spec {
+			list = append(list, old)
+			byName[spec.Name] = old
+			continue
+		}
+		in := &instance{spec: spec}
+		list = append(list, in)
+		byName[spec.Name] = in
+	}
+	return list, byName
+}
+
+func (r *Registry) Reload() error {
+	specs, err := loadInstances()
+	if err != nil {
+		return err
+	}
+	if len(specs) == 0 {
+		specs = []InstanceSpec{{Name: "local"}}
+	}
+	r.mu.Lock()
+	old := r.byName
+	instances, byName := buildInstances(specs, old)
+	r.instances, r.byName = instances, byName
+	r.defaultName = instances[0].spec.Name
+	r.configErr = ""
+	r.mu.Unlock()
+	for name, in := range old {
+		if byName[name] == in {
+			continue
+		}
+		in.mu.Lock()
+		in.closeTunnel()
+		in.client = nil
+		in.resolved = time.Time{}
+		in.lastErr = ""
+		in.mu.Unlock()
+	}
+	return nil
+}
+
+func (r *Registry) Replace(specs []InstanceSpec) error {
+	if err := validateSpecs(specs); err != nil {
+		return err
+	}
+	if err := saveInstances(specs); err != nil {
+		return err
+	}
+	return r.Reload()
+}
+
+func validateSpecs(specs []InstanceSpec) error {
+	if len(specs) == 0 {
+		return errors.New("at least one instance is required")
+	}
+	if len(specs) > 32 {
+		return errors.New("too many instances")
+	}
+	seen := make(map[string]bool, len(specs))
+	for i := range specs {
+		spec := &specs[i]
+		if !ValidInstanceName(spec.Name) {
+			return fmt.Errorf("invalid instance name %q", spec.Name)
+		}
+		if seen[spec.Name] {
+			return fmt.Errorf("duplicate instance name %q", spec.Name)
+		}
+		seen[spec.Name] = true
+		if spec.SSH != "" && spec.URL != "" && spec.URL != "auto" {
+			return fmt.Errorf("instance %q sets both url and ssh", spec.Name)
+		}
+		if spec.Dir != "" && !filepath.IsAbs(spec.Dir) {
+			return fmt.Errorf("instance %q directory must be absolute", spec.Name)
+		}
+	}
+	return nil
+}
+
+func saveInstances(specs []InstanceSpec) error {
+	path := instancesPath()
+	if path == "" {
+		return errors.New("instances config path is empty")
+	}
+	payload := struct {
+		Instances []InstanceSpec `json:"instances"`
+	}{Instances: specs}
+	raw, err := json.MarshalIndent(payload, "", "  ")
+	if err != nil {
+		return err
+	}
+	dir := filepath.Dir(path)
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return err
+	}
+	tmp, err := os.CreateTemp(dir, ".instances-*")
+	if err != nil {
+		return err
+	}
+	name := tmp.Name()
+	defer os.Remove(name)
+	if err := tmp.Chmod(0o600); err != nil {
+		tmp.Close()
+		return err
+	}
+	if _, err := tmp.Write(append(raw, '\n')); err != nil {
+		tmp.Close()
+		return err
+	}
+	if err := tmp.Close(); err != nil {
+		return err
+	}
+	return os.Rename(name, path)
 }
 
 func loadInstances() ([]InstanceSpec, error) {
@@ -91,20 +210,12 @@ func loadInstances() ([]InstanceSpec, error) {
 	if err := json.Unmarshal(b, &f); err != nil {
 		return nil, fmt.Errorf("parse instances config: %w", err)
 	}
-	seen := make(map[string]bool, len(f.Instances))
+	if err := validateSpecs(f.Instances); err != nil {
+		return nil, err
+	}
 	shared := false
 	for i := range f.Instances {
 		spec := &f.Instances[i]
-		if !instanceNameRE.MatchString(spec.Name) {
-			return nil, fmt.Errorf("invalid instance name %q", spec.Name)
-		}
-		if seen[spec.Name] {
-			return nil, fmt.Errorf("duplicate instance name %q", spec.Name)
-		}
-		seen[spec.Name] = true
-		if spec.SSH != "" && spec.URL != "" && spec.URL != "auto" {
-			return nil, fmt.Errorf("instance %q sets both url and ssh", spec.Name)
-		}
 		if spec.PasswordFile != "" {
 			spec.PasswordFile = expandHome(spec.PasswordFile)
 		}

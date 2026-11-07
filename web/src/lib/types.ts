@@ -151,6 +151,13 @@ export type Project = {
   time: { created: number; updated: number; active: number };
 };
 
+export type FolderListing = {
+  path: string;
+  parent: string;
+  dirs: string[];
+  truncated?: boolean;
+};
+
 export type Session = {
   id: string;
   parentID?: string;

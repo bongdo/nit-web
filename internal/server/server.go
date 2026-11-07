@@ -193,6 +193,7 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("DELETE /api/instances/{id}", s.deleteInstance)
 	s.mux.HandleFunc("GET /api/config", s.config)
 	s.mux.HandleFunc("GET /api/projects", s.projects)
+	s.mux.HandleFunc("GET /api/fs", s.folders)
 	s.mux.HandleFunc("GET /api/sessions", s.sessions)
 	s.mux.HandleFunc("GET /api/sessions/{id}", s.session)
 	s.mux.HandleFunc("POST /api/sessions", s.createSession)

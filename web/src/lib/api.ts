@@ -1,6 +1,7 @@
 import type {
   Agent,
   Config,
+  FolderListing,
   FormInfo,
   Health,
   InstanceInput,
@@ -125,6 +126,11 @@ export const api = {
   health: () => request<Health>("/api/health"),
   config: () => request<Config>("/api/config"),
   projects: () => request<Project[]>("/api/projects"),
+  folders: (path?: string, signal?: AbortSignal) =>
+    request<FolderListing>(
+      path ? `/api/fs?path=${encodeURIComponent(path)}` : "/api/fs",
+      { signal },
+    ),
   sessions: (dir?: string, children = false, search?: string, cursor?: string) => {
     const query = new URLSearchParams();
     if (dir) query.set("dir", dir);

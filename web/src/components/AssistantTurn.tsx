@@ -2,9 +2,11 @@ import { memo, useEffect, useRef, useState } from "react";
 import { Bot, ChevronDown, ChevronRight, Loader2 } from "lucide-react";
 import type { Agent, Message, Model, ReasoningPart, ToolPart } from "../lib/types";
 import { activityLine } from "../lib/activity";
+import { editedFiles, mergeFiles } from "../lib/diff";
 import { stepMessageIDs } from "../lib/stream";
 import { isPureHtml, looksLikeHtml } from "../lib/html";
 import { modelLabel, replyText } from "../lib/format";
+import { FileChips } from "./FileChips";
 import { HtmlMessagePreview } from "./HtmlMessagePreview";
 import { Markdown } from "./Markdown";
 import { QuestionCard } from "./QuestionCard";
@@ -27,6 +29,7 @@ type AssistantTurnProps = {
   models: Model[];
   agents: Agent[];
   workspace?: string | null;
+  peroURL: string;
   streaming: boolean;
   onLoadMessage?: (messageID: string) => void | Promise<void>;
 };
@@ -36,6 +39,7 @@ export const AssistantTurn = memo(function AssistantTurn({
   models,
   agents,
   workspace,
+  peroURL,
   streaming,
   onLoadMessage,
 }: AssistantTurnProps) {
@@ -59,6 +63,9 @@ export const AssistantTurn = memo(function AssistantTurn({
       part.type === "reasoning" || (part.type === "tool" && part.name !== "question"),
   );
   const textParts = content.filter((part) => part.type === "text");
+  const changedFiles = mergeFiles(
+    content.flatMap((part) => (part.type === "tool" ? editedFiles(part) : [])),
+  );
   const toolCount = activity.filter((part) => part.type === "tool").length;
   const errorCount = activity.filter(
     (part) => part.type === "tool" && part.state.status === "error",
@@ -148,34 +155,37 @@ export const AssistantTurn = memo(function AssistantTurn({
 
         {hasSteps && (
           <div className="border-border bg-card/40 my-2 overflow-hidden rounded-lg border">
-            <button
-              type="button"
-              aria-expanded={open}
-              onClick={() => {
-                const next = !open;
-                setOpen(next);
-                if (next) loadSteps();
-              }}
-              className="hover:bg-accent/40 flex w-full items-center gap-2 px-2.5 py-1.5 text-left"
-            >
-              {open ? <ChevronDown className="size-3.5" /> : <ChevronRight className="size-3.5" />}
-              {streaming ? (
-                <Loader2 className="size-3.5 animate-spin text-success" />
-              ) : null}
-              {loadingSteps ? (
-                <Loader2 className="text-muted-foreground size-3.5 animate-spin" />
-              ) : null}
-              <span
-                className={`min-w-0 flex-1 truncate text-left text-[11px] ${
-                  streaming ? "text-foreground" : "text-muted-foreground"
-                }`}
+            <div className="hover:bg-accent/40 flex w-full items-center gap-2 px-2.5 py-1.5">
+              <button
+                type="button"
+                aria-expanded={open}
+                onClick={() => {
+                  const next = !open;
+                  setOpen(next);
+                  if (next) loadSteps();
+                }}
+                className="flex min-w-0 flex-1 items-center gap-2 text-left"
               >
-                {summary}
-              </span>
-              {liveStats && (
-                <span className="text-muted-foreground shrink-0 text-[10px]">{liveStats}</span>
-              )}
-            </button>
+                {open ? <ChevronDown className="size-3.5 shrink-0" /> : <ChevronRight className="size-3.5 shrink-0" />}
+                {streaming ? (
+                  <Loader2 className="size-3.5 shrink-0 animate-spin text-success" />
+                ) : null}
+                {loadingSteps ? (
+                  <Loader2 className="text-muted-foreground size-3.5 shrink-0 animate-spin" />
+                ) : null}
+                <span
+                  className={`min-w-0 flex-1 truncate text-left text-[11px] ${
+                    streaming ? "text-foreground" : "text-muted-foreground"
+                  }`}
+                >
+                  {summary}
+                </span>
+                {liveStats && (
+                  <span className="text-muted-foreground shrink-0 text-[10px]">{liveStats}</span>
+                )}
+              </button>
+              <FileChips files={changedFiles} base={peroURL} max={2} />
+            </div>
             {open && (
               <div className="border-border border-t px-1.5 py-1">
                 {loadingSteps && activity.length === 0 && (
@@ -199,6 +209,7 @@ export const AssistantTurn = memo(function AssistantTurn({
                       key={`tool-${part.id ?? index}`}
                       part={part}
                       cwd={workspace}
+                      peroURL={peroURL}
                       onLoad={onLoad}
                     />
                   );
@@ -247,6 +258,7 @@ function sameTurn(left: AssistantTurnProps, right: AssistantTurnProps): boolean 
   return (
     left.streaming === right.streaming &&
     left.workspace === right.workspace &&
+    left.peroURL === right.peroURL &&
     left.models === right.models &&
     left.agents === right.agents &&
     left.onLoadMessage === right.onLoadMessage &&

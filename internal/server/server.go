@@ -96,6 +96,7 @@ type Server struct {
 	ui           *uistate.Store
 	basePath     string
 	publicHost   string
+	peroURL      string
 	allowedHosts map[string]struct{}
 }
 
@@ -124,6 +125,7 @@ func New(provider ClientProvider, static fs.FS, log *slog.Logger) http.Handler {
 		ui:           ui,
 		basePath:     strings.TrimRight(os.Getenv("NIT_GUI_BASE_PATH"), "/"),
 		publicHost:   strings.TrimSuffix(strings.ToLower(strings.TrimSpace(os.Getenv("NIT_GUI_PUBLIC_HOST"))), "."),
+		peroURL:      peroURL(),
 		allowedHosts: map[string]struct{}{},
 	}
 	for _, host := range strings.Split(os.Getenv("NIT_GUI_ALLOWED_HOSTS"), ",") {
@@ -1482,7 +1484,19 @@ func (s *Server) config(w http.ResponseWriter, r *http.Request) {
 		"directory": loc.Directory,
 		"model":     model,
 		"agent":     agent,
+		"peroURL":   s.peroURL,
 	})
+}
+
+func peroURL() string {
+	raw := strings.TrimSpace(os.Getenv("NIT_GUI_PERO_URL"))
+	if raw == "" {
+		return "/pero/"
+	}
+	if !strings.HasSuffix(raw, "/") {
+		raw += "/"
+	}
+	return raw
 }
 
 func (s *Server) projects(w http.ResponseWriter, r *http.Request) {

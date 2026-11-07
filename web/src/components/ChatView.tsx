@@ -89,6 +89,7 @@ export function ChatView({
   projects,
   recent,
   workspace,
+  peroURL,
   motion,
   background,
   sceneKey,
@@ -116,6 +117,7 @@ export function ChatView({
   projects: Project[];
   recent: string[];
   workspace: string | null;
+  peroURL: string;
   motion: "animated" | "static";
   background: SceneSetting;
   sceneKey: number;

@@ -8,9 +8,11 @@ import {
 } from "lucide-react";
 import type { ToolContent, ToolPart } from "../lib/types";
 import { toolSummary } from "../lib/activity";
+import { editedFiles } from "../lib/diff";
 import { attachmentHref } from "../lib/attachments";
 import { cn } from "../lib/utils";
 import { AttachmentPreview } from "./Attachment";
+import { FileChips } from "./FileChips";
 
 function StatusIcon({ status }: { status: ToolPart["state"]["status"] }) {
   if (status === "streaming" || status === "running") {
@@ -38,16 +40,19 @@ function ContentItem({ content }: { content: ToolContent }) {
 export const ToolCall = memo(function ToolCall({
   part,
   cwd,
+  peroURL,
   onLoad,
 }: {
   part: ToolPart;
   cwd?: string | null;
+  peroURL: string;
   onLoad?: () => void | Promise<void>;
 }) {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [settle, setSettle] = useState<"done" | "error" | null>(null);
   const { verb, target } = toolSummary(part, cwd);
+  const files = editedFiles(part);
   const status = part.state.status;
   const content = part.state.content ?? [];
   const active = status === "running" || status === "streaming";
@@ -88,9 +93,13 @@ export const ToolCall = memo(function ToolCall({
         <ChevronRight className="text-muted-foreground size-3.5 shrink-0 transition-transform group-open:rotate-90" />
         <StatusIcon status={status} />
         <span className="shrink-0 font-medium">{verb}</span>
-        {target && (
+        {files.length > 0 ? (
+          <span className="min-w-0 flex-1 overflow-hidden">
+            <FileChips files={files} base={peroURL} max={3} />
+          </span>
+        ) : target ? (
           <span className="text-muted-foreground min-w-0 flex-1 truncate font-mono">{target}</span>
-        )}
+        ) : null}
       </summary>
       <div className="border-border mr-2 mb-1 ml-7 space-y-2 border-l-2 py-1 pl-3 text-xs">
         {part.state.input !== undefined && part.state.input !== "" && (

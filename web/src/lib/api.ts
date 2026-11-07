@@ -98,10 +98,14 @@ export const api = {
     request<{ ok: boolean }>("/api/instances", { method: "POST", body: input }),
   deleteInstance: (id: string) =>
     request<{ ok: boolean }>(`/api/instances/${encodeURIComponent(id)}`, { method: "DELETE" }),
-  tts: (text: string) =>
-    request<{ ok: boolean; clients?: number }>("/api/tts", { method: "POST", body: { text } }),
+  tts: (text: string, signal?: AbortSignal) =>
+    request<{ ok: boolean; clients?: number }>("/api/tts", {
+      method: "POST",
+      body: { text },
+      signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(30_000)]) : undefined,
+    }),
   ttsStop: () => request<void>("/api/tts/stop", { method: "POST" }),
-  ttsAudio: async (text: string) => {
+  ttsAudio: async (text: string, signal?: AbortSignal) => {
     const response = await fetch(appPath("/api/tts/audio"), {
       method: "POST",
       headers: {
@@ -109,7 +113,9 @@ export const api = {
         ...(instance ? { "X-Nit-Instance": instance } : {}),
       },
       body: JSON.stringify({ text }),
-      signal: AbortSignal.timeout(120_000),
+      signal: signal
+        ? AbortSignal.any([signal, AbortSignal.timeout(120_000)])
+        : AbortSignal.timeout(120_000),
     });
     if (!response.ok) throw new ApiError(await errorText(response), response.status);
     return response.blob();

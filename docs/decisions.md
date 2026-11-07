@@ -500,3 +500,27 @@ engine); returning the hub token to the client.
 Cost: the hub needs a connected audio client; with none, the UI falls back to
 the device voice or `off`. The hub still binds `0.0.0.0:7787` and is protected
 only by its token.
+
+## 2026-11-07 — Host voice synthesis is the second TTS path
+
+Context: proxying the OpenCode TTS hub was not enough. The hub only broadcasts
+text to an audio client; with no client connected the GUI still had no host
+voice. The user expected host TTS to work out of the box.
+
+Decision: nit-gui synthesizes on the host with `piper` (local) or `edge-tts`
+(network) and serves the audio from `POST /api/tts/audio` when the hub has no
+audio client. `auto` prefers piper; `NIT_GUI_TTS_ENGINE` forces piper/edge/off.
+The reply `Read` button tries the hub, then host voice, then browser
+`speechSynthesis`. The Instances menu reports host voice as `on`, device voice
+as `fallback`, and no path as `off`.
+
+Why: the host already has both engines and a Russian piper voice; reusing them
+makes speech work from any browser without a local voice. Piper keeps the reply
+local; auto avoids the network path unless edge is the only engine.
+
+Rejected: requiring the user to keep an external audio client connected;
+browser speech as the primary path; streaming per sentence (not needed yet).
+
+Cost: the first piper call loads a ~63 MB model; long replies take seconds and
+need a cancel; edge-tts sends reply text to the network; each read synthesizes a
+temporary file under `/tmp`.

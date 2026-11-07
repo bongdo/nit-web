@@ -39,7 +39,8 @@ on every device.
 | LanguageTool | `127.0.0.1:8180` | Grammar and real-word checks | optional |
 | `whisper-server` | `127.0.0.1:8178` | Fast dictation while recording | optional |
 | `whisper-cli` | none | Accurate dictation, one process per request | optional |
-| OpenCode TTS plugin | `127.0.0.1:7787` target; currently `0.0.0.0:7787` | Speech text hub; nit-gui publishes to it and broadcasts to an audio client; browser voice is the fallback | optional |
+| OpenCode TTS plugin | `127.0.0.1:7787` target; currently `0.0.0.0:7787` | Speech text hub for an audio client; nit-gui publishes to it | optional |
+| `piper` / `edge-tts` | nit-gui host | Host voice synthesis when no hub audio client is connected; browser voice is the last fallback | optional |
 | Spelling | browser worker today, `/api/spell` on nit-gui target | RU/EN Hunspell checks | migration gap |
 
 MCP servers, shells and PTYs belong to OpenCode. They are not managed by
@@ -171,6 +172,10 @@ is not measured here.
 | `NIT_GUI_TTS_TOKEN_FILE` | hub token file, default `$XDG_STATE_HOME/opencode-tts/token` |
 | `NIT_GUI_TTS_TOKEN` | direct hub token, overrides the file |
 | `NIT_GUI_TTS` | `off` disables host TTS |
+| `NIT_GUI_TTS_ENGINE` | host voice: `auto`, `piper`, `edge`, `off` |
+| `NIT_GUI_TTS_PIPER` / `_PIPER_MODEL` | piper binary and voice model |
+| `NIT_GUI_TTS_EDGE` / `_EDGE_VOICE` | edge-tts binary and voice |
+| `NIT_GUI_TTS_RATE` | speech rate, default `1.0` |
 | `NIT_GUI_WARM` | `0` disables startup warmup |
 | `NIT_GUI_PUBLIC_PORT` | Caddy loopback port, default `7792` |
 | `NIT_GUI_PUBLIC_HOST` | Funnel hostname, default `frankfurt.tailf358cb.ts.net` |
@@ -181,11 +186,13 @@ is not measured here.
 | `NIT_GUI_STATE` | Shared UI state path, default `~/.local/state/nit-gui/ui-state.json` |
 | `NIT_GUI_DEPLOY_*` | deploy host, port and directory |
 
-TTS is published by nit-gui to the OpenCode TTS hub with
-`NIT_GUI_TTS_URL`/`NIT_GUI_TTS_TOKEN_FILE` (or `NIT_GUI_TTS_TOKEN`). The hub
-broadcasts text to an audio client; it does not synthesize audio. The reply
-`Read` button uses the browser's `speechSynthesis` only when the hub is down or
-has no audio client.
+TTS has two host paths. nit-gui publishes to the OpenCode TTS hub
+(`NIT_GUI_TTS_URL`/`NIT_GUI_TTS_TOKEN_FILE`, or `NIT_GUI_TTS_TOKEN`) when an
+audio client is connected. With no audio client it synthesizes with
+`piper`/`edge-tts` (`NIT_GUI_TTS_ENGINE`, `_PIPER_MODEL`, `_EDGE_VOICE`) and
+returns audio to the browser. The browser's `speechSynthesis` is the last
+fallback. `auto` prefers piper because it is local; edge-tts sends the reply
+text to the network.
 
 ## Security boundary
 
@@ -228,9 +235,9 @@ has no audio client.
   in a browser worker. The target is `POST /api/spell` on Frankfurt, with the
   client only rendering issues. Until then, a browser without Web Workers or
   the dictionaries gets no spelling.
-- **The TTS hub needs an audio client.** nit-gui publishes text, but the hub
-  only broadcasts it; no client means no playback. The menu then shows
-  `fallback` and the reply `Read` button uses the browser voice. The hub still
+- **Host voice is slower than the hub.** With no hub audio client, nit-gui runs
+  `piper` (local) or `edge-tts` (network) per reply. The first piper call loads
+  a ~63 MB model; long replies take seconds and can be canceled. The hub still
   listens on `0.0.0.0:7787`; only the token protects it. Bind it to
   `127.0.0.1` when the host is exposed beyond the tailnet.
 - **Instance editing writes on the host.** The menu writes `instances.json` and

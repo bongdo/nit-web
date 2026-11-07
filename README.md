@@ -24,7 +24,7 @@ fallback for every one of them.
 | Sessions, messages, models, agents | each OpenCode instance | source of truth |
 | Instance list, SSH tunnels | nit-gui host, `~/.config/nit-gui/instances.json` | implemented |
 | STT | nit-gui host, `/api/stt` + `whisper-server` / `whisper-cli` | optional |
-| TTS | nit-gui publishes to the OpenCode TTS hub; browser voice is the fallback | proxied; needs an audio client |
+| TTS | nit-gui publishes to the OpenCode TTS hub or synthesizes with host `piper`/`edge-tts`; browser voice is the fallback | implemented |
 | Spelling | browser nspell worker today; target nit-gui `/api/spell` | migration gap |
 | Grammar | nit-gui host LanguageTool sidecar through `/api/grammar` | optional |
 | Attachments | the active instance, OpenCode `/api/experimental/fs/write` and `/tmp` | implemented |
@@ -264,12 +264,12 @@ server, so hiding a chat or continuing a draft works on the next device.
   the same chip also shows punctuation and real-word fixes (`too` → `to`) from
   the host's Java process. Without it, only spelling runs. The draft goes to
   that host process, never to a cloud service.
-- Speech output is published to the OpenCode TTS hub on the host; the hub
-  broadcasts to an audio client and the browser never receives the token. The
-  reply `Read` button uses the browser's `speechSynthesis` only as a labeled
-  device fallback when the hub is down or has no audio client. The Instances
-  menu shows host TTS as `on`, `fallback` or `off`; a browser without a voice
-  gets no speech.
+- Speech output uses the host. The reply `Read` button publishes to the OpenCode
+  TTS hub when an audio client is connected; otherwise nit-gui synthesizes with
+  host `piper`/`edge-tts` and the browser plays the returned audio. Browser
+  `speechSynthesis` is only the labeled device fallback. The Instances menu
+  shows host speech as `on`, `fallback` or `off`; a browser without a voice gets
+  no speech.
 - Obvious lowercase typos are fixed after a space when exactly one suggestion is
   one edit away. Backspace at the end of the corrected word, or `Ctrl/Cmd+Z`,
   restores the original and adds it to the ignore list so it is not fixed
@@ -325,15 +325,32 @@ rewritten to loopback. Credentials in a server URL are discarded.
 | `NIT_GUI_TTS_TOKEN_FILE` | Hub token file, default `$XDG_STATE_HOME/opencode-tts/token` or `~/.local/state/opencode-tts/token`. |
 | `NIT_GUI_TTS_TOKEN` | Direct hub token, overrides the token file. |
 | `NIT_GUI_TTS` | Set to `off` to disable host TTS. |
+| `NIT_GUI_TTS_ENGINE` | Host voice: `auto` (default), `piper`, `edge` or `off`. |
+| `NIT_GUI_TTS_PIPER` | `piper` binary, default on `PATH`. |
+| `NIT_GUI_TTS_PIPER_MODEL` | Piper voice, default `$XDG_DATA_HOME/piper-voices/ru_RU-irina-medium.onnx` or `~/.local/share/piper-voices/...`. |
+| `NIT_GUI_TTS_EDGE` | `edge-tts` binary, default on `PATH`. |
+| `NIT_GUI_TTS_EDGE_VOICE` | Edge voice, default `ru-RU-SvetlanaNeural`. |
+| `NIT_GUI_TTS_RATE` | Speech rate, default `1.0`. |
 | `NIT_GUI_WARM` | Set to `0` to skip eager LanguageTool and fast-dictation warmup. |
 | `--addr` | Listener address, default `127.0.0.1:7788`. |
 
-TTS: the reply `Read` button publishes the text to the OpenCode TTS hub on the
-host. The hub broadcasts to an audio client; the browser never receives the
-token. If the hub is up but no audio client is connected, the menu shows
-`fallback` and the button uses the browser's `speechSynthesis` as a labeled
-device fallback. If the hub is down and the browser has no voice, speech is
-`off`. The menu names the fallback; it never presents device speech as host TTS.
+TTS has three paths, in order:
+
+1. **Hub with an audio client.** The reply `Read` button publishes text to the
+   OpenCode TTS hub; the hub plays it on the user's audio client. The token
+   never reaches the browser.
+2. **Host voice.** With no hub client, nit-gui synthesizes on the host with
+   `piper` (local) or `edge-tts` (network) and returns audio to the browser.
+   `auto` prefers piper; `NIT_GUI_TTS_ENGINE` forces one.
+3. **Device voice.** If neither host path works, the browser's
+   `speechSynthesis` is the labeled fallback. If the browser has no voice,
+   speech is `off`.
+
+The Instances menu shows host speech as `on` when either host path works,
+`fallback` when only the device voice is left, and `off` otherwise. `piper` is
+local but its first call loads a ~63 MB model; a long reply takes seconds, and
+the Read button can be canceled while it synthesizes. `edge-tts` sends the reply
+text to the network; `auto` avoids it when piper is installed.
 
 If the active instance is down, the GUI still starts and shows an offline screen
 with a retry button and a `Switch instance` action. Health is polled every 20
@@ -600,10 +617,12 @@ own startup warmup.
   first request (3–4 s), then Russian checks take about 250 ms and English
   about 30–40 ms. Capitalization and spelling rules are disabled so the
   composer does not duplicate nspell; some Russian commas are still missed.
-- Host TTS publishes text to the OpenCode TTS hub, not audio. The hub needs an
-  audio client to play it. With no audio client the menu shows `fallback` and
-  the reply `Read` button uses the browser's `speechSynthesis`; with no browser
-  voice the menu shows `off`. The menu never presents device speech as host TTS.
+- Host TTS has two paths: publish to the OpenCode TTS hub for a connected audio
+  client, or synthesize on the host with `piper`/`edge-tts` and play the audio
+  in the browser. `piper` is local; `edge-tts` sends the reply text to the
+  network. The first piper call loads a ~63 MB model, and long replies take
+  seconds; cancel is available. With neither host path, the browser voice is
+  the labeled fallback; with no browser voice, speech is `off`.
 - The TTS hub still listens on `0.0.0.0:7787`; only the token protects it. Bind
   it to `127.0.0.1` when the host is exposed beyond the tailnet.
 - Uploaded files live under `/tmp/nit-gui-*` on the OpenCode host. Nothing

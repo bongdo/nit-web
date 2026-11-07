@@ -22,6 +22,7 @@ export function ReplyActions({
   const speechTimer = useRef<number | null>(null);
   const audio = useRef<HTMLAudioElement | null>(null);
   const audioUrl = useRef<string | null>(null);
+  const abort = useRef<AbortController | null>(null);
   const owner = useRef(Symbol("reply"));
   const generation = useRef(0);
   const supported = typeof window !== "undefined" && "speechSynthesis" in window;
@@ -44,6 +45,8 @@ export function ReplyActions({
     const onSpeak = (event: Event) => {
       if ((event as CustomEvent).detail !== owner.current) {
         generation.current += 1;
+        abort.current?.abort();
+        abort.current = null;
         releaseAudio();
         if (speechTimer.current !== null) window.clearTimeout(speechTimer.current);
         setSpeaking(false);
@@ -56,6 +59,8 @@ export function ReplyActions({
       generation.current += 1;
       if (copyTimer.current !== null) window.clearTimeout(copyTimer.current);
       if (speechTimer.current !== null) window.clearTimeout(speechTimer.current);
+      abort.current?.abort();
+      abort.current = null;
       releaseAudio();
       if (supported) window.speechSynthesis.cancel();
     };
@@ -69,6 +74,8 @@ export function ReplyActions({
   };
 
   const stop = () => {
+    abort.current?.abort();
+    abort.current = null;
     void api.ttsStop().catch(() => {});
     if (supported) window.speechSynthesis.cancel();
     if (speechTimer.current !== null) window.clearTimeout(speechTimer.current);
@@ -93,16 +100,19 @@ export function ReplyActions({
   };
 
   const speak = async (): Promise<void> => {
-    if (speaking) {
+    if (speaking || loading) {
       stop();
       return;
     }
     const gen = ++generation.current;
+    const controller = new AbortController();
+    abort.current = controller;
     window.dispatchEvent(new CustomEvent("nit-gui:speech", { detail: owner.current }));
     setLoading(true);
     try {
-      await api.tts(text);
+      await api.tts(text, controller.signal);
       if (gen !== generation.current) return;
+      abort.current = null;
       if (speechTimer.current !== null) window.clearTimeout(speechTimer.current);
       speechTimer.current = window.setTimeout(
         () => setSpeaking(false),
@@ -112,11 +122,12 @@ export function ReplyActions({
       setLoading(false);
       return;
     } catch {
-      if (gen !== generation.current) return;
+      if (gen !== generation.current || controller.signal.aborted) return;
     }
     try {
-      const blob = await api.ttsAudio(text);
-      if (gen !== generation.current) return;
+      const blob = await api.ttsAudio(text, controller.signal);
+      if (gen !== generation.current || controller.signal.aborted) return;
+      abort.current = null;
       const url = URL.createObjectURL(blob);
       const player = new Audio(url);
       audio.current = player;
@@ -137,7 +148,8 @@ export function ReplyActions({
       setSpeaking(true);
       setLoading(false);
     } catch {
-      if (gen !== generation.current) return;
+      if (gen !== generation.current || controller.signal.aborted) return;
+      abort.current = null;
       releaseAudio();
       speakBrowser();
       setLoading(false);
@@ -162,9 +174,8 @@ export function ReplyActions({
           size="xs"
           className="text-muted-foreground"
           onClick={() => void speak()}
-          disabled={loading}
-          aria-label={loading ? "Preparing speech" : speaking ? "Stop reading" : "Read aloud"}
-          title={loading ? "Preparing speech" : speaking ? "Stop reading" : "Read aloud"}
+          aria-label={loading ? "Cancel speech preparation" : speaking ? "Stop reading" : "Read aloud"}
+          title={loading ? "Cancel speech preparation" : speaking ? "Stop reading" : "Read aloud"}
         >
           {loading ? (
             <Loader2 className="animate-spin" />
@@ -177,7 +188,7 @@ export function ReplyActions({
           ) : (
             <Volume2 />
           )}
-          <span>{loading ? "Loading" : speaking ? "Stop" : "Read"}</span>
+          <span>{loading ? "Cancel" : speaking ? "Stop" : "Read"}</span>
         </Button>
       )}
     </div>

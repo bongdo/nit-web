@@ -216,6 +216,11 @@ only that chat's subagents. In the `This dir` scope the tab shows the workspace
 name and the card omits the directory. The selected chat's `N subagents` menu
 opens the same transcripts, and the parent header has `Back to parent`.
 
+Chats with no activity for more than 12 hours fold behind the existing
+`Load older chats` button; a scope with ten or fewer chats shows all of them.
+The selected, running and waiting chats always stay visible, and search ignores
+the age cutoff.
+
 `New chat` does not create a session. The session is created in the current
 workspace on the first Send, so an empty draft never appears in the list.
 Hidden chats, done/failed markers, drafts, model and agent are stored by the

@@ -2,6 +2,7 @@ import { X } from "lucide-react";
 import type { Agent, Model, ModelRef } from "../lib/types";
 import { THEMES, type Theme } from "../lib/themes";
 import type { SceneSetting } from "./Scene";
+import type { TimeFormat } from "../lib/time";
 import { modelKey } from "../lib/format";
 import { appPath } from "../lib/base";
 import { useModalFocus } from "../hooks/useModalFocus";
@@ -18,6 +19,8 @@ export function SettingsPanel({
   dictationMode,
   spellcheck,
   autofix,
+  timeFormat,
+  showTime,
   motion,
   background,
   sidebarMode,
@@ -28,6 +31,8 @@ export function SettingsPanel({
   onDictation,
   onSpellcheck,
   onAutofix,
+  onTimeFormat,
+  onShowTime,
   onMotion,
   onBackground,
   onSidebar,
@@ -43,6 +48,8 @@ export function SettingsPanel({
   dictationMode: "fast" | "accurate";
   spellcheck: boolean;
   autofix: boolean;
+  timeFormat: TimeFormat;
+  showTime: boolean;
   motion: "animated" | "static";
   background: SceneSetting;
   sidebarMode: "button" | "hover" | "swipe";
@@ -53,6 +60,8 @@ export function SettingsPanel({
   onDictation: (mode: "fast" | "accurate") => void;
   onSpellcheck: (value: boolean) => void;
   onAutofix: (value: boolean) => void;
+  onTimeFormat: (value: TimeFormat) => void;
+  onShowTime: (value: boolean) => void;
   onMotion: (mode: "animated" | "static") => void;
   onBackground: (mode: SceneSetting) => void;
   onSidebar: (mode: "button" | "hover" | "swipe") => void;
@@ -235,6 +244,30 @@ export function SettingsPanel({
             >
               <option value="on">On · only unambiguous lowercase words</option>
               <option value="off">Off</option>
+            </Select>
+          </label>
+
+          <label className="block space-y-1">
+            <span className="text-muted-foreground text-[11px]">Time format</span>
+            <Select
+              className="w-full"
+              value={timeFormat}
+              onChange={(event) => onTimeFormat(event.target.value as TimeFormat)}
+            >
+              <option value="24h">24-hour · 13:05</option>
+              <option value="12h">12-hour · 1:05 PM</option>
+            </Select>
+          </label>
+
+          <label className="block space-y-1">
+            <span className="text-muted-foreground text-[11px]">Message time</span>
+            <Select
+              className="w-full"
+              value={showTime ? "on" : "off"}
+              onChange={(event) => onShowTime(event.target.value === "on")}
+            >
+              <option value="on">Show</option>
+              <option value="off">Hide</option>
             </Select>
           </label>
 

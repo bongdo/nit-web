@@ -1,177 +1,169 @@
-# Companion: a mobile chat app for documents and the home screen
+# Companion: a personal Android chat app for documents and the home screen
 
-Status: proposal, nothing built.
-Target user: one person (the author's wife), Android or iPhone, not a developer.
+Status: concept v2, decisions from 2026-11-07 review applied. Nothing built.
+Target user: one person (the author's wife), Android only, not a developer.
 
-## Short version
+## Locked decisions
 
-Build a new, small product next to nit-gui, not a mode inside it. Reuse nit-gui's
-frontend craft (markdown, streaming, attachments, themes, STT/TTS) and none of its
-backend: OpenCode is a coding agent with tools and permissions, and it is the wrong
-engine for a personal assistant.
-
-The four pieces that matter, in order of value per day of work:
-
-1. Mobile-first chat with excellent document capture (camera scan, PDF, photos,
-   tables) — one week.
-2. Native Android shell: share sheet, document scanner, notifications, voice —
-   another week.
-3. Android assistant role: the same gesture that opens Gemini, but our overlay,
-   with the system screenshot and a lasso. Two weeks, highest wow, highest risk.
-4. iOS shell: share extension plus iOS 26 Visual Intelligence intent. No overlay,
-   no assistant role.
-
-Real "circle to search" is Google's system feature. A third-party app can bind the
-**assistant gesture** and receive the **screenshot** through the official Assist API
-(`VoiceInteractionSession.onHandleScreenshot`). That is the honest, working version.
-
-## Why not just put a new face on nit-gui
-
-| Reuse | Rewrite |
+| Decision | Value |
 | --- | --- |
-| Markdown renderer, GFM tables, code copy, sandboxed HTML preview | Backend: no OpenCode, no sessions, no tools, no permissions |
-| SSE stream accumulation and reconnect logic | Layout: full-screen chat, bottom sheet, safe areas, thumbs |
-| Attachment picking, PDF/image cards, drag-drop | Chat storage: SQLite, not OpenCode sessions |
-| Themes, density, scroll-to-bottom, swipe | Model layer: one provider, explicit vision/PDF handling |
-| STT client and TTS server paths | Settings: none visible, one default model plus "Deep" |
-| Password hashing (`internal/auth`) and cookie auth | Assistant/overlay module, Android Kotlin |
+| Platform | Android only. No iOS, no web build. |
+| Distribution | Sideloaded APK, personal use, no Play Store. |
+| Accounts | None. No login, no server, no sync. |
+| Key | The existing `opencode-go` key, embedded in the APK. |
+| Transport | Phone talks to the gateway directly. Proven with curl: streaming works. |
+| Voice | Dictation in. **No TTS, no voice mode.** |
+| Storage | On the phone: IndexedDB for chats and blobs. |
+| Design | The nit-gui default dark theme, mobile-first, not a generic messenger. |
 
-Rule: copy the files, do not share a package. Two products, one-way copying.
-Forks drift; a shared library would force two products to ship together.
+The big consequence: **there is no backend**. The first draft had a Go server,
+auth, Caddy and a VPS. All of that existed to hide a key and serve a browser. With
+a personal APK the key can live inside the app, so the server, the login, the
+hosting and the backup story all disappear. The app works offline for history and
+only needs the network to answer.
 
-## What the phone actually allows (2026)
+## Direct gateway access (verified)
 
-| Capability | Android | iOS 26 |
+```
+POST https://opencode.ai/inference/go/openai/v1/chat/completions
+Authorization: Bearer <opencode-go key>
+x-opencode-org-id: wrk_…
+x-opencode-session: ses_<random per install>
+{"model":"deepseek-v4.1-flash","stream":true,…}
+```
+
+OpenAI-compatible, SSE streaming, returns `reasoning_content` deltas as well as
+`content`. Ignore the reasoning in the transcript, show it as a quiet "думает…"
+line. A normal answer streams in under a second.
+
+## Models, chosen automatically
+
+| Input | Model | Why |
 | --- | --- | --- |
-| Be the default assistant, open on the system gesture | Yes: `ROLE_ASSISTANT` + `VoiceInteractionService` | No |
-| Get the current screen text and a screenshot | Yes: `onHandleAssist`, `onHandleScreenshot` (user enables screen context) | No |
-| Draw over other apps | Yes: assist session UI, or `SYSTEM_ALERT_WINDOW` bubble | No |
-| Share a photo/PDF/text from any app into ours | Yes: `ACTION_SEND` | Yes: Share Extension |
-| Act on selected text | Yes: `ACTION_PROCESS_TEXT` | Share/Action extension |
-| Camera, document scan with edge detection | Yes: ML Kit Document Scanner (free, on device) | Yes: VisionKit |
-| Push notifications | Yes: FCM | Yes: APNs (installed PWA also works) |
-| System visual lookup | — | Yes, iOS 26 Visual Intelligence via App Intents: our app receives the capture and returns results |
-| Install without a store | APK | Ad-hoc/TestFlight; free signing expires weekly |
+| Text only | `deepseek-v4.1-flash` | Same model as the dev app. $0.15/$0.60 per Mtok. |
+| Photo / screenshot | `deepseek-v4.1-flash` | It accepts images. Escalate to Argon only if quality disappoints. |
+| PDF / scanned document | `gemini-4-argon` | Only cheap model in the gateway with native PDF plus strong layout reading. $2/$10. |
+| Spreadsheet | `gemini-4-argon` after local conversion to tables | The model sees data, not a screenshot. |
+| "Глубоко" (optional) | `gemini-4-argon` | Only for a hard page; hidden behind a long-press, no visible picker. |
 
-Samsung, Xiaomi, Pixel and stock Android all expose "default assistant" in settings,
-but the gesture differs (long-press home handle, side key, power button). Verify on
-the actual phone before promising anything.
+No model picker in the UI. A 10-page PDF costs about one cent.
+
+## Architecture on the phone
+
+```
+Capacitor Android shell (one APK)
+  WebView: React 19 + Vite + Tailwind + shadcn primitives
+    screens: chats · chat · document · overlay
+    storage: IndexedDB (chats, messages, blobs, extracted text)
+    gateway: fetch + SSE; fallback to a Kotlin OkHttp plugin if CORS bites
+  Kotlin plugins:
+    camera + ML Kit Document Scanner
+    share intent receiver (ACTION_SEND, ACTION_PROCESS_TEXT)
+    system speech recognition for dictation
+    VoiceInteractionService + assist overlay
+    notifications
+```
+
+If the WebView cannot call the gateway directly because of CORS, the same calls
+move into a 150-line Kotlin plugin. Spike this first, before the UI work.
+
+Data model in IndexedDB:
+
+- `chats(id, title, created, updated, pinned)`
+- `messages(id, chatId, role, text, attachments[], model, cost, created)`
+- `docs(id, name, mime, size, pages, blobKey, textByPage[], created)`
+- `search` — computed at query time over message text and extracted pages; a few
+  thousand messages do not need an index.
+
+## Design language (from nit-gui, not a generic chat UI)
+
+The look comes from the existing default dark theme: near-black blue-grey ground,
+hairlines, one amber accent, mono for metadata, no candy colours.
+
+- Tokens copied from `web/src/index.css`: `--background oklch(0.165 0.008 260)`,
+  `--card oklch(0.195 0.009 260)`, `--secondary oklch(0.245 0.01 260)`,
+  `--border oklch(0.29 0.01 260)`, `--spark oklch(0.78 0.14 55)`, radius 10 px.
+- Assistant messages are **not** bubbles: avatar dot, name, model and latency in
+  mono, then plain markdown at 15 px / 28 px. User messages are a `secondary`
+  bubble with a 4 px bottom-right corner, exactly like `MessageRow.tsx`.
+- Metadata is uppercase mono 9–10 px with letter-spacing. Technical labels stay
+  mono: `PDF · 12 СТР · 2,8 МБ`, `gemini · 6,2 с`, `СТР. 7`.
+- One accent only: the spark amber, used for the active action, the citation chip,
+  the lasso and the outline highlight. Everything else is greyscale.
+- Hairline gradient sheen on the surfaces that just changed (header underline,
+  sheet top edge, overlay top edge), 160 ms enter motion — the same trick as
+  `chrome-sheen-*` in nit-gui. No bouncing, no confetti.
+- Attachment rows are monochrome with a single amber row for the recommended
+  action ("Сканировать документ"), file types in mono on the right.
+
+## Screens
+
+1. **Chat** — document bar under the header, transcript, composer. The answer ends
+   with a citation chip; tapping it opens the page.
+2. **Document** — the real page, pinch-zoom, the cited clause highlighted in
+   amber, a small "?" marker, and a composer that asks about this page only.
+3. **Capture** — bottom sheet: scan, camera, gallery, file, plus recent documents.
+   The scanner is the recommended action, because it fixes the photo before the
+   model ever sees it.
+4. **Assist overlay** — screenshot of another app, freehand lasso or tap on a text
+   block, actions (Перевести / Объяснить / Скопировать / Спросить), then the answer
+   opens as a normal chat.
+
+The mock is in `2026-11-07-mobile-companion.html`.
+
+Tap-on-text is the quiet advantage over Circle to Search: `AssistStructure` gives
+the actual text nodes, so tapping a number selects exactly that field instead of
+pixels around it.
 
 ## Reading documents well
 
-The current nit-gui already forwards images and PDFs; the quality gap is not in the
-GUI. The wins, in order:
-
-1. **Capture.** ML Kit Document Scanner rectifies edges, fixes perspective and makes
-   a clean multi-page PDF. A crooked phone photo of a page loses more accuracy than
-   any model upgrade gains.
-2. **No client downscale.** Upload the original (up to the model's limit: Gemini
-   tiles at ~3072 px, Claude resizes to 1568 px long edge). Strip EXIF location,
-   keep orientation.
-3. **Native PDF input.** Send the PDF to Gemini 4 / 3.8 Flash (up to 1000 pages,
-   ~258 tokens per page) instead of OCR + text. Layout, tables and stamps survive.
-4. **Spreadsheets as data.** `xlsx`/`ods` → one CSV/markdown table per sheet with
-   formulas evaluated. A screenshot of a table is always worse than the table.
-5. **Two-pass for dense pages.** First ask over the whole page for context, then
-   if the answer depends on small print, re-ask over a 2× crop of that region and
-   keep both. Store the page render so the answer can cite it.
-6. **Document memory.** Cache the extracted representation per content hash. Follow-up
-   questions are cheap, consistent and fast; re-extraction only when the file changes.
-7. **Citations.** Answers quote verbatim and name page/sheet. The UI shows a page
-   thumbnail chip; tapping opens the page full screen, pinch-zoom. This is what makes
-   it feel trustworthy for contracts, prescriptions and recipes.
-
-Models available here: `opencode/gemini-3.8-flash` ($1.5/$7.5 per Mtok) as the
-default, `gemini-4-argon` or `claude-sonnet-5-5` for the "Deep" toggle. A 10-page
-PDF is roughly 3k input tokens; normal family use lands at a few dollars a month.
-
-## Architecture
-
-```
-phone (Capacitor shell)
-  chat UI (React, copied from nit-gui)
-  camera · ML Kit scanner · share intent · mic · notifications
-        │ HTTPS
-        ▼
-companion (Go, one binary, on frankfurt behind Caddy)
-  auth (single user, cookie, pbkdf2)
-  chats + messages (SQLite, FTS5 for search)
-  files (content-addressed on disk, page renders)
-  model adapter (Gemini; streaming SSE)
-        │
-        ▼
-model API
-```
-
-No OpenCode, no agents, no tool permissions. The only tools are: read a document,
-search the web (optional), and answer.
-
-Schema, minimal:
-
-- `chats(id, title, created_at, updated_at)`
-- `messages(id, chat_id, role, text, attachments_json, created_at)`
-- `documents(id, sha256, name, mime, pages, path, text_cache, created_at)`
-
-Attachments are served only to the authenticated session. Nightly `rsync` of the
-state directory to the backup host; SQLite in WAL mode with `VACUUM INTO` for a
-consistent snapshot.
-
-## UX
-
-1. **Open into the last chat**, not a list. Chats live in a drawer and a search field.
-2. **One composer.** "+" opens a sheet: Camera, Scan document, Photo, File. Hold the
-   mic to talk; release to transcribe into the text box, not to send.
-3. **Long-press any message**: copy, read aloud, translate, "explain simpler".
-   Long-press is the gesture people already have from WhatsApp and Telegram.
-4. **Documents are objects, not bubbles.** A header card with name, pages and a
-   page strip; questions continue on the same document without re-uploading.
-5. **Assist overlay**: lasso or tap a region, then either ask a typed question in a
-   tiny composer or pick an action (translate, explain, copy). The result opens in a
-   normal chat so it can be continued.
-6. **Voice mode**: full-screen orb, hands-free loop with barge-in, TTS on. This is the
-   feature that makes it feel like an assistant rather than a chat app.
-7. **Big type** (17–18 px base, 1.6 line height), dark by default, safe-area insets,
-   44 px targets, everything within thumb reach. Streaming with a visible Stop;
-   regenerate and edit-last always one tap away.
-8. **No settings maze.** One model, one "Deep" toggle for hard documents, language
-   auto. Every extra switch is a support call from a non-technical user.
+1. ML Kit Document Scanner: edge detection, perspective fix, multi-page PDF. This
+   is the single biggest quality lever and it is free and on device.
+2. Send the original file, no downscale, no re-encode. Strip EXIF location.
+3. PDF goes to the model natively; no OCR step, no text extraction for the model.
+4. `xlsx`/`csv` → one markdown table per sheet with values, formulas evaluated.
+   `docx` → text plus embedded images.
+5. Two-pass on dense pages: whole page first, then a 2× crop of the region the
+   question is about when the answer depends on small print.
+6. Cache extracted text per document hash, cite page numbers, quote verbatim. The
+   page render is kept for the citation view.
 
 ## Phases
 
-| # | Scope | Days | Acceptance |
-| --- | --- | --- | --- |
-| 0 | New repo, Go server, SQLite, auth, Gemini streaming, mobile web UI, PWA install | 3–4 | Photo of a page → answer with page citation on a phone screen |
-| 1 | Capacitor Android shell: camera, ML Kit scan, share intent, notifications, recording | 4–5 | Share a PDF from WhatsApp into the app; scan a 3-page contract; answer arrives with a notification |
-| 2 | Assistant role: `VoiceInteractionService`, screenshot, lasso, overlay, small composer | 8–12 | Long-press home on the target phone → overlay over another app → ask about a region → answer |
-| 3 | Voice mode with TTS and barge-in; search over chats and documents | 3–4 | Hands-free: ask, hear the answer, interrupt, ask again |
-| 4 | iOS shell: share extension, App Intents, Visual Intelligence | 3–5 | Share a screenshot from Photos and from the system Visual Intelligence |
+Part 1 (now): concept. Part 2: build with parallel subagents, one task per agent.
 
-Phase 2 is the only one that can fail for reasons outside the code: OEM gesture
-mapping, a locked bootloader, or a vendor that ignores `ROLE_ASSISTANT`.
+| Wave | Tasks | Why this order |
+| --- | --- | --- |
+| 0 | Repo scaffold, Capacitor, design tokens, storage, gateway client + streaming, CORS spike | Everything else imports these; must be one hand, not six. |
+| 1 | Chat screen · composer and capture sheet · PDF import and page viewer · chat list and search · Android shell, share intent, camera and scanner | Independent once wave 0 exists; 5 agents in parallel. |
+| 2 | Assistant role: `VoiceInteractionService`, screenshot, overlay UI, lasso, tap-on-text, hand-off to chat | Needs the Android shell from wave 1; one agent, device testing. |
+| 3 | Polish: motion, empty and error states, dictation, notifications | After the flows exist. |
+
+Acceptance for the whole thing: `bin/check` green, APK installed on the target
+phone, and these five scenarios work — photo of a page with a citation; 10-page
+PDF question; spreadsheet question; share from another app; long-press home over
+another app, lasso, answer.
 
 ## Risks
 
-- **Assistant gesture on non-Pixel phones** can be buried or bound to a vendor
-  assistant. Test on the actual device first; if it fails, the floating bubble
-  (`SYSTEM_ALERT_WINDOW`) is the fallback, but its screenshots need MediaProjection
-  consent every session.
-- **`FLAG_SECURE` apps** (banking, some messengers) return a black screenshot. Accept it.
-- **Play Store review**: assistant and accessibility capabilities require justification.
-  For one phone, sideload the APK and skip the store entirely.
-- **Privacy**: photos of documents and medical papers leave the phone and go to a
-  model API. Keep the server single-user, no analytics, no third-party CDN, and say
-  plainly where files are stored and for how long.
-- **HEIC** from iPhone needs conversion before the model sees it; Android gives JPEG.
-  If the phone is Android, this disappears.
-- **Cost and latency**: page images are token-heavy; cap pages per message (e.g. 30)
-  and show a progress state instead of a spinner.
-- **One user means no pressure to keep it running.** Backups and a health check are
-  part of the product, not an afterthought.
+- **The gateway may refuse WebView requests** (CORS or bot filtering). Mitigation:
+  Kotlin HTTP plugin, same API. Spike in wave 0.
+- **The key is extractable from the APK.** Accepted for personal use; rotate it if
+  the APK ever leaves the family.
+- **Assistant gesture on Samsung/Xiaomi** may be bound to the vendor assistant.
+  Test on the actual phone before wave 2. Fallback: floating bubble plus
+  MediaProjection consent, which is worse UX.
+- **`FLAG_SECURE` apps** give a black screenshot. Unfixable.
+- **Reasoning tokens** cost output money and add latency. Use the low variant if
+  the gateway exposes it, and hide reasoning in the UI.
+- **HEIC** from a gallery import needs conversion in the shell.
+- **No backup by default**: Android auto-backup may skip large blobs. Export a chat
+  to markdown is a cheap safety valve.
 
 ## Open questions
 
-1. Android or iPhone? It decides whether phases 2 and 3 exist at all.
-2. Which API key/provider: the existing OpenCode gateway, or a direct Gemini key?
-3. Hostname and whether it should be reachable outside the home network.
-4. Voice-first or typing-first for the main use (recipes, prescriptions, school papers,
-   screenshots of chats)?
+1. App name, and how the assistant introduces itself (her name in the system prompt?).
+2. Chat list: drawer over the chat, or a full list as the first screen?
+3. Documents: only inside chats, or also a separate library tab?
+4. Web search from the app ("найди в интернете") — skip in v1?
+5. Repo: new `~/Projects/companion`, copying files from nit-gui one way?

@@ -536,6 +536,8 @@ export function ChatView({
     onRevert,
     peroURL,
     running,
+    timeFormat,
+    showTime,
     workspace,
   ]);
 

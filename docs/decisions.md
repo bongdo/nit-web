@@ -603,3 +603,24 @@ tool card.
 
 Cost: question forms with non-string fields keep the old card and do not get the
 step UI.
+
+## 2026-11-07 — Older chats fold behind the existing button
+
+Context: the sidebar listed up to 100 sessions, so chats from previous days
+stayed mixed with the current work. Hiding them through `hiddenIds` would mix
+automatic and manual state, inflate the hidden count and deselect an open chat.
+
+Decision: a derived 12-hour window. A scope with more than ten top-level chats
+shows only chats updated in the last 12 hours; older ones stay loaded in the
+browser behind `Load older chats (N)`. The selected, running and waiting chats
+are always kept, and search ignores the cutoff. When the scope has ten or fewer
+chats, all are shown. Nothing is written to `ui-state.json`.
+
+Why: the list stays focused without changing shared hidden state, and
+`Load older chats` still pages upstream once the local older set is revealed.
+
+Rejected: auto-writing old IDs to the shared hidden list, and a persisted
+"recent only" preference.
+
+Cost: "inactive" means no session update for 12 hours, not "not opened"; a chat
+read without new messages can leave the list once it is no longer selected.

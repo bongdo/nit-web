@@ -63,6 +63,7 @@ import {
 } from "./lib/sessions";
 import { cn } from "./lib/utils";
 import { instanceScopedKey } from "./lib/instances";
+import type { TimeFormat } from "./lib/time";
 import { useAttention } from "./hooks/useAttention";
 import { useTheme, type Theme } from "./hooks/useTheme";
 import { useEventStream } from "./hooks/useEventStream";
@@ -219,6 +220,12 @@ export default function App({
   );
   const [spellcheck, setSpellcheck] = useState(() => localStorage.getItem("nit-gui.spellcheck") !== "0");
   const [autofix, setAutofix] = useState(() => localStorage.getItem("nit-gui.autofix") !== "0");
+  const [timeFormat, setTimeFormat] = useState<TimeFormat>(() =>
+    localStorage.getItem("nit-gui.time-format") === "12h" ? "12h" : "24h",
+  );
+  const [showTime, setShowTime] = useState(
+    () => localStorage.getItem("nit-gui.show-time") !== "0",
+  );
   const [motion, setMotion] = useState<"animated" | "static">(() => {
     const stored = localStorage.getItem("nit-gui.motion");
     if (stored === "animated" || stored === "static") return stored;
@@ -2172,6 +2179,8 @@ export default function App({
           motion={motion}
           background={background}
           sceneKey={sceneEpoch}
+          timeFormat={timeFormat}
+          showTime={showTime}
           onRetry={reloadSelected}
           onRevert={revertMessage}
           onFork={forkMessage}
@@ -2318,6 +2327,8 @@ export default function App({
           dictationMode={dictationMode}
           spellcheck={spellcheck}
           autofix={autofix}
+          timeFormat={timeFormat}
+          showTime={showTime}
           motion={motion}
           background={background}
           sidebarMode={sidebarMode}
@@ -2341,6 +2352,14 @@ export default function App({
           onAutofix={(value) => {
             setAutofix(value);
             localStorage.setItem("nit-gui.autofix", value ? "1" : "0");
+          }}
+          onTimeFormat={(value) => {
+            setTimeFormat(value);
+            localStorage.setItem("nit-gui.time-format", value);
+          }}
+          onShowTime={(value) => {
+            setShowTime(value);
+            localStorage.setItem("nit-gui.show-time", value ? "1" : "0");
           }}
           onMotion={(value) => {
             setMotion(value);

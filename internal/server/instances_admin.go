@@ -79,6 +79,10 @@ func (s *Server) saveInstance(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusBadRequest, "invalid url")
 			return
 		}
+		if parsed.User != nil {
+			writeError(w, http.StatusBadRequest, "url must not contain credentials")
+			return
+		}
 		spec.URL = in.URL
 	case "ssh":
 		if in.SSH == "" {

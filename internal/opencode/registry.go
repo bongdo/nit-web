@@ -360,6 +360,9 @@ func localEndpoint(ctx context.Context, spec InstanceSpec) (Endpoint, io.Closer,
 
 func (r *Registry) connectSSH(ctx context.Context, spec InstanceSpec) (Endpoint, io.Closer, error) {
 	host := spec.SSH
+	if !ValidSSHHost(host) {
+		return Endpoint{}, nil, fmt.Errorf("instance %q has an invalid ssh host", spec.Name)
+	}
 	statusCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 	out, err := exec.CommandContext(statusCtx, "ssh", "-oBatchMode=yes", host, "opencode service status").Output()

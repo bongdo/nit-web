@@ -223,6 +223,60 @@ func fileMode(t *testing.T, path string) os.FileMode {
 	return info.Mode().Perm()
 }
 
+func TestClearDraftKeepsTombstone(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "state.json")
+	store, err := Open(path, "local")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.SetDraft("local", "key", "hello"); err != nil {
+		t.Fatal(err)
+	}
+	cleared, err := store.SetDraft("local", "key", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !cleared.Cleared || cleared.Text != "" || cleared.UpdatedAt == 0 {
+		t.Fatalf("clear draft = %+v", cleared)
+	}
+	got := store.Draft("local", "key")
+	if !got.Cleared || got.UpdatedAt != cleared.UpdatedAt {
+		t.Fatalf("stored tombstone = %+v", got)
+	}
+	reopened, err := Open(path, "local")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := reopened.Draft("local", "key"); !got.Cleared {
+		t.Fatalf("reopened tombstone = %+v", got)
+	}
+}
+
+func TestCorruptStateIsPreserved(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "state.json")
+	if err := os.WriteFile(path, []byte("{not json"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	store, err := Open(path, "local")
+	if err == nil {
+		t.Fatal("expected a parse error")
+	}
+	if _, err := os.Stat(path); !os.IsNotExist(err) {
+		t.Fatalf("corrupt file was not moved: %v", err)
+	}
+	matches, err := filepath.Glob(path + ".corrupt-*")
+	if err != nil || len(matches) != 1 {
+		t.Fatalf("corrupt backups = %v, %v", matches, err)
+	}
+	if _, err := store.SetDraft("local", "key", "new"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(path); err != nil {
+		t.Fatalf("new state was not written: %v", err)
+	}
+}
+
 func TestRenameMovesInstanceState(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "state.json")
 	store, err := Open(path, "local")

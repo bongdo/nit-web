@@ -514,7 +514,7 @@ export default function App({
         api.sessions(scopedDirectory ?? undefined, false, query || undefined),
         api
           .sessions(scopedDirectory ?? undefined, true, query || undefined)
-          .catch(() => ({ data: [] as Session[] })),
+          .catch(() => ({ data: [] as Session[], cursor: null })),
       ]);
       let data = list.data;
       const known = new Set(data.map((session) => session.id));
@@ -533,7 +533,7 @@ export default function App({
           if (keep) data = [keep, ...data];
         }
       }
-      const cursor = list.cursor?.next ?? null;
+      const cursor = nested.cursor?.next ?? null;
       sessionCursorRef.current = cursor;
       setSessionCursor(cursor);
       setSessions(data);

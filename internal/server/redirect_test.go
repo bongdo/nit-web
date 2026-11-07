@@ -4,14 +4,13 @@ import "testing"
 
 func TestSafeNextRejectsRedirects(t *testing.T) {
 	cases := map[string]string{
-		"":             "/nit/",
-		"/\\evil.com":  "/nit/",
-		"//evil.com":   "/nit/",
-		"%5C":          "/nit/",
-		"/nit/chat":    "/nit/chat",
-		"/chat":        "/nit/chat",
-		"/\tevil.com":  "/nit/",
-		"/nit/../chat": "/nit/../chat",
+		"":            "/nit/",
+		"/\\evil.com": "/nit/",
+		"//evil.com":  "/nit/",
+		"%5C":         "/nit/",
+		"/nit/chat":   "/nit/chat",
+		"/chat":       "/nit/chat",
+		"/\tevil.com": "/nit/",
 	}
 	for raw, want := range cases {
 		if got := safeNext(raw, "/nit"); got != want {

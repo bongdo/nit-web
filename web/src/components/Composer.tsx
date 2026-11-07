@@ -733,6 +733,7 @@ export const Composer = memo(function Composer({
           return;
         }
       }
+      setAttachments(uploaded);
       await onSend(text, uploaded, running ? "steer" : undefined);
       const misspelled = issues
         .filter((issue) => issue.source !== "grammar")

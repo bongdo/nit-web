@@ -431,8 +431,9 @@ nspell worker. It is not implemented yet.
   no-store and a strict CSP. Five wrong passwords block the source IP for 15
   minutes; 50 failures across all clients block new logins for 5 minutes.
   Password values are never logged or put in a URL.
-- Instance passwords and SSH hosts stay in the Go process and in
-  `instances.json`; they are never logged or sent to the browser.
+- Instance passwords stay in the Go process and in `instances.json`; they are
+  never logged or sent to the browser. SSH hosts are sent only as the sanitized
+  connection identifier the editor needs.
   `GET /api/instances` exposes only the name, transport, sanitized URL, SSH
   host, default directory, version and state. Passwords and password-file
   contents are never returned. The config file should be mode `0600` when it

@@ -187,5 +187,7 @@ func instanceURL(raw string) string {
 		return ""
 	}
 	parsed.User = nil
+	parsed.RawQuery = ""
+	parsed.Fragment = ""
 	return parsed.String()
 }

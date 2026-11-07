@@ -1,10 +1,15 @@
 import type { FormField, FormInfo } from "./types";
 
-export function questionField(form: FormInfo): FormField | null {
+export function questionFields(form: FormInfo): FormField[] | null {
   if (form.metadata?.kind !== "question") return null;
   const fields = form.fields.filter((field) => !field.hidden);
-  if (fields.length !== 1 || fields[0].type !== "string") return null;
-  return fields[0];
+  if (fields.length === 0 || fields.some((field) => field.type !== "string")) return null;
+  return fields;
+}
+
+export function questionField(form: FormInfo): FormField | null {
+  const fields = questionFields(form);
+  return fields && fields.length === 1 ? fields[0] : null;
 }
 
 export function initialFormValues(form: FormInfo): Record<string, unknown> {
@@ -41,4 +46,16 @@ export function isEmptyAnswer(value: unknown): boolean {
     value === "" ||
     (Array.isArray(value) && value.length === 0)
   );
+}
+
+export function questionAnswer(
+  fields: FormField[],
+  answers: Record<string, string>,
+): Record<string, string> {
+  const result: Record<string, string> = {};
+  for (const field of fields) {
+    const value = (answers[field.key] ?? "").trim();
+    if (value) result[field.key] = value;
+  }
+  return result;
 }

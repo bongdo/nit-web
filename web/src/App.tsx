@@ -47,7 +47,7 @@ import {
   mergeRunningStates,
   sessionRunning,
 } from "./lib/format";
-import { questionField } from "./lib/forms";
+import { questionFields } from "./lib/forms";
 import {
   groupSessions,
   listedSessions,
@@ -1981,7 +1981,7 @@ export default function App({
   const activeError = banner ?? offlineBanner;
   const running = selectedId ? isRunning(selectedId) : false;
   const hoverSidebar = sidebarMode === "hover";
-  const questionForm = forms[0] && questionField(forms[0]) ? forms[0] : null;
+  const questionForm = forms[0] && questionFields(forms[0]) ? forms[0] : null;
 
   return (
     <div className="flex h-full min-h-0 overflow-hidden">

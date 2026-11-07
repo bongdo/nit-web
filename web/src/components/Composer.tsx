@@ -15,7 +15,7 @@ import { encodeWav } from "../lib/audio";
 import { api } from "../lib/api";
 import { attachmentWarning } from "../lib/attachments";
 import { loadDraftState, saveDraftState, type DraftState } from "../lib/drafts";
-import { questionField } from "../lib/forms";
+import { questionAnswer, questionFields } from "../lib/forms";
 import { formatBytes, quoteText } from "../lib/format";
 import { shouldCaptureKey } from "../lib/keys";
 import { applyIssue, issueAtCaret, issueKey, maskedAt, safeAutoFix, type SpellIssue } from "../lib/spell";
@@ -144,6 +144,8 @@ export const Composer = memo(function Composer({
   const [formOpen, setFormOpen] = useState(true);
   const [formBusy, setFormBusy] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  const [formStep, setFormStep] = useState(0);
+  const formAnswers = useRef<Record<string, string>>({});
   const [removing, setRemoving] = useState<string[]>([]);
   const ref = useRef<HTMLTextAreaElement>(null);
   const highlightRef = useRef<HTMLDivElement>(null);
@@ -155,7 +157,10 @@ export const Composer = memo(function Composer({
   const appliedInsert = useRef<number | null>(null);
   const addedDelay = useRef(new Map<string, number>());
   const removeTimers = useRef(new Set<number>());
-  const question = form ? questionField(form) : null;
+  const questions = form ? (questionFields(form) ?? []) : [];
+  const step = Math.min(formStep, Math.max(0, questions.length - 1));
+  const question = questions[step] ?? null;
+  const lastQuestion = step >= questions.length - 1;
   const questionRef = useRef(question);
   questionRef.current = question;
   const option = question?.options?.find((item) => item.value === value) ?? null;
@@ -267,12 +272,15 @@ export const Composer = memo(function Composer({
   }, [customAnswer, disabled, drawerOpen, formBusy, typingBlocked, workspace]);
 
   useEffect(() => {
-    if (form && question) {
+    if (form && questions.length > 0) {
       if (activeForm.current === form.id) return;
       activeForm.current = form.id;
+      const first = questions[0];
+      formAnswers.current = {};
+      setFormStep(0);
       updateValue((current) => {
         draftBeforeForm.current = current;
-        return typeof question.default === "string" ? question.default : "";
+        return typeof first.default === "string" ? first.default : "";
       });
       setFormOpen(true);
       setFormError(null);
@@ -280,9 +288,11 @@ export const Composer = memo(function Composer({
     }
     if (!activeForm.current) return;
     activeForm.current = null;
+    formAnswers.current = {};
+    setFormStep(0);
     updateValue(draftBeforeForm.current);
     setFormError(null);
-  }, [form, question]);
+  }, [form, questions.length]);
 
   useEffect(
     () => () => {
@@ -753,17 +763,48 @@ export const Composer = memo(function Composer({
     }
   };
 
-  const answerForm = async () => {
-    if (!form || !question || !session) return;
-    const answer = value.trim();
-    if (question.required && !answer) {
+  const saveAnswer = () => {
+    if (question) formAnswers.current[question.key] = value.trim();
+  };
+
+  const nextQuestion = () => {
+    if (!question) return;
+    const text = value.trim();
+    if (question.required && !text) {
       setFormError(`${question.title ?? question.key} is required.`);
       return;
     }
+    saveAnswer();
+    const target = questions[step + 1];
+    setFormStep(step + 1);
+    updateValue(formAnswers.current[target.key] ?? (typeof target.default === "string" ? target.default : ""));
+    setFormError(null);
+  };
+
+  const previousQuestion = () => {
+    if (!question || step === 0) return;
+    saveAnswer();
+    const target = questions[step - 1];
+    setFormStep(step - 1);
+    updateValue(formAnswers.current[target.key] ?? (typeof target.default === "string" ? target.default : ""));
+    setFormError(null);
+  };
+
+  const answerForm = async () => {
+    if (!form || !question || !session) return;
+    const text = value.trim();
+    if (question.required && !text) {
+      setFormError(`${question.title ?? question.key} is required.`);
+      return;
+    }
+    saveAnswer();
+    const answer = questionAnswer(questions, formAnswers.current);
     setFormBusy(true);
     setFormError(null);
     try {
-      await api.replyForm(session.id, form.id, answer ? { [question.key]: answer } : {});
+      await api.replyForm(session.id, form.id, answer);
+      formAnswers.current = {};
+      setFormStep(0);
       updateValue("");
       onFormDone();
     } catch (cause) {
@@ -775,12 +816,19 @@ export const Composer = memo(function Composer({
     }
   };
 
+  const advanceForm = () => {
+    if (lastQuestion) void answerForm();
+    else nextQuestion();
+  };
+
   const cancelForm = async () => {
     if (!form || !session) return;
     setFormBusy(true);
     setFormError(null);
     try {
       await api.cancelForm(session.id, form.id, "Cancelled in nit-gui");
+      formAnswers.current = {};
+      setFormStep(0);
       updateValue("");
       onFormDone();
     } catch (cause) {
@@ -853,7 +901,9 @@ export const Composer = memo(function Composer({
                   <span className="block truncate text-[13px] font-semibold">{form.title}</span>
                   <span className="text-muted-foreground block truncate text-[10px]">
                     {formOpen
-                      ? "The agent is waiting for your answer."
+                      ? questions.length > 1
+                        ? `Question ${step + 1} of ${questions.length} · The agent is waiting for your answer.`
+                        : "The agent is waiting for your answer."
                       : (option?.label ?? (answerText.trim() ? "Custom answer" : "Your answer"))}
                   </span>
                 </span>
@@ -867,6 +917,11 @@ export const Composer = memo(function Composer({
 
               {formOpen && (
                 <div className="px-3 pb-2.5">
+                  {questions.length > 1 && (
+                    <div className="text-muted-foreground text-[10px] font-medium">
+                      {step + 1}/{questions.length}
+                    </div>
+                  )}
                   <div className="text-[12px] font-medium">
                     {question.title ?? question.key}
                     {question.required && <span className="text-destructive"> *</span>}
@@ -1105,7 +1160,7 @@ export const Composer = memo(function Composer({
                   }
                   if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
                     event.preventDefault();
-                    if (question) void answerForm();
+                    if (question) advanceForm();
                     else void submit();
                   }
                 }}
@@ -1249,14 +1304,34 @@ export const Composer = memo(function Composer({
                     <X />
                     Cancel
                   </Button>
-                  <Button
-                    size="sm"
-                    onClick={() => void answerForm()}
-                    disabled={formBusy || (question.required && !value.trim())}
-                  >
-                    {formBusy ? <Loader2 className="animate-spin" /> : <Check />}
-                    Answer
-                  </Button>
+                  {step > 0 && (
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={previousQuestion}
+                      disabled={formBusy}
+                    >
+                      Back
+                    </Button>
+                  )}
+                  {!lastQuestion ? (
+                    <Button
+                      size="sm"
+                      onClick={advanceForm}
+                      disabled={formBusy || (question.required && !value.trim())}
+                    >
+                      Next
+                    </Button>
+                  ) : (
+                    <Button
+                      size="sm"
+                      onClick={() => void answerForm()}
+                      disabled={formBusy || (question.required && !value.trim())}
+                    >
+                      {formBusy ? <Loader2 className="animate-spin" /> : <Check />}
+                      Answer
+                    </Button>
+                  )}
                 </>
               ) : (
                 <Button

@@ -1,5 +1,4 @@
 import { memo } from "react";
-import { MessageCircleQuestion } from "lucide-react";
 import type { ToolPart } from "../lib/types";
 import { questionRecords } from "../lib/questions";
 import { cn } from "../lib/utils";
@@ -13,59 +12,44 @@ export const QuestionCard = memo(function QuestionCard({ part }: { part: ToolPar
   const complete = questions.every((question) => question.answers.length > 0);
 
   return (
-    <div
-      className={cn(
-        "form-sheen-card border-border bg-card my-2 rounded-lg border px-3 py-2 text-sm",
-        !complete && "form-sheen-waiting",
-      )}
-    >
-      <div className="text-muted-foreground mb-1.5 flex items-center gap-1.5 text-[11px]">
-        <MessageCircleQuestion className="size-3.5" />
-        Question
-      </div>
-      {questions.map((question, index) => {
-        const selected = question.answers;
-        return (
-          <div key={index} className="space-y-1 py-0.5">
-            {question.header && (
-              <div className="text-muted-foreground text-[11px]">{question.header}</div>
-            )}
-            <div className="font-medium">{question.question}</div>
-            {question.options.length > 0 && (
+    <div className="my-3 space-y-3">
+      {questions.map((question, index) => (
+        <div key={index} className="space-y-1.5">
+          {question.header && (
+            <div className="text-muted-foreground text-[11px]">{question.header}</div>
+          )}
+          <div className="text-sm">{question.question}</div>
+          {question.answers.length > 0 ? (
+            <div className="flex justify-end">
+              <div className="bg-secondary max-w-[85%] rounded-2xl rounded-br-sm px-4 py-2.5 text-sm whitespace-pre-wrap">
+                {question.answers.join(", ")}
+              </div>
+            </div>
+          ) : (
+            question.options.length > 0 && (
               <ul className="mt-1 space-y-0.5 text-xs">
-                {question.options.map((option, optionIndex) => {
-                  const chosen = selected.includes(option.label);
-                  return (
-                    <li
-                      key={optionIndex}
-                      className={cn(
-                        "flex gap-1.5",
-                        chosen
-                          ? "form-sheen-chosen text-foreground font-medium"
-                          : "text-muted-foreground",
+                {question.options.map((option, optionIndex) => (
+                  <li
+                    key={optionIndex}
+                    className={cn("text-muted-foreground flex gap-1.5", !complete && "opacity-80")}
+                  >
+                    <span className="shrink-0">○</span>
+                    <span>
+                      {option.label}
+                      {option.description && (
+                        <span className="text-muted-foreground font-normal">
+                          {" "}
+                          — {option.description}
+                        </span>
                       )}
-                    >
-                      <span className="shrink-0">{chosen ? "•" : "○"}</span>
-                      <span>
-                        {option.label}
-                        {option.description && (
-                          <span className="text-muted-foreground font-normal">
-                            {" "}
-                            — {option.description}
-                          </span>
-                        )}
-                      </span>
-                    </li>
-                  );
-                })}
+                    </span>
+                  </li>
+                ))}
               </ul>
-            )}
-            {selected.length > 0 && (
-              <div className="text-foreground text-xs">Your answer: {selected.join(", ")}</div>
-            )}
-          </div>
-        );
-      })}
+            )
+          )}
+        </div>
+      ))}
     </div>
   );
 });

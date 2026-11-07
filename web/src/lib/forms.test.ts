@@ -3,7 +3,9 @@ import {
   initialFormValues,
   isEmptyAnswer,
   isFieldVisible,
+  questionAnswer,
   questionField,
+  questionFields,
   visibleFormFields,
 } from "./forms";
 import type { FormField, FormInfo } from "./types";
@@ -52,6 +54,33 @@ describe("questionField", () => {
   it("falls back for non-string questions", () => {
     const target = form({ fields: [{ key: "count", type: "number" }] });
     expect(questionField(target)).toBeNull();
+  });
+});
+
+describe("questionFields", () => {
+  it("returns every visible string field of a question form", () => {
+    const target = form({
+      fields: [
+        { key: "first", type: "string", title: "First" },
+        { key: "second", type: "string", title: "Second" },
+        { key: "secret", type: "string", hidden: true },
+      ],
+    });
+    expect(questionFields(target)?.map((field) => field.key)).toEqual(["first", "second"]);
+  });
+
+  it("leaves non-question and mixed forms to the form card", () => {
+    expect(questionFields(form({ metadata: { kind: "permission" } }))).toBeNull();
+    expect(
+      questionFields(
+        form({
+          fields: [
+            { key: "first", type: "string" },
+            { key: "count", type: "number" },
+          ],
+        }),
+      ),
+    ).toBeNull();
   });
 });
 
@@ -110,5 +139,20 @@ describe("isEmptyAnswer", () => {
     expect(isEmptyAnswer("a")).toBe(false);
     expect(isEmptyAnswer(["a"])).toBe(false);
     expect(isEmptyAnswer(false)).toBe(false);
+  });
+});
+
+describe("questionAnswer", () => {
+  const fields: FormField[] = [
+    { key: "first", type: "string" },
+    { key: "second", type: "string" },
+    { key: "optional", type: "string" },
+  ];
+
+  it("keeps answered steps and drops empty optional ones", () => {
+    expect(questionAnswer(fields, { first: " yes ", second: "B" })).toEqual({
+      first: "yes",
+      second: "B",
+    });
   });
 });

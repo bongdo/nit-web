@@ -648,6 +648,7 @@ export const Composer = memo(function Composer({
   const startMeter = (stream: MediaStream, context?: AudioContext) => {
     stopMeter();
     const ctx = context ?? new AudioContext();
+    void ctx.resume().catch(() => undefined);
     const source = ctx.createMediaStreamSource(stream);
     const analyser = ctx.createAnalyser();
     analyser.fftSize = 512;

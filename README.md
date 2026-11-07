@@ -40,7 +40,7 @@ Spelling is the remaining exception; see [Known limits](#known-limits).
 | --- | --- |
 | Each OpenCode instance | Sessions, messages, models, agents, working directories. |
 | nit-gui on the host | Instance definitions and SSH tunnels; hidden chats, done/failed markers, drafts, preferred model and agent in `ui-state.json`, keyed by instance; auth sessions in memory; uploads under `/tmp`. |
-| Browser `localStorage` | Device preferences: theme, sidebar mode, motion, background, dictation mode, spelling/autofix, notifications, scope, personal spelling dictionary. Workspace, recent workspaces and selected chat are per instance; the default instance keeps the old unscoped keys. Drafts are mirrored locally only as an instant-load cache. |
+| Browser `localStorage` | Device preferences: theme, sidebar mode, motion, background, spelling/autofix, notifications, scope, personal spelling dictionary. Workspace, recent workspaces and selected chat are per instance; the default instance keeps the old unscoped keys. Drafts are mirrored locally only as an instant-load cache. |
 | Browser memory | Transcript cache (up to 12 MiB), running/waiting state, form state, current stream. |
 
 The cache is deliberately local: it makes chat switching instant and is safe to
@@ -415,7 +415,7 @@ All `/api` endpoints except `/api/instances*` accept `X-Nit-Instance: <id>` or
 | `POST /api/sessions/{id}/fork` | Fork before `{before?}`. |
 | `POST /api/sessions/{id}/compact` | Compact the context. |
 | `POST /api/upload?dir=&name=` | Raw file body up to 20 MiB, written through OpenCode `/api/experimental/fs/write`. |
-| `POST /api/stt` | Raw 16 kHz mono WAV; transcribed on the nit-gui host by `whisper-cli` or `whisper-server`. |
+| `POST /api/stt` | Raw 16 kHz mono WAV; `?mode=fast` transcribes with `whisper-server`, otherwise with `whisper-cli`. |
 | `POST /api/grammar` | `{text}`; optional LanguageTool grammar/punctuation check on the nit-gui host. |
 | `POST /api/sessions/{id}/model` | Switch model `{model: {id, providerID, variant?}}`. |
 | `POST /api/sessions/{id}/agent` | Switch agent `{agent}`. |

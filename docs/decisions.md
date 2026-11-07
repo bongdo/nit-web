@@ -713,3 +713,24 @@ audio out), Vosk WASM (no punctuation, lower accuracy).
 Cost: one Python venv with `sherpa-onnx`, about 300 MB RSS while warm, and a
 156 MB one-time model download. English or mixed-language host dictation is no
 longer covered by the fallback.
+
+## 2026-11-07 — The new-chat scene fades out when a chat starts
+
+Context: the animated canvas background lived only on the empty new-chat
+screen. The first prompt created a session, the canvas unmounted, and the UI cut
+straight to the plain background.
+
+Decision: keep the canvas mounted across the empty and transcript branches,
+fade it out over 500 ms, and pause its animation. Returning to a new chat
+remounts the scene and fades it in.
+
+Why: the transcript is a reading surface; moving lines behind long answers hurt
+readability and cost battery, while the empty screen has nothing else to
+compete with the scene.
+
+Rejected: a permanently animated background in chat, a dimmed version in the
+side gutters, and a static tinted snapshot of the scene.
+
+Cost: one canvas backing store stays allocated while a chat is open, and the
+scene freezes during the 500 ms fade instead of continuing to animate.
+

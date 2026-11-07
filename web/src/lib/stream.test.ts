@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   applyEvent,
   coalesceEvents,
+  eventSessionID,
   lightenEvent,
   lightMessages,
   isRetryableFailure,
@@ -164,6 +165,24 @@ describe("coalesceEvents", () => {
       event("session.text.delta", { assistantMessageID: "msg_1", ordinal: 0, delta: "b" }),
     ]);
     expect(merged).toHaveLength(3);
+  });
+});
+
+describe("eventSessionID", () => {
+  it("reads the session from the event or its form payload", () => {
+    expect(eventSessionID(event("session.idle", { sessionID: "ses_1" }))).toBe("ses_1");
+    expect(
+      eventSessionID(
+        event("form.created", {
+          form: { id: "frm_1", sessionID: "ses_2", title: "Questions", fields: [] },
+        }),
+      ),
+    ).toBe("ses_2");
+  });
+
+  it("returns an empty string when neither place has a session", () => {
+    expect(eventSessionID(event("form.created", {}))).toBe("");
+    expect(eventSessionID(event("form.created", { form: { sessionID: 42 } }))).toBe("");
   });
 });
 

@@ -905,6 +905,30 @@ func TestPromptForwardsText(t *testing.T) {
 	}
 }
 
+func TestPromptForwardsMessageID(t *testing.T) {
+	var got map[string]any
+	upstream := httptest.NewServer(auth(func(w http.ResponseWriter, r *http.Request) {
+		if err := json.NewDecoder(r.Body).Decode(&got); err != nil {
+			t.Fatal(err)
+		}
+		fmt.Fprint(w, `{"data":{"id":"msg_1"}}`)
+	}))
+	defer upstream.Close()
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "http://127.0.0.1:7788/api/sessions/ses_1/prompt",
+		strings.NewReader(`{"text":"hello","id":"msg_1"}`))
+	req.Header.Set("Content-Type", "application/json")
+	newHandler(t, upstream.URL).ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d: %s", rec.Code, rec.Body)
+	}
+	if got["id"] != "msg_1" || got["text"] != "hello" {
+		t.Fatalf("upstream body = %+v", got)
+	}
+}
+
 func TestPromptBodyLimit(t *testing.T) {
 	var called atomic.Bool
 	upstream := httptest.NewServer(auth(func(w http.ResponseWriter, r *http.Request) {

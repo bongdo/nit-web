@@ -27,6 +27,7 @@ import type {
 import {
   applyEvent,
   coalesceEvents,
+  eventSessionID,
   lightenEvent,
   lightMessages,
   normalizeMessages,
@@ -1374,7 +1375,7 @@ export default function App({
 
   const onEvent = (event: StreamEvent) => {
     const data = event.data ?? {};
-    const sessionID = typeof data.sessionID === "string" ? data.sessionID : "";
+    const sessionID = eventSessionID(event);
     const toolID = typeof data.id === "string" ? data.id : "";
     if (toolID && data.name === "question") questionIDs.current.add(toolID);
 
@@ -1384,6 +1385,11 @@ export default function App({
         setRunningIds((previous) => ({ ...previous, [sessionID]: true }));
         clearFailed(sessionID);
         clearDone(sessionID);
+        clearRetry(sessionID);
+        setBanner(null);
+      }
+      if (event.type === "session.execution.succeeded") {
+        clearRetry(sessionID);
       }
       if (
         event.type === "session.idle" ||
@@ -1395,15 +1401,31 @@ export default function App({
         setRunningIds((previous) => ({ ...previous, [sessionID]: false }));
         clearCompacting(sessionID);
       }
-      if (
-        event.type === "session.execution.failed" ||
-        event.type === "session.compaction.failed"
-      ) {
+      if (event.type === "session.execution.failed") {
+        const known =
+          sessionID === selectedIdRef.current
+            ? messagesRef.current
+            : (transcriptCache.get(sessionID)?.messages ?? []);
+        const plan = planRetry(
+          known,
+          data.error as Message["error"] | undefined,
+          (retryAttempts.current[sessionID] ?? 0) + 1,
+        );
+        if (plan) {
+          clearFailed(sessionID);
+          clearDone(sessionID);
+          scheduleRetry(sessionID, plan);
+        } else {
+          markFailed(sessionID);
+        }
+      }
+      if (event.type === "session.compaction.failed") {
         markFailed(sessionID);
       }
       if (
         (event.type === "session.idle" || event.type === "session.execution.succeeded") &&
-        !failedRef.current.has(sessionID)
+        !failedRef.current.has(sessionID) &&
+        retryAttempts.current[sessionID] === undefined
       ) {
         markDone(sessionID);
       }
@@ -1569,6 +1591,7 @@ export default function App({
       }
       if (!id) throw new Error("Session was not created.");
       const sessionId = id;
+      clearRetry(sessionId);
       const optimistic: Message = {
         id: `local-${Date.now()}`,
         type: "user",
@@ -1604,7 +1627,7 @@ export default function App({
         throw error;
       }
     },
-    [currentAgent, currentModel, sessionKey],
+    [currentAgent, currentModel, sessionKey, clearRetry],
   );
 
   const stop = useCallback(async () => {

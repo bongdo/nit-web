@@ -6,7 +6,7 @@ import {
   questionField,
   visibleFormFields,
 } from "./forms";
-import type { FormInfo } from "./types";
+import type { FormField, FormInfo } from "./types";
 
 function form(overrides: Partial<FormInfo> = {}): FormInfo {
   return {
@@ -77,7 +77,11 @@ describe("visibleFormFields", () => {
   });
 
   it("matches the visible filter used for each step", () => {
-    const field = { key: "second", type: "string", when: [{ key: "first", op: "eq", value: "yes" }] };
+    const field: FormField = {
+      key: "second",
+      type: "string",
+      when: [{ key: "first", op: "eq", value: "yes" }],
+    };
     expect(isFieldVisible(field, { first: "no" })).toBe(false);
     expect(isFieldVisible(field, { first: "yes" })).toBe(true);
   });

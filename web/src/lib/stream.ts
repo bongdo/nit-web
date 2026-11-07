@@ -125,6 +125,13 @@ export function lightenEvent(
   }
 }
 
+export function eventSessionID(event: StreamEvent): string {
+  const data = event.data ?? {};
+  if (typeof data.sessionID === "string") return data.sessionID;
+  const form = data.form as { sessionID?: unknown } | undefined;
+  return typeof form?.sessionID === "string" ? form.sessionID : "";
+}
+
 export function planRetry(
   messages: Message[],
   error: Message["error"] | undefined,

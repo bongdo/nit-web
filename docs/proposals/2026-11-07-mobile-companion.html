@@ -13,6 +13,7 @@
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, sans-serif;
     color: #e7ecf3;
   }
+  svg { display: block; }
   .row { display: flex; flex-wrap: wrap; gap: 26px; justify-content: center; align-items: flex-start; }
   .phone {
     width: 300px; height: 640px; border-radius: 38px; overflow: hidden; position: relative;
@@ -25,8 +26,7 @@
     width: 84px; height: 20px; border-radius: 12px; background: #05070a; z-index: 5;
   }
   .caption { text-align: center; margin: 10px 0 18px; font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: #7d8797; }
-  .hdr { padding: 30px 14px 10px; display: flex; align-items: center; gap: 10px; border-bottom: 1px solid #1b2129; }
-  .back { color: #8b96a8; font-size: 20px; line-height: 1; }
+  .hdr { padding: 32px 14px 10px; display: flex; align-items: center; gap: 8px; border-bottom: 1px solid #1b2129; }
   .hdr b { font-size: 14px; font-weight: 600; display: block; }
   .hdr span { font-size: 11px; color: #78839a; }
   .thread { flex: 1; padding: 14px 12px; display: flex; flex-direction: column; gap: 12px; overflow: hidden; }
@@ -45,49 +45,55 @@
   .ai .bubble { background: #171c23; border: 1px solid #232a34; border-bottom-left-radius: 5px; }
   .quote { margin: 8px 0; padding: 8px 10px; border-left: 2px solid #f0b429; background: #1d1a10; border-radius: 4px; font-size: 12px; color: #d9cfae; }
   .cite {
-    display: inline-flex; align-items: center; gap: 6px; margin-top: 8px; padding: 5px 9px;
+    display: inline-flex; align-items: center; gap: 7px; margin-top: 8px; padding: 5px 9px;
     border: 1px solid #2b3543; border-radius: 8px; font-size: 11px; color: #9fb0c7;
   }
-  .cite i { width: 18px; height: 22px; border-radius: 3px; background: #3b4657; display: inline-block; }
+  .cite i { width: 16px; height: 20px; border-radius: 3px; background: #3b4657; display: inline-block; }
   .composer {
-    margin: 0 10px 10px; padding: 8px; border-radius: 22px; background: #14191f;
+    margin: 0 10px 10px; padding: 7px; border-radius: 22px; background: #14191f;
     border: 1px solid #232a34; display: flex; align-items: center; gap: 8px;
   }
-  .plus { width: 30px; height: 30px; border-radius: 50%; background: #1f2731; display: grid; place-items: center; color: #9fb0c7; font-size: 18px; }
+  .round { width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; flex: none; }
+  .plus { background: #1f2731; color: #9fb0c7; }
+  .mic { background: #2f6df6; color: #fff; }
   .hint { flex: 1; font-size: 12px; color: #66707f; }
-  .mic { width: 30px; height: 30px; border-radius: 50%; background: #2f6df6; display: grid; place-items: center; font-size: 14px; }
   .sheetwrap { position: absolute; inset: 0; background: rgba(4,6,9,.6); display: flex; align-items: flex-end; }
   .sheet { width: 100%; background: #12171d; border-radius: 22px 22px 0 0; padding: 10px 12px 16px; border-top: 1px solid #262e3a; }
   .grab { width: 36px; height: 4px; border-radius: 2px; background: #2f3946; margin: 0 auto 12px; }
   .opt { display: flex; align-items: center; gap: 12px; padding: 11px 8px; border-radius: 12px; }
   .opt + .opt { border-top: 1px solid #1c232c; }
-  .ico { width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; font-size: 15px; }
-  .o1 { background: #1d2a44; } .o2 { background: #24301f; } .o3 { background: #2a2233; } .o4 { background: #302a1e; }
+  .ico { width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; flex: none; }
+  .o1 { background: #1d2a44; color: #8fb6ff; } .o2 { background: #24301f; color: #a9d18a; }
+  .o3 { background: #2a2233; color: #c4a6e8; } .o4 { background: #302a1e; color: #e0c48a; }
   .opt b { font-size: 13px; font-weight: 500; display: block; }
   .opt span { font-size: 11px; color: #78839a; }
-  .app { position: absolute; inset: 0; background: #eef1f4; color: #111; padding: 34px 16px; }
+  .app { position: absolute; inset: 0; background: #eef1f4; color: #111; padding: 44px 16px; }
   .app h4 { margin: 0 0 2px; font-size: 15px; }
-  .app .sub { font-size: 11px; color: #7a7f87; margin-bottom: 14px; }
+  .app .sub { font-size: 11px; color: #7a7f87; margin-bottom: 16px; }
   .ticket { background: #fff; border-radius: 14px; padding: 14px; box-shadow: 0 8px 24px rgba(20,30,50,.12); }
   .route { display: flex; justify-content: space-between; align-items: center; font-size: 13px; font-weight: 600; }
   .route span { font-size: 10px; color: #8b909a; font-weight: 400; }
-  .times { display: flex; justify-content: space-between; margin-top: 12px; font-size: 11px; color: #565b63; }
-  .times b { display: block; font-size: 18px; color: #101318; }
+  .times { display: flex; justify-content: space-between; margin-top: 14px; font-size: 10px; color: #565b63; }
+  .times b { display: block; font-size: 20px; color: #101318; line-height: 1.15; }
+  .scrim { position: absolute; inset: 0; background: rgba(3,6,10,.34); }
+  .source {
+    position: absolute; top: 34px; right: 14px; z-index: 2; font-size: 10px; color: #dbe3ee;
+    background: rgba(12,16,22,.75); border: 1px solid rgba(255,255,255,.12); padding: 3px 8px; border-radius: 8px;
+  }
   .lasso {
-    position: absolute; left: 30px; right: 30px; top: 168px; height: 118px;
-    border: 2px dashed #7fb0ff; border-radius: 18px; background: rgba(90,130,220,.16);
-    box-shadow: 0 0 0 2000px rgba(4,8,14,.55);
+    position: absolute; left: 24px; right: 24px; top: 100px; height: 66px; z-index: 2;
+    border: 2px dashed #8fbaff; border-radius: 18px; background: rgba(90,130,220,.10);
+    box-shadow: 0 0 22px rgba(80,130,255,.35);
   }
   .lasso::after { content: "выделено"; position: absolute; top: -10px; left: 10px; background: #2f6df6; color: #fff; font-size: 10px; padding: 2px 8px; border-radius: 6px; }
   .overlaybar {
-    position: absolute; left: 12px; right: 12px; bottom: 16px; background: #10151b;
+    position: absolute; left: 12px; right: 12px; bottom: 16px; z-index: 3; background: #10151b;
     border: 1px solid #2a3442; border-radius: 18px; padding: 10px; box-shadow: 0 18px 40px rgba(0,0,0,.5);
   }
   .actions { display: flex; gap: 6px; margin-bottom: 8px; }
   .act { flex: 1; text-align: center; font-size: 11px; padding: 8px 0; border-radius: 10px; background: #1a212a; color: #c5d0de; }
   .ask { display: flex; align-items: center; gap: 8px; padding: 8px 10px; background: #171e26; border-radius: 12px; font-size: 12px; color: #7d8899; }
-  .ask .send { margin-left: auto; width: 24px; height: 24px; border-radius: 50%; background: #2f6df6; color: #fff; display: grid; place-items: center; font-size: 12px; }
-  .source { position: absolute; top: 26px; left: 14px; font-size: 10px; color: #a9b3c2; }
+  .send { margin-left: auto; width: 24px; height: 24px; border-radius: 50%; background: #2f6df6; color: #fff; display: grid; place-items: center; }
 </style>
 </head>
 <body>
@@ -98,7 +104,7 @@
     <div class="phone">
       <div class="notch"></div>
       <div class="hdr">
-        <div class="back">‹</div>
+        <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="#8b96a8" stroke-width="2" stroke-linecap="round"><path d="M12 4l-6 6 6 6"/></svg>
         <div><b>Договор аренды</b><span>PDF · 12 страниц · сохранён</span></div>
       </div>
       <div class="thread">
@@ -116,9 +122,9 @@
         </div>
       </div>
       <div class="composer">
-        <div class="plus">+</div>
+        <div class="round plus"><svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M10 4v12M4 10h12"/></svg></div>
         <div class="hint">Спросить про документ…</div>
-        <div class="mic">🎙</div>
+        <div class="round mic"><svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><rect x="7.5" y="3" width="5" height="9" rx="2.5"/><path d="M5 9.5a5 5 0 0 0 10 0M10 14.5V17"/></svg></div>
       </div>
     </div>
   </div>
@@ -128,22 +134,22 @@
     <div class="phone">
       <div class="notch"></div>
       <div class="hdr">
-        <div class="back">‹</div>
+        <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="#8b96a8" stroke-width="2" stroke-linecap="round"><path d="M12 4l-6 6 6 6"/></svg>
         <div><b>Новый чат</b><span>модель · Gemini 3.8 Flash</span></div>
       </div>
       <div class="thread"></div>
       <div class="composer">
-        <div class="plus">+</div>
+        <div class="round plus"><svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M10 4v12M4 10h12"/></svg></div>
         <div class="hint">Сообщение…</div>
-        <div class="mic">🎙</div>
+        <div class="round mic"><svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><rect x="7.5" y="3" width="5" height="9" rx="2.5"/><path d="M5 9.5a5 5 0 0 0 10 0M10 14.5V17"/></svg></div>
       </div>
       <div class="sheetwrap">
         <div class="sheet">
           <div class="grab"></div>
-          <div class="opt"><div class="ico o1">📷</div><div><b>Камера</b><span>фото, чек, доска</span></div></div>
-          <div class="opt"><div class="ico o2">🧾</div><div><b>Сканировать документ</b><span>ровно, без перспективы, много страниц</span></div></div>
-          <div class="opt"><div class="ico o3">🖼</div><div><b>Из галереи</b><span>скриншоты, фото</span></div></div>
-          <div class="opt"><div class="ico o4">📎</div><div><b>Файл</b><span>PDF, таблицы, Word</span></div></div>
+          <div class="opt"><div class="ico o1"><svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="2" y="5.5" width="16" height="11" rx="2.5"/><circle cx="10" cy="11" r="3"/><path d="M7 5.5l1.2-2h3.6l1.2 2"/></svg></div><div><b>Камера</b><span>фото, чек, доска</span></div></div>
+          <div class="opt"><div class="ico o2"><svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M3 7V4.5A1.5 1.5 0 0 1 4.5 3H7M13 3h2.5A1.5 1.5 0 0 1 17 4.5V7M17 13v2.5a1.5 1.5 0 0 1-1.5 1.5H13M7 17H4.5A1.5 1.5 0 0 1 3 15.5V13M4 10h12"/></svg></div><div><b>Сканировать документ</b><span>ровно, без перспективы, много страниц</span></div></div>
+          <div class="opt"><div class="ico o3"><svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="3" width="14" height="14" rx="2.5"/><circle cx="7.5" cy="7.5" r="1.4"/><path d="M3.5 14l4-4 3 3 2.5-2.5 3.5 3.5"/></svg></div><div><b>Из галереи</b><span>скриншоты, фото</span></div></div>
+          <div class="opt"><div class="ico o4"><svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path d="M13.5 7.5l-6 6a2.3 2.3 0 0 0 3.2 3.2l6.4-6.4a3.7 3.7 0 0 0-5.2-5.2L5.6 11.4"/></svg></div><div><b>Файл</b><span>PDF, таблицы, Word</span></div></div>
         </div>
       </div>
     </div>
@@ -159,11 +165,12 @@
         <div class="ticket">
           <div class="route">Москва <span>→</span> СПб</div>
           <div class="times">
-            <div><b>07:40</b>Ленинградский</div>
-            <div><b>11:10</b>Московский</div>
+            <div><b>07:40</b>Ленинградский вокзал</div>
+            <div><b>11:10</b>Московский вокзал</div>
           </div>
         </div>
       </div>
+      <div class="scrim"></div>
       <div class="source">скриншот · РЖД</div>
       <div class="lasso"></div>
       <div class="overlaybar">
@@ -172,7 +179,7 @@
           <div class="act">Объяснить</div>
           <div class="act">Скопировать</div>
         </div>
-        <div class="ask">Спросите об этом… <div class="send">↑</div></div>
+        <div class="ask">Спросите об этом… <div class="send"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M8 12V4M4 8l4-4 4 4"/></svg></div></div>
       </div>
     </div>
   </div>

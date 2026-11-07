@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"net/url"
 	"os"
 	"strings"
 	"time"
@@ -33,6 +34,8 @@ type instanceOut struct {
 	Detail           string          `json:"detail"`
 	State            string          `json:"state"`
 	Error            string          `json:"error"`
+	URL              string          `json:"url,omitempty"`
+	SSH              string          `json:"ssh,omitempty"`
 	OpenCode         opencodeOut     `json:"opencode"`
 	DefaultDirectory string          `json:"defaultDirectory,omitempty"`
 	Capabilities     []capabilityOut `json:"capabilities"`
@@ -81,6 +84,8 @@ func (s *Server) instanceInfo(ctx context.Context, spec opencode.InstanceSpec, p
 		Transport:        s.multi.Transport(spec.Name),
 		Detail:           s.multi.Detail(spec.Name),
 		State:            "unknown",
+		URL:              instanceURL(spec.URL),
+		SSH:              spec.SSH,
 		DefaultDirectory: spec.Dir,
 	}
 	if spec.SSH != "" && !probeAll && !s.multi.Connected(spec.Name) {
@@ -168,4 +173,16 @@ func (s *Server) grammarCapability(ctx context.Context) capabilityOut {
 		state = "on"
 	}
 	return capabilityOut{ID: "grammar", Label: "Grammar", Owner: "nit-gui", State: state, Detail: detail}
+}
+
+func instanceURL(raw string) string {
+	if raw == "" || raw == "auto" {
+		return ""
+	}
+	parsed, err := url.Parse(raw)
+	if err != nil {
+		return ""
+	}
+	parsed.User = nil
+	return parsed.String()
 }

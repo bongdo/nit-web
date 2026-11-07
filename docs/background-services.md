@@ -39,7 +39,7 @@ on every device.
 | LanguageTool | `127.0.0.1:8180` | Grammar and real-word checks | optional |
 | `whisper-server` | `127.0.0.1:8178` | Fast dictation while recording | optional |
 | `whisper-cli` | none | Accurate dictation, one process per request | optional |
-| OpenCode TTS plugin | `127.0.0.1:7787` target; currently `0.0.0.0:7787` | Speech output; the browser uses a labeled device voice as fallback | optional |
+| OpenCode TTS plugin | `127.0.0.1:7787` target; currently `0.0.0.0:7787` | Speech text hub; nit-gui publishes to it and broadcasts to an audio client; browser voice is the fallback | optional |
 | Spelling | browser worker today, `/api/spell` on nit-gui target | RU/EN Hunspell checks | migration gap |
 
 MCP servers, shells and PTYs belong to OpenCode. They are not managed by
@@ -200,7 +200,10 @@ has no audio client.
   stored as a PBKDF2-SHA256 hash (600k rounds), the session cookie is HttpOnly,
   Secure and SameSite=Strict, and the login page sends no-store plus a strict
   CSP. Five wrong passwords block the source IP for 15 minutes; 50 failures
-  across all clients block new logins for 5 minutes. The login form and
+  across all clients block new logins for 5 minutes.
+- Instance editing is authenticated and writes only on the host. A typed
+  password goes to a separate `0600` file; the API never returns it. The TTS hub
+  token is read by the Go process and never sent to the browser. The login form and
   authenticated requests accept `Origin: null` from privacy browsers;
   unauthenticated API requests do not.
 - The OpenCode password stays in the Go process and is redacted from JSON and

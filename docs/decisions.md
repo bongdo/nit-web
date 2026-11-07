@@ -447,3 +447,56 @@ Why: the top is the only place where scroll events cannot express intent, so it 
 Rejected: requiring a scroll-down before retrying, and clearing the cursor on every earlier-page error.
 
 Cost: staying at the top loads the remaining history in a chain; the loading pill stays visible while it runs.
+
+## 2026-11-07 — Instances are edited from the UI, config stays server-side
+
+Context: the first Instances menu was read-only. It showed the stack and
+capabilities but could not switch (one instance), add, edit or delete anything,
+so it was a dead end. The user asked for a window with a purpose.
+
+Decision: the authenticated Instances menu creates, edits and deletes entries.
+`POST /api/instances` validates and writes `instances.json` on the nit-gui host,
+then reloads the registry in place. A password typed into the form is written to
+a separate `0600` file next to the config and is never returned to the browser.
+Renaming moves the instance's `ui-state` entry. Deleting keeps that state, so
+recreating the name re-attaches it.
+
+Why: the config belongs to the host, not the browser, and the app already owns
+the auth boundary. Editing through the UI removes the "edit a file and restart"
+step without weakening the rule that secrets stay server-side.
+
+Rejected: editing `instances.json` only from a shell (the menu stays a dead
+end); storing secrets in `localStorage`; hot-reloading the whole process (the
+registry reload is enough).
+
+Cost: the menu now has a form and error states; an external edit is only picked
+up on reload/restart; the password file is an extra file to back up; deleting an
+instance leaves its drafts and hidden chats in `ui-state.json`.
+
+## 2026-11-07 — Host TTS is proxied to the OpenCode TTS hub
+
+Context: the TTS hub on `127.0.0.1:7787` was running, but nit-gui never talked
+to it. The menu reported `off`, and the reply `Read` button only used the
+browser voice. The user expected host TTS to be connected.
+
+Decision: nit-gui publishes reply text to the hub through
+`POST /api/tts` (Bearer token read from the host, never sent to the browser).
+The menu probes `/health`: `on` with an audio client, `fallback` when the hub is
+up but no audio client is connected, `off` when the hub is down. The reply
+`Read` button tries the host first and falls back to the browser
+`speechSynthesis` only when the host path fails. The token file is
+`${XDG_STATE_HOME:-~/.local/state}/opencode-tts/token`; `NIT_GUI_TTS_URL`,
+`NIT_GUI_TTS_TOKEN_FILE`, `NIT_GUI_TTS_TOKEN` and `NIT_GUI_TTS=off` configure it.
+
+Why: the hub is the existing host-side path; proxying it keeps the token out of
+the browser and preserves the "thin client" boundary. Publishing text is the
+hub's actual contract; it broadcasts to an audio client rather than returning
+audio.
+
+Rejected: synthesizing audio in the browser as the primary path (device voices,
+not host); adding a second host synthesizer (duplicates the TUI's speech
+engine); returning the hub token to the client.
+
+Cost: the hub needs a connected audio client; with none, the UI falls back to
+the device voice or `off`. The hub still binds `0.0.0.0:7787` and is protected
+only by its token.

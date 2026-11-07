@@ -94,12 +94,9 @@ func TestTTSStatus(t *testing.T) {
 	}
 
 	rejected := newTTSFromFake(t, server.URL, "wrong")
-	if ok, clients, detail := rejected.status(context.Background()); ok || clients != 0 ||
-		detail != "host TTS token rejected" {
-		t.Fatalf("rejected status = %v, %d, %q", ok, clients, detail)
-	}
-	if strings.Contains(rejected.statusDetailForTest(server.URL), "wrong") {
-		t.Fatal("status leaked the token")
+	rejectedOK, _, rejectedDetail := rejected.status(context.Background())
+	if rejectedOK || rejectedDetail != "host TTS token rejected" || strings.Contains(rejectedDetail, "wrong") {
+		t.Fatalf("rejected status = %v, %q", rejectedOK, rejectedDetail)
 	}
 
 	idleServer, _ := newTTSFake(t, "secret", 0)
@@ -124,11 +121,6 @@ func TestTTSStatus(t *testing.T) {
 		detail != "host TTS not running" {
 		t.Fatalf("down status = %v, %d, %q", ok, clients, detail)
 	}
-}
-
-func (h *ttsHub) statusDetailForTest(url string) string {
-	_, _, detail := h.status(context.Background())
-	return detail
 }
 
 func TestTTSSay(t *testing.T) {

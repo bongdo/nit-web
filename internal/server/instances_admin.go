@@ -217,7 +217,7 @@ func isLoopbackURL(raw string) bool {
 		return false
 	}
 	host := u.Hostname()
-	if host == "localhost" {
+	if host == "localhost" || host == "0.0.0.0" || host == "::" {
 		return true
 	}
 	ip := net.ParseIP(host)

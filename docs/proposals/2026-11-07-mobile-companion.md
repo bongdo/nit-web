@@ -1,8 +1,8 @@
-# Nita: a personal Android chat app for documents and the home screen
+# Nita: a personal Android assistant with hands
 
-Working name: **Nita** (short, one word, no persona behind it; the label and icon
-can change at any time without touching code).
-Status: concept v4, decisions from the 2026-11-07 review applied. Nothing built.
+Working name: **Nita**. Short, one word, no persona behind it; the label and icon
+can change without touching code.
+Status: concept v5, decisions from the 2026-11-07 review applied. Nothing built.
 Target user: one person (the author's wife), Android only, not a developer.
 
 ## Locked decisions
@@ -11,202 +11,230 @@ Target user: one person (the author's wife), Android only, not a developer.
 | --- | --- |
 | Platform | Android only. No iOS, no web build. |
 | Distribution | Sideloaded APK, personal use, no Play Store. |
-| Accounts | None. No login, no sync. |
-| Key | The existing `opencode-go` key, embedded in the APK. |
-| Transport | Phone talks to the inference gateway directly. Proven with curl. |
-| Voice | No TTS, no in-app dictation. The system keyboard already types by voice. |
-| Storage | On the phone: IndexedDB. Export by a button in settings, nothing automatic. |
+| Accounts | One static token in the APK. No users, no login screen. |
+| Server | Yes: an agent needs a home, a workspace and a sandbox. |
+| Runtime | OpenCode in a container, with a custom `nita` agent. |
+| Key | Stays on the server. Never reaches the phone. |
+| Voice | No TTS, no in-app dictation. The keyboard types by voice. |
 | Themes | All 13 themes from nit-gui plus "system". |
-| Design | The nit-gui default dark theme, mobile-first, not a generic messenger. |
-| Chat list | A sheet that comes up from the bottom. No side drawer. |
-| Persona | None. No name, no introductions, no character. |
-| Overlay | No canned actions. The screenshot or region is attached; the user asks freely. |
-| Modes | "Сценарии": a system prompt plus editable starter phrases. |
+| Chat list | Left drawer. The attachment sheet stays at the bottom. |
+| Modes | None. One base prompt; the model infers intent. |
+| Overlay | No canned actions. Attach the screen or the region, ask freely. |
+| History | Server is the source of truth; export is a button, nothing scheduled. |
 
-## Backend: gateway yes, OpenCode runtime no
+## Why the server came back
 
-Two different things are called "opencode", and only one of them is a backend.
+The previous version was a chat client talking to the gateway directly: no server,
+no auth, no hosting. That was the right shape while Nita only answered questions.
 
-1. **The inference gateway** — `https://opencode.ai/inference/go/openai/v1`.
-   OpenAI-compatible, streams SSE, accepts images and PDFs, bills to the same
-   `opencode-go` key the dev app already uses. This *is* the ready-made backend.
-   Nita calls it directly; no server of ours in between.
-2. **The OpenCode service** — the agent runtime on port 49374: sessions, agents,
-   tools, shell execution, file writes, permissions, a workspace directory.
-   Built for coding.
+Memory across chats, a catalog of documents, saved words, Anki decks and shell for
+non-trivial tasks all need three things a phone cannot give: a persistent
+workspace, a real tool loop, and a place where a script can run without touching
+the phone. That is a server. Once it exists, the key belongs there too, and the
+phone becomes a thin client.
 
-Using the runtime as Nita's backend would mean exposing an agent with shell access
-to the internet for an app that ingests arbitrary PDFs and photos. One prompt
-injection inside a scanned document becomes command execution on the box. It also
-brings back auth, hosting, backups, a workspace per chat and a second failure
-point, and model routing would be stuck behind a server. The only gains are
-server-side history (a manual export covers it) and keeping the key out of the
-APK (already accepted).
+What it costs, honestly:
 
-Decision: **app → gateway directly**. If server-side history or a second device
-ever becomes a real need, add a thin Go proxy over the same gateway — never the
-agent runtime.
+- one static token comes back (not a login; a string in the APK);
+- history now depends on the box being alive, so export matters more;
+- a container and its updates are now part of the product;
+- the attack surface is an agent with a shell, reachable over the internet.
 
-"Works offline" is not a reason either way: both variants need the network to
-answer. The difference is only where the key and the history live.
+What it buys: the agent can keep files between chats, read the archive, build
+decks, and run the 30-line script that saves an hour.
 
-## Architecture on the phone
+## Architecture
 
 ```
-Capacitor Android shell (one APK)
-  WebView: React 19 + Vite + Tailwind + shadcn primitives
-    screens: chats sheet · chat · document · settings
-    storage: IndexedDB (chats, messages, blobs, extracted text)
-    gateway: fetch + SSE; fallback to a Kotlin OkHttp plugin if CORS bites
-  Kotlin plugins:
-    camera + ML Kit Document Scanner
-    share intent receiver (ACTION_SEND, ACTION_PROCESS_TEXT)
-    VoiceInteractionService + assist overlay
-    notifications
-    export/import through MediaStore (a file the user picks, nothing scheduled)
+phone (Capacitor)
+  chat UI · drawer · camera/scanner · share · assist overlay · themes
+        │  HTTPS + static token
+        ▼
+Caddy on frankfurt
+        │
+        ▼
+nita-proxy (Go, thin)
+  /api/chats, /api/chats/{id}/messages, /api/events   → OpenCode
+  /api/upload            → /srv/nita/work/inbox
+  /api/memory/*          → docs, words, notes, anki
+  /api/export            → zip of sessions + workspace
+  /api/token             → nothing; the token is a header
+        │  localhost only
+        ▼
+OpenCode container  ← the sandbox
+  agent "nita", base prompt, tools: bash, read, write, edit, grep, glob
+  sees only /work; no host mounts; no internet except the gateway
+        │  allowlisted egress
+        ▼
+opencode.ai inference gateway
 ```
 
-If the WebView cannot call the gateway directly because of CORS, the same calls
-move into a 150-line Kotlin plugin. Spike this first, before the UI work.
+Why a proxy instead of the app talking to OpenCode: it hides the OpenCode
+password, owns the single token, uploads attachments into the workspace, exposes
+memory and export, and filters verbose tool events into one-line "делает…"
+entries. It is nit-gui's server with most of it deleted.
 
-Data model in IndexedDB:
+Why OpenCode instead of a hand-written agent loop: it already has sessions,
+attachments, tool calls, permissions, compaction, cost accounting and model
+routing, and it runs on this machine today. A custom loop would duplicate all of
+that before the first useful feature.
 
-- `chats(id, title, scenarioId, created, updated, pinned)`
-- `messages(id, chatId, role, text, attachments[], model, cost, created)`
-- `docs(id, name, mime, size, pages, blobKey, textByPage[], created)`
-- `scenarios(id, name, prompt, starters[], builtin)`
-- search is computed over message text and extracted pages; a few thousand
-  messages do not need an index.
+## Sandbox
+
+The agent has a shell, and it reads documents and screenshots written by other
+people. Prompt injection is not a hypothetical here, so the container is the
+boundary, not a review step.
+
+- Rootless container (podman preferred on NixOS), read-only root filesystem,
+  `--cap-drop=ALL`, no host mounts except the named volume `/work`.
+- `--memory=1g`, `--pids-limit=256`, CPU limit; one command capped at 60 s by the
+  prompt, and a hard timeout in the runner.
+- Network namespace with an egress allowlist: only the model gateway. No LAN, no
+  internet, no DNS beyond what the proxy needs.
+- The model key lives in the container env. A malicious script can read it and
+  spend money; it cannot ship data anywhere else. Rotate the key if that ever
+  happens.
+- Attachments are copied into `/work/inbox` by the proxy, never into the host.
+- The workspace is backed up nightly on the host with a simple tar; the app's
+  export button is the user-facing copy.
+
+## Memory
+
+The workspace is the agent's brain. Files, not a new database, because the agent
+already knows how to read and grep files.
+
+```
+/work/
+  AGENTS.md            rules of the workspace, loaded by OpenCode
+  chats/               one markdown transcript per chat, written by the proxy
+  inbox/               uploaded originals, dated
+  docs/
+    index.md           catalog: date · name · one line · path
+    2026-11-07-анализы.pdf
+    2026-11-07-анализы.md
+  memory/
+    words.md           word | translation | example | date
+    notes.md           durable facts and decisions
+  out/                 anki-YYYY-MM-DD.apkg, scripts output
+  scripts/             the agent's own scripts
+```
+
+- The proxy writes `chats/<id>.md` after every completed turn, so "что я присылала
+  про анализы в марте" is a grep, not a guess.
+- The agent maintains `docs/index.md` and the `.md` extraction next to each
+  original.
+- `words.md` and `notes.md` are append-only; deletion needs confirmation.
+- Anki is a script: `genanki` in the image, output in `out/`, download link in the
+  chat.
+
+## Base prompt
+
+Draft: `2026-11-07-nita-prompt.md`. It covers answer style, formatting, the memory
+protocol, document citations, sandbox rules and the Anki workflow. The short
+version:
+
+- answer first, details after; no introductions, no name, no persona;
+- one clarifying question maximum, and only when the answer would otherwise be wrong;
+- never invent numbers, dates, doses; medical, money and legal answers carry a
+  one-line disclaimer;
+- language corrections use a fixed shape: `fix` block, 2–4 bullets, `try` block;
+- a document question quotes verbatim with a page number;
+- memory is append-only; new document → save, catalog, extract, then answer;
+- shell only inside `/work`, no network, no package installs, no deletions without
+  a confirmation;
+- "make cards" → build an `.apkg` and say where it is.
+
+The prompt is tuned against five real dialogues in wave 0: a Turkish correction, a
+10-page contract question, "что я присылала в марте", a spreadsheet question, and
+"сделай карточки из этого чата".
+
+### Formatting contract
+
+The app renders four fenced languages specially; everything else is normal
+markdown. This is how the answer looks "rich" without any modes or chips:
+
+| Fence | Rendering |
+| --- | --- |
+| `fix` | green left border, the corrected phrase |
+| `try` | amber left border, one exercise |
+| `note` | muted box, one short warning |
+| `words` | two-column table from `word | translation` lines |
+
+Any other fence stays a plain code block, which is a safe failure.
+
+## No modes, no chips
+
+No "Турецкий", no "Документы", no "Исправь / Переведи / Объясни правило". One
+assistant, one prompt, free-form input. The model infers the intent; the app only
+renders text. If a repeated behavior is needed later, it goes into the prompt, not
+into a new screen.
+
+## Chat list from the side
+
+The attachment sheet already owns the bottom of the screen, so the chat list is a
+left drawer: 78% width, full height, dimmed chat behind, rounded right edge,
+search over chats and documents, rows with a snippet, a document badge and a
+mono timestamp, the current chat marked with an amber bar, "+" for a new chat.
+The footer shows the size of the memory: `14 документов · 86 слов`.
+
+Opening: the menu button in the header, or an edge swipe from the left.
 
 ## Themes
 
 All of them, ported as-is: Stock light, Stock dark, Nord, Solarized, Gruvbox,
 Dracula, Paper, Paper Dark, Ember, Kiln, Mist, Ash, Ash Dark, plus "system".
-The picker is a two-column grid; every tile previews itself in its own colours
-with the `Aa` sample, the label and the accent dots, exactly like
-`ThemePicker.tsx`. Changing a theme is instant and repaints the status bar and
-navigation bar too.
-
-Light themes need one extra pass: the composer, the masks and the markdown were
-designed on dark. Check Paper, Mist and Solarized when the mobile layout exists.
-
-## Scenarios
-
-A scenario is data, not a code path: `{name, prompt, starters[]}`. The chosen
-scenario is stored on the chat, prepended to every request, and shown in the
-header (`Турецкий · репетитор · уровень A2`). Changing it is a menu action.
-
-Every scenario is layered on one base rule: answer short, no name, no
-introductions, no persona.
-
-| Scenario | Prompt does | Starter chips |
-| --- | --- | --- |
-| Просто | Plain assistant, answers the question, no lecturing. | none |
-| Турецкий | Patient tutor: shows the corrected sentence, explains each change in one line, offers the next exercise. | Исправь · Переведи · Объясни правило |
-| Документы | Answers only from the attachment, quotes verbatim, names the page. | О чём это? · Что важно? · Переведи |
-| Свой | The user writes a prompt once and names it. Covers other languages. | three phrases the user chooses |
-
-Starter chips insert text into the composer; they never fire a request. The user
-can edit the phrase before sending, or ignore the chips entirely.
-
-Citations are not a scenario feature. Any request that carries a PDF or a scan
-gets the document instructions appended automatically, so a contract question in
-"Просто" still ends with a page chip.
-
-## History and backup
-
-The live store is IndexedDB on the phone. Nothing runs on a schedule.
-
-- **Экспорт** in settings writes one zip to a folder the user picks: `chats.json`,
-  `scenarios.json` and the original files.
-- **Импорт** reads the same zip back. This is the move-to-a-new-phone path.
-- Android auto-backup of the app data stays on (it is the OS, not the app).
-- "Поделиться чатом" saves a single conversation as markdown.
-
-Uninstalling without an export loses the documents. The app says so once, on the
-export screen, not in a popup.
-
-## Design language (from nit-gui, not a generic chat UI)
-
-- Tokens copied from `web/src/index.css`, including every `[data-theme]` block.
-- Assistant messages are **not** bubbles: avatar dot, name, model and latency in
-  mono, then plain markdown. User messages are a `secondary` bubble with a 4 px
-  bottom-right corner, exactly like `MessageRow.tsx`.
-- Metadata is uppercase mono 9–10 px with letter-spacing: `РЕПЕТИТОР · УРОВЕНЬ A2`,
-  `deepseek · 1,4 с`, `СТР. 7`.
-- One accent only: spark amber for the active action, the citation chip, the lasso
-  and the page highlight. Everything else is greyscale.
-- Hairline gradient sheen on the surfaces that just changed, 160 ms enter motion.
-- Attachment rows are monochrome, one amber row for the recommended action.
-- No microphone button anywhere: dictation belongs to the keyboard.
+Two-column grid, each tile previews itself, instant switch, status and navigation
+bar repaint. Light themes need a contrast pass on the composer and the overlay.
 
 ## Screens
 
-1. **Chat** — header with the scenario and a chevron, transcript, starter chips,
-   composer. Tapping the title pulls the chats sheet up from the bottom.
-2. **Chats sheet** — 78% height, grabber, search over chats and documents, rows
-   with a snippet and a document badge, the current chat marked with an amber bar,
-   "+" for a new chat. Drag up for full height, drag down or tap outside to close.
-3. **Document** — the real page, pinch-zoom, the cited clause highlighted in
-   amber, a composer that asks about this page only.
-4. **Capture** — bottom sheet: Документ (scan), Фото (camera), Из галереи, Файл.
-   Recent documents below.
-5. **Settings** — theme grid, scenarios, export/import, about. One screen.
-6. **Assist overlay** — screenshot of another app, optional freehand lasso, the
-   crop and the screen text attached, one free-form input.
+1. **Chat** — header, transcript, tool activity lines, composer. Tapping the menu
+   opens the drawer.
+2. **Drawer** — chats, search, memory size, new chat, settings.
+3. **Document** — the page, pinch-zoom, cited clause highlighted, ask about page.
+4. **Capture** — Документ (scan), Фото, Из галереи, Файл, recent documents.
+5. **Settings** — themes, export/import, memory, about.
+6. **Assist overlay** — screenshot or region attached, one free-form input.
 
 The mock is in `2026-11-07-mobile-companion.html`.
 
 ## Документ vs Фото
 
-They open different cameras and produce different files:
+- **Документ** — ML Kit Document Scanner: edges, perspective, multi-page, one PDF.
+  For contracts, test results, receipts, textbook pages.
+- **Фото** — the ordinary camera, one JPEG, no processing. For a whiteboard, a
+  label, a plant, a child's drawing.
 
-- **Документ** uses ML Kit Document Scanner: finds the page edges, fixes
-  perspective, lets you add pages, outputs one multi-page PDF. For contracts,
-  test results, receipts, textbook pages. The single biggest accuracy win,
-  because the model never sees a crooked photo.
-- **Фото** is the ordinary camera: one JPEG, no processing. For a whiteboard, a
-  label, a plant, a child's drawing, a menu.
+Naming by outcome, one hint line each. No mode switch inside one camera.
 
-The old wording made them sound like the same thing. The fix is naming by outcome,
-not by device, plus one line of hint under each.
+## Assist overlay
 
-## Assist overlay without canned actions
+The gesture gives a screenshot, the text structure of the screen and the source
+app. All three are attached. The overlay shows the dimmed screenshot, an optional
+freehand lasso, a chip `Фрагмент экрана · 240 × 120 · текст приложен`, and one
+input. Empty send means "Что это?". The answer opens as a normal chat named after
+the source app.
 
-The gesture gives us three things: a screenshot, the text structure of the screen,
-and the source app. All three are attached to the context. The overlay shows the
-screenshot dimmed with a lasso, a chip "Фрагмент экрана · 240 × 120 · текст
-приложен", and one input: "Спросите что угодно…".
-
-- Drag to narrow the region, or ask about the whole screen.
-- An empty send attaches the screen and asks "Что это?" implicitly.
-- The answer opens as a normal chat, named after the source app, so it can be
-  continued, saved or exported like any other conversation.
-- No "Перевести / Объяснить / Копировать" buttons. The user says what they want.
-
-Tap-on-text is the quiet advantage over Circle to Search: `AssistStructure` gives
-the actual text nodes, so tapping a number selects exactly that field instead of
-pixels around it.
+Tap-on-text is the advantage over Circle to Search: `AssistStructure` gives the
+real text nodes, so tapping a number selects exactly that field.
 
 ## Reading documents well
 
-1. ML Kit Document Scanner: edge detection, perspective fix, multi-page PDF.
-2. Send the original file, no downscale, no re-encode. Strip EXIF location.
-3. PDF goes to the model natively; no OCR step.
-4. `xlsx`/`csv` → one markdown table per sheet, formulas evaluated. `docx` → text
-   plus embedded images.
-5. Two-pass on dense pages: whole page first, then a 2× crop of the region the
-   question is about.
-6. Cache extracted text per document hash, cite page numbers, quote verbatim.
+1. ML Kit Document Scanner before the model sees anything.
+2. Original file, no downscale, no re-encode, EXIF location stripped.
+3. PDF native to the model; no OCR step for the model (the `.md` extraction is for
+   search and memory, not for the answer).
+4. `xlsx`/`csv` → markdown tables per sheet; `docx` → text plus images.
+5. Two-pass on dense pages: whole page, then a 2× crop of the area in question.
+6. Cache extracted text per document hash; cite pages; quote verbatim.
 
-## Models, chosen automatically
+## Models
 
 | Input | Model | Why |
 | --- | --- | --- |
-| Text only | `deepseek-v4.1-flash` | Same model as the dev app. $0.15/$0.60 per Mtok. |
-| Photo / screenshot | `deepseek-v4.1-flash` | It accepts images. Escalate only if quality disappoints. |
-| PDF / scan | `gemini-4-argon` | Only model in the gateway with native PDF and strong layout reading. $2/$10. |
-| Spreadsheet | `gemini-4-argon` after local conversion | The model sees data, not a screenshot. |
+| Text with tools | `deepseek-v4.1-flash` | Same as the dev app, $0.15/$0.60, supports tools and images. |
+| PDF / scan in the same turn | `gemini-4-argon` | Native PDF and strong layout reading, $2/$10. |
+| Hard page | `gemini-4-argon` | Same, chosen by the app when a document is attached. |
 
 No model picker. A 10-page PDF costs about one cent.
 
@@ -216,35 +244,39 @@ Part 1 (now): concept. Part 2: build with parallel subagents, one task per agent
 
 | Wave | Tasks | Why this order |
 | --- | --- | --- |
-| 0 | Repo scaffold, Capacitor, design tokens and all 13 themes, IndexedDB, gateway client + streaming, CORS spike | Everything else imports these; must be one hand, not six. |
-| 1 | Chat screen and scenarios · chats bottom sheet and search · composer and capture sheet · PDF import and page viewer · settings, export/import · Android shell, share intent, camera and scanner | Independent once wave 0 exists; 6 agents in parallel. |
-| 2 | Assistant role: `VoiceInteractionService`, screenshot, overlay, lasso, tap-on-text, hand-off to chat | Needs the Android shell from wave 1; one agent, device testing. |
-| 3 | Polish: motion, empty and error states, notifications, light-theme contrast | After the flows exist. |
+| 0 | Container + proxy + token + workspace + `nita` agent + prompt v1; app scaffold, tokens and themes, transport, streaming | The sandbox and the prompt define everything else; one hand. |
+| 1 | Chat and tool activity · drawer and search · composer and capture · PDF page viewer · settings and export · Android shell, share intent, camera and scanner | Independent once wave 0 exists; 6 agents in parallel. |
+| 2 | Assistant role: `VoiceInteractionService`, screenshot, overlay, lasso, tap-on-text | Needs the shell from wave 1; one agent, device testing. |
+| 3 | Memory screens (documents, words, decks) · Anki job · polish · light themes | After the flows exist. |
 
-Acceptance for the whole thing: `bin/check` green, APK installed on the target
-phone, and these six scenarios work — photo of a page with a citation; 10-page
-PDF question; spreadsheet question; share from another app; long-press home over
-another app, lasso, free-form question; export and restore on a clean install.
+Acceptance: `bin/check` green, APK on the phone, and these eight work — page photo
+with a citation; 10-page PDF; spreadsheet; "что я присылала в марте"; save a word
+and see it in `words.md`; build an Anki deck and open it; share from another app;
+long-press home over another app, lasso, free-form question.
 
 ## Risks
 
-- **The gateway may refuse WebView requests** (CORS or bot filtering). Mitigation:
-  Kotlin HTTP plugin, same API. Spike in wave 0.
-- **The key is extractable from the APK.** Accepted for personal use; rotate it if
-  the APK ever leaves the family.
-- **Assistant gesture on Samsung/Xiaomi** may be bound to the vendor assistant.
-  Test on the actual phone before wave 2. Fallback: floating bubble plus
-  MediaProjection consent, which is worse UX.
-- **`FLAG_SECURE` apps** give a black screenshot. Unfixable.
-- **Reasoning tokens** cost output money and add latency. Use the low variant if
-  the gateway exposes it, and hide reasoning in the UI.
-- **HEIC** from a gallery import needs conversion in the shell.
-- **Light themes** need contrast fixes on the composer and the overlay.
+- **Prompt injection from documents and screenshots.** The container is the
+  boundary: no host mounts, no network except the gateway, resource limits. Review
+  the container flags before the first deploy.
+- **Container escape** is a kernel bug away. Rootless podman, updated image, no
+  extra capabilities, nothing valuable mounted.
+- **The key sits in the container.** A script can read it and spend money; it
+  cannot exfiltrate elsewhere. Rotate on suspicion.
+- **OpenCode is a coding agent.** Its instincts are plans and diffs. The base
+  prompt and the agent config must tame it; test on real dialogues, not on
+  one-liners.
+- **The static token is in the APK.** Fine for one phone; rotate if the APK leaks.
+- **SSE through the proxy** must be unbuffered end to end, or answers arrive in
+  chunks at the end.
+- **Anki generation can take a minute.** Run it as a job and notify, not inside the
+  chat turn.
+- **The workspace grows.** Cap uploads per file and total, prune `inbox/` after the
+  document is filed.
 
 ## Open questions
 
-1. Other languages besides Turkish — one custom scenario per language, or a
-   language field inside a single "Языки" scenario?
-2. A saved vocabulary (bookmark a word, list of words) — v1 or later?
-3. Confirm the direct-to-gateway choice above; if server-side history is wanted
-   anyway, it will be a thin proxy, not OpenCode.
+1. Anki: `.apkg` (needs `genanki` in the image) or CSV/TSV that she imports herself?
+2. Memory screen in v1, or only chat until later?
+3. Container runtime on frankfurt: is rootless podman already set up?
+4. Keep every chat forever, or add retention after a year?

@@ -1,5 +1,3 @@
-export type DictationMode = "instant" | "fast" | "accurate";
-
 type SpeechResult = {
   isFinal: boolean;
   length: number;

@@ -6,6 +6,13 @@ function writeString(view: DataView, offset: number, value: string) {
   }
 }
 
+export function micLevel(samples: Float32Array): number {
+  let sum = 0;
+  for (let index = 0; index < samples.length; index += 1) sum += samples[index] * samples[index];
+  const rms = Math.sqrt(sum / Math.max(1, samples.length));
+  return Math.min(1, rms * 6);
+}
+
 export function encodeWav(chunks: Float32Array[], sampleRate: number): Blob {
   const length = chunks.reduce((total, chunk) => total + chunk.length, 0);
   const merged = new Float32Array(length);

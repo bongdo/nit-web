@@ -64,7 +64,6 @@ import {
 import { cn } from "./lib/utils";
 import { instanceScopedKey } from "./lib/instances";
 import type { TimeFormat } from "./lib/time";
-import type { DictationMode } from "./lib/web-speech";
 import { useAttention } from "./hooks/useAttention";
 import { useTheme, type Theme } from "./hooks/useTheme";
 import { useEventStream } from "./hooks/useEventStream";
@@ -216,10 +215,6 @@ export default function App({
     swipeMode ? "follow" : sidebarMode === "button" ? "trigger" : "off",
     setExpanded,
   );
-  const [dictationMode, setDictationMode] = useState<DictationMode>(() => {
-    const stored = localStorage.getItem("nit-gui.dictation");
-    return stored === "accurate" || stored === "instant" ? stored : "fast";
-  });
   const [spellcheck, setSpellcheck] = useState(() => localStorage.getItem("nit-gui.spellcheck") !== "0");
   const [autofix, setAutofix] = useState(() => localStorage.getItem("nit-gui.autofix") !== "0");
   const [timeFormat, setTimeFormat] = useState<TimeFormat>(() =>
@@ -2235,7 +2230,6 @@ export default function App({
               draft={composerDraft}
               insert={composerInsert}
               commands={COMMANDS}
-              dictationMode={dictationMode}
               spellcheck={spellcheck}
               autofix={autofix}
               form={questionForm}
@@ -2326,7 +2320,6 @@ export default function App({
           agent={currentAgent}
           theme={theme}
           directory={workspace}
-          dictationMode={dictationMode}
           spellcheck={spellcheck}
           autofix={autofix}
           timeFormat={timeFormat}
@@ -2342,10 +2335,6 @@ export default function App({
             setSidebarMode(mode);
             localStorage.setItem("nit-gui.sidebar-mode", mode);
             setSidebarHovered(false);
-          }}
-          onDictation={(mode) => {
-            setDictationMode(mode);
-            localStorage.setItem("nit-gui.dictation", mode);
           }}
           onSpellcheck={(value) => {
             setSpellcheck(value);

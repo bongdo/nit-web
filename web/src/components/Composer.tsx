@@ -11,7 +11,7 @@ import {
   X,
 } from "lucide-react";
 import type { FormInfo, Model, Session } from "../lib/types";
-import { encodeWav } from "../lib/audio";
+import { encodeWav, micLevel } from "../lib/audio";
 import { api } from "../lib/api";
 import { attachmentWarning } from "../lib/attachments";
 import { loadDraftState, saveDraftState, type DraftState } from "../lib/drafts";
@@ -24,7 +24,6 @@ import { checkSpelling } from "../lib/spell-client";
 import {
   dictationText,
   speechRecognition,
-  type DictationMode,
   type SpeechRecognitionLike,
 } from "../lib/web-speech";
 import { cn } from "../lib/utils";
@@ -90,7 +89,6 @@ export const Composer = memo(function Composer({
   draft,
   insert,
   commands,
-  dictationMode,
   spellcheck,
   autofix,
   form,
@@ -115,7 +113,6 @@ export const Composer = memo(function Composer({
   draft?: { text: string; id: number } | null;
   insert?: { text: string; id: number } | null;
   commands: ComposerCommand[];
-  dictationMode: DictationMode;
   spellcheck: boolean;
   autofix: boolean;
   form?: FormInfo | null;
@@ -245,15 +242,23 @@ export const Composer = memo(function Composer({
     source: MediaStreamAudioSourceNode;
     processor: ScriptProcessorNode;
     gain: GainNode;
-    chunks: Float32Array[];
     segment: Float32Array[];
     preroll: Float32Array[];
     hasSpeech: boolean;
     silence: number;
     timer: number;
     started: number;
-    fast: boolean;
   } | null>(null);
+  const meter = useRef<{
+    context: AudioContext;
+    stream: MediaStream;
+    source: MediaStreamAudioSourceNode;
+    analyser: AnalyserNode;
+    owned: boolean;
+    raf: number;
+    level: number;
+  } | null>(null);
+  const barsRef = useRef<HTMLSpanElement>(null);
   const web = useRef<{
     recognition: SpeechRecognitionLike | null;
     base: string;
@@ -627,6 +632,46 @@ export const Composer = memo(function Composer({
     enqueueSegment(chunks, state.context.sampleRate);
   };
 
+  const stopMeter = () => {
+    const state = meter.current;
+    if (!state) return;
+    meter.current = null;
+    cancelAnimationFrame(state.raf);
+    state.source.disconnect();
+    state.analyser.disconnect();
+    barsRef.current?.style.setProperty("--level", "0");
+    if (!state.owned) return;
+    for (const track of state.stream.getTracks()) track.stop();
+    void state.context.close().catch(() => undefined);
+  };
+
+  const startMeter = (stream: MediaStream, context?: AudioContext) => {
+    stopMeter();
+    const ctx = context ?? new AudioContext();
+    const source = ctx.createMediaStreamSource(stream);
+    const analyser = ctx.createAnalyser();
+    analyser.fftSize = 512;
+    source.connect(analyser);
+    const samples = new Float32Array(analyser.fftSize);
+    const state = {
+      context: ctx,
+      stream,
+      source,
+      analyser,
+      owned: !context,
+      raf: 0,
+      level: 0,
+    };
+    const tick = () => {
+      analyser.getFloatTimeDomainData(samples);
+      state.level = state.level * 0.55 + micLevel(samples) * 0.45;
+      barsRef.current?.style.setProperty("--level", state.level.toFixed(3));
+      state.raf = requestAnimationFrame(tick);
+    };
+    state.raf = requestAnimationFrame(tick);
+    meter.current = state;
+  };
+
   const renderWeb = (state: NonNullable<typeof web.current>) => {
     if (valueRef.current !== state.shown) {
       state.base = valueRef.current;
@@ -649,6 +694,7 @@ export const Composer = memo(function Composer({
     window.clearInterval(state.timer);
     state.recognition?.stop();
     if (web.current === state) web.current = null;
+    stopMeter();
     setWebLive(false);
     setRecording(false);
     setPending(0);
@@ -723,7 +769,15 @@ export const Composer = memo(function Composer({
       state.recognition?.start();
     } catch {
       stopWeb(state, "Browser speech could not start.");
+      return;
     }
+    void navigator.mediaDevices
+      ?.getUserMedia({ audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true } })
+      .then((stream) => {
+        if (web.current === state) startMeter(stream);
+        else for (const track of stream.getTracks()) track.stop();
+      })
+      .catch(() => {});
   };
 
   const stopDictation = async () => {
@@ -736,22 +790,17 @@ export const Composer = memo(function Composer({
     if (!state) return;
     audio.current = null;
     window.clearInterval(state.timer);
+    stopMeter();
     setRecording(false);
     for (const track of state.stream.getTracks()) track.stop();
     state.source.disconnect();
     state.processor.disconnect();
     state.gain.disconnect();
-    const rate = state.context.sampleRate;
     await state.context.close().catch(() => undefined);
     setFinishing(true);
     try {
-      if (state.fast) {
-        flushSegment(state);
-        await queue.current;
-      } else {
-        const { text } = await api.stt(encodeWav(state.chunks, rate));
-        appendText(text);
-      }
+      flushSegment(state);
+      await queue.current;
     } catch (error) {
       onError(error instanceof Error ? error.message : "Transcription failed");
     } finally {
@@ -761,7 +810,7 @@ export const Composer = memo(function Composer({
   };
 
   const startDictation = async () => {
-    if (dictationMode === "instant" && !webUnavailable.current) {
+    if (!webUnavailable.current) {
       const Ctor = speechRecognition();
       if (Ctor) {
         startWebDictation(Ctor);
@@ -782,26 +831,21 @@ export const Composer = memo(function Composer({
       const processor = context.createScriptProcessor(4096, 1, 1);
       const gain = context.createGain();
       gain.gain.value = 0;
-      const chunks: Float32Array[] = [];
       const state: NonNullable<typeof audio.current> = {
         context,
         stream,
         source,
         processor,
         gain,
-        chunks,
         segment: [],
         preroll: [],
         hasSpeech: false,
         silence: 0,
         timer: 0,
         started: Date.now(),
-        fast: dictationMode !== "accurate",
       };
       processor.onaudioprocess = (event) => {
         const block = new Float32Array(event.inputBuffer.getChannelData(0));
-        chunks.push(block);
-        if (!state.fast) return;
         let sum = 0;
         for (let index = 0; index < block.length; index += 1) sum += block[index] * block[index];
         const rms = Math.sqrt(sum / block.length);
@@ -829,6 +873,7 @@ export const Composer = memo(function Composer({
       source.connect(processor);
       processor.connect(gain);
       gain.connect(context.destination);
+      startMeter(stream, context);
       state.timer = window.setInterval(() => {
         const seconds = Math.floor((Date.now() - state.started) / 1000);
         setElapsed(seconds);
@@ -1384,7 +1429,12 @@ export const Composer = memo(function Composer({
                 {finishing ? (
                   <Loader2 className="animate-spin" />
                 ) : recording ? (
-                  <Square className="fill-current" />
+                  <span ref={barsRef} className="dictation-bars" aria-hidden="true">
+                    <i />
+                    <i />
+                    <i />
+                    <i />
+                  </span>
                 ) : (
                   <Mic />
                 )}
@@ -1415,9 +1465,7 @@ export const Composer = memo(function Composer({
                       ? `Recording · ${pending} segment${pending === 1 ? "" : "s"} queued`
                       : webLive
                         ? "Recording · text appears as you speak"
-                        : dictationMode === "fast"
-                          ? "Recording · text appears as you pause"
-                          : "Recording · transcribing when you stop"
+                        : "Recording · host model, text appears as you pause"
                     : "Enter to send · Shift+Enter for a new line · / commands"}
             </span>
             <div className="ml-auto flex items-center gap-1">

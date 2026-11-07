@@ -1,7 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { encodeWav } from "./audio";
+import { encodeWav, micLevel } from "./audio";
 
 describe("audio", () => {
+  it("maps microphone samples to a 0..1 level", () => {
+    expect(micLevel(new Float32Array(512))).toBe(0);
+    expect(micLevel(new Float32Array([0.02, -0.02, 0.02, -0.02]))).toBeGreaterThan(0.1);
+    expect(micLevel(new Float32Array([1, -1, 1, -1]))).toBe(1);
+  });
+
   it("encodes mono 16 kHz PCM WAV and downsamples", async () => {
     const blob = encodeWav([new Float32Array(48_000)], 48_000);
     expect(blob.type).toBe("audio/wav");

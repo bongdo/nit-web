@@ -3,7 +3,6 @@ import type { Agent, Model, ModelRef } from "../lib/types";
 import { THEMES, type Theme } from "../lib/themes";
 import type { SceneSetting } from "./Scene";
 import type { TimeFormat } from "../lib/time";
-import type { DictationMode } from "../lib/web-speech";
 import { modelKey } from "../lib/format";
 import { appPath } from "../lib/base";
 import { useModalFocus } from "../hooks/useModalFocus";
@@ -17,7 +16,6 @@ export function SettingsPanel({
   agent,
   theme,
   directory,
-  dictationMode,
   spellcheck,
   autofix,
   timeFormat,
@@ -29,7 +27,6 @@ export function SettingsPanel({
   onModel,
   onAgent,
   onTheme,
-  onDictation,
   onSpellcheck,
   onAutofix,
   onTimeFormat,
@@ -46,7 +43,6 @@ export function SettingsPanel({
   agent: string | null;
   theme: Theme;
   directory?: string | null;
-  dictationMode: DictationMode;
   spellcheck: boolean;
   autofix: boolean;
   timeFormat: TimeFormat;
@@ -58,7 +54,6 @@ export function SettingsPanel({
   onModel: (model: ModelRef) => void;
   onAgent: (agent: string) => void;
   onTheme: (theme: Theme) => void;
-  onDictation: (mode: DictationMode) => void;
   onSpellcheck: (value: boolean) => void;
   onAutofix: (value: boolean) => void;
   onTimeFormat: (value: TimeFormat) => void;
@@ -214,18 +209,9 @@ export function SettingsPanel({
 
           <label className="block space-y-1">
             <span className="text-muted-foreground text-[11px]">Dictation</span>
-            <Select
-              className="w-full"
-              value={dictationMode}
-              onChange={(event) => onDictation(event.target.value as DictationMode)}
-            >
-              <option value="instant">Instant · browser speech, near-zero delay</option>
-              <option value="fast">Fast · host model, text as you pause</option>
-              <option value="accurate">Accurate · host large model, one pass</option>
-            </Select>
-            <span className="text-muted-foreground/70 block text-[10px]">
-              Instant sends audio to your browser&apos;s speech service; Fast and Accurate keep it
-              on the host.
+            <span className="text-muted-foreground block text-xs">
+              Browser speech, words appear as you speak. Audio goes to your browser&apos;s speech
+              service; Firefox falls back to the host model.
             </span>
           </label>
 

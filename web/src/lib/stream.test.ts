@@ -4,6 +4,9 @@ import {
   coalesceEvents,
   lightenEvent,
   lightMessages,
+  isRetryableFailure,
+  planRetry,
+  retryDelay,
   stepMessageIDs,
   normalizeMessages,
 } from "./stream";
@@ -161,6 +164,57 @@ describe("coalesceEvents", () => {
       event("session.text.delta", { assistantMessageID: "msg_1", ordinal: 0, delta: "b" }),
     ]);
     expect(merged).toHaveLength(3);
+  });
+});
+
+describe("provider retry", () => {
+  const user: Message = {
+    id: "msg_user",
+    type: "user",
+    time: { created: 1 },
+    text: "hello",
+    files: [{ uri: "file:///tmp/a.txt", name: "a.txt" }],
+  };
+  const overloaded = {
+    type: "provider.rate-limit",
+    message: "Upstream request failed: [overloaded] the server is overloaded; retry shortly",
+    status: 429,
+    retryAfterMs: 2_290,
+  };
+
+  it("retries overloaded and transient provider failures", () => {
+    expect(isRetryableFailure(overloaded)).toBe(true);
+    expect(isRetryableFailure({ message: "rate limit reached" })).toBe(true);
+    expect(isRetryableFailure({ status: 503 })).toBe(true);
+  });
+
+  it("does not retry authentication or content failures", () => {
+    expect(isRetryableFailure({ type: "provider.authentication", status: 401 })).toBe(false);
+    expect(isRetryableFailure({ message: "content filtered", status: 400 })).toBe(false);
+    expect(isRetryableFailure(undefined)).toBe(false);
+  });
+
+  it("reuses the last user message and its id", () => {
+    const plan = planRetry([user, { id: "msg_a", type: "assistant", time: { created: 2 } }], overloaded, 1);
+    expect(plan).toEqual({
+      text: "hello",
+      files: [{ uri: "file:///tmp/a.txt", name: "a.txt" }],
+      delay: 2_290,
+    });
+  });
+
+  it("skips sessions without a durable user message", () => {
+    const local = { ...user, id: "local-1" };
+    expect(planRetry([local], overloaded, 1)).toBeNull();
+    expect(planRetry([], overloaded, 1)).toBeNull();
+  });
+
+  it("backs off exponentially and caps the wait", () => {
+    expect(retryDelay(1)).toBe(2_000);
+    expect(retryDelay(2)).toBe(4_000);
+    expect(retryDelay(9)).toBe(30_000);
+    expect(retryDelay(1, 60_000)).toBe(30_000);
+    expect(retryDelay(2, 1_000)).toBe(4_000);
   });
 });
 

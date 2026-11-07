@@ -173,6 +173,7 @@ export const api = {
     text: string,
     files?: { uri: string; name?: string }[],
     delivery?: "queue" | "steer",
+    messageID?: string,
   ) =>
     request<unknown>(`/api/sessions/${encodeURIComponent(id)}/prompt`, {
       method: "POST",
@@ -180,6 +181,7 @@ export const api = {
         text,
         ...(files && files.length > 0 ? { files } : {}),
         ...(delivery ? { delivery } : {}),
+        ...(messageID ? { id: messageID } : {}),
       },
     }),
   interrupt: (id: string) =>

@@ -112,6 +112,9 @@ export type Part = TextPart | ReasoningPart | ToolPart;
 export type MessageError = {
   name?: string;
   message?: string;
+  type?: string;
+  status?: number;
+  retryAfterMs?: number;
 };
 
 export type Message = {

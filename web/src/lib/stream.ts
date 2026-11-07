@@ -125,6 +125,38 @@ export function lightenEvent(
   }
 }
 
+export function planRetry(
+  messages: Message[],
+  error: Message["error"] | undefined,
+  attempt: number,
+): { text: string; files: { uri: string; name?: string }[]; delay: number } | null {
+  if (!isRetryableFailure(error)) return null;
+  const user = [...messages].reverse().find((item) => item.type === "user");
+  if (!user?.id || user.id.startsWith("local-")) return null;
+  const files = (user.files ?? []).flatMap((file) =>
+    typeof file.uri === "string" ? [{ uri: file.uri, name: file.name }] : [],
+  );
+  return {
+    text: user.text ?? "",
+    files,
+    delay: retryDelay(attempt, error?.retryAfterMs),
+  };
+}
+
+export function isRetryableFailure(error: Message["error"] | undefined): boolean {
+  if (!error) return false;
+  const text = (error.message ?? "").toLowerCase();
+  if (text.includes("overloaded") || text.includes("retry shortly")) return true;
+  if (text.includes("rate limit") || text.includes("temporarily unavailable")) return true;
+  return error.status === 429 || error.status === 503 || error.status === 529;
+}
+
+export function retryDelay(attempt: number, retryAfterMs?: number): number {
+  const backoff = Math.min(30_000, 2_000 * 2 ** Math.min(Math.max(attempt - 1, 0), 4));
+  const requested = typeof retryAfterMs === "number" && retryAfterMs > 0 ? retryAfterMs : 0;
+  return Math.min(30_000, Math.max(backoff, requested));
+}
+
 export function stepMessageIDs(messages: Message[]): string[] {
   return messages
     .filter(

@@ -736,6 +736,7 @@ type promptFile struct {
 }
 
 type promptInput struct {
+	ID       string       `json:"id,omitempty"`
 	Text     string       `json:"text"`
 	Files    []promptFile `json:"files,omitempty"`
 	Delivery string       `json:"delivery,omitempty"`
@@ -767,6 +768,9 @@ func (s *Server) prompt(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	body := map[string]any{"text": in.Text}
+	if in.ID != "" {
+		body["id"] = in.ID
+	}
 	if len(in.Files) > 0 {
 		body["files"] = in.Files
 	}

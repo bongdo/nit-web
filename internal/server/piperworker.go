@@ -15,7 +15,7 @@ import (
 )
 
 var (
-	errPiperExited = errors.New("host voice stopped")
+	errPiperExited  = errors.New("host voice stopped")
 	errPiperNoAudio = errors.New("host voice produced no audio")
 )
 
@@ -39,6 +39,12 @@ type piperWorker struct {
 
 func newPiperWorker(binary, model string, rate float64) *piperWorker {
 	return &piperWorker{binary: binary, model: model, rate: rate}
+}
+
+func (w *piperWorker) start() error {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return w.ensure()
 }
 
 func (w *piperWorker) synthesize(ctx context.Context, text string) ([]byte, error) {
@@ -123,6 +129,7 @@ func (w *piperWorker) write(text string) (string, error) {
 
 func (w *piperWorker) wait(ctx context.Context, path string) ([]byte, error) {
 	defer os.Remove(path)
+	exited := w.procExited()
 	ticker := time.NewTicker(5 * time.Millisecond)
 	defer ticker.Stop()
 	var last int64 = -1
@@ -130,7 +137,7 @@ func (w *piperWorker) wait(ctx context.Context, path string) ([]byte, error) {
 		select {
 		case <-ctx.Done():
 			return nil, ctx.Err()
-		case <-w.procExited():
+		case <-exited:
 			return nil, errPiperExited
 		case <-ticker.C:
 		}
@@ -143,15 +150,17 @@ func (w *piperWorker) wait(ctx context.Context, path string) ([]byte, error) {
 		if err != nil {
 			continue
 		}
-		if complete, ok := wavComplete(data); ok {
-			if !complete {
-				continue
-			}
-			if len(data) == 0 {
-				return nil, errPiperNoAudio
-			}
-			return data, nil
+		complete, ok := wavComplete(data)
+		if !ok {
+			return nil, errPiperNoAudio
 		}
+		if !complete {
+			continue
+		}
+		if len(data) == 0 {
+			return nil, errPiperNoAudio
+		}
+		return data, nil
 	}
 }
 

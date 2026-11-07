@@ -280,24 +280,21 @@ func TestTTSHandlers(t *testing.T) {
 }
 
 const piperScript = `if [ -n "$FAKE_VOICE_ARGS" ]; then printf '%s\n' "$@" > "$FAKE_VOICE_ARGS"; fi
-cat >/dev/null
 out=""
-while [ $# -gt 0 ]; do
-  if [ "$1" = "-f" ]; then shift; out="$1"; fi
-  shift
+prev=""
+for arg in "$@"; do
+  if [ "$prev" = "-f" ]; then out="$arg"; fi
+  prev="$arg"
 done
-printf 'RIFF0000WAVEfmt ' > "$out"
-`
-
-const edgeScript = `if [ -n "$FAKE_VOICE_ARGS" ]; then printf '%s\n' "$@" > "$FAKE_VOICE_ARGS"; fi
-out=""
-while [ $# -gt 0 ]; do
-  case "$1" in
-    --write-media) shift; out="$1" ;;
-  esac
-  shift
+if [ -n "$out" ] && [ "$out" != "-" ]; then
+  printf 'UklGRioAAABXQVZFZm10IBAAAAABAAEAIlYAAESsAAACABAAZGF0YQYAAAByYXdwY20=' | base64 -d > "$out"
+  exit 0
+fi
+while IFS= read -r line; do
+  out="$(printf '%s' "$line" | sed -n 's/.*"output_file":"\([^"]*\)".*/\1/p')"
+  [ -n "$out" ] || continue
+  printf 'UklGRioAAABXQVZFZm10IBAAAAABAAEAIlYAAESsAAACABAAZGF0YQYAAAByYXdwY20=' | base64 -d > "$out"
 done
-printf 'ID3fake-mp3' > "$out"
 `
 
 func fakeVoiceScript(t *testing.T, body string) string {
@@ -316,8 +313,6 @@ func voiceEnv(t *testing.T) {
 	t.Setenv("NIT_GUI_TTS_RATE", "")
 	t.Setenv("NIT_GUI_TTS_PIPER", "")
 	t.Setenv("NIT_GUI_TTS_PIPER_MODEL", "")
-	t.Setenv("NIT_GUI_TTS_EDGE", "")
-	t.Setenv("NIT_GUI_TTS_EDGE_VOICE", "")
 }
 
 func fakePiperVoice(t *testing.T) *hostVoice {
@@ -335,7 +330,6 @@ func fakePiperVoice(t *testing.T) *hostVoice {
 
 func TestNewHostVoiceSelection(t *testing.T) {
 	piper := fakeVoiceScript(t, piperScript)
-	edge := fakeVoiceScript(t, edgeScript)
 	model := filepath.Join(t.TempDir(), "voice.onnx")
 	if err := os.WriteFile(model, []byte("model"), 0o600); err != nil {
 		t.Fatal(err)
@@ -347,16 +341,14 @@ func TestNewHostVoiceSelection(t *testing.T) {
 		engine  string
 		piper   string
 		model   string
-		edge    string
 		content string
 		detail  string
 	}{
-		{"auto prefers piper", "auto", piper, model, edge, "audio/wav", "host voice · piper"},
-		{"auto falls back to edge", "auto", piper, missing, edge, "audio/mpeg", "host voice · edge-tts"},
-		{"auto none", "auto", missing, missing, missing, "", ""},
-		{"forced piper", "piper", piper, model, edge, "audio/wav", "host voice · piper"},
-		{"forced edge", "edge", piper, model, edge, "audio/mpeg", "host voice · edge-tts"},
-		{"off", "off", piper, model, edge, "", ""},
+		{"auto prefers piper", "auto", piper, model, "audio/wav", "host voice · piper"},
+		{"auto none", "auto", missing, missing, "", ""},
+		{"forced piper", "piper", piper, model, "audio/wav", "host voice · piper"},
+		{"edge is gone", "edge", piper, model, "", ""},
+		{"off", "off", piper, model, "", ""},
 	}
 	for _, item := range cases {
 		t.Run(item.name, func(t *testing.T) {
@@ -364,7 +356,6 @@ func TestNewHostVoiceSelection(t *testing.T) {
 			t.Setenv("NIT_GUI_TTS_ENGINE", item.engine)
 			t.Setenv("NIT_GUI_TTS_PIPER", item.piper)
 			t.Setenv("NIT_GUI_TTS_PIPER_MODEL", item.model)
-			t.Setenv("NIT_GUI_TTS_EDGE", item.edge)
 			voice := newHostVoice()
 			if voice.contentType != item.content || voice.detail != item.detail {
 				t.Fatalf("voice = %q, %q", voice.contentType, voice.detail)
@@ -392,33 +383,6 @@ func TestHostVoiceSynthesizePiper(t *testing.T) {
 	}
 	if !strings.Contains(string(raw), "--length_scale") || !strings.Contains(string(raw), "0.5") {
 		t.Fatalf("piper args = %q", raw)
-	}
-}
-
-func TestHostVoiceSynthesizeEdge(t *testing.T) {
-	args := filepath.Join(t.TempDir(), "args")
-	voiceEnv(t)
-	t.Setenv("FAKE_VOICE_ARGS", args)
-	t.Setenv("NIT_GUI_TTS_ENGINE", "edge")
-	t.Setenv("NIT_GUI_TTS_EDGE", fakeVoiceScript(t, edgeScript))
-	t.Setenv("NIT_GUI_TTS_EDGE_VOICE", "test-voice")
-	t.Setenv("NIT_GUI_TTS_RATE", "0.9")
-	voice := newHostVoice()
-	data, contentType, err := voice.synthesize(context.Background(), "  hello  ")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if contentType != "audio/mpeg" || string(data) != "ID3fake-mp3" {
-		t.Fatalf("contentType = %q, data = %q", contentType, data)
-	}
-	raw, err := os.ReadFile(args)
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, want := range []string{"--text=hello", "--voice", "test-voice", "--rate=-10%"} {
-		if !strings.Contains(string(raw), want) {
-			t.Fatalf("edge args = %q, missing %q", raw, want)
-		}
 	}
 }
 
@@ -496,15 +460,7 @@ func TestTTSSpeechCapabilityPrecedence(t *testing.T) {
 }
 
 func TestTTSStreamHandler(t *testing.T) {
-	voiceEnv(t)
-	model := filepath.Join(t.TempDir(), "voice.onnx")
-	if err := os.WriteFile(model, []byte("model"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	t.Setenv("NIT_GUI_TTS_ENGINE", "piper")
-	t.Setenv("NIT_GUI_TTS_PIPER", fakeVoiceScript(t, "cat >/dev/null\nprintf 'rawpcm'"))
-	t.Setenv("NIT_GUI_TTS_PIPER_MODEL", model)
-	server := &Server{voice: newHostVoice(), log: slog.Default()}
+	server := &Server{voice: fakePiperVoice(t), log: slog.Default()}
 
 	recorder := httptest.NewRecorder()
 	request := httptest.NewRequest(http.MethodPost, "/api/tts/stream", strings.NewReader(`{"text":"привет"}`))
@@ -529,12 +485,12 @@ func TestTTSStreamHandler(t *testing.T) {
 		t.Fatalf("empty status = %d", recorder.Code)
 	}
 
-	edge := &Server{voice: &hostVoice{engine: "edge"}, log: slog.Default()}
+	silent := &Server{voice: &hostVoice{engine: "piper"}, log: slog.Default()}
 	recorder = httptest.NewRecorder()
 	request = httptest.NewRequest(http.MethodPost, "/api/tts/stream", strings.NewReader(`{"text":"hello"}`))
-	edge.ttsStream(recorder, request)
+	silent.ttsStream(recorder, request)
 	if recorder.Code != http.StatusServiceUnavailable {
-		t.Fatalf("edge status = %d", recorder.Code)
+		t.Fatalf("silent status = %d", recorder.Code)
 	}
 }
 

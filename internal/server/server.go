@@ -175,6 +175,15 @@ func (s *Server) warm() {
 		}
 		s.log.Info("fast stt ready")
 	}()
+	if s.voice != nil && s.voice.worker != nil {
+		go func() {
+			if err := s.voice.warm(); err != nil {
+				s.log.Debug("host voice warmup skipped", "error", err)
+				return
+			}
+			s.log.Info("host voice ready", "engine", s.voice.engine, "rate", s.voice.rateHz())
+		}()
+	}
 }
 
 func (s *Server) routes() {

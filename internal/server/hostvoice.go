@@ -17,7 +17,7 @@ import (
 
 const (
 	defaultPiperModel = "ru_RU-irina-medium.onnx"
-	defaultEdgeVoice  = "ru-RU-SvetlanaNeural"
+	defaultPiperRate  = 22050
 	maxHostVoiceBytes = 32 << 20
 	hostVoiceTimeout  = 60 * time.Second
 )
@@ -28,9 +28,9 @@ type hostVoice struct {
 	detail      string
 	binary      string
 	model       string
-	voice       string
 	rate        float64
 	sampleRate  int
+	worker      *piperWorker
 }
 
 func newHostVoice() *hostVoice {
@@ -42,20 +42,14 @@ func newHostVoice() *hostVoice {
 	if engine == "" || engine == "auto" {
 		engine = autoVoiceEngine()
 	}
-	switch engine {
-	case "piper":
+	if engine == "piper" {
 		voice.engine = "piper"
 		voice.contentType = "audio/wav"
 		voice.detail = "host voice · piper"
 		voice.binary = ttsPiperBinary()
 		voice.model = ttsPiperModel()
 		voice.sampleRate = piperSampleRate(voice.model)
-	case "edge":
-		voice.engine = "edge"
-		voice.contentType = "audio/mpeg"
-		voice.detail = "host voice · edge-tts"
-		voice.binary = ttsEdgeBinary()
-		voice.voice = ttsEdgeVoice()
+		voice.worker = newPiperWorker(voice.binary, voice.model, voice.rate)
 	}
 	return voice
 }
@@ -63,9 +57,6 @@ func newHostVoice() *hostVoice {
 func autoVoiceEngine() string {
 	if binaryExists(ttsPiperBinary()) && fileExists(ttsPiperModel()) {
 		return "piper"
-	}
-	if binaryExists(ttsEdgeBinary()) {
-		return "edge"
 	}
 	return ""
 }
@@ -88,20 +79,6 @@ func ttsPiperModel() string {
 		}
 	}
 	return filepath.Join(data, "piper-voices", defaultPiperModel)
-}
-
-func ttsEdgeBinary() string {
-	if bin := strings.TrimSpace(os.Getenv("NIT_GUI_TTS_EDGE")); bin != "" {
-		return expandHome(bin)
-	}
-	return "edge-tts"
-}
-
-func ttsEdgeVoice() string {
-	if voice := strings.TrimSpace(os.Getenv("NIT_GUI_TTS_EDGE_VOICE")); voice != "" {
-		return voice
-	}
-	return defaultEdgeVoice
 }
 
 func ttsRate() float64 {
@@ -153,13 +130,24 @@ func (v *hostVoice) synthesize(ctx context.Context, text string) ([]byte, string
 	}
 	runCtx, cancel := context.WithTimeout(ctx, hostVoiceTimeout)
 	defer cancel()
-	switch v.engine {
-	case "piper":
+	if v.worker != nil {
+		if data, err := v.worker.synthesize(runCtx, text); err == nil {
+			return data, v.contentType, nil
+		} else if runCtx.Err() != nil {
+			return nil, "", voiceRunError(runCtx, "piper")
+		}
+	}
+	if v.engine == "piper" {
 		return v.piper(runCtx, text)
-	case "edge":
-		return v.edge(runCtx, text)
 	}
 	return nil, "", errors.New("host voice is not configured")
+}
+
+func (v *hostVoice) warm() error {
+	if v == nil || v.worker == nil || !v.available() {
+		return errors.New("host voice is not available")
+	}
+	return v.worker.start()
 }
 
 func (v *hostVoice) streamAvailable() bool {
@@ -172,6 +160,16 @@ func (v *hostVoice) stream(ctx context.Context, text string, out io.Writer) erro
 	}
 	runCtx, cancel := context.WithTimeout(ctx, hostVoiceTimeout)
 	defer cancel()
+	if v.worker != nil {
+		if wav, err := v.worker.synthesize(runCtx, text); err == nil {
+			if pcm, _, ok := wavPCM(wav); ok {
+				_, err := out.Write(pcm)
+				return err
+			}
+		} else if runCtx.Err() != nil {
+			return voiceRunError(runCtx, "piper")
+		}
+	}
 	lengthScale := strconv.FormatFloat(1/v.rate, 'f', -1, 64)
 	cmd := exec.CommandContext(runCtx, v.binary, "-m", v.model, "-f", "-", "--output_raw", "-q", "--length_scale", lengthScale)
 	cmd.Stdin = strings.NewReader(text + "\n")
@@ -194,7 +192,7 @@ func (v *hostVoice) stream(ctx context.Context, text string, out io.Writer) erro
 
 func (v *hostVoice) rateHz() int {
 	if v == nil || v.sampleRate <= 0 {
-		return 22050
+		return defaultPiperRate
 	}
 	return v.sampleRate
 }
@@ -202,7 +200,7 @@ func (v *hostVoice) rateHz() int {
 func piperSampleRate(model string) int {
 	raw, err := os.ReadFile(model + ".json")
 	if err != nil {
-		return 22050
+		return defaultPiperRate
 	}
 	var config struct {
 		Audio struct {
@@ -210,7 +208,7 @@ func piperSampleRate(model string) int {
 		} `json:"audio"`
 	}
 	if json.Unmarshal(raw, &config) != nil || config.Audio.SampleRate <= 0 {
-		return 22050
+		return defaultPiperRate
 	}
 	return config.Audio.SampleRate
 }
@@ -228,31 +226,6 @@ func (v *hostVoice) piper(ctx context.Context, text string) ([]byte, string, err
 		return nil, "", voiceRunError(ctx, "piper")
 	}
 	return readVoiceOutput(path, v.contentType)
-}
-
-func (v *hostVoice) edge(ctx context.Context, text string) ([]byte, string, error) {
-	path, cleanup, err := voiceTempFile("*.mp3")
-	if err != nil {
-		return nil, "", err
-	}
-	defer cleanup()
-	args := []string{"--text=" + text, "--write-media", path, "--voice", v.voice}
-	if percent := edgeRatePercent(v.rate); percent != "" {
-		args = append(args, "--rate="+percent)
-	}
-	cmd := exec.CommandContext(ctx, v.binary, args...)
-	if err := cmd.Run(); err != nil {
-		return nil, "", voiceRunError(ctx, "edge-tts")
-	}
-	return readVoiceOutput(path, v.contentType)
-}
-
-func edgeRatePercent(rate float64) string {
-	percent := int(math.Round((rate - 1) * 100))
-	if percent == 0 {
-		return ""
-	}
-	return fmt.Sprintf("%+d%%", percent)
 }
 
 func voiceTempFile(pattern string) (string, func(), error) {

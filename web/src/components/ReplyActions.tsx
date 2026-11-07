@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Check, Copy, Volume2 } from "lucide-react";
+import { Check, Copy, Loader2, Volume2 } from "lucide-react";
 import { api } from "../lib/api";
 import { copyText } from "../lib/clipboard";
 import { cn } from "../lib/utils";
@@ -16,18 +16,38 @@ export function ReplyActions({
 }) {
   const [copied, setCopied] = useState(false);
   const [speaking, setSpeaking] = useState(false);
+  const [loading, setLoading] = useState(false);
   const [unavailable, setUnavailable] = useState(false);
   const copyTimer = useRef<number | null>(null);
   const speechTimer = useRef<number | null>(null);
+  const audio = useRef<HTMLAudioElement | null>(null);
+  const audioUrl = useRef<string | null>(null);
   const owner = useRef(Symbol("reply"));
   const generation = useRef(0);
   const supported = typeof window !== "undefined" && "speechSynthesis" in window;
+
+  const releaseAudio = () => {
+    const player = audio.current;
+    audio.current = null;
+    if (player) {
+      player.onended = null;
+      player.onerror = null;
+      player.pause();
+    }
+    if (audioUrl.current) {
+      URL.revokeObjectURL(audioUrl.current);
+      audioUrl.current = null;
+    }
+  };
 
   useEffect(() => {
     const onSpeak = (event: Event) => {
       if ((event as CustomEvent).detail !== owner.current) {
         generation.current += 1;
+        releaseAudio();
+        if (speechTimer.current !== null) window.clearTimeout(speechTimer.current);
         setSpeaking(false);
+        setLoading(false);
       }
     };
     window.addEventListener("nit-gui:speech", onSpeak);
@@ -36,6 +56,7 @@ export function ReplyActions({
       generation.current += 1;
       if (copyTimer.current !== null) window.clearTimeout(copyTimer.current);
       if (speechTimer.current !== null) window.clearTimeout(speechTimer.current);
+      releaseAudio();
       if (supported) window.speechSynthesis.cancel();
     };
   }, [supported]);
@@ -52,7 +73,9 @@ export function ReplyActions({
     if (supported) window.speechSynthesis.cancel();
     if (speechTimer.current !== null) window.clearTimeout(speechTimer.current);
     speechTimer.current = null;
+    releaseAudio();
     setSpeaking(false);
+    setLoading(false);
   };
 
   const speakBrowser = (): void => {
@@ -76,6 +99,7 @@ export function ReplyActions({
     }
     const gen = ++generation.current;
     window.dispatchEvent(new CustomEvent("nit-gui:speech", { detail: owner.current }));
+    setLoading(true);
     try {
       await api.tts(text);
       if (gen !== generation.current) return;
@@ -85,9 +109,38 @@ export function ReplyActions({
         Math.min(180_000, Math.max(4_000, text.length * 55)),
       );
       setSpeaking(true);
+      setLoading(false);
+      return;
     } catch {
       if (gen !== generation.current) return;
+    }
+    try {
+      const blob = await api.ttsAudio(text);
+      if (gen !== generation.current) return;
+      const url = URL.createObjectURL(blob);
+      const player = new Audio(url);
+      audio.current = player;
+      audioUrl.current = url;
+      player.onended = () => {
+        releaseAudio();
+        setSpeaking(false);
+      };
+      player.onerror = () => {
+        releaseAudio();
+        setSpeaking(false);
+      };
+      await player.play();
+      if (gen !== generation.current) {
+        releaseAudio();
+        return;
+      }
+      setSpeaking(true);
+      setLoading(false);
+    } catch {
+      if (gen !== generation.current) return;
+      releaseAudio();
       speakBrowser();
+      setLoading(false);
     }
   };
 
@@ -109,10 +162,13 @@ export function ReplyActions({
           size="xs"
           className="text-muted-foreground"
           onClick={() => void speak()}
-          aria-label={speaking ? "Stop reading" : "Read aloud"}
-          title={speaking ? "Stop reading" : "Read aloud"}
+          disabled={loading}
+          aria-label={loading ? "Preparing speech" : speaking ? "Stop reading" : "Read aloud"}
+          title={loading ? "Preparing speech" : speaking ? "Stop reading" : "Read aloud"}
         >
-          {speaking ? (
+          {loading ? (
+            <Loader2 className="animate-spin" />
+          ) : speaking ? (
             <span className="read-equalizer" aria-hidden>
               <span />
               <span />
@@ -121,7 +177,7 @@ export function ReplyActions({
           ) : (
             <Volume2 />
           )}
-          <span>{speaking ? "Stop" : "Read"}</span>
+          <span>{loading ? "Loading" : speaking ? "Stop" : "Read"}</span>
         </Button>
       )}
     </div>

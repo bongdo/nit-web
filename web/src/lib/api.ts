@@ -101,6 +101,19 @@ export const api = {
   tts: (text: string) =>
     request<{ ok: boolean; clients?: number }>("/api/tts", { method: "POST", body: { text } }),
   ttsStop: () => request<void>("/api/tts/stop", { method: "POST" }),
+  ttsAudio: async (text: string) => {
+    const response = await fetch(appPath("/api/tts/audio"), {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(instance ? { "X-Nit-Instance": instance } : {}),
+      },
+      body: JSON.stringify({ text }),
+      signal: AbortSignal.timeout(120_000),
+    });
+    if (!response.ok) throw new ApiError(await errorText(response), response.status);
+    return response.blob();
+  },
   health: () => request<Health>("/api/health"),
   config: () => request<Config>("/api/config"),
   projects: () => request<Project[]>("/api/projects"),

@@ -21,6 +21,22 @@ const (
 	ttsTimeout    = 2 * time.Second
 )
 
+var (
+	errTTSTextEmpty = errors.New("text is empty")
+	errTTSTextLong  = fmt.Errorf("text is longer than %d characters", maxTTSText)
+)
+
+func ttsText(text string) (string, error) {
+	text = strings.TrimSpace(text)
+	if text == "" {
+		return "", errTTSTextEmpty
+	}
+	if utf8.RuneCountInString(text) > maxTTSText {
+		return "", errTTSTextLong
+	}
+	return text, nil
+}
+
 type ttsHub struct {
 	url       string
 	tokenFile string
@@ -106,12 +122,9 @@ func (h *ttsHub) status(ctx context.Context) (bool, int, string) {
 }
 
 func (h *ttsHub) say(ctx context.Context, text string) (int, error) {
-	text = strings.TrimSpace(text)
-	if text == "" {
-		return 0, errors.New("text is empty")
-	}
-	if utf8.RuneCountInString(text) > maxTTSText {
-		return 0, fmt.Errorf("text is longer than %d characters", maxTTSText)
+	text, err := ttsText(text)
+	if err != nil {
+		return 0, err
 	}
 	ok, clients, detail := h.status(ctx)
 	if !ok {

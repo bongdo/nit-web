@@ -1,7 +1,20 @@
-import { useEffect, useRef, useState } from "react";
-import { ChevronDown, Folder, FolderGit2, FolderOpen, Server, X } from "lucide-react";
-import type { Project } from "../lib/types";
+import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  ArrowUp,
+  Check,
+  ChevronDown,
+  ChevronRight,
+  Folder,
+  FolderGit2,
+  FolderOpen,
+  Loader2,
+  Server,
+  X,
+} from "lucide-react";
+import type { FolderListing, Project } from "../lib/types";
 import { basename, formatRelative } from "../lib/format";
+import { isAbsolutePath, joinPath, normalizePath, parentPath, pathCrumbs, splitPathInput } from "../lib/paths";
+import { ApiError, api } from "../lib/api";
 import { cn } from "../lib/utils";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
@@ -11,10 +24,17 @@ export function workspaceOptions(projects: Project[], recent: string[]): string[
   return Array.from(new Set([...recent, ...projects.map((item) => item.canonical)]));
 }
 
+type PathStatus = "idle" | "relative" | "checking" | "exists" | "missing" | "error";
+
+function messageOf(error: unknown): string {
+  return error instanceof Error && error.message ? error.message : "Could not load folders";
+}
+
 export function WorkspacePicker({
   projects,
   recent,
   current,
+  startDirectory,
   motion = "animated",
   variant = "spotlight",
   onPick,
@@ -25,6 +45,7 @@ export function WorkspacePicker({
   projects: Project[];
   recent: string[];
   current?: string | null;
+  startDirectory?: string;
   motion?: "animated" | "static";
   variant?: SceneSetting;
   onPick: (directory: string) => void;
@@ -32,20 +53,126 @@ export function WorkspacePicker({
   instance?: string;
   onInstances?: () => void;
 }) {
-  const [path, setPath] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const known = new Map(projects.map((project) => [project.canonical, project]));
-  const directories = workspaceOptions(projects, recent);
+  const initial = [current, startDirectory].find((value) => value?.startsWith("/")) ?? null;
+  const [browse, setBrowse] = useState<string | null>(initial);
+  const [listing, setListing] = useState<FolderListing | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [browseError, setBrowseError] = useState<string | null>(null);
+  const [reload, setReload] = useState(0);
+  const listingRef = useRef<FolderListing | null>(null);
 
-  const submit = () => {
-    const value = path.trim().replace(/\/+$/, "");
-    if (!value.startsWith("/")) {
-      setError("Use an absolute path.");
+  const [path, setPath] = useState(initial ?? "");
+  const [status, setStatus] = useState<PathStatus>("idle");
+  const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [active, setActive] = useState(0);
+  const [suggestOpen, setSuggestOpen] = useState(false);
+
+  const known = useMemo(
+    () => new Map(projects.map((project) => [project.canonical, project])),
+    [projects],
+  );
+
+  useEffect(() => {
+    if (browse !== null && listingRef.current?.path === browse) return;
+    const controller = new AbortController();
+    setLoading(true);
+    setListing(null);
+    setBrowseError(null);
+    api
+      .folders(browse ?? undefined, controller.signal)
+      .then((data) => {
+        listingRef.current = data;
+        setListing(data);
+        setPath((value) => (value.trim() === "" ? data.path : value));
+        if (browse === null) setBrowse(data.path);
+      })
+      .catch((cause) => {
+        if (controller.signal.aborted) return;
+        listingRef.current = null;
+        setListing(null);
+        setBrowseError(
+          cause instanceof ApiError && cause.status === 404
+            ? "This folder does not exist anymore."
+            : messageOf(cause),
+        );
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoading(false);
+      });
+    return () => controller.abort();
+  }, [browse, reload]);
+
+  useEffect(() => {
+    if (!isAbsolutePath(path)) {
+      setStatus(path.trim() ? "relative" : "idle");
+      setSuggestions([]);
       return;
     }
-    setError(null);
-    onPick(value || "/");
+    const { dir, prefix } = splitPathInput(path);
+    const controller = new AbortController();
+    const timer = window.setTimeout(() => {
+      setStatus("checking");
+      api
+        .folders(dir, controller.signal)
+        .then((data) => {
+          const typed = normalizePath(path);
+          const matches = data.dirs
+            .filter((name) => name.toLowerCase().startsWith(prefix.toLowerCase()))
+            .map((name) => joinPath(dir, name))
+            .filter((candidate) => candidate !== typed);
+          setSuggestions(matches.slice(0, 8));
+          setActive(0);
+          setStatus(typed === data.path || data.dirs.includes(prefix) ? "exists" : "missing");
+        })
+        .catch((cause) => {
+          if (controller.signal.aborted) return;
+          setSuggestions([]);
+          setStatus(cause instanceof ApiError && cause.status === 404 ? "missing" : "error");
+        });
+    }, 150);
+    return () => {
+      window.clearTimeout(timer);
+      controller.abort();
+    };
+  }, [path]);
+
+  const goTo = (directory: string) => {
+    const clean = normalizePath(directory);
+    setBrowse(clean);
+    setPath(clean);
+    setSuggestions([]);
+    setSuggestOpen(false);
   };
+
+  const pickTyped = () => {
+    if (!isAbsolutePath(path)) {
+      setStatus("relative");
+      return;
+    }
+    if (status === "exists") {
+      onPick(normalizePath(path));
+      return;
+    }
+    api
+      .folders(normalizePath(path))
+      .then((data) => onPick(data.path))
+      .catch((cause) => {
+        if (!(cause instanceof ApiError) || cause.status !== 404) {
+          setStatus("error");
+          return;
+        }
+        setStatus("missing");
+        const suggestion = suggestions[active];
+        if (suggestion) goTo(suggestion);
+      });
+  };
+
+  const browseTyped = () => {
+    if (status !== "exists") return;
+    goTo(path);
+  };
+
+  const target = status === "exists" ? normalizePath(path) : (listing?.path ?? null);
 
   const body = (
     <div
@@ -53,7 +180,7 @@ export function WorkspacePicker({
       aria-modal={onClose ? true : undefined}
       aria-label={onClose ? "Choose a workspace" : undefined}
       onClick={onClose ? (event) => event.stopPropagation() : undefined}
-      className="overlay-modal bg-background border-border relative flex w-full max-w-lg flex-col overflow-hidden rounded-xl border shadow-xl"
+      className="overlay-modal bg-background border-border relative flex w-full max-w-xl flex-col overflow-hidden rounded-xl border shadow-xl"
     >
       <div className="border-border flex items-center gap-2 border-b px-4 py-3">
         <Folder className="text-muted-foreground size-4" />
@@ -82,23 +209,98 @@ export function WorkspacePicker({
         )}
       </div>
 
-      <div className="scrollbar-thin max-h-[50vh] min-h-0 overflow-y-auto p-2">
-        {directories.length === 0 ? (
+      <div className="border-border flex items-center gap-1 border-b px-2 py-1.5">
+        <Button
+          variant="ghost"
+          size="icon-xs"
+          onClick={() => goTo(listing?.parent ?? parentPath(browse ?? "/"))}
+          disabled={!browse || browse === "/"}
+          title="Parent folder"
+          aria-label="Parent folder"
+        >
+          <ArrowUp />
+        </Button>
+        <div className="scrollbar-thin flex min-w-0 flex-1 items-center overflow-x-auto whitespace-nowrap">
+          {pathCrumbs(browse ?? "/").map((crumb, index, all) => (
+            <span key={crumb.path} className="flex shrink-0 items-center">
+              {index > 0 && (
+                <ChevronRight className="text-muted-foreground/50 size-3 shrink-0" aria-hidden />
+              )}
+              <button
+                type="button"
+                onClick={() => goTo(crumb.path)}
+                aria-current={index === all.length - 1 ? "location" : undefined}
+                className={cn(
+                  "rounded px-1 py-0.5 font-mono text-[11px] hover:bg-accent",
+                  index === all.length - 1
+                    ? "text-foreground font-medium"
+                    : "text-muted-foreground",
+                )}
+              >
+                {crumb.label}
+              </button>
+            </span>
+          ))}
+        </div>
+        {loading && <Loader2 className="text-muted-foreground size-3.5 shrink-0 animate-spin" />}
+      </div>
+
+      {recent.length > 0 && (
+        <div className="border-border flex flex-wrap items-center gap-1 border-b px-3 py-2">
+          <span className="text-muted-foreground mr-1 text-[10px] font-medium tracking-wide uppercase">
+            Recent
+          </span>
+          {recent.slice(0, 6).map((directory) => (
+            <button
+              key={directory}
+              type="button"
+              title={`Use ${directory}`}
+              onClick={() => onPick(directory)}
+              className={cn(
+                "hover:bg-accent max-w-40 truncate rounded-full border px-2 py-0.5 text-[11px]",
+                directory === listing?.path && "bg-accent",
+              )}
+            >
+              {basename(directory)}
+            </button>
+          ))}
+        </div>
+      )}
+
+      <div className="scrollbar-thin h-64 min-h-0 overflow-y-auto p-2">
+        {browseError ? (
+          <div className="px-2 py-8 text-center">
+            <p className="text-[12px]">{browseError}</p>
+            <div className="mt-3 flex justify-center gap-2">
+              <Button size="sm" variant="secondary" onClick={() => setReload((value) => value + 1)}>
+                Retry
+              </Button>
+              {browse && browse !== "/" && (
+                <Button size="sm" onClick={() => goTo(parentPath(browse))}>
+                  Go up
+                </Button>
+              )}
+            </div>
+          </div>
+        ) : !listing ? (
+          <div className="text-muted-foreground flex h-full items-center justify-center gap-2 text-xs">
+            <Loader2 className="size-3.5 animate-spin" />
+            Loading folders…
+          </div>
+        ) : listing.dirs.length === 0 ? (
           <p className="text-muted-foreground px-2 py-6 text-center text-xs">
-            No known projects yet. Enter a path below.
+            No subfolders. You can still use this folder.
           </p>
         ) : (
-          directories.map((directory) => {
+          listing.dirs.map((name) => {
+            const directory = joinPath(listing.path, name);
             const project = known.get(directory);
             return (
               <button
                 key={directory}
                 type="button"
-                onClick={() => onPick(directory)}
-                className={cn(
-                  "flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left",
-                  current === directory ? "bg-accent" : "hover:bg-accent/60",
-                )}
+                onClick={() => goTo(directory)}
+                className="group hover:bg-accent/60 flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left"
               >
                 {project?.vcs ? (
                   <FolderGit2 className="text-muted-foreground size-4 shrink-0" />
@@ -106,9 +308,13 @@ export function WorkspacePicker({
                   <Folder className="text-muted-foreground size-4 shrink-0" />
                 )}
                 <span className="min-w-0 flex-1">
-                  <span className="block truncate text-[13px] font-medium">{basename(directory)}</span>
-                  <span className="text-muted-foreground block truncate font-mono text-[10px]">
-                    {directory}
+                  <span
+                    className={cn(
+                      "block truncate text-[13px] font-medium",
+                      name.startsWith(".") && "text-muted-foreground",
+                    )}
+                  >
+                    {name}
                   </span>
                 </span>
                 {project?.vcs && (
@@ -119,34 +325,138 @@ export function WorkspacePicker({
                     {formatRelative(project.time.active)}
                   </span>
                 ) : null}
+                <ChevronRight className="text-muted-foreground size-3.5 shrink-0 opacity-40 group-hover:opacity-100" />
               </button>
             );
           })
         )}
+        {listing?.truncated && (
+          <p className="text-muted-foreground px-2 py-2 text-center text-[10px]">
+            Showing the first 1000 folders.
+          </p>
+        )}
       </div>
 
-      <form
-        className="border-border flex items-center gap-2 border-t px-3 py-3"
-        onSubmit={(event) => {
-          event.preventDefault();
-          submit();
-        }}
-      >
-        <Input
-          value={path}
-          onChange={(event) => {
-            setPath(event.target.value);
-            setError(null);
-          }}
-          placeholder="/home/ubuntu/Projects/repo"
-          aria-label="Workspace path"
-          className="h-8 font-mono text-xs"
-        />
-        <Button type="submit" size="sm" disabled={!path.trim()}>
-          Use path
-        </Button>
-      </form>
-      {error && <p className="text-destructive px-4 pb-3 text-[11px]">{error}</p>}
+      <div className="border-border flex flex-col gap-2 border-t px-3 py-3">
+        <div className="flex items-center gap-2">
+          <div className="relative min-w-0 flex-1">
+            <Input
+              value={path}
+              onChange={(event) => {
+                setPath(event.target.value);
+                setSuggestOpen(true);
+              }}
+              onFocus={() => setSuggestOpen(true)}
+              onKeyDown={(event) => {
+                if (event.key === "Escape") {
+                  if (suggestOpen) {
+                    event.stopPropagation();
+                    setSuggestOpen(false);
+                  }
+                  return;
+                }
+                if (event.key === "ArrowDown" && suggestions.length > 0) {
+                  event.preventDefault();
+                  setSuggestOpen(true);
+                  setActive((value) => (value + 1) % suggestions.length);
+                  return;
+                }
+                if (event.key === "ArrowUp" && suggestions.length > 0) {
+                  event.preventDefault();
+                  setSuggestOpen(true);
+                  setActive((value) => (value - 1 + suggestions.length) % suggestions.length);
+                  return;
+                }
+                if (event.key === "Tab") {
+                  const suggestion = suggestions[active];
+                  if (!suggestion) return;
+                  event.preventDefault();
+                  setPath(`${suggestion}/`);
+                  setSuggestOpen(true);
+                  return;
+                }
+                if (event.key === "Enter") {
+                  event.preventDefault();
+                  pickTyped();
+                }
+              }}
+              placeholder="Jump to a path, e.g. /home/ubuntu/Projects"
+              aria-label="Folder path"
+              aria-autocomplete="list"
+              aria-expanded={suggestOpen && suggestions.length > 0}
+              className="h-8 font-mono text-xs"
+            />
+          {suggestOpen && suggestions.length > 0 && (
+            <div
+              role="listbox"
+              aria-label="Matching folders"
+              className="overlay-popover border-border bg-popover absolute bottom-full left-0 z-20 mb-1 w-full rounded-lg border p-1 shadow-lg"
+            >
+              {suggestions.map((suggestion, index) => (
+                <button
+                  key={suggestion}
+                  type="button"
+                  role="option"
+                  aria-selected={index === active}
+                  onMouseDown={(event) => event.preventDefault()}
+                  onMouseEnter={() => setActive(index)}
+                  onClick={() => goTo(suggestion)}
+                  className={cn(
+                    "flex w-full items-center gap-2 rounded px-2 py-1.5 text-left",
+                    index === active && "bg-accent",
+                  )}
+                >
+                  <Folder className="text-muted-foreground size-3.5 shrink-0" />
+                  <span className="truncate font-mono text-[11px]">{suggestion}</span>
+                </button>
+              ))}
+            </div>
+          )}
+          </div>
+          <Button
+            variant="secondary"
+            size="sm"
+            disabled={status !== "exists"}
+            onClick={browseTyped}
+            title="Show this folder in the list"
+          >
+            Browse
+          </Button>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="text-muted-foreground min-w-0 flex-1 text-[11px]" aria-live="polite">
+            {status === "relative" && "Use an absolute path, starting with /."}
+            {status === "checking" && (
+              <span className="flex items-center gap-1">
+                <Loader2 className="size-3 animate-spin" />
+                Checking…
+              </span>
+            )}
+            {status === "exists" && (
+              <span className="text-success flex items-center gap-1">
+                <Check className="size-3" />
+                Folder exists. Enter uses it.
+              </span>
+            )}
+            {status === "missing" && (
+              <span className="text-destructive flex items-center gap-1">
+                <X className="size-3" />
+                No such folder.
+              </span>
+            )}
+            {status === "error" && "Cannot read this folder."}
+            {status === "idle" && "Type a path to jump, or browse the folders above."}
+          </div>
+          <Button
+            size="sm"
+            disabled={!target}
+            onClick={() => target && onPick(target)}
+            title={target ? `Use ${target}` : undefined}
+          >
+            {target ? `Use “${basename(target)}”` : "Use folder"}
+          </Button>
+        </div>
+      </div>
     </div>
   );
 

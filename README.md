@@ -207,8 +207,9 @@ Vite proxies `/api` to the backend.
 
 Every chat belongs to one directory for its whole lifetime; it cannot be moved
 later. On first start the GUI asks for a workspace and remembers it in
-`localStorage`. The picker lists OpenCode projects, recent workspaces and an
-absolute path field.
+`localStorage`. The picker browses the server's folders with breadcrumbs and a
+parent button, offers recent workspaces, and completes absolute paths as you
+type. The folder is checked live: a missing path is reported before you use it.
 
 The sidebar has three scopes:
 
@@ -414,6 +415,7 @@ All `/api` endpoints except `/api/instances*` accept `X-Nit-Instance: <id>` or
 | `POST /api/tts/stop` | Stop playback on the host audio client. |
 | `GET /api/config` | Directory, default model and primary agent. |
 | `GET /api/projects` | Known projects from OpenCode `/api/project`, for the workspace picker. |
+| `GET /api/fs?path=` | Immediate subfolders of an absolute path (default: OpenCode's working directory), via OpenCode `/api/fs/list`. `404` when the folder does not exist. |
 | `GET /api/sessions?dir=&children=true&search=&cursor=` | Newest sessions; `children=true` includes subagent sessions; `search` and `cursor` go upstream; the response keeps OpenCode's `cursor`. |
 | `POST /api/sessions` | Create `{directory, title?, agent?, model?}`. |
 | `DELETE /api/sessions/{id}` | Delete a session and its child sessions. |

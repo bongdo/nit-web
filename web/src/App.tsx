@@ -2003,6 +2003,7 @@ export default function App({
         recent={recent}
         motion={motion}
         variant={background}
+        startDirectory={defaultDirectory}
         onPick={selectWorkspace}
         instance={instance}
         onInstances={onOpenInstances}
@@ -2305,6 +2306,7 @@ export default function App({
           current={workspace}
           motion={motion}
           variant={background}
+          startDirectory={defaultDirectory}
           onPick={selectWorkspace}
           onClose={closePicker}
           instance={instance}

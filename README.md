@@ -175,8 +175,8 @@ across app restarts.
 venv, installs `sherpa-onnx` and downloads the 156 MB GigaAM v3 CTC model into
 `~/.local/opt/gigaam`; later calls reuse the warm sidecar on `8177`. The app
 then gets `NIT_GUI_STT_FAST_URL` and sends host dictation there instead of
-spawning `whisper-server`. If the sidecar fails, fast dictation falls back to
-whisper and the deploy still succeeds.
+spawning `whisper-server`. If the sidecar does not start, the deploy leaves the
+URL unset and fast dictation uses whisper.
 
 `bin/nixos` and `bin/deploy nixos` remain in the tree for the old NixOS host.
 That path is legacy and is not a supported production target; new features are

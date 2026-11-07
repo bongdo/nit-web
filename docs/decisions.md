@@ -699,8 +699,8 @@ Russian reliably.
 Decision: `bin/gigaam` runs GigaAM v3 CTC with punctuation through sherpa-onnx
 (217 MB ONNX, MIT) on `127.0.0.1:8177`. `bin/frankfurt` starts the sidecar and
 exports `NIT_GUI_STT_FAST_URL`; the Go fast path posts raw 16 kHz WAV there and
-does not spawn `whisper-server`. Without the sidecar the old whisper path
-remains as a fallback.
+does not spawn `whisper-server`. If the sidecar cannot start, the deploy leaves
+the URL unset and the old whisper path remains.
 
 Why: measured RTF 0.10–0.13 on this host, so a 5-second segment returns in
 about 0.4–0.6 seconds with commas, full stops and capitals. The app already

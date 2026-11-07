@@ -2,33 +2,15 @@ import { useEffect, useState } from "react";
 import { Check, ChevronDown, Loader2, X } from "lucide-react";
 import type { FormField, FormInfo } from "../lib/types";
 import { api } from "../lib/api";
+import {
+  initialFormValues,
+  isEmptyAnswer,
+  isFieldVisible,
+  visibleFormFields,
+} from "../lib/forms";
 import { cn } from "../lib/utils";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
-
-function initialValues(form: FormInfo): Record<string, unknown> {
-  const values: Record<string, unknown> = {};
-  for (const field of form.fields) {
-    if (field.default !== undefined) values[field.key] = field.default;
-    else if (field.type === "boolean") values[field.key] = false;
-    else if (field.type === "multiselect") values[field.key] = [];
-    else values[field.key] = "";
-  }
-  return values;
-}
-
-function isVisible(field: FormField, values: Record<string, unknown>): boolean {
-  if (field.hidden) return false;
-  if (!field.when || field.when.length === 0) return true;
-  return field.when.every((condition) => {
-    const value = values[condition.key];
-    return condition.op === "eq" ? value === condition.value : value !== condition.value;
-  });
-}
-
-function isEmpty(value: unknown): boolean {
-  return value === undefined || value === null || value === "" || (Array.isArray(value) && value.length === 0);
-}
 
 export function FormCard({
   form,
@@ -41,12 +23,24 @@ export function FormCard({
   onDone: () => void;
   onError: (message: string) => void;
 }) {
-  const [values, setValues] = useState<Record<string, unknown>>(() => initialValues(form));
+  const [values, setValues] = useState<Record<string, unknown>>(() =>
+    initialFormValues(form),
+  );
   const [busy, setBusy] = useState(false);
   const [open, setOpen] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [doneFor, setDoneFor] = useState<string | null>(null);
+  const [step, setStep] = useState(0);
   const done = doneFor === form.id;
+  const question = form.metadata?.kind === "question";
+  const visible = visibleFormFields(form, values);
+  const stepped = question && visible.length > 1;
+  const current = Math.min(step, Math.max(0, visible.length - 1));
+  const shown = stepped ? visible.slice(current, current + 1) : visible;
+
+  useEffect(() => {
+    if (step > current) setStep(current);
+  }, [current, step]);
 
   useEffect(() => {
     if (!done) return;
@@ -57,16 +51,32 @@ export function FormCard({
   const set = (key: string, value: unknown) =>
     setValues((current) => ({ ...current, [key]: value }));
 
+  const fieldError = (field: FormField): string | null =>
+    field.required && isEmptyAnswer(values[field.key])
+      ? `${field.title ?? field.key} is required.`
+      : null;
+
+  const next = () => {
+    const problem = fieldError(visible[current]);
+    if (problem) {
+      setError(problem);
+      return;
+    }
+    setError(null);
+    setStep(current + 1);
+  };
+
   const submit = async () => {
     const answer: Record<string, unknown> = {};
     for (const field of form.fields) {
-      if (!isVisible(field, values)) continue;
+      if (!isFieldVisible(field, values)) continue;
       const value = values[field.key];
-      if (field.required && isEmpty(value)) {
-        setError(`${field.title ?? field.key} is required.`);
+      const problem = fieldError(field);
+      if (problem) {
+        setError(problem);
         return;
       }
-      if (isEmpty(value)) continue;
+      if (isEmptyAnswer(value)) continue;
       if (field.type === "number" || field.type === "integer") {
         answer[field.key] = field.type === "integer" ? Math.trunc(Number(value)) : Number(value);
       } else if (field.type === "boolean") {
@@ -121,9 +131,11 @@ export function FormCard({
           <div className="text-[13px] font-semibold">{form.title}</div>
           <div className="text-muted-foreground truncate text-[10px]">
             {open
-              ? form.metadata?.kind === "question"
-                ? "The agent is waiting for your answer."
-                : "The agent needs input."
+              ? stepped
+                ? `Question ${current + 1} of ${visible.length} · The agent is waiting for your answer.`
+                : form.metadata?.kind === "question"
+                  ? "The agent is waiting for your answer."
+                  : "The agent needs input."
               : "Collapsed · click to open"}
           </div>
         </div>
@@ -136,7 +148,12 @@ export function FormCard({
       </button>
 
       <div className={cn("mt-2 space-y-3", !open && "hidden")}>
-        {form.fields.filter((field) => isVisible(field, values)).map((field) => (
+        {stepped && (
+          <div className="text-muted-foreground text-[11px] font-medium">
+            {current + 1}/{visible.length}
+          </div>
+        )}
+        {shown.map((field) => (
           <div key={field.key} className="space-y-1.5">
             <div className="text-[12px] font-medium">
               {field.title ?? field.key}
@@ -272,14 +289,33 @@ export function FormCard({
             <X />
             Cancel
           </Button>
-          <Button size="sm" onClick={() => void submit()} disabled={busy || done}>
-            {busy ? (
-              <Loader2 className="animate-spin" />
-            ) : (
-              <Check className={done ? "form-sheen-check" : undefined} />
-            )}
-            Answer
-          </Button>
+          {stepped && current > 0 && (
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => {
+                setError(null);
+                setStep(current - 1);
+              }}
+              disabled={busy || done}
+            >
+              Back
+            </Button>
+          )}
+          {stepped && current < visible.length - 1 ? (
+            <Button size="sm" onClick={next} disabled={busy || done}>
+              Next
+            </Button>
+          ) : (
+            <Button size="sm" onClick={() => void submit()} disabled={busy || done}>
+              {busy ? (
+                <Loader2 className="animate-spin" />
+              ) : (
+                <Check className={done ? "form-sheen-check" : undefined} />
+              )}
+              Answer
+            </Button>
+          )}
         </div>
       )}
     </div>

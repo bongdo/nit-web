@@ -44,7 +44,9 @@
   .hdr .s { display: block; margin-top: 1px; font-size: 9.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted-fg); }
   .iconbtn { width: 26px; height: 26px; border-radius: 7px; display: grid; place-items: center; color: var(--muted-fg); flex: none; }
   .thread { flex: 1; overflow: hidden; padding: 12px 12px 0; display: flex; flex-direction: column; gap: 12px; }
-  .me { align-self: flex-end; max-width: 84%; }
+  .me { align-self: flex-end; max-width: 86%; }
+  .me .photo { width: 132px; height: 82px; border-radius: 7px; margin-bottom: 5px; background: linear-gradient(165deg,#e9e3d6,#cfc7b6); border: 1px solid #3a3f48; position: relative; overflow: hidden; }
+  .me .photo::before { content: ""; position: absolute; inset: 10px 12px auto 12px; height: 3px; background: #6d6555; box-shadow: 0 8px 0 #9a9282, 0 16px 0 #9a9282, 0 24px 0 #b4ac9c, 0 32px 0 #9a9282, 0 40px 0 #b4ac9c; }
   .me .b { background: var(--sec); border-radius: 15px 15px 4px 15px; padding: 8px 11px; font-size: 12.5px; line-height: 1.45; }
   .stamp { margin-top: 3px; text-align: right; font-size: 9px; color: var(--muted-fg); }
   .ai { display: flex; gap: 8px; }
@@ -62,14 +64,22 @@
   .try { margin-top: 7px; font-size: 11.5px; color: color-mix(in oklab, var(--fg) 82%, var(--spark)); }
   .actions { display: flex; gap: 4px; margin-top: 7px; color: var(--muted-fg); }
   .actions .a { display: inline-flex; align-items: center; gap: 4px; padding: 3px 6px; border-radius: 5px; font-size: 9.5px; }
-  .tool { display: flex; align-items: center; gap: 6px; padding: 3px 0; font-size: 9px; color: var(--muted-fg); letter-spacing: .04em; }
-  .tool .d { width: 5px; height: 5px; background: var(--spark); transform: rotate(45deg); border-radius: 1px; flex: none; }
-  .tool b { font-weight: 400; color: color-mix(in oklab, var(--muted-fg) 80%, var(--fg)); }
   .composer { padding: 0 10px 9px; }
   .box { border: 1px solid var(--border); background: var(--card); border-radius: 13px; padding: 8px 9px 6px; }
   .box .ph { font-size: 11.5px; color: var(--muted-fg); min-height: 18px; }
   .box .tools { display: flex; align-items: center; gap: 2px; margin-top: 5px; color: var(--muted-fg); }
   .box .tools .send { margin-left: auto; width: 26px; height: 26px; border-radius: 50%; background: var(--fg); color: var(--bg); display: grid; place-items: center; }
+
+  .mini { width: 100%; border-collapse: collapse; font-size: 10px; margin: 5px 0 6px; }
+  .mini th, .mini td { border: 1px solid color-mix(in oklab, var(--border) 75%, transparent); padding: 3px 5px; text-align: left; }
+  .mini th { background: color-mix(in oklab, var(--sec) 70%, transparent); font-weight: 500; color: var(--muted-fg); }
+  .file { display: flex; align-items: center; gap: 7px; padding: 7px 8px; border: 1px solid var(--border); background: var(--card); border-radius: 8px; margin-top: 6px; }
+  .file .i { width: 26px; height: 26px; border-radius: 6px; background: color-mix(in oklab, var(--spark) 13%, var(--sec)); color: var(--spark); display: grid; place-items: center; flex: none; }
+  .file .t { flex: 1; min-width: 0; }
+  .file .t b { display: block; font-size: 10.5px; font-weight: 500; }
+  .file .t span { display: block; font-size: 8px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted-fg); }
+  .file .dl { font-size: 9.5px; color: var(--spark); }
+
   .sheetwrap { position: absolute; inset: 0; background: rgba(6,7,9,.62); display: flex; align-items: flex-end; }
   .sheet { width: 100%; background: var(--popover); border-radius: 18px 18px 0 0; border-top: 1px solid var(--border); padding: 8px 10px 20px; position: relative; }
   .sheet::before { content: ""; position: absolute; inset: 0 0 auto 0; height: 1px; background: linear-gradient(90deg, transparent, color-mix(in oklab, var(--spark) 30%, transparent), transparent); }
@@ -100,8 +110,10 @@
   .lt span { display: block; margin-top: 1px; font-size: 8.5px; color: var(--muted-fg); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .pdf { display: inline-block; margin-left: 3px; padding: 0 3px; border: 1px solid var(--border); border-radius: 3px; font-size: 6.5px; letter-spacing: .06em; color: var(--muted-fg); }
   .lk { flex: none; font-size: 7.5px; color: var(--muted-fg); }
-  .nfoot { border-top: 1px solid var(--border); padding: 8px; display: flex; gap: 6px; align-items: center; }
+  .nfoot { border-top: 1px solid var(--border); padding: 8px 10px; display: flex; gap: 6px; align-items: center; }
   .nfoot .k { flex: 1; font-size: 8px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted-fg); }
+  .bar { width: 54px; height: 3px; border-radius: 2px; background: var(--border); overflow: hidden; }
+  .bar i { display: block; height: 100%; width: 24%; background: var(--spark); }
 
   .app { position: absolute; inset: 0; background: #eef1f4; color: #14181d; padding: 42px 14px; }
   .app h4 { margin: 0 0 2px; font-size: 14px; }
@@ -125,14 +137,13 @@
   .attach .x { width: 18px; height: 18px; border-radius: 50%; background: var(--sec); color: var(--muted-fg); display: grid; place-items: center; font-size: 10px; }
   .ask { display: flex; align-items: center; gap: 6px; padding: 7px 8px; background: var(--card); border: 1px solid var(--border); border-radius: 9px; font-size: 10.5px; color: var(--muted-fg); }
   .ask .send { margin-left: auto; width: 22px; height: 22px; border-radius: 50%; background: var(--fg); color: var(--bg); display: grid; place-items: center; }
-  .tag { font-size: 8.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted-fg); }
 </style>
 </head>
 <body>
 <div class="row">
 
   <div>
-    <div class="caption">01 · чат</div>
+    <div class="caption">01 · ответ</div>
     <div class="phone">
       <div class="notch"></div>
       <div class="hdr">
@@ -141,15 +152,11 @@
         <div class="iconbtn"><svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M10 4v12M4 10h12"/></svg></div>
       </div>
       <div class="thread">
-        <div class="me">
-          <div class="b">Ben dun gittim okula</div>
-          <div class="stamp mono">19:06</div>
-        </div>
-        <div class="tool"><span class="d"></span> <b>память</b> · words.md · 0,2 с</div>
+        <div class="me"><div class="b">Ben dun gittim okula</div><div class="stamp mono">19:06</div></div>
         <div class="ai">
           <div class="av"><svg width="11" height="11" viewBox="0 0 20 20" fill="var(--spark)"><path d="M10 0l2.2 7.8L20 10l-7.8 2.2L10 20l-2.2-7.8L0 10l7.8-2.2z"/></svg></div>
           <div class="body">
-            <div class="who"><b>Ассистент</b><span>deepseek · 2,1 с</span></div>
+            <div class="who"><b>Ассистент</b><span>2,1 с</span></div>
             <p>Почти. Правильно:</p>
             <div class="fix">Ben <b>dün</b> <b>okula</b> gittim.</div>
             <ul class="why">
@@ -186,16 +193,14 @@
         <div class="t"><b>Турецкий</b><span class="s mono">12 сообщений · 2 документа</span></div>
         <div class="iconbtn"><svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M10 4v12M4 10h12"/></svg></div>
       </div>
-      <div class="thread">
-        <div class="me"><div class="b">Ben dun gittim okula</div></div>
-      </div>
+      <div class="thread"><div class="me"><div class="b">Ben dun gittim okula</div></div></div>
       <div class="composer"><div class="box"><div class="ph">Сообщение…</div></div></div>
       <div class="nwrap">
         <div class="nav">
           <div class="nhead"><b>Чаты</b><span class="s mono">6</span>
             <div class="iconbtn"><svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M10 4v12M4 10h12"/></svg></div>
           </div>
-          <div class="search"><svg width="10" height="10" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="9" cy="9" r="5.5"/><path d="M13 13l4 4"/></svg> поиск по чатам и документам…</div>
+          <div class="search"><svg width="10" height="10" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="9" cy="9" r="5.5"/><path d="M13 13l4 4"/></svg> поиск</div>
           <div class="list">
             <div class="lrow on"><div class="mark"></div><div class="lt"><b>Турецкий</b><span>Почти. Правильно: Ben dün…</span></div><div class="lk mono">2м</div></div>
             <div class="lrow"><div class="mark"></div><div class="lt"><b>Договор аренды<span class="pdf mono">PDF</span></b><span>Можно расторгнуть за 30…</span></div><div class="lk mono">12:40</div></div>
@@ -204,32 +209,46 @@
             <div class="lrow"><div class="mark"></div><div class="lt"><b>РЖД · билет</b><span>07:40, Ленинградский…</span></div><div class="lk mono">5 нояб</div></div>
             <div class="lrow"><div class="mark"></div><div class="lt"><b>Школа<span class="pdf mono">XLSX</span></b><span>2 листа, оценки за…</span></div><div class="lk mono">5 нояб</div></div>
           </div>
-          <div class="nfoot">
-            <span class="k mono">память · 14 документов · 86 слов</span>
-            <div class="iconbtn"><svg width="13" height="13" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="10" cy="10" r="2.6"/><path d="M10 2.6v2M10 15.4v2M2.6 10h2M15.4 10h2M4.8 4.8l1.4 1.4M13.8 13.8l1.4 1.4M15.2 4.8l-1.4 1.4M6.2 13.8l-1.4 1.4"/></svg></div>
-          </div>
+          <div class="nfoot"><span class="k mono">1,2 ГБ из 5 ГБ</span><span class="bar"><i></i></span></div>
         </div>
       </div>
     </div>
   </div>
 
   <div>
-    <div class="caption">03 · вложение</div>
+    <div class="caption">03 · файл как результат</div>
     <div class="phone">
       <div class="notch"></div>
       <div class="hdr">
         <div class="iconbtn"><svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M3 6h14M3 10h14M3 14h9"/></svg></div>
-        <div class="t"><b>Новый чат</b><span class="s mono">1 документ в памяти</span></div>
+        <div class="t"><b>Оценки</b><span class="s mono">4 сообщения · 1 файл</span></div>
+        <div class="iconbtn"><svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M10 4v12M4 10h12"/></svg></div>
       </div>
-      <div class="thread" style="gap:10px">
-        <div class="tag">недавние</div>
-        <div class="opt" style="border:1px solid var(--border);background:var(--card);border-radius:10px">
-          <div class="i"><svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M5 3h7l3 3v11H5z"/><path d="M12 3v3h3"/></svg></div>
-          <div><b>Анализы.pdf</b><span>3 страницы · вчера</span></div>
+      <div class="thread">
+        <div class="me">
+          <div class="photo"></div>
+          <div class="b">Собери в таблицу и посчитай средний</div>
+          <div class="stamp mono">18:20</div>
         </div>
-        <div class="opt" style="border:1px solid var(--border);background:var(--card);border-radius:10px">
-          <div class="i"><svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="4" width="14" height="12" rx="2"/><path d="M3 8.5h14M8.5 8.5V16"/></svg></div>
-          <div><b>Школа.xlsx</b><span>2 листа · 5 нояб</span></div>
+        <div class="ai">
+          <div class="av"><svg width="11" height="11" viewBox="0 0 20 20" fill="var(--spark)"><path d="M10 0l2.2 7.8L20 10l-7.8 2.2L10 20l-2.2-7.8L0 10l7.8-2.2z"/></svg></div>
+          <div class="body">
+            <div class="who"><b>Ассистент</b><span>8,4 с</span></div>
+            <p>Средний балл — <b>4,3</b>.</p>
+            <table class="mini">
+              <tr><th>Предмет</th><th>Оценка</th></tr>
+              <tr><td>Алгебра</td><td>5</td></tr>
+              <tr><td>Геометрия</td><td>4</td></tr>
+              <tr><td>История</td><td>5</td></tr>
+              <tr><td>Физика</td><td>4</td></tr>
+              <tr><td>Литература</td><td>4</td></tr>
+            </table>
+            <div class="file">
+              <div class="i"><svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="4" width="14" height="12" rx="2"/><path d="M3 8.5h14M8.5 8.5V16"/></svg></div>
+              <div class="t"><b>оценки.xlsx</b><span class="mono">xlsx · 12 кб</span></div>
+              <div class="dl">скачать</div>
+            </div>
+          </div>
         </div>
       </div>
       <div class="composer">
@@ -239,32 +258,6 @@
             <div class="iconbtn"><svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M10 3.5v13M3.5 10h13"/></svg></div>
             <div class="send"><svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M8 12.5V4M4 8l4-4 4 4"/></svg></div>
           </div>
-        </div>
-      </div>
-      <div class="sheetwrap">
-        <div class="sheet">
-          <div class="grab"></div>
-          <div class="opt">
-            <div class="i hot"><svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M3 7V4.5A1.5 1.5 0 0 1 4.5 3H7M13 3h2.5A1.5 1.5 0 0 1 17 4.5V7M17 13v2.5a1.5 1.5 0 0 1-1.5 1.5H13M7 17H4.5A1.5 1.5 0 0 1 3 15.5V13M4 10h12"/></svg></div>
-            <div><b>Документ</b><span>скан страниц: ровно, без перспективы, много страниц</span></div>
-            <div class="k mono">PDF</div>
-          </div>
-          <div class="opt">
-            <div class="i"><svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="2" y="5.5" width="16" height="11" rx="2.5"/><circle cx="10" cy="11" r="3"/><path d="M7 5.5l1.2-2h3.6l1.2 2"/></svg></div>
-            <div><b>Фото</b><span>обычный снимок: доска, чек, этикетка, цветок</span></div>
-            <div class="k mono">JPG</div>
-          </div>
-          <div class="opt">
-            <div class="i"><svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="3" width="14" height="14" rx="2.5"/><circle cx="7.5" cy="7.5" r="1.4"/><path d="M3.5 14l4-4 3 3 2.5-2.5 3.5 3.5"/></svg></div>
-            <div><b>Из галереи</b><span>скриншоты и готовые фото</span></div>
-            <div class="k mono">PNG HEIC</div>
-          </div>
-          <div class="opt">
-            <div class="i"><svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path d="M13.5 7.5l-6 6a2.3 2.3 0 0 0 3.2 3.2l6.4-6.4a3.7 3.7 0 0 0-5.2-5.2L5.6 11.4"/></svg></div>
-            <div><b>Файл</b><span>документы и таблицы</span></div>
-            <div class="k mono">PDF XLSX DOCX</div>
-          </div>
-          <div class="note">Документ — это скан в PDF. Фото — просто снимок, без обработки.</div>
         </div>
       </div>
     </div>

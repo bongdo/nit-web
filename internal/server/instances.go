@@ -156,9 +156,12 @@ func (s *Server) speechCapability(ctx context.Context) capabilityOut {
 	if s.tts != nil {
 		ok, clients, detail = s.tts.status(ctx)
 	}
+	voice := s.voice != nil && s.voice.available()
 	switch {
 	case ok && clients > 0:
 		return capabilityOut{ID: "speech", Label: "Speech", Owner: "opencode", State: "on", Detail: fmt.Sprintf("host TTS · %d audio client(s)", clients)}
+	case voice:
+		return capabilityOut{ID: "speech", Label: "Speech", Owner: "nit-gui", State: "on", Detail: s.voice.detail}
 	case ok:
 		return capabilityOut{ID: "speech", Label: "Speech", Owner: "browser", State: "fallback", Detail: "host TTS hub up · no audio client"}
 	default:

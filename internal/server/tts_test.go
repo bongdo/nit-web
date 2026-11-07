@@ -276,3 +276,276 @@ func TestTTSHandlers(t *testing.T) {
 		t.Fatalf("nil status = %d, body = %s", recorder.Code, recorder.Body.String())
 	}
 }
+
+const piperScript = `if [ -n "$FAKE_VOICE_ARGS" ]; then printf '%s\n' "$@" > "$FAKE_VOICE_ARGS"; fi
+cat >/dev/null
+out=""
+while [ $# -gt 0 ]; do
+  if [ "$1" = "-f" ]; then shift; out="$1"; fi
+  shift
+done
+printf 'RIFF0000WAVEfmt ' > "$out"
+`
+
+const edgeScript = `if [ -n "$FAKE_VOICE_ARGS" ]; then printf '%s\n' "$@" > "$FAKE_VOICE_ARGS"; fi
+out=""
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --write-media) shift; out="$1" ;;
+  esac
+  shift
+done
+printf 'ID3fake-mp3' > "$out"
+`
+
+func fakeVoiceScript(t *testing.T, body string) string {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "fake-voice.sh")
+	if err := os.WriteFile(path, []byte("#!/bin/sh\n"+body), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	return path
+}
+
+func voiceEnv(t *testing.T) {
+	t.Helper()
+	t.Setenv("NIT_GUI_TTS", "")
+	t.Setenv("NIT_GUI_TTS_ENGINE", "off")
+	t.Setenv("NIT_GUI_TTS_RATE", "")
+	t.Setenv("NIT_GUI_TTS_PIPER", "")
+	t.Setenv("NIT_GUI_TTS_PIPER_MODEL", "")
+	t.Setenv("NIT_GUI_TTS_EDGE", "")
+	t.Setenv("NIT_GUI_TTS_EDGE_VOICE", "")
+}
+
+func fakePiperVoice(t *testing.T) *hostVoice {
+	t.Helper()
+	voiceEnv(t)
+	model := filepath.Join(t.TempDir(), "voice.onnx")
+	if err := os.WriteFile(model, []byte("model"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("NIT_GUI_TTS_ENGINE", "piper")
+	t.Setenv("NIT_GUI_TTS_PIPER", fakeVoiceScript(t, piperScript))
+	t.Setenv("NIT_GUI_TTS_PIPER_MODEL", model)
+	return newHostVoice()
+}
+
+func TestNewHostVoiceSelection(t *testing.T) {
+	piper := fakeVoiceScript(t, piperScript)
+	edge := fakeVoiceScript(t, edgeScript)
+	model := filepath.Join(t.TempDir(), "voice.onnx")
+	if err := os.WriteFile(model, []byte("model"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	missing := filepath.Join(t.TempDir(), "missing")
+
+	cases := []struct {
+		name    string
+		engine  string
+		piper   string
+		model   string
+		edge    string
+		content string
+		detail  string
+	}{
+		{"auto prefers piper", "auto", piper, model, edge, "audio/wav", "host voice · piper"},
+		{"auto falls back to edge", "auto", piper, missing, edge, "audio/mpeg", "host voice · edge-tts"},
+		{"auto none", "auto", missing, missing, missing, "", ""},
+		{"forced piper", "piper", piper, model, edge, "audio/wav", "host voice · piper"},
+		{"forced edge", "edge", piper, model, edge, "audio/mpeg", "host voice · edge-tts"},
+		{"off", "off", piper, model, edge, "", ""},
+	}
+	for _, item := range cases {
+		t.Run(item.name, func(t *testing.T) {
+			voiceEnv(t)
+			t.Setenv("NIT_GUI_TTS_ENGINE", item.engine)
+			t.Setenv("NIT_GUI_TTS_PIPER", item.piper)
+			t.Setenv("NIT_GUI_TTS_PIPER_MODEL", item.model)
+			t.Setenv("NIT_GUI_TTS_EDGE", item.edge)
+			voice := newHostVoice()
+			if voice.contentType != item.content || voice.detail != item.detail {
+				t.Fatalf("voice = %q, %q", voice.contentType, voice.detail)
+			}
+		})
+	}
+}
+
+func TestHostVoiceSynthesizePiper(t *testing.T) {
+	args := filepath.Join(t.TempDir(), "args")
+	t.Setenv("FAKE_VOICE_ARGS", args)
+	voice := fakePiperVoice(t)
+	t.Setenv("NIT_GUI_TTS_RATE", "2")
+	voice = newHostVoice()
+	data, contentType, err := voice.synthesize(context.Background(), "  привет  ")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if contentType != "audio/wav" || !strings.HasPrefix(string(data), "RIFF") {
+		t.Fatalf("contentType = %q, data = %q", contentType, data)
+	}
+	raw, err := os.ReadFile(args)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(raw), "--length_scale") || !strings.Contains(string(raw), "0.5") {
+		t.Fatalf("piper args = %q", raw)
+	}
+}
+
+func TestHostVoiceSynthesizeEdge(t *testing.T) {
+	args := filepath.Join(t.TempDir(), "args")
+	voiceEnv(t)
+	t.Setenv("FAKE_VOICE_ARGS", args)
+	t.Setenv("NIT_GUI_TTS_ENGINE", "edge")
+	t.Setenv("NIT_GUI_TTS_EDGE", fakeVoiceScript(t, edgeScript))
+	t.Setenv("NIT_GUI_TTS_EDGE_VOICE", "test-voice")
+	t.Setenv("NIT_GUI_TTS_RATE", "0.9")
+	voice := newHostVoice()
+	data, contentType, err := voice.synthesize(context.Background(), "  hello  ")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if contentType != "audio/mpeg" || string(data) != "ID3fake-mp3" {
+		t.Fatalf("contentType = %q, data = %q", contentType, data)
+	}
+	raw, err := os.ReadFile(args)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"--text=hello", "--voice", "test-voice", "--rate=-10%"} {
+		if !strings.Contains(string(raw), want) {
+			t.Fatalf("edge args = %q, missing %q", raw, want)
+		}
+	}
+}
+
+func TestHostVoiceErrors(t *testing.T) {
+	voiceEnv(t)
+	model := filepath.Join(t.TempDir(), "voice.onnx")
+	if err := os.WriteFile(model, []byte("model"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("NIT_GUI_TTS_ENGINE", "piper")
+	t.Setenv("NIT_GUI_TTS_PIPER", fakeVoiceScript(t, "exit 1\n"))
+	t.Setenv("NIT_GUI_TTS_PIPER_MODEL", model)
+	voice := newHostVoice()
+	_, _, err := voice.synthesize(context.Background(), "secret zz top")
+	if err == nil || strings.Contains(err.Error(), "secret") {
+		t.Fatalf("error = %v", err)
+	}
+
+	t.Setenv("NIT_GUI_TTS_PIPER_MODEL", filepath.Join(t.TempDir(), "missing.onnx"))
+	missing := newHostVoice()
+	if missing.available() {
+		t.Fatal("piper available without a model")
+	}
+	if _, _, err := missing.synthesize(context.Background(), "hello"); err == nil ||
+		err.Error() != "host voice is not available" {
+		t.Fatalf("missing model error = %v", err)
+	}
+
+	empty := newHostVoice()
+	if _, _, err := empty.synthesize(context.Background(), "  "); err == nil ||
+		err.Error() != "text is empty" {
+		t.Fatalf("empty error = %v", err)
+	}
+	if _, _, err := empty.synthesize(context.Background(), strings.Repeat("ж", maxTTSText+1)); !errors.Is(err, errTTSTextLong) {
+		t.Fatalf("long error = %v", err)
+	}
+}
+
+func TestTTSSpeechCapabilityPrecedence(t *testing.T) {
+	voice := fakePiperVoice(t)
+
+	busyServer, _ := newTTSFake(t, "secret", 2)
+	busy := newTTSFromFake(t, busyServer.URL, "secret")
+	cap := (&Server{tts: busy, voice: voice}).speechCapability(context.Background())
+	if cap.State != "on" || cap.Owner != "opencode" || cap.Detail != "host TTS · 2 audio client(s)" {
+		t.Fatalf("busy capability = %#v", cap)
+	}
+
+	idleServer, _ := newTTSFake(t, "secret", 0)
+	idle := newTTSFromFake(t, idleServer.URL, "secret")
+	cap = (&Server{tts: idle, voice: voice}).speechCapability(context.Background())
+	if cap.State != "on" || cap.Owner != "nit-gui" || cap.Detail != "host voice · piper" {
+		t.Fatalf("voice with idle hub capability = %#v", cap)
+	}
+
+	closed := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
+	closedURL := closed.URL
+	closed.Close()
+	down := newTTSFromFake(t, closedURL, "secret")
+	cap = (&Server{tts: down, voice: voice}).speechCapability(context.Background())
+	if cap.State != "on" || cap.Owner != "nit-gui" || cap.Detail != "host voice · piper" {
+		t.Fatalf("voice with down hub capability = %#v", cap)
+	}
+
+	t.Setenv("NIT_GUI_TTS_ENGINE", "off")
+	noVoice := newHostVoice()
+	cap = (&Server{tts: idle, voice: noVoice}).speechCapability(context.Background())
+	if cap.State != "fallback" || cap.Owner != "browser" || cap.Detail != "host TTS hub up · no audio client" {
+		t.Fatalf("idle without voice capability = %#v", cap)
+	}
+	cap = (&Server{tts: down, voice: noVoice}).speechCapability(context.Background())
+	if cap.State != "off" || cap.Owner != "opencode" || cap.Detail != "host TTS not running" {
+		t.Fatalf("down without voice capability = %#v", cap)
+	}
+}
+
+func TestTTSAudioHandler(t *testing.T) {
+	s := &Server{voice: fakePiperVoice(t)}
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/api/tts/audio", strings.NewReader(`{"text":"привет"}`))
+	s.ttsAudio(recorder, request)
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", recorder.Code, recorder.Body.String())
+	}
+	if got := recorder.Header().Get("Content-Type"); got != "audio/wav" {
+		t.Fatalf("content type = %q", got)
+	}
+	if got := recorder.Header().Get("Cache-Control"); got != "no-store" {
+		t.Fatalf("cache control = %q", got)
+	}
+	if !strings.HasPrefix(recorder.Body.String(), "RIFF") {
+		t.Fatalf("body = %q", recorder.Body.String())
+	}
+
+	recorder = httptest.NewRecorder()
+	request = httptest.NewRequest(http.MethodPost, "/api/tts/audio", strings.NewReader(`{"text":"  "}`))
+	s.ttsAudio(recorder, request)
+	if recorder.Code != http.StatusBadRequest {
+		t.Fatalf("empty status = %d", recorder.Code)
+	}
+
+	recorder = httptest.NewRecorder()
+	request = httptest.NewRequest(http.MethodPost, "/api/tts/audio",
+		strings.NewReader(`{"text":"`+strings.Repeat("ж", maxTTSText+1)+`"}`))
+	s.ttsAudio(recorder, request)
+	if recorder.Code != http.StatusRequestEntityTooLarge {
+		t.Fatalf("long status = %d", recorder.Code)
+	}
+
+	nilVoice := &Server{}
+	recorder = httptest.NewRecorder()
+	request = httptest.NewRequest(http.MethodPost, "/api/tts/audio", strings.NewReader(`{"text":"hello"}`))
+	nilVoice.ttsAudio(recorder, request)
+	if recorder.Code != http.StatusServiceUnavailable ||
+		!strings.Contains(recorder.Body.String(), "host voice not configured") {
+		t.Fatalf("nil status = %d, body = %s", recorder.Code, recorder.Body.String())
+	}
+
+	voiceEnv(t)
+	t.Setenv("NIT_GUI_TTS_ENGINE", "off")
+	t.Setenv("NIT_GUI_TTS_TOKEN", "supersecret")
+	disabled := &Server{voice: newHostVoice()}
+	recorder = httptest.NewRecorder()
+	request = httptest.NewRequest(http.MethodPost, "/api/tts/audio", strings.NewReader(`{"text":"hello"}`))
+	disabled.ttsAudio(recorder, request)
+	if recorder.Code != http.StatusServiceUnavailable {
+		t.Fatalf("disabled status = %d", recorder.Code)
+	}
+	if strings.Contains(recorder.Body.String(), "supersecret") {
+		t.Fatalf("body leaked the token: %s", recorder.Body.String())
+	}
+}

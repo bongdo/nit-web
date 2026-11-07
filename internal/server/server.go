@@ -91,6 +91,7 @@ type Server struct {
 	fast         *fastSTT
 	grammar      *grammarChecker
 	tts          *ttsHub
+	voice        *hostVoice
 	auth         *authGate
 	ui           *uistate.Store
 	basePath     string
@@ -118,6 +119,7 @@ func New(provider ClientProvider, static fs.FS, log *slog.Logger) http.Handler {
 		fast:         newFastSTT(log),
 		grammar:      newGrammarChecker(log),
 		tts:          newTTSHub(),
+		voice:        newHostVoice(),
 		auth:         newAuthGate(log),
 		ui:           ui,
 		basePath:     strings.TrimRight(os.Getenv("NIT_GUI_BASE_PATH"), "/"),
@@ -194,6 +196,7 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("POST /api/sessions/{id}/compact", s.compact)
 	s.mux.HandleFunc("POST /api/stt", s.stt)
 	s.mux.HandleFunc("POST /api/tts", s.ttsSay)
+	s.mux.HandleFunc("POST /api/tts/audio", s.ttsAudio)
 	s.mux.HandleFunc("POST /api/tts/stop", s.ttsStop)
 	s.mux.HandleFunc("POST /api/grammar", s.grammarCheck)
 	s.mux.HandleFunc("POST /api/upload", s.upload)
@@ -1238,6 +1241,39 @@ func (s *Server) ttsSay(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "clients": clients})
+}
+
+func (s *Server) ttsAudio(w http.ResponseWriter, r *http.Request) {
+	if s.voice == nil {
+		writeError(w, http.StatusServiceUnavailable, "host voice not configured")
+		return
+	}
+	var body struct {
+		Text string `json:"text"`
+	}
+	decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, 64<<10))
+	if err := decoder.Decode(&body); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request")
+		return
+	}
+	_ = http.NewResponseController(w).SetWriteDeadline(time.Now().Add(hostVoiceTimeout + 5*time.Second))
+	audio, contentType, err := s.voice.synthesize(r.Context(), body.Text)
+	if err != nil {
+		switch {
+		case errors.Is(err, errTTSTextLong):
+			writeError(w, http.StatusRequestEntityTooLarge, err.Error())
+		case errors.Is(err, errTTSTextEmpty):
+			writeError(w, http.StatusBadRequest, err.Error())
+		default:
+			writeError(w, http.StatusServiceUnavailable, err.Error())
+		}
+		return
+	}
+	w.Header().Set("Content-Type", contentType)
+	w.Header().Set("Cache-Control", "no-store")
+	w.Header().Set("Content-Length", strconv.Itoa(len(audio)))
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(audio)
 }
 
 func (s *Server) ttsStop(w http.ResponseWriter, r *http.Request) {

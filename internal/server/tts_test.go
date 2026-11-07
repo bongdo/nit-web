@@ -279,7 +279,8 @@ func TestTTSHandlers(t *testing.T) {
 	}
 }
 
-const piperScript = `if [ -n "$FAKE_VOICE_ARGS" ]; then printf '%s\n' "$@" > "$FAKE_VOICE_ARGS"; fi
+const piperScript = `if [ -n "$FAKE_VOICE_STARTS" ]; then printf 'start\n' >> "$FAKE_VOICE_STARTS"; fi
+if [ -n "$FAKE_VOICE_ARGS" ]; then printf '%s\n' "$@" > "$FAKE_VOICE_ARGS"; fi
 out=""
 prev=""
 for arg in "$@"; do
@@ -383,6 +384,25 @@ func TestHostVoiceSynthesizePiper(t *testing.T) {
 	}
 	if !strings.Contains(string(raw), "--length_scale") || !strings.Contains(string(raw), "0.5") {
 		t.Fatalf("piper args = %q", raw)
+	}
+}
+
+func TestPiperWorkerStaysWarm(t *testing.T) {
+	starts := filepath.Join(t.TempDir(), "starts")
+	voice := fakePiperVoice(t)
+	t.Setenv("FAKE_VOICE_STARTS", starts)
+	defer voice.worker.stop()
+	for _, text := range []string{"первый", "второй"} {
+		if _, _, err := voice.synthesize(context.Background(), text); err != nil {
+			t.Fatal(err)
+		}
+	}
+	raw, err := os.ReadFile(starts)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Count(string(raw), "start") != 1 {
+		t.Fatalf("piper started %d times, want 1", strings.Count(string(raw), "start"))
 	}
 }
 

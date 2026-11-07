@@ -24,7 +24,7 @@ fallback for every one of them.
 | Sessions, messages, models, agents | each OpenCode instance | source of truth |
 | Instance list, SSH tunnels | nit-gui host, `~/.config/nit-gui/instances.json` | implemented |
 | STT | nit-gui host `/api/stt`, or the browser's Web Speech service in Instant mode | optional |
-| TTS | nit-gui publishes to the OpenCode TTS hub or synthesizes with host `piper`/`edge-tts`; browser voice is the fallback | implemented |
+| TTS | nit-gui keeps a warm host `piper` worker and streams its audio; browser voice is the fallback | implemented |
 | Spelling | browser nspell worker today; target nit-gui `/api/spell` | migration gap |
 | Grammar | nit-gui host LanguageTool sidecar through `/api/grammar` | optional |
 | Attachments | the active instance, OpenCode `/api/experimental/fs/write` and `/tmp` | implemented |
@@ -278,8 +278,8 @@ server, so hiding a chat or continuing a draft works on the next device.
 - Speech output uses the host. The reply `Read` button speaks through the
   host: `piper` streams raw audio sentence by sentence, so the first sound
   arrives in about a second instead of after the whole reply. If piper is
-  unavailable, nit-gui falls back to whole-file `edge-tts`, then the OpenCode
-  TTS hub, then the browser `speechSynthesis`. Markdown is rewritten for
+  unavailable, nit-gui falls back to whole-file piper, then the OpenCode TTS
+  hub, then the browser `speechSynthesis`. Markdown is rewritten for
   speech: code blocks become “Блок кода на Go, 12 строк”, paths become “файл
   tts.go в папке internal server”, URLs keep only their host, tables are
   summarized and hashes are skipped. Select text in a reply and press `Read`
@@ -344,26 +344,24 @@ rewritten to loopback. Credentials in a server URL are discarded.
 | `NIT_GUI_TTS_TOKEN_FILE` | Hub token file, default `$XDG_STATE_HOME/opencode-tts/token` or `~/.local/state/opencode-tts/token`. |
 | `NIT_GUI_TTS_TOKEN` | Direct hub token, overrides the token file. |
 | `NIT_GUI_TTS` | Set to `off` to disable host TTS. |
-| `NIT_GUI_TTS_ENGINE` | Host voice: `auto` (default), `piper`, `edge` or `off`. |
+| `NIT_GUI_TTS_ENGINE` | Host voice: `auto` (default), `piper` or `off`. |
 | `NIT_GUI_TTS_PIPER` | `piper` binary, default on `PATH`. |
 | `NIT_GUI_TTS_PIPER_MODEL` | Piper voice, default `$XDG_DATA_HOME/piper-voices/ru_RU-irina-medium.onnx` or `~/.local/share/piper-voices/...`. |
-| `NIT_GUI_TTS_EDGE` | `edge-tts` binary, default on `PATH`. |
-| `NIT_GUI_TTS_EDGE_VOICE` | Edge voice, default `ru-RU-SvetlanaNeural`. |
 | `NIT_GUI_TTS_RATE` | Speech rate, default `1.0`. |
-| `NIT_GUI_WARM` | Set to `0` to skip eager LanguageTool and fast-dictation warmup. |
+| `NIT_GUI_WARM` | Set to `0` to skip eager LanguageTool, fast-dictation and host-voice warmup. |
 | `--addr` | Listener address, default `127.0.0.1:7788`. |
 
 TTS has four paths, in order:
 
-1. **Streamed host voice.** The reply `Read` button splits the reply into
+1. **Warm host voice.** The reply `Read` button splits the reply into
    paragraphs and sentences and calls `POST /api/tts/stream` for each segment.
-   The server rewrites Markdown for speech and runs `piper` with
-   `--output_raw`, forwarding 16-bit mono PCM as it is synthesized. The browser
-   schedules the PCM through Web Audio, so the first words start in about a
-   second. The next segment is synthesized while the current one plays.
+   The server rewrites Markdown for speech and asks the warm `piper` worker for
+   the segment WAV, then forwards its 16-bit mono PCM. The browser schedules
+   the PCM through Web Audio, so the first words start in about 0.5–1.7
+   seconds. The next segment is synthesized while the current one plays.
 2. **Whole-file host voice.** If piper is missing or streaming is unsupported,
-   nit-gui synthesizes the whole reply with `piper` or `edge-tts` and returns a
-   WAV/MP3 file. `auto` prefers piper; `NIT_GUI_TTS_ENGINE` forces one.
+   nit-gui synthesizes the whole reply with piper and returns a WAV file.
+   `auto` uses piper; `NIT_GUI_TTS_ENGINE` forces piper or `off`.
 3. **Hub with an audio client.** If the host has no voice, publish to the
    OpenCode TTS hub; the hub plays it on the user's audio client. The token
    never reaches the browser.
@@ -373,10 +371,10 @@ TTS has four paths, in order:
 
 The Instances menu shows host speech as `on` when either host path works,
 `fallback` when only the device voice is left, and `off` otherwise. `piper` is
-local and loads a ~63 MB model once per request; a 370-character reply
-synthesizes in about 3 seconds, with the first audio at about 0.5–1.7 seconds.
-`edge-tts` sends the reply text to the network and has a slow cold start, so
-`auto` avoids it when piper is installed.
+local. A warm worker keeps the ~63 MB model in memory after the first request;
+a 370-character reply synthesizes in about 3 seconds, with the first audio at
+about 0.5–1.7 seconds. The worker is started during server warmup and survives
+until the server restarts.
 
 If the active instance is down, the GUI still starts and shows an offline screen
 with a retry button and a `Switch instance` action. Health is polled every 20
@@ -397,7 +395,7 @@ All `/api` endpoints except `/api/instances*` accept `X-Nit-Instance: <id>` or
 | `POST /api/instances` | Create or edit `{original?, name, transport, url?, ssh?, dir?, password?, passwordFile?}`. Writes the config on the host and reloads the registry. |
 | `DELETE /api/instances/{id}` | Remove an instance; the last one cannot be removed. |
 | `POST /api/tts` | `{text}`; publish to the host TTS hub. `503` when the hub is down or has no audio client. |
-| `POST /api/tts/audio` | `{text}`; synthesize the whole reply with `piper`/`edge-tts` and return WAV/MP3. |
+| `POST /api/tts/audio` | `{text}`; synthesize the whole reply with piper and return WAV. |
 | `POST /api/tts/stream` | `{text}`; stream 16-bit mono PCM from `piper` as it is synthesized. `X-Audio-Rate` carries the sample rate. |
 | `POST /api/tts/stop` | Stop playback on the host audio client. |
 | `GET /api/config` | Directory, default model and primary agent. |
@@ -665,9 +663,8 @@ own startup warmup.
   about a second, and the next segment is synthesized while the current one
   plays. Code blocks are announced by language and size, paths by file and
   folder, URLs by host; tables are summarized and long hashes are skipped.
-  `edge-tts` remains the whole-file fallback and sends the reply text to the
-  network. With neither host path, the browser voice is the labeled fallback;
-  with no browser voice, speech is `off`.
+  Whole-file piper remains the fallback. With neither host path, the browser
+  voice is the labeled fallback; with no browser voice, speech is `off`.
 - The TTS hub still listens on `0.0.0.0:7787`; only the token protects it. Bind
   it to `127.0.0.1` when the host is exposed beyond the tailnet.
 - Attachments are uploaded when you press Send, not when you select them, so an

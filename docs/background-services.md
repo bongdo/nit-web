@@ -40,7 +40,7 @@ on every device.
 | `whisper-server` | `127.0.0.1:8178` | Fast dictation while recording | optional |
 | `whisper-cli` | none | Accurate dictation, one process per request | optional |
 | OpenCode TTS plugin | `127.0.0.1:7787` target; currently `0.0.0.0:7787` | Speech text hub for an audio client; nit-gui publishes to it | optional |
-| `piper` / `edge-tts` | nit-gui host | Host voice synthesis when no hub audio client is connected; browser voice is the last fallback | optional |
+| `piper` | nit-gui host | Warm host voice worker; browser voice is the last fallback | optional |
 | Spelling | browser worker today, `/api/spell` on nit-gui target | RU/EN Hunspell checks | migration gap |
 
 MCP servers, shells and PTYs belong to OpenCode. They are not managed by
@@ -172,9 +172,8 @@ is not measured here.
 | `NIT_GUI_TTS_TOKEN_FILE` | hub token file, default `$XDG_STATE_HOME/opencode-tts/token` |
 | `NIT_GUI_TTS_TOKEN` | direct hub token, overrides the file |
 | `NIT_GUI_TTS` | `off` disables host TTS |
-| `NIT_GUI_TTS_ENGINE` | host voice: `auto`, `piper`, `edge`, `off` |
+| `NIT_GUI_TTS_ENGINE` | host voice: `auto`, `piper`, `off` |
 | `NIT_GUI_TTS_PIPER` / `_PIPER_MODEL` | piper binary and voice model |
-| `NIT_GUI_TTS_EDGE` / `_EDGE_VOICE` | edge-tts binary and voice |
 | `NIT_GUI_TTS_RATE` | speech rate, default `1.0` |
 | `NIT_GUI_WARM` | `0` disables startup warmup |
 | `NIT_GUI_PUBLIC_PORT` | Caddy loopback port, default `7792` |
@@ -186,16 +185,15 @@ is not measured here.
 | `NIT_GUI_STATE` | Shared UI state path, default `~/.local/state/nit-gui/ui-state.json` |
 | `NIT_GUI_DEPLOY_*` | deploy host, port and directory |
 
-TTS has three host paths. nit-gui streams raw PCM from `piper` through
-`POST /api/tts/stream` while the browser schedules it with Web Audio; the reply
-is split into paragraphs and sentences and Markdown is rewritten for speech
-(code blocks, paths, URLs, tables). With no piper it synthesizes the whole
-reply with `piper`/`edge-tts` (`NIT_GUI_TTS_ENGINE`, `_PIPER_MODEL`,
-`_EDGE_VOICE`) and returns audio to the browser. If the host has no voice it
+TTS has three host paths. nit-gui keeps a warm `piper` worker (`--json-input`)
+and streams its PCM through `POST /api/tts/stream` while the browser schedules
+it with Web Audio; the reply is split into paragraphs and sentences and
+Markdown is rewritten for speech (code blocks, paths, URLs, tables). With no
+warm worker it synthesizes the whole reply with piper (`NIT_GUI_TTS_ENGINE`,
+`_PIPER_MODEL`) and returns WAV to the browser. If the host has no voice it
 publishes to the OpenCode TTS hub (`NIT_GUI_TTS_URL`/`NIT_GUI_TTS_TOKEN_FILE`,
 or `NIT_GUI_TTS_TOKEN`) when an audio client is connected. The browser's
-`speechSynthesis` is the last fallback. `auto` prefers piper because it is
-local; edge-tts sends the reply text to the network.
+`speechSynthesis` is the last fallback.
 
 ## Security boundary
 
@@ -238,13 +236,11 @@ local; edge-tts sends the reply text to the network.
   in a browser worker. The target is `POST /api/spell` on Frankfurt, with the
   client only rendering issues. Until then, a browser without Web Workers or
   the dictionaries gets no spelling.
-- **Host voice is streamed but still per request.** nit-gui runs `piper`
-  (local) or `edge-tts` (network) per reply segment; piper loads a ~63 MB model
-  per request. The first audio arrives in about a second, but the next segment
-  may wait for the model to load again if playback catches up. A persistent
-  piper worker would remove that gap. The hub still listens on `0.0.0.0:7787`;
-  only the token protects it. Bind it to `127.0.0.1` when the host is exposed
-  beyond the tailnet.
+- **Host voice keeps one piper worker.** The worker starts during server
+  warmup, holds the ~63 MB model in memory and serializes segments; the first
+  audio arrives in about a second and later segments in about half a second.
+  The hub still listens on `0.0.0.0:7787`; only the token protects it. Bind it
+  to `127.0.0.1` when the host is exposed beyond the tailnet.
 - **Instance editing writes on the host.** The menu writes `instances.json` and
   password files with mode `0600`; a custom `NIT_GUI_INSTANCES` path must be
   writable by the app user. External edits are read on reload/restart.

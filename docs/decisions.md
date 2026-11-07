@@ -660,3 +660,31 @@ paragraphs the next segment can be late; a persistent piper worker is the next
 step. Web Audio must be unlocked by the click; browser speech remains the last
 fallback. Auto-read of new replies and starting from an arbitrary line are not
 part of this change.
+
+## 2026-11-07 — Remove edge-tts and keep one warm piper worker
+
+Context: the first streamed reading version used `edge-tts` as a whole-file
+fallback. It sends reply text to Microsoft and its cold start measured 12.7
+seconds. The user rejected it. Separately, each streamed segment started a new
+piper process and reloaded the ~63 MB model, so later segments could wait.
+
+Decision: piper is the only host engine. `NIT_GUI_TTS_ENGINE` accepts `auto`,
+`piper` and `off`; the edge binary, voice and env vars are gone. The server
+starts one piper process with `--json-input` during warmup and keeps it loaded
+(~140 MB RSS). Segments are serialized through it; each segment is written to a
+temporary WAV file named in the JSON line, then streamed to the browser as PCM.
+A crashed worker is restarted on the next segment; a 60-second timeout kills
+and restarts it.
+
+Why: one local engine removes the cloud path, the 12.7-second cold start and
+the second set of voice settings. The warm worker keeps the model resident, so
+the first segment is about 0.9 seconds after a restart and later segments are
+about 0.5 seconds. Firefox and Chrome both support the streaming fetch and Web
+Audio APIs this uses.
+
+Rejected: keeping edge-tts as an optional engine, spawning a process per
+segment, and a worker pool (one listener is the product).
+
+Cost: the server holds one piper process and ~140 MB more memory after warmup.
+One worker serializes segments; several simultaneous listeners would queue. A
+worker crash costs one restart and the current segment.

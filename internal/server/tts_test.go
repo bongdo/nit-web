@@ -326,7 +326,11 @@ func fakePiperVoice(t *testing.T) *hostVoice {
 	t.Setenv("NIT_GUI_TTS_ENGINE", "piper")
 	t.Setenv("NIT_GUI_TTS_PIPER", fakeVoiceScript(t, piperScript))
 	t.Setenv("NIT_GUI_TTS_PIPER_MODEL", model)
-	return newHostVoice()
+	voice := newHostVoice()
+	if voice.worker != nil {
+		t.Cleanup(voice.worker.stop)
+	}
+	return voice
 }
 
 func TestNewHostVoiceSelection(t *testing.T) {
@@ -391,7 +395,6 @@ func TestPiperWorkerStaysWarm(t *testing.T) {
 	starts := filepath.Join(t.TempDir(), "starts")
 	voice := fakePiperVoice(t)
 	t.Setenv("FAKE_VOICE_STARTS", starts)
-	defer voice.worker.stop()
 	for _, text := range []string{"первый", "второй"} {
 		if _, _, err := voice.synthesize(context.Background(), text); err != nil {
 			t.Fatal(err)

@@ -11,6 +11,7 @@ import {
   Bell,
   BellOff,
   ChevronRight,
+  ClipboardCheck,
   CornerDownRight,
   Eye,
   EyeOff,
@@ -281,6 +282,8 @@ export const Sidebar = memo(function Sidebar({
   failedIds,
   doneIds,
   motion,
+  reviewCount,
+  onReview,
   hasMore,
   loadingMore,
   onLoadMore,
@@ -321,6 +324,8 @@ export const Sidebar = memo(function Sidebar({
   failedIds: Set<string>;
   doneIds: Set<string>;
   motion: "animated" | "static";
+  reviewCount: number;
+  onReview: () => void;
   hasMore?: boolean;
   loadingMore?: boolean;
   onLoadMore?: () => void;
@@ -483,6 +488,23 @@ export const Sidebar = memo(function Sidebar({
             {runningCount}
           </span>
         )}
+      </div>
+
+      <div className="px-3 pb-2">
+        <button
+          type="button"
+          onClick={onReview}
+          className="hover:bg-accent/60 flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left"
+          title="Review: pending vision and acceptance"
+        >
+          <ClipboardCheck className="text-muted-foreground size-3.5" />
+          <span className="text-xs font-medium">Review</span>
+          {reviewCount > 0 && (
+            <span className="bg-spark text-background ml-auto rounded-full px-1.5 text-[10px] leading-5 tabular-nums">
+              {reviewCount}
+            </span>
+          )}
+        </button>
       </div>
 
       <div className="px-3 pb-2">

@@ -20,6 +20,8 @@ import type {
   Model,
   ModelRef,
   Project,
+  ReviewItem,
+  ReviewQueue,
   Session,
   StreamEvent,
   UiState,
@@ -63,6 +65,7 @@ import {
 } from "./lib/sessions";
 import { cn } from "./lib/utils";
 import { instanceScopedKey } from "./lib/instances";
+import { parseSnooze, pendingCount, snoozeItem, type SnoozeMap } from "./lib/review";
 import type { TimeFormat } from "./lib/time";
 import { useAttention } from "./hooks/useAttention";
 import { useTheme, type Theme } from "./hooks/useTheme";
@@ -76,6 +79,7 @@ import { SubagentMenu } from "./components/SubagentMenu";
 import { Sidebar } from "./components/Sidebar";
 import { WorkspacePicker } from "./components/WorkspacePicker";
 import { SettingsPanel } from "./components/SettingsPanel";
+import { ReviewSheet, type ReviewAction } from "./components/ReviewSheet";
 import { ThemePicker } from "./components/ThemePicker";
 import { FormCard } from "./components/FormCard";
 import { PermissionCard } from "./components/PermissionCard";
@@ -93,6 +97,10 @@ function messageOf(error: unknown): string {
 const LEGACY_HIDDEN_KEY = "nit-gui.hidden";
 const UI_MIGRATED_KEY = "nit-gui.ui-migrated";
 const UI_PREFS_MIGRATED_KEY = "nit-gui.ui-prefs-migrated";
+
+function reviewSnoozeKey(instance: string, workspace: string | null) {
+  return `nit-gui.review-snooze.${instance}.${workspace ?? ""}`;
+}
 
 function eventSize(event: StreamEvent): number {
   try {
@@ -268,6 +276,15 @@ export default function App({
   const [compactingSessions, setCompactingSessions] = useState<Set<string>>(() => new Set());
   const [freshCompaction, setFreshCompaction] = useState<string | null>(null);
   const [banner, setBanner] = useState<string | null>(null);
+  const [reviewQueue, setReviewQueue] = useState<ReviewQueue | null>(null);
+  const [reviewOpen, setReviewOpen] = useState(false);
+  const [reviewNote, setReviewNote] = useState<{ path: string; text: string } | null>(null);
+  const [reviewBase, setReviewBase] = useState<{ path: string; text: string } | null>(null);
+  const [reviewBaseLoading, setReviewBaseLoading] = useState(false);
+  const [reviewBusy, setReviewBusy] = useState<string | null>(null);
+  const [reviewSent, setReviewSent] = useState<string | null>(null);
+  const [reviewSnooze, setReviewSnooze] = useState<SnoozeMap>({});
+  const curatorIds = useRef(new Map<string, string>());
   const [booting, setBooting] = useState(true);
   const [search, setSearch] = useState("");
   const searchQueryRef = useRef(search);
@@ -433,6 +450,7 @@ export default function App({
     }
     return ids;
   }, [activePermissions, backgroundPermissionIds, backgroundWaitingIds, forms, selectedId]);
+  const reviewCount = pendingCount(reviewQueue?.items ?? [], reviewSnooze, Date.now());
   const saveStatus = useCallback((id: string, status: "" | "done" | "failed") => {
     void api.setSessionStatus(id, status).catch((error) => setBanner(messageOf(error)));
   }, []);
@@ -1693,6 +1711,121 @@ export default function App({
     [loadSessions, selectedSession],
   );
 
+  const loadReview = useCallback(async () => {
+    if (!workspace) {
+      setReviewQueue(null);
+      return;
+    }
+    try {
+      setReviewQueue(await api.review(workspace));
+    } catch {
+      setReviewQueue(null);
+    }
+  }, [workspace]);
+
+  useEffect(() => {
+    setReviewSnooze(parseSnooze(localStorage.getItem(reviewSnoozeKey(instance, workspace))));
+    setReviewNote(null);
+    setReviewBase(null);
+  }, [instance, workspace]);
+
+  useEffect(() => {
+    void loadReview();
+    const refresh = () => {
+      if (!document.hidden) void loadReview();
+    };
+    const timer = window.setInterval(refresh, 10_000);
+    window.addEventListener("focus", refresh);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener("focus", refresh);
+    };
+  }, [loadReview]);
+
+  const ensureCurator = useCallback(async () => {
+    if (!workspace) throw new Error("Choose a workspace first");
+    const known = curatorIds.current.get(workspace);
+    if (known) return known;
+    const found = sessions.find(
+      (session) =>
+        session.agent === "curator" &&
+        !session.parentID &&
+        session.location?.directory === workspace,
+    );
+    if (found) {
+      curatorIds.current.set(workspace, found.id);
+      return found.id;
+    }
+    const created = await api.createSession({
+      directory: workspace,
+      title: "Review",
+      agent: "curator",
+    });
+    curatorIds.current.set(workspace, created.id);
+    setSessions((previous) => [created, ...previous.filter((item) => item.id !== created.id)]);
+    return created.id;
+  }, [workspace, sessions, setSessions]);
+
+  const reviewAction = useCallback(
+    async (item: ReviewItem, action: ReviewAction, text?: string) => {
+      if (!workspace) return;
+      if (action === "later") {
+        const next = snoozeItem(reviewSnooze, item.id, Date.now());
+        setReviewSnooze(next);
+        localStorage.setItem(reviewSnoozeKey(instance, workspace), JSON.stringify(next));
+        return;
+      }
+      const note = item.note ? ` ${item.note}.` : "";
+      const prompt =
+        action === "accept"
+          ? `Принято ${item.id}. Запиши формулировку в${note} поставь заметке статус «принято», обнови docs/review/queue.json (status accepted) и предложение в docs/proposals. Покажи, что изменил.`
+          : item.kind === "feature"
+            ? `Не работает ${item.id}: ${text}. Создай баг-задачу через tasks new с этими словами и --source${note} выставь пункту в queue.json status rejected.`
+            : `Не так, ${item.id}: ${text}. Переформулируй только этот пункт и обнови docs/review/queue.json (status proposed). В vault не пиши.`;
+      setReviewBusy(item.id);
+      setReviewSent(null);
+      try {
+        const sessionID = await ensureCurator();
+        await api.prompt(sessionID, prompt);
+        setReviewSent(item.id);
+        window.setTimeout(() => void loadReview(), 5_000);
+      } catch (error) {
+        setBanner(messageOf(error));
+      } finally {
+        setReviewBusy(null);
+      }
+    },
+    [workspace, instance, reviewSnooze, ensureCurator, loadReview],
+  );
+
+  const openReviewNote = useCallback(
+    async (item: ReviewItem) => {
+      if (!workspace || !item.note) return;
+      if (reviewNote?.path === item.note) {
+        setReviewNote(null);
+        return;
+      }
+      try {
+        setReviewNote(await api.doc(workspace, item.note));
+      } catch (error) {
+        setBanner(messageOf(error));
+      }
+    },
+    [workspace, reviewNote],
+  );
+
+  const loadReviewBase = useCallback(async () => {
+    if (!workspace) return;
+    setReviewBaseLoading(true);
+    try {
+      setReviewBase(await api.doc(workspace, "vault/index.md"));
+    } catch {
+      setReviewBase(null);
+    } finally {
+      setReviewBaseLoading(false);
+    }
+  }, [workspace]);
+
   const previousUser = useCallback(
     (message: Message): Message | null => {
       if (message.type === "user") return message;
@@ -2108,6 +2241,8 @@ export default function App({
             failedIds={failedIds}
             doneIds={doneIds}
             motion={motion}
+            reviewCount={reviewCount}
+            onReview={() => setReviewOpen(true)}
           />
           </div>
         </div>
@@ -2362,6 +2497,23 @@ export default function App({
           }}
           onInstances={onOpenInstances}
           onClose={closeSettings}
+        />
+      )}
+
+      {reviewOpen && (
+        <ReviewSheet
+          items={reviewQueue?.items ?? []}
+          snooze={reviewSnooze}
+          now={Date.now()}
+          busyId={reviewBusy}
+          sentId={reviewSent}
+          note={reviewNote}
+          base={reviewBase}
+          baseLoading={reviewBaseLoading}
+          onClose={() => setReviewOpen(false)}
+          onAction={(item, action, text) => void reviewAction(item, action, text)}
+          onOpenNote={(item) => void openReviewNote(item)}
+          onLoadBase={() => void loadReviewBase()}
         />
       )}
 

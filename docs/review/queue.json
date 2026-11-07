@@ -1,0 +1,27 @@
+{
+  "updated": 1794086879,
+  "items": [
+    {
+      "id": "vision-diagrams",
+      "kind": "vision",
+      "status": "proposed",
+      "title": "Диаграммы без исходника",
+      "quote": "в чате Я никогда не захочу посмотреть исходники и диаграмм",
+      "source": "диалог 2026-11-07",
+      "note": "vault/features/diagrams.md",
+      "body": "В чате mermaid рендерится как диаграмма; исходник не показывается. Ошибка парсинга показывает текст блока.",
+      "created": 1794086879
+    },
+    {
+      "id": "T4",
+      "kind": "feature",
+      "status": "proposed",
+      "title": "Copy a whole assistant reply",
+      "quote": "Кнопка Copy в шапке ответа копирует весь текст ответа.",
+      "source": "T4",
+      "note": "vault/features/copy-reply.md",
+      "body": "bin/check зелёный; тест в transcripts.test.ts.",
+      "created": 1794086879
+    }
+  ]
+}

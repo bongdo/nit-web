@@ -214,6 +214,8 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("POST /api/grammar", s.grammarCheck)
 	s.mux.HandleFunc("POST /api/upload", s.upload)
 	s.mux.HandleFunc("GET /api/file", s.file)
+	s.mux.HandleFunc("GET /api/review", s.review)
+	s.mux.HandleFunc("GET /api/doc", s.doc)
 	s.mux.HandleFunc("GET /api/sessions/{id}/form", s.forms)
 	s.mux.HandleFunc("POST /api/sessions/{id}/form/{formID}/reply", s.replyForm)
 	s.mux.HandleFunc("DELETE /api/sessions/{id}/form/{formID}", s.cancelForm)
@@ -1178,6 +1180,111 @@ func (s *Server) file(w http.ResponseWriter, r *http.Request) {
 	if _, err := io.Copy(w, body.Body); err != nil {
 		s.log.Warn("file stream failed", "path", path, "error", err)
 	}
+}
+
+type reviewItem struct {
+	ID      string `json:"id"`
+	Kind    string `json:"kind"`
+	Status  string `json:"status"`
+	Title   string `json:"title"`
+	Quote   string `json:"quote"`
+	Source  string `json:"source"`
+	Note    string `json:"note"`
+	Body    string `json:"body"`
+	Created int64  `json:"created"`
+}
+
+type reviewQueue struct {
+	Updated int64        `json:"updated"`
+	Items   []reviewItem `json:"items"`
+}
+
+func reviewPath(dir string) (string, bool) {
+	if dir == "" || !filepath.IsAbs(dir) {
+		return "", false
+	}
+	return filepath.Join(filepath.Clean(dir), "docs", "review", "queue.json"), true
+}
+
+func docPath(dir, rel string) (string, bool) {
+	if dir == "" || !filepath.IsAbs(dir) || rel == "" || filepath.IsAbs(rel) {
+		return "", false
+	}
+	clean := filepath.Clean(rel)
+	if clean == "." || clean == ".." || strings.HasPrefix(clean, ".."+string(filepath.Separator)) {
+		return "", false
+	}
+	if !strings.HasPrefix(clean, "vault"+string(filepath.Separator)) &&
+		!strings.HasPrefix(clean, "docs"+string(filepath.Separator)) {
+		return "", false
+	}
+	return filepath.Join(filepath.Clean(dir), clean), true
+}
+
+func (s *Server) review(w http.ResponseWriter, r *http.Request) {
+	path, ok := reviewPath(r.URL.Query().Get("dir"))
+	if !ok {
+		writeError(w, http.StatusBadRequest, "invalid directory")
+		return
+	}
+	c, ok := s.withClient(w, r)
+	if !ok {
+		return
+	}
+	body, err := c.ReadFile(r.Context(), path)
+	if err != nil {
+		var httpErr *opencode.HTTPError
+		if errors.As(err, &httpErr) && httpErr.Status == http.StatusNotFound {
+			writeJSON(w, http.StatusOK, reviewQueue{Items: []reviewItem{}})
+			return
+		}
+		s.upstreamError(w, r, err)
+		return
+	}
+	defer body.Body.Close()
+	raw, err := io.ReadAll(io.LimitReader(body.Body, 1<<20))
+	if err != nil {
+		writeError(w, http.StatusBadGateway, "could not read review queue")
+		return
+	}
+	var queue reviewQueue
+	if err := json.Unmarshal(raw, &queue); err != nil {
+		writeError(w, http.StatusBadGateway, "invalid review queue")
+		return
+	}
+	if queue.Items == nil {
+		queue.Items = []reviewItem{}
+	}
+	writeJSON(w, http.StatusOK, queue)
+}
+
+func (s *Server) doc(w http.ResponseWriter, r *http.Request) {
+	query := r.URL.Query()
+	path, ok := docPath(query.Get("dir"), query.Get("path"))
+	if !ok {
+		writeError(w, http.StatusBadRequest, "invalid document path")
+		return
+	}
+	c, ok := s.withClient(w, r)
+	if !ok {
+		return
+	}
+	body, err := c.ReadFile(r.Context(), path)
+	if err != nil {
+		s.upstreamError(w, r, err)
+		return
+	}
+	defer body.Body.Close()
+	raw, err := io.ReadAll(io.LimitReader(body.Body, 512<<10))
+	if err != nil {
+		writeError(w, http.StatusBadGateway, "could not read document")
+		return
+	}
+	if !utf8.Valid(raw) {
+		writeError(w, http.StatusUnsupportedMediaType, "not a text document")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"path": query.Get("path"), "text": string(raw)})
 }
 
 func (s *Server) forms(w http.ResponseWriter, r *http.Request) {

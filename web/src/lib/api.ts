@@ -13,6 +13,7 @@ import type {
   PermissionDecision,
   PermissionRequest,
   Project,
+  ReviewQueue,
   Session,
   SessionList,
   UiState,
@@ -287,6 +288,12 @@ export const api = {
     }),
   models: async () => (await request<{ data: Model[] }>("/api/models")).data,
   agents: async () => (await request<{ data: Agent[] }>("/api/agents")).data,
+  review: (directory: string) =>
+    request<ReviewQueue>(`/api/review?dir=${encodeURIComponent(directory)}`),
+  doc: (directory: string, path: string) =>
+    request<{ path: string; text: string }>(
+      `/api/doc?dir=${encodeURIComponent(directory)}&path=${encodeURIComponent(path)}`,
+    ),
   ui: () => request<UiState>("/api/ui"),
   setHidden: (ids: string[], hidden: boolean) =>
     request<{ ok: boolean }>("/api/ui/hidden", { method: "POST", body: { ids, hidden } }),

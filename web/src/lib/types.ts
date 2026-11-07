@@ -286,3 +286,22 @@ export type StreamEvent = {
   location?: { directory?: string };
   data: Record<string, unknown>;
 };
+
+export type ReviewKind = "vision" | "feature";
+
+export type ReviewItem = {
+  id: string;
+  kind: ReviewKind;
+  status: string;
+  title: string;
+  quote?: string;
+  source?: string;
+  note?: string;
+  body?: string;
+  created?: number;
+};
+
+export type ReviewQueue = {
+  updated?: number;
+  items: ReviewItem[];
+};

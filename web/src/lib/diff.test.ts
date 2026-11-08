@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { editedFiles, fileWindow, mergeFiles, peroHref } from "./diff";
+import { editedFiles, fileWindow, mergeFiles, peroHref, termHref } from "./diff";
 import type { ToolPart } from "./types";
 
 const tool = (overrides: Partial<ToolPart> = {}): ToolPart => ({
@@ -86,5 +86,14 @@ describe("peroHref", () => {
       "/pero/?open=%2Fhome%2Fme%2Fa%20b.go",
     );
     expect(peroHref("/pero", "/a")).toBe("/pero/?open=%2Fa");
+  });
+});
+
+describe("termHref", () => {
+  it("appends the directory to the base", () => {
+    expect(termHref("/term/", "/home/me/Projects/nit-gui")).toBe(
+      "/term/?dir=%2Fhome%2Fme%2FProjects%2Fnit-gui",
+    );
+    expect(termHref("/term", "/a")).toBe("/term/?dir=%2Fa");
   });
 });

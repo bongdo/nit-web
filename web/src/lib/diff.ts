@@ -71,7 +71,15 @@ export function fileWindow(
   return { visible, hidden: files.length - visible.length };
 }
 
-export function peroHref(base: string, path: string): string {
+function withQuery(base: string, key: string, value: string): string {
   const url = base.endsWith("/") ? base : `${base}/`;
-  return `${url}?open=${encodeURIComponent(path)}`;
+  return `${url}?${key}=${encodeURIComponent(value)}`;
+}
+
+export function peroHref(base: string, path: string): string {
+  return withQuery(base, "open", path);
+}
+
+export function termHref(base: string, dir: string): string {
+  return withQuery(base, "dir", dir);
 }

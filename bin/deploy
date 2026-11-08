@@ -143,7 +143,8 @@ deploy_frankfurt() {
     fi
   fi
 
-  NIT_GUI_ALLOWED_HOSTS="$allowed" NIT_GUI_BASE_PATH="$base_path" NIT_GUI_PUBLIC_HOST="$public_host" setsid "$bin" --addr "127.0.0.1:$port" >"$run_dir/nit-gui.log" 2>&1 < /dev/null &
+  NIT_GUI_TERM_URL="${NIT_GUI_TERM_URL:-https://$public_host:8443/term/}" \
+    NIT_GUI_ALLOWED_HOSTS="$allowed" NIT_GUI_BASE_PATH="$base_path" NIT_GUI_PUBLIC_HOST="$public_host" setsid "$bin" --addr "127.0.0.1:$port" >"$run_dir/nit-gui.log" 2>&1 < /dev/null &
 
   local ready=0
   for _ in $(seq 1 40); do

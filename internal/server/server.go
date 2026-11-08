@@ -97,6 +97,7 @@ type Server struct {
 	basePath     string
 	publicHost   string
 	peroURL      string
+	termURL      string
 	allowedHosts map[string]struct{}
 }
 
@@ -125,7 +126,8 @@ func New(provider ClientProvider, static fs.FS, log *slog.Logger) http.Handler {
 		ui:           ui,
 		basePath:     strings.TrimRight(os.Getenv("NIT_GUI_BASE_PATH"), "/"),
 		publicHost:   strings.TrimSuffix(strings.ToLower(strings.TrimSpace(os.Getenv("NIT_GUI_PUBLIC_HOST"))), "."),
-		peroURL:      peroURL(),
+		peroURL:      appURL("NIT_GUI_PERO_URL", "/pero/"),
+		termURL:      appURL("NIT_GUI_TERM_URL", "/term/"),
 		allowedHosts: map[string]struct{}{},
 	}
 	for _, host := range strings.Split(os.Getenv("NIT_GUI_ALLOWED_HOSTS"), ",") {
@@ -1673,13 +1675,15 @@ func (s *Server) config(w http.ResponseWriter, r *http.Request) {
 		"model":     model,
 		"agent":     agent,
 		"peroURL":   s.peroURL,
+		"termURL":   s.termURL,
+		"transport": s.multi.Transport(s.instanceName(r)),
 	})
 }
 
-func peroURL() string {
-	raw := strings.TrimSpace(os.Getenv("NIT_GUI_PERO_URL"))
+func appURL(env, fallback string) string {
+	raw := strings.TrimSpace(os.Getenv(env))
 	if raw == "" {
-		return "/pero/"
+		return fallback
 	}
 	if !strings.HasSuffix(raw, "/") {
 		raw += "/"

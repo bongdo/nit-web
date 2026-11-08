@@ -5,6 +5,7 @@ import { basename, formatCost, modelLabel } from "../lib/format";
 import { cn } from "../lib/utils";
 import { Button } from "./ui/button";
 import { SubagentMenu } from "./SubagentMenu";
+import { WorkspaceLinks } from "./WorkspaceLinks";
 
 function ContextMeter({ value, session }: { value: number; session?: string }) {
   const previous = useRef<number | null>(null);
@@ -138,6 +139,9 @@ export const Header = memo(function Header({
   contextPercent,
   cost,
   estimatedCost,
+  termURL,
+  peroURL,
+  transport,
   collapsed,
   sidebarMode,
   subagents,
@@ -154,6 +158,9 @@ export const Header = memo(function Header({
   contextPercent?: number | null;
   cost?: number;
   estimatedCost?: boolean;
+  termURL: string;
+  peroURL: string;
+  transport: string;
   collapsed: boolean;
   sidebarMode: "button" | "hover" | "swipe";
   subagents: Session[];
@@ -162,6 +169,7 @@ export const Header = memo(function Header({
   onBack: () => void;
   onToggleSidebar: () => void;
 }) {
+  const directory = session?.location?.directory ?? fallbackDirectory;
   return (
     <header className="from-background via-background/80 pointer-events-none absolute inset-x-0 top-0 z-10 flex items-center gap-2 bg-gradient-to-b to-transparent px-2.5 pt-2 pb-5">
       {sidebarMode !== "hover" && (
@@ -179,7 +187,7 @@ export const Header = memo(function Header({
 
       <SessionPill
         session={session}
-        directory={fallbackDirectory}
+        directory={directory}
         models={models}
         model={model}
         agent={agent}
@@ -190,6 +198,9 @@ export const Header = memo(function Header({
       />
 
       <div className="pointer-events-auto ml-auto flex shrink-0 items-center gap-2">
+        {transport === "local" && (
+          <WorkspaceLinks directory={directory} termURL={termURL} peroURL={peroURL} />
+        )}
         {parent && (
           <Button variant="ghost" size="sm" className="h-9" onClick={onBack} title="Back to parent">
             <ArrowLeft />

@@ -10,6 +10,9 @@ if [ ! -f web/dist/index.html ] || [ -n "$(find web/src web/index.html web/packa
   npm --prefix web run build
 fi
 
+export NIT_GUI_PERO_URL="${NIT_GUI_PERO_URL:-http://127.0.0.1:7789/}"
+export NIT_GUI_TERM_URL="${NIT_GUI_TERM_URL:-http://127.0.0.1:7795/term/}"
+
 mkdir -p .cache
 go build -o .cache/nit-gui .
 exec .cache/nit-gui

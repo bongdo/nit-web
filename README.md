@@ -342,6 +342,8 @@ rewritten to loopback. Credentials in a server URL are discarded.
 | `NIT_GUI_PUBLIC_PORT` | Caddy port for `bin/frankfurt`, default `7792`. |
 | `NIT_GUI_PUBLIC_HOST` | Public Funnel host; also marks requests for Secure cookies and HSTS. |
 | `NIT_GUI_BASE_PATH` | External path prefix, default `/nit` in `bin/frankfurt`. |
+| `NIT_GUI_PERO_URL` | Base URL for pero links, default `/pero/`. |
+| `NIT_GUI_TERM_URL` | Base URL for term links, default `/term/`. |
 | `NIT_GUI_AUTH_ENV` | Auth env file sourced by `bin/frankfurt`, default `~/.config/nit-gui/auth.env`. |
 | `NIT_GUI_PASSWORD_HASH` | PBKDF2-SHA256 hash used by the login page. Set by `bin/auth`. |
 | `NIT_GUI_PASSWORD` | Plain password for local development; hashed at startup. Do not use in production. |
@@ -531,6 +533,9 @@ nspell worker. It is not implemented yet.
   When the selected model
   exposes variants, a variant picker appears and the chosen `variant` is sent
   with the model ref; it is kept across model switches that support it.
+- Header workspace links open the current session directory in `term` (`?dir=`)
+  and `pero` (`?open=`) in a new tab. They are shown for the local instance;
+  `NIT_GUI_TERM_URL` and `NIT_GUI_PERO_URL` set the bases.
 - Running dot: driven by `session.execution.*` and `session.idle` events, and
   re-synced from `time.busy`/`time.idle` on every session-list load or reconnect.
   A local event newer than the list request wins, so a missed idle event cannot

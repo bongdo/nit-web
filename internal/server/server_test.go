@@ -1290,6 +1290,9 @@ func TestConfigDefaults(t *testing.T) {
 	var body struct {
 		Directory string `json:"directory"`
 		Agent     string `json:"agent"`
+		PeroURL   string `json:"peroURL"`
+		TermURL   string `json:"termURL"`
+		Transport string `json:"transport"`
 		Model     struct {
 			ID         string `json:"id"`
 			ProviderID string `json:"providerID"`
@@ -1300,6 +1303,9 @@ func TestConfigDefaults(t *testing.T) {
 	}
 	if body.Directory != "/home/ubuntu" || body.Agent != "build" || body.Model.ID != "m1" {
 		t.Fatalf("unexpected config: %s", rec.Body)
+	}
+	if body.PeroURL != "/pero/" || body.TermURL != "/term/" || body.Transport != "local" {
+		t.Fatalf("unexpected app links: %s", rec.Body)
 	}
 }
 

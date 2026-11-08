@@ -2267,6 +2267,9 @@ export default function App({
           contextPercent={shownContext}
           cost={shownCost}
           estimatedCost={sessionCost === 0 && estimated > 0}
+          termURL={config?.termURL ?? "/term/"}
+          peroURL={config?.peroURL ?? "/pero/"}
+          transport={config?.transport ?? ""}
           collapsed={swipeMode ? !swipe.opened : collapsed}
           sidebarMode={sidebarMode}
           subagents={subagents}

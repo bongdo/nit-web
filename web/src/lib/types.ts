@@ -223,6 +223,8 @@ export type Config = {
   model: ModelRef | null;
   agent: string | null;
   peroURL: string;
+  termURL: string;
+  transport: string;
 };
 
 export type Health = {

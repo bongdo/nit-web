@@ -7,7 +7,7 @@ import { stepMessageIDs } from "../lib/stream";
 import { isPureHtml, looksLikeHtml } from "../lib/html";
 import { modelLabel, replyText, turnBlocks } from "../lib/format";
 import { timeLabel, type TimeFormat } from "../lib/time";
-import { FileChips } from "./FileChips";
+import { ChangedFiles } from "./FileChips";
 import { HtmlMessagePreview } from "./HtmlMessagePreview";
 import { Markdown } from "./Markdown";
 import { QuestionCard } from "./QuestionCard";
@@ -193,7 +193,6 @@ export const AssistantTurn = memo(function AssistantTurn({
                       <span className="text-muted-foreground shrink-0 text-[10px]">{liveStats}</span>
                     )}
                   </button>
-                  <FileChips files={changedFiles} base={peroURL} max={2} />
                 </div>
                 {open && (
                   <div className="border-border border-t px-1.5 py-1">
@@ -263,6 +262,9 @@ export const AssistantTurn = memo(function AssistantTurn({
               {last.error.message ?? "The assistant failed."}
             </span>
           </div>
+        )}
+        {changedFiles.length > 0 && (
+          <ChangedFiles files={changedFiles} base={peroURL} className="mt-3" />
         )}
         {!streaming && reply.trim() !== "" && (
           <ReplyActions text={reply} className="mt-2" enter={wasLive.current} />

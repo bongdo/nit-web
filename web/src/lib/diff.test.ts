@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { editedFiles, mergeFiles, peroHref } from "./diff";
+import { editedFiles, fileWindow, mergeFiles, peroHref } from "./diff";
 import type { ToolPart } from "./types";
 
 const tool = (overrides: Partial<ToolPart> = {}): ToolPart => ({
@@ -61,6 +61,22 @@ describe("mergeFiles", () => {
       { path: "/a", status: "modified", additions: 4, deletions: 2 },
       { path: "/b", status: undefined, additions: 2, deletions: 1 },
     ]);
+  });
+});
+
+describe("fileWindow", () => {
+  const files = [{ path: "/a" }, { path: "/b" }, { path: "/c" }];
+
+  it("keeps every file until the limit is exceeded", () => {
+    expect(fileWindow(files, 3, false)).toEqual({ visible: files, hidden: 0 });
+  });
+
+  it("cuts the tail and reports it while collapsed", () => {
+    expect(fileWindow(files, 2, false)).toEqual({ visible: files.slice(0, 2), hidden: 1 });
+  });
+
+  it("shows every file once expanded", () => {
+    expect(fileWindow(files, 2, true)).toEqual({ visible: files, hidden: 0 });
   });
 });
 

@@ -62,6 +62,15 @@ export function mergeFiles(files: EditedFile[]): EditedFile[] {
   return [...seen.values()];
 }
 
+export function fileWindow(
+  files: EditedFile[],
+  limit: number,
+  expanded: boolean,
+): { visible: EditedFile[]; hidden: number } {
+  const visible = expanded || files.length <= limit ? files : files.slice(0, limit);
+  return { visible, hidden: files.length - visible.length };
+}
+
 export function peroHref(base: string, path: string): string {
   const url = base.endsWith("/") ? base : `${base}/`;
   return `${url}?open=${encodeURIComponent(path)}`;

@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<link rel="icon" href="data:,">
+<title>{{.Current}} — {{.Entry.Name}} — drop</title>
+<link rel="stylesheet" href="../../static/drop.css">
+</head>
+<body class="reader-body">
+<div class="shell wide">
+<header class="top">
+  <a class="brand" href="../../"><b>d</b> drop</a>
+  <nav class="nav" aria-label="Приложения">
+    <a href="{{.Nav.Nit}}">nit</a>
+    <a href="{{.Nav.Pero}}">pero</a>
+    <a href="{{.Nav.Term}}">term</a>
+    <a href="{{.Nav.Drop}}">drop</a>
+  </nav>
+</header>
+
+<main>
+<div class="entry-head">
+  <div>
+    <a class="back" href="./">← {{.Entry.Name}}</a>
+    <h1 class="doc-title">{{.Current}}</h1>
+    <p class="sub">{{.Kind}} · {{.Size}} · {{.Expires}}</p>
+  </div>
+  <div class="row wrap">
+    <a class="btn ghost" href="{{.RawURL}}" target="_blank" rel="noreferrer">Открыть файл</a>
+    <a class="btn ghost" href="{{.DownloadURL}}">Скачать</a>
+    <button class="btn ghost" type="button" data-copy="">Скопировать ссылку</button>
+  </div>
+</div>
+
+<section class="panel reader">
+  <aside class="tree">
+    <div class="tree-title">{{.Entry.Name}}</div>
+    {{range .Files}}
+    <a class="{{if .Active}}active{{end}}" href="{{.ReaderURL}}" title="{{.Path}}">{{.Path}}</a>
+    {{end}}
+  </aside>
+  <article class="doc">
+    {{if eq .PreviewKind "image"}}
+      <img class="preview-image" src="{{.PreviewURL}}" alt="{{.Current}}">
+    {{else if eq .PreviewKind "pdf"}}
+      <iframe class="pdf-frame" src="{{.PreviewURL}}" title="{{.Current}}"></iframe>
+    {{else if eq .PreviewKind "html"}}
+      <iframe class="app-frame" src="{{.PreviewURL}}" title="{{.Current}}" sandbox="allow-scripts allow-popups allow-downloads" referrerpolicy="no-referrer"></iframe>
+    {{else if .DocHTML}}
+      {{.DocHTML}}
+    {{else}}
+      <p>Этот файл нельзя показать как текст.</p>
+      <a class="btn primary" href="{{.DownloadURL}}">Скачать</a>
+    {{end}}
+  </article>
+</section>
+</main>
+
+<footer class="foot">
+  <span>Ссылки внутри .md открываются здесь же</span>
+  <span>Один пароль на nit / pero / term / drop</span>
+</footer>
+</div>
+<script src="../../static/drop.js" defer></script>
+</body>
+</html>

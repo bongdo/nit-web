@@ -1,9 +1,10 @@
 import { memo, useEffect, useRef, useState } from "react";
-import { ArrowLeft, Folder, PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { ArrowLeft, Folder, Inbox, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import type { Model, ModelRef, Session } from "../lib/types";
 import { basename, formatCost, modelLabel } from "../lib/format";
+import { BASE_PATH } from "../lib/base";
 import { cn } from "../lib/utils";
-import { Button } from "./ui/button";
+import { Button, buttonVariants } from "./ui/button";
 import { SubagentMenu } from "./SubagentMenu";
 import { WorkspaceLinks } from "./WorkspaceLinks";
 
@@ -198,6 +199,20 @@ export const Header = memo(function Header({
       />
 
       <div className="pointer-events-auto ml-auto flex shrink-0 items-center gap-2">
+        <a
+          href={`${BASE_PATH}/drop/`}
+          target="_blank"
+          rel="noreferrer"
+          title="Open drop"
+          aria-label="Open drop"
+          className={cn(
+            buttonVariants({ variant: "ghost", size: "sm" }),
+            "text-muted-foreground hover:text-foreground h-9 gap-1.5 px-2",
+          )}
+        >
+          <Inbox />
+          <span className="hidden font-mono text-[11px] sm:inline">drop</span>
+        </a>
         {transport === "local" && (
           <WorkspaceLinks directory={directory} termURL={termURL} peroURL={peroURL} />
         )}

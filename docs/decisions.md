@@ -772,3 +772,15 @@ Rejected: hidden local forms that share the cookie; a shared auth proxy in front
 
 Cost: nit must know the three path prefixes, and pero/term build the absolute return URL from forwarded headers.
 
+
+## 2026-11-09 — Drop lives in nit-gui, not a fourth service
+
+Context: the user wants a temporary buffer for files, HTML pages, full web apps and a docs reader that the agent can publish to.
+
+Decision: serve `/nit/drop/` from the nit-gui process, with a Go file store, a server-rendered UI, `github.com/yuin/goldmark` for Markdown, and a `bin/drop` CLI. The public URL stays under `/nit`, so the existing Funnel mount, Caddy, auth cookie and deploy path are reused.
+
+Why: a fourth binary would duplicate the gate, deploy and port, while Tailscale strips a new `/drop` path mount before Caddy can route it. Keeping drop inside nit-gui gives one login and one deploy; the agent gets a real command in PATH and a rule in AGENTS.md.
+
+Rejected: a standalone drop-gui service (duplicate auth/deploy); a new `/drop` Funnel path (the prefix is stripped, so it would collide with the nit SPA); rendering docs in the chat (no stable links, no app hosting); storing uploads in the browser (no cross-device buffer).
+
+Cost: nit-gui gains a file store and a Markdown dependency; uploaded HTML runs in a sandbox without network or forms; drop links require the same login, so they are not public.

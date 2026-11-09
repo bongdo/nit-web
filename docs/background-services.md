@@ -183,6 +183,8 @@ is not measured here.
 | `NIT_GATE_PASSWORD_HASH` | Shared PBKDF2-SHA256 login hash set by `bin/auth` |
 | `NIT_GATE_PASSWORD` | Plain local-development password, hashed at startup |
 | `NIT_GUI_STATE` | Shared UI state path, default `~/.local/state/nit-gui/ui-state.json` |
+| `NIT_DROP_ROOT` | Drop store, default `~/.local/share/nit-gui/drop` |
+| `NIT_DROP_MAX_UPLOAD` | Browser upload limit in bytes, default 128 MiB |
 | `NIT_GUI_DEPLOY_*` | deploy host, port and directory |
 
 TTS has three host paths. nit-gui keeps a warm `piper` worker (`--json-input`)

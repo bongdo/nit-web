@@ -172,11 +172,9 @@ deploy_frankfurt() {
 	encode zstd gzip
 	header {
 		X-Content-Type-Options nosniff
-		X-Frame-Options DENY
 		Referrer-Policy no-referrer
 		Permissions-Policy "microphone=(self)"
 		Cross-Origin-Opener-Policy same-origin
-		Cross-Origin-Resource-Policy same-origin
 		-Server
 	}
 	handle_path $base_path/* {

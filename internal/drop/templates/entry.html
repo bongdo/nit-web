@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<link rel="icon" href="data:,">
+<title>{{.Entry.Name}} — drop</title>
+<link rel="stylesheet" href="../../static/drop.css">
+</head>
+<body>
+<div class="shell">
+<header class="top">
+  <a class="brand" href="../../"><b>d</b> drop</a>
+  <nav class="nav" aria-label="Приложения">
+    <a href="{{.Nav.Nit}}">nit</a>
+    <a href="{{.Nav.Pero}}">pero</a>
+    <a href="{{.Nav.Term}}">term</a>
+    <a href="{{.Nav.Drop}}">drop</a>
+  </nav>
+</header>
+
+<main>
+<div class="entry-head">
+  <div>
+    <a class="back" href="../../">← все публикации</a>
+    <h1>{{.Entry.Name}}</h1>
+    <p class="sub">{{.Kind}} · {{.Size}} · {{.Expires}}</p>
+  </div>
+  <div class="row wrap">
+    {{if .DownloadURL}}<a class="btn primary" href="{{.DownloadURL}}">Скачать</a>{{end}}
+    <button class="btn ghost" type="button" data-copy="">Скопировать ссылку</button>
+  </div>
+</div>
+
+{{if .HasApp}}
+<section class="panel">
+  <div class="browser">
+    <span class="traffic"><i></i><i></i><i></i></span>
+    <span class="url">{{.Entry.Name}}</span>
+    <a class="btn ghost small" href="{{.AppURL}}" target="_blank" rel="noreferrer">Открыть отдельно</a>
+  </div>
+  <iframe class="app-frame" src="{{.AppURL}}" title="{{.Entry.Name}}" sandbox="allow-scripts allow-popups allow-downloads" referrerpolicy="no-referrer"></iframe>
+</section>
+<p class="hint">HTML работает в sandbox: без доступа к API nit и без отправки форм. Внешние запросы из приложения заблокированы.</p>
+{{else if .IsImage}}
+<section class="panel preview-panel"><img class="preview-image" src="{{.RawURL}}" alt="{{.Entry.Name}}"></section>
+{{else if .IsPDF}}
+<section class="panel preview-panel"><iframe class="pdf-frame" src="{{.RawURL}}" title="{{.Entry.Name}}"></iframe></section>
+{{else if .DocURL}}
+<section class="panel body center">
+  <p>Этот файл можно прочитать в читалке.</p>
+  <a class="btn primary" href="{{.DocURL}}">Читать</a>
+</section>
+{{else}}
+<section class="panel body center">
+  <p>Файл готов к скачиванию.</p>
+  {{if .DownloadURL}}<a class="btn primary" href="{{.DownloadURL}}">Скачать {{.Entry.Name}}</a>{{end}}
+</section>
+{{end}}
+
+{{if .Files}}
+<section class="panel" style="margin-top:16px">
+  <div class="panel-h"><span class="dot"></span> файлы <span class="count">{{len .Files}}</span></div>
+  <div class="items">
+    {{range .Files}}
+    <div class="item file-row">
+      <span class="icon">{{if .Doc}}md{{else}}file{{end}}</span>
+      <span class="meta">
+        <span class="name">{{.Path}}</span>
+        <span class="subline">{{.Size}}</span>
+      </span>
+      <span class="actions">
+        {{if .Doc}}<a class="btn ghost" href="{{.ReaderURL}}">читать</a>{{end}}
+        <a class="btn ghost" href="{{.RawURL}}" target="_blank" rel="noreferrer">открыть</a>
+      </span>
+    </div>
+    {{end}}
+  </div>
+</section>
+{{end}}
+</main>
+
+<footer class="foot">
+  <span>Один пароль на nit / pero / term / drop</span>
+  <span>Срок: {{.Expires}}</span>
+</footer>
+</div>
+<script src="../../static/drop.js" defer></script>
+</body>
+</html>

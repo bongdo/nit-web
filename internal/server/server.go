@@ -22,6 +22,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"nitgui/internal/drop"
 	"nitgui/internal/opencode"
 	"nitgui/internal/uistate"
 )
@@ -98,6 +99,7 @@ type Server struct {
 	publicHost   string
 	peroURL      string
 	termURL      string
+	dropHandler  http.Handler
 	allowedHosts map[string]struct{}
 }
 
@@ -134,6 +136,16 @@ func New(provider ClientProvider, static fs.FS, log *slog.Logger) http.Handler {
 		if host = strings.ToLower(strings.TrimSpace(host)); host != "" {
 			s.allowedHosts[host] = struct{}{}
 		}
+	}
+	if store, err := drop.Open(drop.DefaultRoot()); err != nil {
+		log.Error("drop store unavailable", "error", err)
+	} else {
+		s.dropHandler = drop.NewHandler(store, s.dropWriteAllowed, log, drop.Nav{
+			Nit:  s.basePath + "/",
+			Pero: s.peroURL,
+			Term: s.termURL,
+			Drop: s.basePath + "/drop/",
+		})
 	}
 	s.routes()
 	go s.warm()
@@ -242,7 +254,24 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("POST /auth/logout", func(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/", http.StatusSeeOther)
 	})
+	s.mux.HandleFunc("GET /drop", func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, s.basePath+"/drop/", http.StatusTemporaryRedirect)
+	})
+	if s.dropHandler != nil {
+		s.mux.Handle("/drop/", s.dropHandler)
+	} else {
+		s.mux.HandleFunc("/drop/", func(w http.ResponseWriter, r *http.Request) {
+			writeError(w, http.StatusServiceUnavailable, "drop is unavailable")
+		})
+	}
 	s.mux.HandleFunc("/", s.staticFile)
+}
+
+func (s *Server) dropWriteAllowed(r *http.Request) bool {
+	if r.Header.Get("Origin") == "null" {
+		return false
+	}
+	return s.allowedOrigin(r)
 }
 
 func (s *Server) middleware(next http.Handler) http.Handler {
@@ -274,7 +303,7 @@ func (s *Server) middleware(next http.Handler) http.Handler {
 			return
 		}
 		switch r.URL.Path {
-		case "/api/events", "/api/file", "/api/tts/audio", "/api/tts/stream":
+		case "/api/events", "/api/file", "/api/tts/audio", "/api/tts/stream", "/drop/api/upload":
 		default:
 			_ = http.NewResponseController(w).SetWriteDeadline(time.Now().Add(30 * time.Second))
 		}

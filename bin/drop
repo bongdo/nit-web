@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repo="$(cd "$(dirname "$0")/.." && pwd)"
+bin="$repo/.cache/drop"
+if [ ! -x "$bin" ] ||
+  [ -n "$(find "$repo/cmd/drop" "$repo/internal/drop" "$repo/go.mod" "$repo/go.sum" -newer "$bin" -print -quit 2>/dev/null)" ]; then
+  (cd "$repo" && go build -trimpath -o "$bin" ./cmd/drop)
+fi
+
+export DROP_PUBLIC_BASE="${DROP_PUBLIC_BASE:-https://frankfurt.tailf358cb.ts.net/nit/drop/}"
+exec "$bin" "$@"

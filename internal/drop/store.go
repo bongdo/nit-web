@@ -417,7 +417,9 @@ func (b *Builder) unique(rel string) string {
 
 func safeRel(rel string) (string, error) {
 	rel = strings.TrimSpace(strings.ReplaceAll(rel, "\\", "/"))
-	rel = strings.TrimPrefix(rel, "/")
+	if strings.HasPrefix(rel, "/") {
+		return "", errors.New("invalid drop path")
+	}
 	rel = path.Clean(rel)
 	if rel == "." || rel == "" || rel == ".." || strings.HasPrefix(rel, "../") || path.IsAbs(rel) {
 		return "", errors.New("invalid drop path")

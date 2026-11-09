@@ -26,9 +26,9 @@ func renderMarkdown(entry Entry, rel string, src []byte, rawBase string) (string
 		}
 		switch value := node.(type) {
 		case *ast.Link:
-			value.Destination = rewriteLink(string(value.Destination), rel, entry, rawBase)
+			value.Destination = []byte(rewriteLink(string(value.Destination), rel, entry, rawBase))
 		case *ast.Image:
-			value.Destination = rewriteImage(string(value.Destination), rel, entry, rawBase)
+			value.Destination = []byte(rewriteImage(string(value.Destination), rel, entry, rawBase))
 		}
 		return ast.WalkContinue, nil
 	})
@@ -95,8 +95,13 @@ func resolveRel(from, target string) (string, bool) {
 	if decoded, err := url.PathUnescape(target); err == nil {
 		target = decoded
 	}
+	rooted := strings.HasPrefix(target, "/")
 	target = strings.TrimPrefix(target, "/")
-	clean := path.Clean(path.Join(path.Dir(from), target))
+	base := path.Dir(from)
+	if rooted {
+		base = "."
+	}
+	clean := path.Clean(path.Join(base, target))
 	if clean == "." || clean == "" {
 		return "", false
 	}

@@ -179,13 +179,13 @@ func (h *Handler) index(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) card(entry Entry) entryCard {
 	card := entryCard{
-		Entry:   entry,
+		Entry:    entry,
 		URL:      "e/" + entry.ID + "/",
 		Kind:     kindLabel(entry.Kind),
 		KindCode: entry.Kind,
 		Size:     humanSize(entry.Size),
-		Expires: expiresLabel(entry, h.now()),
-		Files:   len(entry.Files),
+		Expires:  expiresLabel(entry, h.now()),
+		Files:    len(entry.Files),
 	}
 	if doc := entry.Doc(); doc != "" {
 		card.HasDoc = true
@@ -417,6 +417,7 @@ func (h *Handler) serve(w http.ResponseWriter, r *http.Request, attachment bool)
 		w.Header().Set("Content-Disposition", mime.FormatMediaType("attachment", map[string]string{"filename": name}))
 	}
 	w.Header().Set("Content-Type", contentType)
+	w.Header().Set("Cross-Origin-Resource-Policy", "cross-origin")
 	w.Header().Set("Cache-Control", "private, max-age=60")
 	http.ServeContent(w, r, name, info.ModTime(), file)
 }
@@ -475,7 +476,7 @@ func (h *Handler) upload(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case part.FormName() == "ttl":
 			value, _ := io.ReadAll(io.LimitReader(part, 64))
-			ttl, err = parseTTL(string(value))
+			ttl, err = ParseTTL(string(value))
 			if err != nil {
 				part.Close()
 				fail(http.StatusBadRequest, err.Error())
@@ -584,7 +585,7 @@ func maxUploadBytes() int64 {
 	return value
 }
 
-func parseTTL(raw string) (time.Duration, error) {
+func ParseTTL(raw string) (time.Duration, error) {
 	raw = strings.ToLower(strings.TrimSpace(raw))
 	if raw == "" {
 		return DefaultTTL, nil

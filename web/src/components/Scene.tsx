@@ -35,11 +35,13 @@ export function Scene({
   variant = "spotlight",
   motion = "animated",
   paused = false,
+  preview = false,
   className,
 }: {
   variant?: SceneSetting;
   motion?: "animated" | "static";
   paused?: boolean;
+  preview?: boolean;
   className?: string;
 }) {
   const ref = useRef<HTMLCanvasElement>(null);
@@ -59,6 +61,7 @@ export function Scene({
     const cursor = { x: 0, y: 0, power: 0 };
     let width = 0;
     let height = 0;
+    let unit = 1;
     let frame = 0;
     let started = performance.now();
     let painted = 0;
@@ -452,7 +455,7 @@ export function Scene({
       shade.addColorStop(1, "transparent");
 
       context.strokeStyle = shade;
-      context.lineWidth = 1.1;
+      context.lineWidth = 1.1 / unit;
       context.lineCap = "round";
       context.globalAlpha = 0.6 * cursor.power;
       for (let index = first; index <= last; index += 1) {
@@ -475,7 +478,7 @@ export function Scene({
       }
 
       context.clearRect(0, 0, width, height);
-      context.lineWidth = 1;
+      context.lineWidth = 1 / unit;
       context.lineCap = "round";
 
       if (chosen === "bend") {
@@ -534,30 +537,35 @@ export function Scene({
 
     const resize = () => {
       const rect = canvas.getBoundingClientRect();
-      width = rect.width;
-      height = rect.height;
-      if (!width || !height) return;
-      if (hasOrigin) {
-        cursor.x -= rect.left - originX;
-        cursor.y -= rect.top - originY;
+      if (!rect.width || !rect.height) return;
+      unit = preview ? rect.width / 1100 : 1;
+      width = rect.width / unit;
+      height = rect.height / unit;
+      if (!preview) {
+        if (hasOrigin) {
+          cursor.x -= rect.left - originX;
+          cursor.y -= rect.top - originY;
+        }
+        originX = rect.left;
+        originY = rect.top;
+        hasOrigin = true;
       }
-      originX = rect.left;
-      originY = rect.top;
-      hasOrigin = true;
       if (pointerClient.x > -9999) {
-        pointer.x = pointerClient.x - rect.left;
-        pointer.y = pointerClient.y - rect.top;
+        pointer.x = (pointerClient.x - rect.left) / unit;
+        pointer.y = (pointerClient.y - rect.top) / unit;
       }
       const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
-      canvas.width = Math.round(width * dpr);
-      canvas.height = Math.round(height * dpr);
-      context.setTransform(dpr, 0, 0, dpr, 0, 0);
+      canvas.width = Math.round(rect.width * dpr);
+      canvas.height = Math.round(rect.height * dpr);
+      context.setTransform(dpr * unit, 0, 0, dpr * unit, 0, 0);
       blank = true;
       lastBox = null;
-      if (chosen === "spotlight" && !seenPointer) {
+      if (!seenPointer && (preview || chosen === "spotlight")) {
         cursor.x = width * 0.63;
         cursor.y = height * 0.42;
         cursor.power = 1;
+        pointer.x = cursor.x;
+        pointer.y = cursor.y;
       }
       readPalette();
       paint(still ? STILL_TIME : (performance.now() - started) / 1000);
@@ -606,10 +614,19 @@ export function Scene({
         return;
       }
       const rect = canvas.getBoundingClientRect();
+      if (
+        preview &&
+        (event.clientX < rect.left ||
+          event.clientX > rect.right ||
+          event.clientY < rect.top ||
+          event.clientY > rect.bottom)
+      ) {
+        return;
+      }
       pointerClient.x = event.clientX;
       pointerClient.y = event.clientY;
-      pointer.x = event.clientX - rect.left;
-      pointer.y = event.clientY - rect.top;
+      pointer.x = (event.clientX - rect.left) / unit;
+      pointer.y = (event.clientY - rect.top) / unit;
       seenPointer = true;
       if (!still) {
         if (chosen === "spotlight" && !frame) {
@@ -658,7 +675,8 @@ export function Scene({
       attributes: true,
       attributeFilter: ["class", "data-theme"],
     });
-    const tracksPointer = window.matchMedia("(pointer: fine)").matches && !paused;
+    const tracksPointer =
+      window.matchMedia("(pointer: fine)").matches && !paused && !(preview && still);
     if (tracksPointer) {
       window.addEventListener("pointermove", move);
       window.addEventListener("mouseleave", leave);
@@ -680,7 +698,7 @@ export function Scene({
       }
       document.removeEventListener("visibilitychange", visibility);
     };
-  }, [motion, paused, variant]);
+  }, [motion, paused, preview, variant]);
 
   return (
     <canvas

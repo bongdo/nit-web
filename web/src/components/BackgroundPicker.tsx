@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Check, Shuffle, X } from "lucide-react";
 import { BACKGROUNDS } from "../lib/backgrounds";
 import { cn } from "../lib/utils";
@@ -15,6 +16,7 @@ export function BackgroundPicker({
   onClose: () => void;
 }) {
   const panel = useModalFocus<HTMLDivElement>();
+  const [hovered, setHovered] = useState<SceneSetting | null>(null);
 
   return (
     <div
@@ -43,6 +45,10 @@ export function BackgroundPicker({
               key={item.id}
               type="button"
               onClick={() => onPick(item.id)}
+              onPointerEnter={() => setHovered(item.id)}
+              onPointerLeave={() => setHovered(null)}
+              onFocus={() => setHovered(item.id)}
+              onBlur={() => setHovered(null)}
               aria-pressed={background === item.id}
               className={cn(
                 "bg-card text-foreground border-border hover:border-ring/60 relative rounded-lg border p-1.5 text-left transition-colors",
@@ -51,13 +57,14 @@ export function BackgroundPicker({
             >
               <span className="border-border bg-background relative block aspect-[16/10] overflow-hidden rounded-md border">
                 {item.id === "random" ? (
-                  <span className="text-muted-foreground grid size-full place-items-center">
+                  <span className="text-muted-foreground from-primary/25 via-spark/15 to-success/25 grid size-full place-items-center bg-linear-to-br">
                     <Shuffle className="size-6" />
                   </span>
                 ) : (
                   <Scene
                     variant={item.id}
-                    motion="static"
+                    motion={hovered === item.id ? "animated" : "static"}
+                    preview
                     className="[mask-image:none]"
                   />
                 )}

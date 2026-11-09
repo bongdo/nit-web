@@ -18,6 +18,7 @@ import {
   EyeOff,
   Folder,
   FolderOpen,
+  Inbox,
   Layers,
   MessageSquare,
   Monitor,
@@ -33,9 +34,10 @@ import type { Health, Session } from "../lib/types";
 import type { StreamStatus } from "../hooks/useEventStream";
 import { themeLabel, type Theme } from "../lib/themes";
 import { basename, filterSessions, formatRelative } from "../lib/format";
+import { BASE_PATH } from "../lib/base";
 import { SCOPES, groupByDirectory, groupSessions, type Scope, type SessionRow } from "../lib/sessions";
 import { cn } from "../lib/utils";
-import { Button } from "./ui/button";
+import { Button, buttonVariants } from "./ui/button";
 import { Input } from "./ui/input";
 import { ConnectionStatus } from "./ConnectionStatus";
 
@@ -344,7 +346,12 @@ export const Sidebar = memo(function Sidebar({
   const [fading, setFading] = useState(false);
   const showLoad = Boolean(hasMore || olderCount > 0);
   const [loadLeaving, setLoadLeaving] = useState(false);
-  const loadShown = useRef(showLoad);
+  const leaveLoad = () => {
+    setLoadLeaving(true);
+    window.setTimeout(() => setLoadLeaving(false), 220);
+    if (olderCount > 0) onShowOlder();
+    else onLoadMore?.();
+  };
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
   const autoExpanded = useRef<string | null>(null);
   const modKey =
@@ -521,16 +528,6 @@ export const Sidebar = memo(function Sidebar({
     observer.observe(container);
     return () => observer.disconnect();
   });
-
-  useEffect(() => {
-    if (loadShown.current && !showLoad) {
-      setLoadLeaving(true);
-      loadShown.current = false;
-      const timer = window.setTimeout(() => setLoadLeaving(false), 200);
-      return () => window.clearTimeout(timer);
-    }
-    loadShown.current = showLoad;
-  }, [showLoad]);
 
   useEffect(() => {
     if (!selectedId || selectedRank === null) return;
@@ -797,7 +794,7 @@ export const Sidebar = memo(function Sidebar({
           >
             <button
               type="button"
-              onClick={olderCount > 0 ? onShowOlder : onLoadMore}
+              onClick={leaveLoad}
               disabled={olderCount === 0 && loadingMore}
               className="text-muted-foreground hover:bg-accent/60 hover:text-foreground mx-1.5 flex w-[calc(100%-0.75rem)] items-center justify-center rounded-lg py-2 text-[11px] disabled:opacity-60"
             >
@@ -832,6 +829,19 @@ export const Sidebar = memo(function Sidebar({
           instance={instance}
           onOpen={onInstances}
         />
+        <a
+          href={`${BASE_PATH}/drop/`}
+          target="_blank"
+          rel="noreferrer"
+          title="Drop"
+          aria-label="Drop"
+          className={cn(
+            buttonVariants({ variant: "ghost", size: "icon-sm" }),
+            "text-muted-foreground",
+          )}
+        >
+          <Inbox />
+        </a>
         <Button
           variant="ghost"
           size="icon-sm"

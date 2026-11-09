@@ -2,13 +2,97 @@ package server
 
 import (
 	"encoding/json"
+	"regexp"
+	"sort"
 	"strconv"
+	"strings"
 )
 
+type lineRange struct {
+	Start int `json:"start"`
+	End   int `json:"end"`
+}
+
 type editedFile struct {
-	Path      string `json:"path"`
-	Additions int    `json:"additions,omitempty"`
-	Deletions int    `json:"deletions,omitempty"`
+	Path      string      `json:"path"`
+	Additions int         `json:"additions,omitempty"`
+	Deletions int         `json:"deletions,omitempty"`
+	Lines     []lineRange `json:"lines,omitempty"`
+}
+
+var hunkPattern = regexp.MustCompile(`^@@ -[0-9]+(,[0-9]+)? \+([0-9]+)(,[0-9]+)? @@`)
+
+func pushLineRange(ranges []lineRange, line int) []lineRange {
+	if len(ranges) > 0 {
+		last := &ranges[len(ranges)-1]
+		if line <= last.End+1 {
+			if line > last.End {
+				last.End = line
+			}
+			return ranges
+		}
+	}
+	return append(ranges, lineRange{Start: line, End: line})
+}
+
+func patchAddedLines(patch string) []lineRange {
+	if strings.TrimSpace(patch) == "" {
+		return nil
+	}
+	var ranges []lineRange
+	line, firstHunk := 0, 0
+	inHunk := false
+	for _, row := range strings.Split(patch, "\n") {
+		if match := hunkPattern.FindStringSubmatch(row); match != nil {
+			line, _ = strconv.Atoi(match[2])
+			if firstHunk == 0 {
+				firstHunk = line
+			}
+			inHunk = true
+			continue
+		}
+		if !inHunk {
+			continue
+		}
+		switch {
+		case strings.HasPrefix(row, "+"):
+			ranges = pushLineRange(ranges, line)
+			line++
+		case strings.HasPrefix(row, " "):
+			line++
+		}
+	}
+	if len(ranges) == 0 && firstHunk > 0 {
+		return []lineRange{{Start: firstHunk, End: firstHunk}}
+	}
+	return ranges
+}
+
+func mergeLineRanges(left, right []lineRange) []lineRange {
+	if len(left)+len(right) == 0 {
+		return nil
+	}
+	all := append(append([]lineRange{}, left...), right...)
+	sort.Slice(all, func(i, j int) bool {
+		if all[i].Start != all[j].Start {
+			return all[i].Start < all[j].Start
+		}
+		return all[i].End < all[j].End
+	})
+	merged := make([]lineRange, 0, len(all))
+	for _, item := range all {
+		if len(merged) > 0 {
+			last := &merged[len(merged)-1]
+			if item.Start <= last.End+1 {
+				if item.End > last.End {
+					last.End = item.End
+				}
+				continue
+			}
+		}
+		merged = append(merged, item)
+	}
+	return merged
 }
 
 var editedWriters = map[string]bool{
@@ -25,6 +109,7 @@ func fileEntries(raw json.RawMessage) []editedFile {
 			Path      string `json:"path"`
 			Additions int    `json:"additions"`
 			Deletions int    `json:"deletions"`
+			Patch     string `json:"patch"`
 		} `json:"files"`
 	}
 	if len(raw) == 0 || json.Unmarshal(raw, &metadata) != nil {
@@ -43,6 +128,7 @@ func fileEntries(raw json.RawMessage) []editedFile {
 			Path:      path,
 			Additions: item.Additions,
 			Deletions: item.Deletions,
+			Lines:     patchAddedLines(item.Patch),
 		})
 	}
 	return files
@@ -82,6 +168,7 @@ func addEdited(target *[]editedFile, index map[string]int, files []editedFile) {
 		if at, ok := index[file.Path]; ok {
 			(*target)[at].Additions += file.Additions
 			(*target)[at].Deletions += file.Deletions
+			(*target)[at].Lines = mergeLineRanges((*target)[at].Lines, file.Lines)
 			continue
 		}
 		index[file.Path] = len(*target)

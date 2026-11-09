@@ -114,6 +114,12 @@ export type EditedFile = {
   status?: string;
   additions?: number;
   deletions?: number;
+  lines?: LineRange[];
+};
+
+export type LineRange = {
+  start: number;
+  end: number;
 };
 
 export type MessageError = {

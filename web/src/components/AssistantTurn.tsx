@@ -50,6 +50,7 @@ export const AssistantTurn = memo(function AssistantTurn({
 }: AssistantTurnProps) {
   const [open, setOpen] = useState(false);
   const [showFiles, setShowFiles] = useState(false);
+  const filesRef = useRef<HTMLDivElement | null>(null);
   const wasStreaming = useRef(streaming);
   const wasLive = useRef(streaming);
   const [loadingSteps, setLoadingSteps] = useState(false);
@@ -97,6 +98,7 @@ export const AssistantTurn = memo(function AssistantTurn({
   const lastText = textParts[textParts.length - 1];
   const reply = messages.map(replyText).filter(Boolean).join("\n\n");
   const agent = agents.find((item) => item.id === last?.agent);
+  const agentName = agent?.name ?? last?.agent ?? "";
   const model = modelLabel(last?.model, models);
   const current = activity[activity.length - 1];
   const stats = [
@@ -125,6 +127,22 @@ export const AssistantTurn = memo(function AssistantTurn({
       setOpen(false);
     }
   }, [streaming]);
+
+  useEffect(() => {
+    if (!showFiles) return;
+    const onPointer = (event: MouseEvent) => {
+      if (!filesRef.current?.contains(event.target as Node)) setShowFiles(false);
+    };
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setShowFiles(false);
+    };
+    document.addEventListener("mousedown", onPointer);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onPointer);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [showFiles]);
 
   const loadSteps = () => {
     if (!onLoadMessage) return;
@@ -217,6 +235,7 @@ export const AssistantTurn = memo(function AssistantTurn({
                           part={part}
                           cwd={workspace}
                           peroURL={peroURL}
+                          agent={agentName}
                           onLoad={onLoad}
                         />
                       );
@@ -263,7 +282,10 @@ export const AssistantTurn = memo(function AssistantTurn({
           </div>
         )}
         {((!streaming && reply.trim() !== "") || changedFiles.length > 0) && (
-          <div className="mt-2 flex flex-wrap items-center gap-2">
+          <div
+            ref={filesRef}
+            className="relative mt-2 flex flex-wrap items-center gap-2"
+          >
             {!streaming && reply.trim() !== "" && (
               <ReplyActions text={reply} enter={wasLive.current} />
             )}
@@ -274,10 +296,17 @@ export const AssistantTurn = memo(function AssistantTurn({
                 onClick={() => setShowFiles((value) => !value)}
               />
             )}
+            {showFiles && changedFiles.length > 0 && (
+              <div className="file-popover-enter bg-popover text-popover-foreground border-border absolute bottom-full left-0 z-20 mb-2 w-max max-w-full rounded-lg border p-2 shadow-lg">
+                <FileList
+                  files={changedFiles}
+                  base={peroURL}
+                  cwd={workspace}
+                  agent={agentName}
+                />
+              </div>
+            )}
           </div>
-        )}
-        {showFiles && changedFiles.length > 0 && (
-          <FileList files={changedFiles} base={peroURL} className="mt-1.5" />
         )}
       </div>
     </div>

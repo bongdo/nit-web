@@ -41,11 +41,13 @@ export const ToolCall = memo(function ToolCall({
   part,
   cwd,
   peroURL,
+  agent,
   onLoad,
 }: {
   part: ToolPart;
   cwd?: string | null;
   peroURL: string;
+  agent?: string;
   onLoad?: () => void | Promise<void>;
 }) {
   const [open, setOpen] = useState(false);
@@ -95,7 +97,7 @@ export const ToolCall = memo(function ToolCall({
         <span className="shrink-0 font-medium">{verb}</span>
         {files.length > 0 ? (
           <span className="min-w-0 flex-1 overflow-hidden">
-            <FileChips files={files} base={peroURL} max={3} />
+            <FileChips files={files} base={peroURL} max={3} cwd={cwd} agent={agent} />
           </span>
         ) : target ? (
           <span className="text-muted-foreground min-w-0 flex-1 truncate font-mono">{target}</span>

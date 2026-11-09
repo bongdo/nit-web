@@ -797,3 +797,16 @@ Rejected: loading full step messages just to build the list (defeats the lazy ca
 
 Cost: light transcripts and the cache grow slightly; paths are not normalized, so the same file recorded once as absolute and once as relative counts twice.
 
+## 2026-11-09 — Pero deep links carry the agent and the changed lines
+
+Context: file chips opened pero with a bare path. Relative tool paths failed with "not found", the editor did not point at the edited lines, and pero could not tell which agent produced the change.
+
+Decision: nit-gui resolves paths against the workspace and adds `lines` (new-file ranges derived from tool patches) and `agent` to the existing `?open=` link. Pero parses them, scrolls to the first range, highlights every added line, and shows the agent in a banner above the editor.
+
+Why: tool metadata already contains unified patches, so the ranges need no new endpoint, extra fetch, or diff view.
+
+Rejected: a separate changes API in pero (nit-gui already has the patches); a standalone diff view (the user wants the real file); making pero guess the project root from a relative path.
+
+Cost: the query string becomes a small contract between the two repos; ranges only cover patches present in tool metadata, so a pure write opens the file without a highlight.
+
+

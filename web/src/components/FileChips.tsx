@@ -1,22 +1,33 @@
 import { memo } from "react";
 import { ChevronDown, ChevronUp, FileDiff } from "lucide-react";
 import { basename } from "../lib/format";
-import { peroHref } from "../lib/diff";
+import { peroHref, resolveFilePath } from "../lib/diff";
 import type { EditedFile } from "../lib/types";
 import { cn } from "../lib/utils";
 import { Button } from "./ui/button";
 
-function FileChip({ file, base }: { file: EditedFile; base: string }) {
+function FileChip({
+  file,
+  base,
+  cwd,
+  agent,
+}: {
+  file: EditedFile;
+  base: string;
+  cwd?: string | null;
+  agent?: string;
+}) {
+  const path = resolveFilePath(file.path, cwd);
   return (
     <a
-      href={peroHref(base, file.path)}
+      href={peroHref(base, path, file.lines, agent)}
       target="_blank"
       rel="noreferrer"
-      title={`Open ${file.path} in pero`}
+      title={`Open ${path} in pero`}
       onClick={(event) => event.stopPropagation()}
       className="bg-muted text-muted-foreground hover:bg-accent hover:text-foreground inline-flex max-w-44 shrink-0 items-center gap-1 rounded px-1.5 py-0.5 font-mono text-[10px]"
     >
-      <span className="truncate">{basename(file.path)}</span>
+      <span className="truncate">{basename(path)}</span>
       {file.additions ? <span className="text-success">+{file.additions}</span> : null}
       {file.deletions ? <span className="text-destructive">−{file.deletions}</span> : null}
     </a>
@@ -27,11 +38,15 @@ export const FileChips = memo(function FileChips({
   files,
   base,
   max = 3,
+  cwd,
+  agent,
   className,
 }: {
   files: EditedFile[];
   base: string;
   max?: number;
+  cwd?: string | null;
+  agent?: string;
   className?: string;
 }) {
   if (files.length === 0) return null;
@@ -40,7 +55,7 @@ export const FileChips = memo(function FileChips({
   return (
     <span className={cn("flex min-w-0 shrink-0 items-center gap-1 overflow-hidden", className)}>
       {shown.map((file) => (
-        <FileChip key={file.path} file={file} base={base} />
+        <FileChip key={file.path} file={file} base={base} cwd={cwd} agent={agent} />
       ))}
       {hidden.length > 0 && (
         <span
@@ -57,21 +72,25 @@ export const FileChips = memo(function FileChips({
 export function FileList({
   files,
   base,
+  cwd,
+  agent,
   className,
 }: {
   files: EditedFile[];
   base: string;
+  cwd?: string | null;
+  agent?: string;
   className?: string;
 }) {
   return (
     <div
       className={cn(
-        "scrollbar-thin flex max-h-32 flex-wrap items-center gap-1 overflow-y-auto",
+        "scrollbar-thin flex max-h-48 flex-wrap content-start items-center gap-1 overflow-y-auto",
         className,
       )}
     >
       {files.map((file) => (
-        <FileChip key={file.path} file={file} base={base} />
+        <FileChip key={file.path} file={file} base={base} cwd={cwd} agent={agent} />
       ))}
     </div>
   );

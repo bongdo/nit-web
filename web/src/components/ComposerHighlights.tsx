@@ -18,9 +18,10 @@ export const ComposerHighlights = forwardRef<
     value: string;
     issues: SpellIssue[];
     active: SpellIssue | null;
+    askRange: { start: number; end: number } | null;
     onRect: (rect: HintRect | null) => void;
   }
->(function ComposerHighlights({ value, issues, active, onRect }, ref) {
+>(function ComposerHighlights({ value, issues, active, askRange, onRect }, ref) {
   const layerRef = useRef<HTMLDivElement>(null);
   const activeRef = useRef<HTMLSpanElement>(null);
   useImperativeHandle(ref, () => layerRef.current as HTMLDivElement);
@@ -45,6 +46,17 @@ export const ComposerHighlights = forwardRef<
 
   const parts: ReactNode[] = [];
   let cursor = 0;
+  const ask =
+    askRange && askRange.start >= 0 && askRange.end <= value.length ? askRange : null;
+  if (ask) {
+    if (ask.start > 0) parts.push(value.slice(0, ask.start));
+    parts.push(
+      <span key="ask" className="ask-sheen-word">
+        {value.slice(ask.start, ask.end)}
+      </span>,
+    );
+    cursor = ask.end;
+  }
   for (const issue of issues) {
     if (issue.start < cursor || issue.end > value.length) continue;
     if (issue.start > cursor) parts.push(value.slice(cursor, issue.start));

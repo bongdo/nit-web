@@ -759,3 +759,16 @@ Why: a signed expiry needs no shared store, survives restarts naturally, and wor
 Rejected: Caddy forward-auth in front of all three (term is funneled on its own port, so it would need a new proxy layer); shared session database (new service and dependency); per-app cookies with a shared secret (still three prompts).
 
 Cost: the same small token and PBKDF2 code is duplicated in three repos; logout clears the cookie, but an already copied token stays valid until its expiry; the tailnet IP and the public hostname still require separate logins.
+
+## 2026-11-09 — One login page, at nit-gui
+
+Context: after sharing the cookie, pero-gui and term-gui still served their own `/auth` forms, so there were three entry points and three lockout policies for one password.
+
+Decision: `https://frankfurt.tailf358cb.ts.net/nit/auth` is the only login and logout page. pero and term keep only the shared `nit_gate` verifier and redirect unauthenticated pages to `NIT_GATE_LOGIN_URL?next=<absolute URL>`; their own `/auth` and `/auth/logout` routes return 404. nit accepts an absolute `next` only for http/https URLs on the same hostname with a path under `/nit/`, `/pero/` or `/term/`.
+
+Why: one form means one password check and one lockout; the absolute `next` returns the user to the original page across the two public ports and hostnames.
+
+Rejected: hidden local forms that share the cookie; a shared auth proxy in front of all three; trusting arbitrary absolute return URLs.
+
+Cost: nit must know the three path prefixes, and pero/term build the absolute return URL from forwarded headers.
+

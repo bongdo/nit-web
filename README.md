@@ -161,11 +161,13 @@ command that enables the public URL.
 `127.0.0.1:7791`, and starts a user Caddy on `127.0.0.1:7792`. Caddy is
 loopback-only; Tailscale Funnel terminates HTTPS and exposes the app at
 `https://frankfurt.tailf358cb.ts.net/nit/`. The app serves `/auth` and keeps a
-signed HttpOnly SameSite=Lax `nit_gate` cookie on path `/` for 7 days. The
-cookie is not kept in memory, so a restart does not log you out; it is shared
-with pero-gui and term-gui on the same host. Browsers still keep separate
-cookies for the tailnet IP and the public hostname. Five wrong passwords block
-an IP for 15 minutes.
+signed HttpOnly SameSite=Lax `nit_gate` cookie on path `/` for 7 days. This is
+the only login page: pero-gui and term-gui have none, verify the same cookie and
+redirect unauthenticated pages to `/nit/auth?next=<absolute URL>`. The cookie is
+not kept in memory, so a restart does not log you out; it is shared with
+pero-gui and term-gui on the same host. Browsers still keep separate cookies for
+the tailnet IP and the public hostname. Five wrong passwords block an IP for 15
+minutes.
 
 The box's public IP is `92.5.143.242`. The OCI security list does not expose
 `80`/`7792`, and `443` is used by another service. The supported public path is
@@ -478,7 +480,11 @@ nspell worker. It is not implemented yet.
   expiry, so it survives restarts and is accepted by pero-gui and term-gui on
   the same hostname; it expires after 7 days. Five wrong passwords block the
   source IP for 15 minutes; 50 failures across all clients block new logins for
-  5 minutes. Password values are never logged or put in a URL.
+  5 minutes. Password values are never logged or put in a URL. pero-gui and
+  term-gui have no login page: they verify the same cookie and redirect
+  unauthenticated pages to `/nit/auth?next=<absolute URL>`. The absolute return
+  target is accepted only for http/https URLs on the same hostname with a path
+  under `/nit/`, `/pero/` or `/term/`.
 - Instance passwords stay in the Go process and in `instances.json`; they are
   never logged or sent to the browser. SSH hosts are sent only as the sanitized
   connection identifier the editor needs.

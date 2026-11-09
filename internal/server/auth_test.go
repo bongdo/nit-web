@@ -144,6 +144,61 @@ func TestSafeNext(t *testing.T) {
 	}
 }
 
+func TestSafeAbsoluteNext(t *testing.T) {
+	const publicHost = "frankfurt.tailf358cb.ts.net"
+	cases := []struct {
+		name string
+		raw  string
+		host string
+		want string
+		ok   bool
+	}{
+		{"public pero", "https://frankfurt.tailf358cb.ts.net/pero/?open=x", "127.0.0.1:7792", "https://frankfurt.tailf358cb.ts.net/pero/?open=x", true},
+		{"public term port", "https://frankfurt.tailf358cb.ts.net:8443/term/?dir=%2Ftmp", "frankfurt.tailf358cb.ts.net", "https://frankfurt.tailf358cb.ts.net:8443/term/?dir=%2Ftmp", true},
+		{"request host", "https://frankfurt.tailf358cb.ts.net/nit/?x=1", "frankfurt.tailf358cb.ts.net", "https://frankfurt.tailf358cb.ts.net/nit/?x=1", true},
+		{"local term", "http://127.0.0.1:7795/term/", "127.0.0.1:7792", "http://127.0.0.1:7795/term/", true},
+		{"foreign host", "https://evil.example/pero/", "127.0.0.1:7792", "", false},
+		{"suffix host", "https://frankfurt.tailf358cb.ts.net.evil.example/pero/", "127.0.0.1:7792", "", false},
+		{"protocol relative", "//frankfurt.tailf358cb.ts.net/pero/", "127.0.0.1:7792", "", false},
+		{"javascript", "javascript:alert(1)", "127.0.0.1:7792", "", false},
+		{"credentials", "https://user:pass@frankfurt.tailf358cb.ts.net/pero/", "127.0.0.1:7792", "", false},
+		{"outside path", "https://frankfurt.tailf358cb.ts.net/api/health", "127.0.0.1:7792", "", false},
+		{"prefix trick", "https://frankfurt.tailf358cb.ts.net/nitrogen/", "127.0.0.1:7792", "", false},
+		{"dotdot escape", "https://frankfurt.tailf358cb.ts.net/nit/../api/health", "127.0.0.1:7792", "", false},
+		{"control char", "https://frankfurt.tailf358cb.ts.net/pero/\n", "127.0.0.1:7792", "", false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got, ok := safeAbsoluteNext(tc.raw, tc.host, publicHost)
+			if ok != tc.ok || got != tc.want {
+				t.Fatalf("safeAbsoluteNext(%q) = %q, %v; want %q, %v", tc.raw, got, ok, tc.want, tc.ok)
+			}
+		})
+	}
+}
+
+func TestAuthLoginAbsoluteNext(t *testing.T) {
+	gate := testAuthGate(t)
+	gate.publicHost = "frankfurt.tailf358cb.ts.net"
+	handler := gate.wrap(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+
+	target := "https://frankfurt.tailf358cb.ts.net:8443/term/?dir=%2Ftmp"
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, authRequest(http.MethodPost, "/auth", url.Values{
+		"password": {"secret"},
+		"next":     {target},
+	}.Encode()))
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("login status = %d", rec.Code)
+	}
+	if location := rec.Header().Get("Location"); location != target {
+		t.Fatalf("location = %q, want %q", location, target)
+	}
+	if len(rec.Result().Cookies()) == 0 {
+		t.Fatal("login set no cookie")
+	}
+}
+
 func TestAllowedOriginPublicHost(t *testing.T) {
 	s := &Server{publicHost: "frankfurt.tailf358cb.ts.net"}
 	request := httptest.NewRequest(http.MethodPost, "http://127.0.0.1:7791/api/prompt", nil)

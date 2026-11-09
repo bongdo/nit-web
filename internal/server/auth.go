@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"path"
 	"strconv"
 	"strings"
 	"sync"
@@ -168,7 +169,7 @@ func (a *authGate) handleLogin(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	next := safeNext(r.URL.Query().Get("next"), a.base)
+	next := a.nextTarget(r, r.URL.Query().Get("next"))
 	if r.Method == http.MethodGet {
 		if a.authenticated(r) {
 			http.Redirect(w, r, next, http.StatusSeeOther)
@@ -183,7 +184,7 @@ func (a *authGate) handleLogin(w http.ResponseWriter, r *http.Request) {
 		a.renderLogin(w, r, http.StatusBadRequest, next, "Invalid request.", false)
 		return
 	}
-	next = safeNext(r.FormValue("next"), a.base)
+	next = a.nextTarget(r, r.FormValue("next"))
 	ip := clientIP(r)
 	allowed, retry := a.allowAttempt(ip)
 	if !allowed {
@@ -369,6 +370,46 @@ func validSessionToken(secret []byte, value string, now time.Time) bool {
 	mac := hmac.New(sha256.New, secret)
 	mac.Write([]byte(parts[0] + "." + parts[1]))
 	return hmac.Equal(signature, mac.Sum(nil))
+}
+
+func (a *authGate) nextTarget(r *http.Request, raw string) string {
+	if target, ok := safeAbsoluteNext(raw, forwardedHost(r), a.publicHost); ok {
+		return target
+	}
+	return safeNext(raw, a.base)
+}
+
+func safeAbsoluteNext(raw, requestHost, publicHost string) (string, bool) {
+	for _, char := range raw {
+		if char < 0x20 || char == 0x7f || char == '\\' {
+			return "", false
+		}
+	}
+	u, err := url.Parse(raw)
+	if err != nil || u.Host == "" || u.User != nil || u.Opaque != "" {
+		return "", false
+	}
+	if !strings.EqualFold(u.Scheme, "http") && !strings.EqualFold(u.Scheme, "https") {
+		return "", false
+	}
+	host := strings.ToLower(hostOnly(u.Host))
+	want := strings.ToLower(hostOnly(requestHost))
+	if host != want && (publicHost == "" || host != publicHost) {
+		return "", false
+	}
+	if !gateReturnPath(path.Clean(u.Path)) {
+		return "", false
+	}
+	return u.String(), true
+}
+
+func gateReturnPath(path string) bool {
+	for _, prefix := range []string{"/nit", "/pero", "/term"} {
+		if path == prefix || strings.HasPrefix(path, prefix+"/") {
+			return true
+		}
+	}
+	return false
 }
 
 func safeNext(raw, base string) string {

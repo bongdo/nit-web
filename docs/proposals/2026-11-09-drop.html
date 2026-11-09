@@ -1,0 +1,272 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>drop — временный буфер, доки и веб-приложения</title>
+<style>
+  :root {
+    color-scheme: dark;
+    --bg: #0c0c0d;
+    --panel: #151517;
+    --panel-2: #1b1b1e;
+    --line: #2a2a2e;
+    --text: #f1f0ee;
+    --muted: #a3a09b;
+    --dim: #6f6c68;
+    --copper: #c4794f;
+    --copper-soft: rgba(196,121,79,.14);
+    --blue: #7aa2c9;
+    --green: #7fb38a;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 22px;
+    background: radial-gradient(circle at 50% 0, #1d1713 0, var(--bg) 46%);
+    color: var(--text);
+    font: 14px/1.5 ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  }
+  .shell { max-width: 1240px; margin: 0 auto; }
+  .mono { font-family: ui-monospace, "SFMono-Regular", "Cascadia Code", "Liberation Mono", monospace; }
+  .top {
+    display: flex; align-items: center; gap: 12px; margin-bottom: 18px;
+    padding-bottom: 14px; border-bottom: 1px solid var(--line);
+  }
+  .brand { display: flex; align-items: center; gap: 9px; font-weight: 650; letter-spacing: -.01em; }
+  .brand b {
+    display: inline-grid; place-items: center; width: 26px; height: 26px;
+    border-radius: 8px; background: var(--copper); color: #1a100b; font-size: 14px;
+  }
+  .nav { display: flex; gap: 4px; margin-left: auto; }
+  .nav a {
+    color: var(--muted); text-decoration: none; padding: 5px 9px; border-radius: 7px;
+    font: 11px ui-monospace, monospace;
+  }
+  .nav a:hover { background: var(--panel-2); color: var(--text); }
+  .nav a.active { background: var(--copper-soft); color: var(--copper); }
+  h1 { margin: 0 0 6px; font-size: 26px; letter-spacing: -.03em; }
+  .sub { margin: 0 0 20px; color: var(--muted); font-size: 14px; }
+  .grid { display: grid; grid-template-columns: 1.05fr .95fr; gap: 16px; }
+  .panel {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 14px;
+    overflow: hidden; box-shadow: 0 18px 60px rgba(0,0,0,.28);
+  }
+  .panel-h {
+    display: flex; align-items: center; gap: 8px; padding: 12px 14px;
+    border-bottom: 1px solid var(--line); color: var(--muted); font-size: 11px;
+    letter-spacing: .12em; text-transform: uppercase;
+  }
+  .panel-h .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--green); }
+  .body { padding: 14px; }
+  .dropzone {
+    border: 1px dashed #3a3630; border-radius: 11px; padding: 26px 16px;
+    text-align: center; background: linear-gradient(180deg, rgba(196,121,79,.06), transparent);
+  }
+  .dropzone strong { display: block; font-size: 14px; margin-bottom: 4px; }
+  .dropzone span { color: var(--muted); font-size: 12px; }
+  .dropzone .arrow { color: var(--copper); font-size: 22px; line-height: 1; margin-bottom: 8px; }
+  .row { display: flex; gap: 8px; align-items: center; }
+  .row.wrap { flex-wrap: wrap; }
+  .btn {
+    border: 1px solid var(--line); background: var(--panel-2); color: var(--text);
+    border-radius: 8px; padding: 7px 10px; font: 12px ui-sans-serif, system-ui, sans-serif;
+    cursor: default;
+  }
+  .btn.primary { background: var(--copper); border-color: var(--copper); color: #1a100b; font-weight: 650; }
+  .btn.ghost { background: transparent; color: var(--muted); }
+  .ttl { margin-left: auto; color: var(--dim); font: 11px ui-monospace, monospace; }
+  .items { display: flex; flex-direction: column; gap: 8px; margin-top: 14px; }
+  .item {
+    display: flex; align-items: center; gap: 10px; padding: 10px 11px;
+    border: 1px solid var(--line); border-radius: 10px; background: var(--panel-2);
+  }
+  .item .icon {
+    display: grid; place-items: center; width: 30px; height: 30px; flex: 0 0 auto;
+    border-radius: 8px; background: #201d1a; color: var(--copper); font: 11px ui-monospace, monospace;
+  }
+  .item .meta { min-width: 0; flex: 1; }
+  .item .name { font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .item .subline { color: var(--dim); font: 11px ui-monospace, monospace; margin-top: 1px; }
+  .pill {
+    border: 1px solid var(--line); border-radius: 999px; padding: 2px 7px;
+    color: var(--muted); font: 10px ui-monospace, monospace; white-space: nowrap;
+  }
+  .pill.app { color: var(--blue); border-color: rgba(122,162,201,.3); background: rgba(122,162,201,.08); }
+  .pill.docs { color: var(--green); border-color: rgba(127,179,138,.3); background: rgba(127,179,138,.08); }
+  .pill.buf { color: var(--copper); border-color: rgba(196,121,79,.3); background: var(--copper-soft); }
+  .split { display: grid; grid-template-columns: 190px 1fr; min-height: 390px; }
+  .tree { border-right: 1px solid var(--line); padding: 10px; background: #121214; }
+  .tree-title { color: var(--dim); font: 10px ui-monospace, monospace; letter-spacing: .1em; text-transform: uppercase; padding: 4px 7px 8px; }
+  .tree a { display: block; color: var(--muted); text-decoration: none; padding: 5px 7px; border-radius: 6px; font: 11px ui-monospace, monospace; }
+  .tree a:hover { background: var(--panel-2); color: var(--text); }
+  .tree a.active { background: var(--copper-soft); color: var(--copper); }
+  .doc { padding: 20px 22px; }
+  .doc h2 { margin: 0 0 10px; font-size: 21px; letter-spacing: -.02em; }
+  .doc h3 { margin: 20px 0 7px; font-size: 14px; color: var(--text); }
+  .doc p { color: #c9c5be; margin: 0 0 10px; }
+  .doc ul { margin: 0 0 10px; padding-left: 18px; color: #c9c5be; }
+  .doc code { color: var(--copper); background: var(--copper-soft); border-radius: 5px; padding: 1px 5px; font: 12px ui-monospace, monospace; }
+  .doc a { color: var(--blue); text-decoration: none; border-bottom: 1px solid rgba(122,162,201,.3); }
+  .doc a:hover { border-bottom-color: var(--blue); }
+  .callout { margin: 14px 0; padding: 10px 12px; border-left: 2px solid var(--copper); background: rgba(196,121,79,.07); color: var(--muted); font-size: 12px; border-radius: 0 8px 8px 0; }
+  .browser { display: flex; align-items: center; gap: 6px; padding: 8px 10px; border-bottom: 1px solid var(--line); background: #121214; }
+  .traffic { display: flex; gap: 4px; }
+  .traffic i { width: 7px; height: 7px; border-radius: 50%; background: #3a3630; }
+  .url {
+    flex: 1; border: 1px solid var(--line); border-radius: 6px; padding: 4px 8px;
+    color: var(--dim); font: 10px ui-monospace, monospace; background: var(--bg);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .site { padding: 18px; min-height: 300px; background: #f5f1e9; color: #2b2721; }
+  .site-card { max-width: 360px; margin: 20px auto; text-align: center; }
+  .site-card .logo { width: 44px; height: 44px; border-radius: 12px; margin: 0 auto 12px; background: #c4794f; }
+  .site-card h4 { margin: 0 0 6px; font-size: 20px; }
+  .site-card p { margin: 0 0 14px; color: #6b645a; font-size: 13px; }
+  .site-card .fake-input { border: 1px solid #d9d1c4; background: #fff; border-radius: 8px; padding: 9px 10px; text-align: left; color: #9a9184; font-size: 12px; }
+  .site-card .fake-btn { margin-top: 8px; background: #2b2721; color: #fff; border-radius: 8px; padding: 9px; font-size: 12px; font-weight: 650; }
+  .foot { margin-top: 18px; color: var(--dim); font-size: 11px; display: flex; gap: 12px; flex-wrap: wrap; }
+  .foot code { color: var(--copper); }
+  .caption { margin: 0 0 8px; color: var(--dim); font: 10px ui-monospace, monospace; letter-spacing: .1em; text-transform: uppercase; }
+  @media (max-width: 900px) { .grid { grid-template-columns: 1fr; } .split { grid-template-columns: 1fr; } .tree { border-right: 0; border-bottom: 1px solid var(--line); } }
+</style>
+</head>
+<body>
+<div class="shell">
+  <header class="top">
+    <div class="brand"><b>d</b> drop</div>
+    <nav class="nav">
+      <a href="#">nit</a>
+      <a href="#">pero</a>
+      <a href="#">term</a>
+      <a class="active" href="#">drop</a>
+    </nav>
+  </header>
+
+  <h1>Временный буфер и читалка</h1>
+  <p class="sub">Файлы для скачивания, HTML-страницы, целые веб-приложения и доки с рабочими переходами. Всё живёт 7 дней, если не сказать иначе.</p>
+
+  <div class="grid">
+    <section class="panel">
+      <div class="panel-h"><span class="dot"></span> buffer <span class="ttl" style="margin-left:auto">agent: <span class="mono">drop ./report.html</span></span></div>
+      <div class="body">
+        <div class="dropzone">
+          <div class="arrow">↓</div>
+          <strong>Перетащи файлы сюда</strong>
+          <span>или нажми, чтобы выбрать. Папку с приложением лучше кинуть через <span class="mono">drop</span></span>
+        </div>
+        <div class="row wrap" style="margin-top:10px">
+          <button class="btn primary">Загрузить</button>
+          <button class="btn ghost">Выбрать файлы</button>
+          <span class="ttl">7 дней</span>
+        </div>
+
+        <div class="items">
+          <div class="item">
+            <span class="icon">md</span>
+            <div class="meta">
+              <div class="name">drop-spec.md</div>
+              <div class="subline">12 KB · истекает через 6 дн.</div>
+            </div>
+            <span class="pill docs">docs</span>
+            <button class="btn ghost">копировать</button>
+          </div>
+          <div class="item">
+            <span class="icon">&lt;/&gt;</span>
+            <div class="meta">
+              <div class="name">dashboard</div>
+              <div class="subline">4 файла · 248 KB · истекает через 2 дн.</div>
+            </div>
+            <span class="pill app">app</span>
+            <button class="btn ghost">открыть</button>
+          </div>
+          <div class="item">
+            <span class="icon">zip</span>
+            <div class="meta">
+              <div class="name">screenshots.zip</div>
+              <div class="subline">18 MB · истекает через 23 ч.</div>
+            </div>
+            <span class="pill buf">файл</span>
+            <button class="btn ghost">скачать</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-h"><span class="dot"></span> reader <span class="ttl" style="margin-left:auto">ссылки внутри .md работают</span></div>
+      <div class="split">
+        <aside class="tree">
+          <div class="tree-title">drop-spec</div>
+          <a class="active" href="#">index.md</a>
+          <a href="#">api.md</a>
+          <a href="#">storage.md</a>
+          <a href="#">security.md</a>
+          <a href="#">examples.md</a>
+        </aside>
+        <article class="doc">
+          <h2>Как это работает</h2>
+          <p>Каждая публикация — это папка с файлами и метаданными. Если внутри есть <code>index.html</code>, drop показывает приложение. Если есть <code>.md</code> — открывает читалку.</p>
+          <div class="callout">Агент кладёт файлы командой <span class="mono">drop docs ./vault</span>. Ссылка в ответе кликабельна, как обычный URL.</div>
+          <h3>Переходы</h3>
+          <p>Относительная ссылка <a href="#">api.md</a> открывает соседний документ в той же читалке. Картинки и вложения ведут на сырые файлы, внешние ссылки остаются внешними.</p>
+          <ul>
+            <li>Один пароль на nit, pero, term и drop.</li>
+            <li>HTML-приложения запускаются в sandbox без доступа к API nit.</li>
+            <li>Просроченное удаляется само.</li>
+          </ul>
+        </article>
+      </div>
+    </section>
+  </div>
+
+  <div class="grid" style="margin-top:16px">
+    <section class="panel">
+      <div class="panel-h"><span class="dot"></span> app view</div>
+      <div class="browser">
+        <span class="traffic"><i></i><i></i><i></i></span>
+        <span class="url">/nit/drop/files/d-7f3a2c91/</span>
+        <span class="pill app">sandbox</span>
+      </div>
+      <div class="site">
+        <div class="site-card">
+          <div class="logo"></div>
+          <h4>Acme landing</h4>
+          <p>Так выглядит любой HTML, который агент положил в drop. Полноценная страница, не превью в чате.</p>
+          <div class="fake-input">you@example.com</div>
+          <div class="fake-btn">Get started</div>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-h"><span class="dot"></span> agent contract</div>
+      <div class="body">
+        <p class="caption">Shell</p>
+        <pre class="mono" style="margin:0 0 14px;padding:11px 12px;border:1px solid var(--line);border-radius:9px;background:#101012;color:#d6d1c8;font-size:11px;line-height:1.7;overflow:auto">$ drop ./report.html
+https://frankfurt.tailf358cb.ts.net/nit/drop/e/d-7f3a2c91/
+
+$ drop web ./web/dist
+https://frankfurt.tailf358cb.ts.net/nit/drop/e/d-22b8e401/
+
+$ drop docs ./vault
+https://frankfurt.tailf358cb.ts.net/nit/drop/e/d-9c01aa73/?file=index.md
+
+$ drop list
+d-7f3a2c91  docs    drop-spec.md      6d
+d-22b8e401  app     dashboard         2d
+d-9c01aa73  docs    vault            7d</pre>
+        <p class="caption">Почему агент узнает</p>
+        <p style="color:var(--muted);margin:0">Команда в <span class="mono">bin/</span> попадает в PATH, а правило в <span class="mono">AGENTS.md</span> говорит: если пользователю нужно показать страницу, приложение или доки — публикуй через <span class="mono">drop</span> и отдай ссылку.</p>
+      </div>
+    </section>
+  </div>
+
+  <div class="foot">
+    <span>Пароль: общий <span class="mono">nit_gate</span></span>
+    <span>Срок: 7 дней по умолчанию</span>
+    <span>HTML: sandbox, без fetch и форм</span>
+    <span>Доки: .md, .txt, PDF, картинки</span>
+  </div>
+</div>
+</body>
+</html>

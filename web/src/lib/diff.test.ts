@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { editedFiles, fileWindow, mergeFiles, peroHref, termHref } from "./diff";
-import type { ToolPart } from "./types";
+import { editedFiles, mergeFiles, peroHref, termHref, turnEditedFiles } from "./diff";
+import type { Message, ToolPart } from "./types";
 
 const tool = (overrides: Partial<ToolPart> = {}): ToolPart => ({
   type: "tool",
@@ -64,19 +64,74 @@ describe("mergeFiles", () => {
   });
 });
 
-describe("fileWindow", () => {
-  const files = [{ path: "/a" }, { path: "/b" }, { path: "/c" }];
-
-  it("keeps every file until the limit is exceeded", () => {
-    expect(fileWindow(files, 3, false)).toEqual({ visible: files, hidden: 0 });
+describe("turnEditedFiles", () => {
+  it("uses cached markers while steps are not loaded", () => {
+    const messages: Message[] = [
+      {
+        id: "m1",
+        type: "assistant",
+        time: { created: 1 },
+        steps: 2,
+        content: [{ type: "text", text: "done" }],
+        edited: [{ path: "/a", additions: 2 }],
+      },
+    ];
+    expect(turnEditedFiles(messages)).toEqual([{ path: "/a", additions: 2 }]);
   });
 
-  it("cuts the tail and reports it while collapsed", () => {
-    expect(fileWindow(files, 2, false)).toEqual({ visible: files.slice(0, 2), hidden: 1 });
+  it("prefers loaded tool parts over stale markers", () => {
+    const messages: Message[] = [
+      {
+        id: "m1",
+        type: "assistant",
+        time: { created: 1 },
+        steps: 1,
+        edited: [{ path: "/a", additions: 99 }],
+        content: [
+          tool({
+            state: {
+              status: "completed",
+              metadata: { files: [{ file: "/a", additions: 3, deletions: 1 }] },
+            },
+          }),
+        ],
+      },
+    ];
+    expect(turnEditedFiles(messages)).toEqual([
+      { path: "/a", status: undefined, additions: 3, deletions: 1 },
+    ]);
   });
 
-  it("shows every file once expanded", () => {
-    expect(fileWindow(files, 2, true)).toEqual({ visible: files, hidden: 0 });
+  it("merges files from light and loaded messages", () => {
+    const messages: Message[] = [
+      {
+        id: "m1",
+        type: "assistant",
+        time: { created: 1 },
+        steps: 1,
+        content: [{ type: "text", text: "done" }],
+        edited: [{ path: "/a", additions: 2 }],
+      },
+      {
+        id: "m2",
+        type: "assistant",
+        time: { created: 2 },
+        steps: 2,
+        content: [
+          { type: "reasoning", text: "thinking", ordinal: 0 },
+          tool({
+            state: {
+              status: "completed",
+              metadata: { files: [{ file: "/b", additions: 1 }] },
+            },
+          }),
+        ],
+      },
+    ];
+    expect(turnEditedFiles(messages)).toEqual([
+      { path: "/a", additions: 2 },
+      { path: "/b", status: undefined, additions: 1, deletions: undefined },
+    ]);
   });
 });
 

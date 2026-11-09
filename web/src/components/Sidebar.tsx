@@ -31,7 +31,7 @@ import type { Health, Session } from "../lib/types";
 import type { StreamStatus } from "../hooks/useEventStream";
 import { themeLabel, type Theme } from "../lib/themes";
 import { basename, filterSessions, formatRelative } from "../lib/format";
-import { SCOPES, groupSessions, type Scope } from "../lib/sessions";
+import { SCOPES, groupSessions, type Scope, type SessionRow } from "../lib/sessions";
 import { cn } from "../lib/utils";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
@@ -401,6 +401,68 @@ export const Sidebar = memo(function Sidebar({
     ? ([...sessions, ...subagents].find((session) => session.id === selectedId) ?? null)
     : null;
   const selectedRank = selectedSession ? rank(selectedSession) : null;
+  const runningFrom = runningStart === -1 ? visible.length : runningStart;
+
+  const renderRow = ({ session, depth }: SessionRow) => {
+    const children = childrenByParent.get(session.id) ?? [];
+    const runningChildren = children.filter((child) => isRunning(child.id)).length;
+    const open = expanded.has(session.id);
+    return (
+      <Fragment key={session.id}>
+        <SessionRow
+          session={session}
+          depth={depth}
+          active={session.id === selectedId}
+          running={isRunning(session.id)}
+          waiting={waitingIds.has(session.id)}
+          failed={failedIds.has(session.id)}
+          done={doneIds.has(session.id)}
+          animated={animated}
+          hidden={hiddenIds.has(session.id)}
+          now={now}
+          showDirectory={scope !== "directory"}
+          subagentCount={children.length}
+          runningSubagents={runningChildren}
+          expanded={open}
+          onClick={() => onSelect(session.id)}
+          onToggle={() =>
+            setExpanded((previous) => {
+              const next = new Set(previous);
+              if (next.has(session.id)) next.delete(session.id);
+              else next.add(session.id);
+              return next;
+            })
+          }
+          onHide={() => onHide(session.id)}
+          onUnhide={() => onUnhide(session.id)}
+          onDelete={() => onDelete(session.id)}
+        />
+        {open && (
+          <div className="space-y-0.5">
+            {children.map((child) => (
+              <SessionRow
+                key={child.id}
+                session={child}
+                depth={depth + 1}
+                active={child.id === selectedId}
+                running={isRunning(child.id)}
+                waiting={waitingIds.has(child.id)}
+                failed={failedIds.has(child.id)}
+                done={doneIds.has(child.id)}
+                animated={animated}
+                hidden={hiddenIds.has(child.id)}
+                now={now}
+                onClick={() => onSelect(child.id)}
+                onHide={() => onHide(child.id)}
+                onUnhide={() => onUnhide(child.id)}
+                onDelete={() => onDelete(child.id)}
+              />
+            ))}
+          </div>
+        )}
+      </Fragment>
+    );
+  };
 
   useLayoutEffect(() => {
     positions.current = new Map();
@@ -412,10 +474,19 @@ export const Sidebar = memo(function Sidebar({
     const container = listRef.current;
     if (!container || orderSignature === lastOrder.current) return;
     const rows = Array.from(container.querySelectorAll<HTMLElement>("[data-session-row]"));
+    const offsetIn = (row: HTMLElement) => {
+      let y = 0;
+      let node: HTMLElement | null = row;
+      while (node && node !== container) {
+        y += node.offsetTop;
+        node = node.offsetParent as HTMLElement | null;
+      }
+      return y;
+    };
     const next = new Map<string, number>();
     for (const row of rows) {
       const id = row.dataset.sessionRow;
-      if (id) next.set(id, row.offsetTop);
+      if (id) next.set(id, offsetIn(row));
     }
     if (lastOrder.current && animated) {
       for (const row of rows) {
@@ -606,76 +677,7 @@ export const Sidebar = memo(function Sidebar({
           </div>
         ) : (
           <div className="relative space-y-0.5">
-            {visible.map(({ session, depth }, index) => {
-              const children = childrenByParent.get(session.id) ?? [];
-              const runningChildren = children.filter((child) => isRunning(child.id)).length;
-              const open = expanded.has(session.id);
-              return (
-                <Fragment key={session.id}>
-                  {index === runningStart && (
-                    <div className="text-muted-foreground flex items-center gap-2 px-2 pt-3 pb-1 font-mono text-[9px] tracking-[0.12em] uppercase">
-                      <span className="bg-success size-1.5 rounded-full" />
-                      <span>Running</span>
-                      <span className="text-muted-foreground/70 tabular-nums">
-                        {runningGroupCount}
-                      </span>
-                      <span className="bg-border h-px flex-1 opacity-60" />
-                    </div>
-                  )}
-                  <SessionRow
-                    session={session}
-                    depth={depth}
-                    active={session.id === selectedId}
-                    running={isRunning(session.id)}
-                    waiting={waitingIds.has(session.id)}
-                    failed={failedIds.has(session.id)}
-                    done={doneIds.has(session.id)}
-                    animated={animated}
-                    hidden={hiddenIds.has(session.id)}
-                    now={now}
-                    showDirectory={scope !== "directory"}
-                    subagentCount={children.length}
-                    runningSubagents={runningChildren}
-                    expanded={open}
-                    onClick={() => onSelect(session.id)}
-                    onToggle={() =>
-                      setExpanded((previous) => {
-                        const next = new Set(previous);
-                        if (next.has(session.id)) next.delete(session.id);
-                        else next.add(session.id);
-                        return next;
-                      })
-                    }
-                    onHide={() => onHide(session.id)}
-                    onUnhide={() => onUnhide(session.id)}
-                    onDelete={() => onDelete(session.id)}
-                  />
-                  {open && (
-                    <div className="space-y-0.5">
-                      {children.map((child) => (
-                        <SessionRow
-                          key={child.id}
-                          session={child}
-                          depth={depth + 1}
-                          active={child.id === selectedId}
-                          running={isRunning(child.id)}
-                          waiting={waitingIds.has(child.id)}
-                          failed={failedIds.has(child.id)}
-                          done={doneIds.has(child.id)}
-                          animated={animated}
-                          hidden={hiddenIds.has(child.id)}
-                          now={now}
-                          onClick={() => onSelect(child.id)}
-                          onHide={() => onHide(child.id)}
-                          onUnhide={() => onUnhide(child.id)}
-                          onDelete={() => onDelete(child.id)}
-                        />
-                      ))}
-                    </div>
-                  )}
-                </Fragment>
-              );
-            })}
+            {visible.slice(0, runningFrom).map(renderRow)}
             {(hasMore || olderCount > 0) && (
               <button
                 type="button"
@@ -689,6 +691,19 @@ export const Sidebar = memo(function Sidebar({
                     ? "Loading older chats…"
                     : "Load older chats"}
               </button>
+            )}
+            {runningFrom < visible.length && (
+              <div className="bg-card sticky -bottom-2 z-10 -mx-2 px-2 pb-2">
+                <div className="text-muted-foreground flex items-center gap-2 px-2 pt-3 pb-1 font-mono text-[9px] tracking-[0.12em] uppercase">
+                  <span className="bg-success size-1.5 rounded-full" />
+                  <span>Running</span>
+                  <span className="text-muted-foreground/70 tabular-nums">
+                    {runningGroupCount}
+                  </span>
+                  <span className="bg-border h-px flex-1 opacity-60" />
+                </div>
+                {visible.slice(runningFrom).map(renderRow)}
+              </div>
             )}
           </div>
         )}

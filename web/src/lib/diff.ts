@@ -1,11 +1,4 @@
-import type { ToolPart } from "./types";
-
-export type EditedFile = {
-  path: string;
-  status?: string;
-  additions?: number;
-  deletions?: number;
-};
+import type { EditedFile, Message, ToolPart } from "./types";
 
 const writers = new Set(["write", "edit", "multiedit", "patch"]);
 
@@ -62,13 +55,24 @@ export function mergeFiles(files: EditedFile[]): EditedFile[] {
   return [...seen.values()];
 }
 
-export function fileWindow(
-  files: EditedFile[],
-  limit: number,
-  expanded: boolean,
-): { visible: EditedFile[]; hidden: number } {
-  const visible = expanded || files.length <= limit ? files : files.slice(0, limit);
-  return { visible, hidden: files.length - visible.length };
+export function turnEditedFiles(messages: Message[]): EditedFile[] {
+  const files: EditedFile[] = [];
+  for (const message of messages) {
+    const content = message.content ?? [];
+    const loaded = content.some(
+      (part) =>
+        part.type === "reasoning" ||
+        (part.type === "tool" && part.name !== "question"),
+    );
+    if (!loaded) {
+      files.push(...(message.edited ?? []));
+      continue;
+    }
+    for (const part of content) {
+      if (part.type === "tool") files.push(...editedFiles(part));
+    }
+  }
+  return mergeFiles(files);
 }
 
 function withQuery(base: string, key: string, value: string): string {

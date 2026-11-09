@@ -1,4 +1,5 @@
 import type {
+  EditedFile,
   Message,
   Part,
   ReasoningPart,
@@ -7,6 +8,7 @@ import type {
   ToolPart,
   ToolState,
 } from "./types";
+import { editedFiles, mergeFiles } from "./diff";
 
 function str(value: unknown): string {
   return typeof value === "string" ? value : "";
@@ -69,6 +71,7 @@ export function lightMessages(messages: Message[]): Message[] {
     let steps = 0;
     let tools = 0;
     let errors = 0;
+    const edited: EditedFile[] = [];
     const content: Part[] = [];
     for (const part of message.content) {
       if (part.type === "reasoning") {
@@ -79,6 +82,7 @@ export function lightMessages(messages: Message[]): Message[] {
         steps += 1;
         tools += 1;
         if (part.state.status === "error") errors += 1;
+        edited.push(...editedFiles(part));
         continue;
       }
       content.push(part);
@@ -89,6 +93,8 @@ export function lightMessages(messages: Message[]): Message[] {
     else delete next.tools;
     if (errors > 0) next.errors = errors;
     else delete next.errors;
+    if (edited.length > 0) next.edited = mergeFiles(edited);
+    else delete next.edited;
     return next;
   });
 }
@@ -239,13 +245,19 @@ function updateMessage(
 }
 
 function clearStepMarkers(message: Message): Message {
-  if (message.steps === undefined && message.tools === undefined && message.errors === undefined) {
+  if (
+    message.steps === undefined &&
+    message.tools === undefined &&
+    message.errors === undefined &&
+    message.edited === undefined
+  ) {
     return message;
   }
   const next = { ...message };
   delete next.steps;
   delete next.tools;
   delete next.errors;
+  delete next.edited;
   return next;
 }
 

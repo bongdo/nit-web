@@ -2,12 +2,12 @@ import { memo, useEffect, useRef, useState } from "react";
 import { Bot, ChevronDown, ChevronRight, Loader2 } from "lucide-react";
 import type { Agent, Message, Model, ReasoningPart, ToolPart } from "../lib/types";
 import { activityLine } from "../lib/activity";
-import { editedFiles, mergeFiles } from "../lib/diff";
+import { turnEditedFiles } from "../lib/diff";
 import { stepMessageIDs } from "../lib/stream";
 import { isPureHtml, looksLikeHtml } from "../lib/html";
 import { modelLabel, replyText, turnBlocks } from "../lib/format";
 import { timeLabel, type TimeFormat } from "../lib/time";
-import { ChangedFiles } from "./FileChips";
+import { ChangedFilesButton, FileList } from "./FileChips";
 import { HtmlMessagePreview } from "./HtmlMessagePreview";
 import { Markdown } from "./Markdown";
 import { QuestionCard } from "./QuestionCard";
@@ -49,6 +49,7 @@ export const AssistantTurn = memo(function AssistantTurn({
   onLoadMessage,
 }: AssistantTurnProps) {
   const [open, setOpen] = useState(false);
+  const [showFiles, setShowFiles] = useState(false);
   const wasStreaming = useRef(streaming);
   const wasLive = useRef(streaming);
   const [loadingSteps, setLoadingSteps] = useState(false);
@@ -65,9 +66,7 @@ export const AssistantTurn = memo(function AssistantTurn({
       part.type === "reasoning" || (part.type === "tool" && part.name !== "question"),
   );
   const textParts = content.filter((part) => part.type === "text");
-  const changedFiles = mergeFiles(
-    content.flatMap((part) => (part.type === "tool" ? editedFiles(part) : [])),
-  );
+  const changedFiles = turnEditedFiles(messages);
   const toolCount = activity.filter((part) => part.type === "tool").length;
   const errorCount = activity.filter(
     (part) => part.type === "tool" && part.state.status === "error",
@@ -263,11 +262,22 @@ export const AssistantTurn = memo(function AssistantTurn({
             </span>
           </div>
         )}
-        {changedFiles.length > 0 && (
-          <ChangedFiles files={changedFiles} base={peroURL} className="mt-3" />
+        {((!streaming && reply.trim() !== "") || changedFiles.length > 0) && (
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            {!streaming && reply.trim() !== "" && (
+              <ReplyActions text={reply} enter={wasLive.current} />
+            )}
+            {changedFiles.length > 0 && (
+              <ChangedFilesButton
+                count={changedFiles.length}
+                open={showFiles}
+                onClick={() => setShowFiles((value) => !value)}
+              />
+            )}
+          </div>
         )}
-        {!streaming && reply.trim() !== "" && (
-          <ReplyActions text={reply} className="mt-2" enter={wasLive.current} />
+        {showFiles && changedFiles.length > 0 && (
+          <FileList files={changedFiles} base={peroURL} className="mt-1.5" />
         )}
       </div>
     </div>

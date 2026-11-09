@@ -109,6 +109,13 @@ export type ToolPart = {
 
 export type Part = TextPart | ReasoningPart | ToolPart;
 
+export type EditedFile = {
+  path: string;
+  status?: string;
+  additions?: number;
+  deletions?: number;
+};
+
 export type MessageError = {
   name?: string;
   message?: string;
@@ -138,6 +145,7 @@ export type Message = {
   steps?: number;
   tools?: number;
   errors?: number;
+  edited?: EditedFile[];
   name?: string;
   description?: string;
   summary?: string;

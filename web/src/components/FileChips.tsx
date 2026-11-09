@@ -1,8 +1,10 @@
-import { memo, useState } from "react";
-import { ChevronUp, FileDiff } from "lucide-react";
+import { memo } from "react";
+import { ChevronDown, ChevronUp, FileDiff } from "lucide-react";
 import { basename } from "../lib/format";
-import { fileWindow, peroHref, type EditedFile } from "../lib/diff";
+import { peroHref } from "../lib/diff";
+import type { EditedFile } from "../lib/types";
 import { cn } from "../lib/utils";
+import { Button } from "./ui/button";
 
 function FileChip({ file, base }: { file: EditedFile; base: string }) {
   return (
@@ -33,71 +35,72 @@ export const FileChips = memo(function FileChips({
   className?: string;
 }) {
   if (files.length === 0) return null;
-  const { visible, hidden } = fileWindow(files, max, false);
+  const shown = files.slice(0, max);
+  const hidden = files.slice(max);
   return (
     <span className={cn("flex min-w-0 shrink-0 items-center gap-1 overflow-hidden", className)}>
-      {visible.map((file) => (
+      {shown.map((file) => (
         <FileChip key={file.path} file={file} base={base} />
       ))}
-      {hidden > 0 && (
+      {hidden.length > 0 && (
         <span
           className="text-muted-foreground shrink-0 font-mono text-[10px]"
-          title={files
-            .slice(visible.length)
-            .map((file) => file.path)
-            .join("\n")}
+          title={hidden.map((file) => file.path).join("\n")}
         >
-          +{hidden}
+          +{hidden.length}
         </span>
       )}
     </span>
   );
 });
 
-export function ChangedFiles({
+export function FileList({
   files,
   base,
-  limit = 4,
   className,
 }: {
   files: EditedFile[];
   base: string;
-  limit?: number;
   className?: string;
 }) {
-  const [expanded, setExpanded] = useState(false);
-  if (files.length === 0) return null;
-  const { visible, hidden } = fileWindow(files, limit, expanded);
   return (
-    <div className={cn("flex flex-wrap items-center gap-1", className)}>
-      <FileDiff className="text-muted-foreground mr-0.5 size-3.5 shrink-0" aria-hidden />
-      {visible.map((file) => (
+    <div
+      className={cn(
+        "scrollbar-thin flex max-h-32 flex-wrap items-center gap-1 overflow-y-auto",
+        className,
+      )}
+    >
+      {files.map((file) => (
         <FileChip key={file.path} file={file} base={base} />
       ))}
-      {files.length > limit && (
-        <button
-          type="button"
-          aria-expanded={expanded}
-          aria-label={expanded ? "Show fewer files" : `Show ${hidden} more files`}
-          title={expanded ? "Show fewer files" : `Show ${hidden} more files`}
-          onClick={() => setExpanded(!expanded)}
-          className={cn(
-            "inline-flex shrink-0 items-center gap-0.5 rounded px-1.5 py-0.5 font-mono text-[10px]",
-            expanded
-              ? "text-muted-foreground hover:text-foreground"
-              : "bg-muted text-muted-foreground hover:bg-accent hover:text-foreground",
-          )}
-        >
-          {expanded ? (
-            <>
-              <ChevronUp className="size-3" />
-              Show less
-            </>
-          ) : (
-            `+${hidden}`
-          )}
-        </button>
-      )}
     </div>
+  );
+}
+
+export function ChangedFilesButton({
+  count,
+  open,
+  onClick,
+  className,
+}: {
+  count: number;
+  open: boolean;
+  onClick: () => void;
+  className?: string;
+}) {
+  return (
+    <Button
+      variant="ghost"
+      size="xs"
+      aria-expanded={open}
+      onClick={onClick}
+      className={cn("text-muted-foreground", open && "bg-accent text-foreground", className)}
+    >
+      <FileDiff />
+      <span>
+        {count} {count === 1 ? "file" : "files"}
+      </span>
+      {open ? <ChevronUp /> : <ChevronDown />}
+    </Button>
   );
 }

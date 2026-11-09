@@ -664,7 +664,7 @@ export const Sidebar = memo(function Sidebar({
           className={cn(
             "scrollbar-thin relative min-h-0 overflow-y-auto px-2",
             fading
-              ? "pb-8 [mask-image:linear-gradient(to_bottom,black_calc(100%_-_2rem),transparent)]"
+              ? "pb-16 [mask-image:linear-gradient(to_bottom,black_calc(100%_-_4rem),transparent)]"
               : "pb-2",
           )}
         >

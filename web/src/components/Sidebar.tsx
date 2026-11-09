@@ -662,10 +662,9 @@ export const Sidebar = memo(function Sidebar({
         <div
           ref={listRef}
           className={cn(
-            "scrollbar-thin relative min-h-0 overflow-y-auto px-2",
-            fading
-              ? "pb-16 [mask-image:linear-gradient(to_bottom,black_calc(100%_-_4rem),transparent)]"
-              : "pb-2",
+            "scrollbar-thin relative min-h-0 overflow-y-auto px-2 pb-2",
+            fading &&
+              "[mask-image:linear-gradient(to_bottom,black_calc(100%_-_4rem),transparent)]",
           )}
         >
           {loading && sessions.length === 0 ? (
@@ -689,23 +688,25 @@ export const Sidebar = memo(function Sidebar({
           ) : (
             <div className="relative space-y-0.5">
               {visible.slice(0, runningFrom).map(renderRow)}
-              {(hasMore || olderCount > 0) && (
-                <button
-                  type="button"
-                  onClick={olderCount > 0 ? onShowOlder : onLoadMore}
-                  disabled={olderCount === 0 && loadingMore}
-                  className="text-muted-foreground hover:bg-accent/60 hover:text-foreground mx-1.5 flex w-[calc(100%-0.75rem)] items-center justify-center rounded-lg py-2 text-[11px] disabled:opacity-60"
-                >
-                  {olderCount > 0
-                    ? `Load older chats (${olderCount})`
-                    : loadingMore
-                      ? "Loading older chats…"
-                      : "Load older chats"}
-                </button>
-              )}
             </div>
           )}
         </div>
+        {(hasMore || olderCount > 0) && (
+          <div className="px-2">
+            <button
+              type="button"
+              onClick={olderCount > 0 ? onShowOlder : onLoadMore}
+              disabled={olderCount === 0 && loadingMore}
+              className="text-muted-foreground hover:bg-accent/60 hover:text-foreground mx-1.5 flex w-[calc(100%-0.75rem)] items-center justify-center rounded-lg py-2 text-[11px] disabled:opacity-60"
+            >
+              {olderCount > 0
+                ? `Load older chats (${olderCount})`
+                : loadingMore
+                  ? "Loading older chats…"
+                  : "Load older chats"}
+            </button>
+          </div>
+        )}
         {runningFrom < visible.length && (
           <div className="max-h-[70%] shrink-0 overflow-y-auto px-2">
             <div className="text-muted-foreground flex items-center gap-2 px-2 pt-3 pb-1 font-mono text-[9px] tracking-[0.12em] uppercase">

@@ -580,6 +580,18 @@ export default function App({
       setRunningIds((previous) =>
         mergeRunningStates(previous, data, runningEventsAt.current, requestedAt),
       );
+      if (cursor) {
+        const probe = cursor;
+        void api
+          .sessions(scopedDirectory ?? undefined, false, query || undefined, probe)
+          .then((next) => {
+            if (next.data.length === 0 && sessionCursorRef.current === probe) {
+              sessionCursorRef.current = null;
+              setSessionCursor(null);
+            }
+          })
+          .catch(() => {});
+      }
     } catch (error) {
       setBanner(messageOf(error));
     } finally {

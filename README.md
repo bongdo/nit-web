@@ -26,7 +26,7 @@ fallback for every one of them.
 | STT | browser Web Speech in Chrome, Edge and Safari; host `/api/stt` fallback elsewhere | optional |
 | TTS | nit-gui keeps a warm host `piper` worker and streams its audio; browser voice is the fallback | implemented |
 | Spelling | browser nspell worker today; target nit-gui `/api/spell` | migration gap |
-| Drop | nit-gui host, `/nit/drop/` | temporary files, sandboxed HTML apps, docs reader |
+| Drop | nit-gui host, `/nit/drop/` | files, static pages and folders; public links under `/nit/d/` |
 | Grammar | nit-gui host LanguageTool sidecar through `/api/grammar` | optional |
 | Attachments | the active instance, OpenCode `/api/experimental/fs/write` and `/tmp` | implemented |
 | UI state (hidden, done, failed, drafts, model/agent) | nit-gui host, `~/.local/state/nit-gui/ui-state.json`, scoped by instance | shared across devices |
@@ -214,49 +214,50 @@ Vite proxies `/api` to the backend.
 
 ## Drop
 
-`/nit/drop/` is a temporary buffer and static host inside the nit-gui process.
-It uses the same `nit_gate` login; there is no second password and no anonymous
-public links. The page is linked from the chat header.
+`/nit/drop/` is the private manager inside the nit-gui process. It uses the
+same `nit_gate` login. Published content lives under `/nit/d/`; the manager is
+linked from the sidebar.
 
 The agent publishes with the `drop` command, which is on `PATH` through
 `bin/drop`:
 
 ```sh
-drop ./report.html                 # a file or a directory
-drop web ./web/dist                # requires index.html
-drop docs ./vault                  # opens the markdown reader
+drop ./report.html                 # a file
+drop ./web/dist                    # a folder, served by index.html
+drop ./vault --slug docs           # a readable folder URL
 drop list
 drop url d-0123456789abcdef
 drop rm d-0123456789abcdef
+drop slug d-0123456789abcdef docs-v2
+drop access d-0123456789abcdef public
 ```
 
-Every publication gets an id and a URL such as
-`https://frankfurt.tailf358cb.ts.net/nit/drop/e/d-0123456789abcdef/`. Raw
-files live under `.../drop/files/<id>/...`; downloads go through
-`.../drop/download/<id>/...`. The CLI prints the public URL and the id.
+Every publication gets an id, a slug and a URL such as
+`https://frankfurt.tailf358cb.ts.net/nit/d/<slug>/`. The URL is private by
+default and lives forever. `--public` allows anonymous reads; `--expire 2w`
+deletes it after two weeks. `drop slug` adds the old slug to aliases, so old
+links keep working. Several selected files become one publication.
+
+A publication with `index.html` is a static site: the root is the page itself
+and its assets are served from the same path. A single file is served directly;
+PDF and images are left to the browser. A folder without `index.html` gets a
+bare file index. There is no iframe, preview card or Markdown reader. Markdown
+and text entries in the manager link to `pero` with `?open=<absolute path>`;
+the raw file link stays available. The agent instructions in `AGENTS.md` say to
+use `drop` whenever the user should see a page, a full app or a file.
+
+Old `/nit/drop/e/<id>/`, `/nit/drop/files/<id>/...`,
+`/nit/drop/download/<id>/...` and `?file=` URLs redirect to the canonical
+`/nit/d/` path.
 
 Storage is `$NIT_DROP_ROOT` or `~/.local/share/nit-gui/drop`, one private
-directory per entry with `entry.json`. Entries expire after 7 days by default;
-`--ttl 1h|24h|7d|2w|0` overrides it. Expired entries are removed when the list
-or an entry is read.
-
-The reader renders Markdown with GFM tables, task lists and autolinks. Relative
-links between `.md` files in the same publication open in the same reader;
-`.txt`, logs and code files open as text; images and PDFs are shown; escaping
-`..` links are disabled. A publication with `index.html` is a site: its files
-are served under `/drop/files/<id>/` and shown in a sandboxed iframe. Uploaded
-HTML runs with an opaque origin, without `fetch`/XHR/WebSocket and without form
-submission, so it cannot call the nit-gui API. The limit is 128 MiB per upload
-request; a directory of a full app is published with `drop web`.
-
-The browser upload form puts several selected files into one entry. The drop
-page also lists entries, copies links, downloads and deletes them. The agent
-instructions in `AGENTS.md` say to use `drop` whenever the user should see a
-rendered page, a full app or a file to download.
+directory per entry with `entry.json`. Entries with the old seven-day default
+become permanent on read; explicit 1h/24h/30d expiries remain. Expired entries
+are removed when the list or a public path is read.
 
 `NIT_DROP_ROOT` moves the store. `NIT_DROP_MAX_UPLOAD` changes the upload limit
 in bytes. `DROP_PUBLIC_BASE` is used by the CLI only; `bin/drop` defaults it to
-the public `/nit/drop/` URL.
+the public `/nit/d/` URL.
 
 ## Workspaces
 
@@ -407,7 +408,7 @@ rewritten to loopback. Credentials in a server URL are discarded.
 | `NIT_GUI_STATE` | Path to `ui-state.json`, default `$XDG_STATE_HOME/nit-gui/ui-state.json` or `~/.local/state/nit-gui/ui-state.json`. |
 | `NIT_DROP_ROOT` | Drop store, default `~/.local/share/nit-gui/drop`. |
 | `NIT_DROP_MAX_UPLOAD` | Browser upload limit in bytes, default `134217728` (128 MiB). |
-| `DROP_PUBLIC_BASE` | Public base printed by `bin/drop`, default `https://frankfurt.tailf358cb.ts.net/nit/drop/`. |
+| `DROP_PUBLIC_BASE` | Public base printed by `bin/drop`, default `https://frankfurt.tailf358cb.ts.net/nit/d/`. |
 | `NIT_GUI_LANGUAGETOOL` | Path to `languagetool-http-server`; the app starts it lazily. |
 | `NIT_GUI_LANGUAGETOOL_URL` | Use an already running LanguageTool server instead of spawning one. |
 | `NIT_GUI_LANGUAGETOOL_PORT` | Spawned server port, default `8179`. |
@@ -535,12 +536,14 @@ nspell worker. It is not implemented yet.
   unauthenticated pages to `/nit/auth?next=<absolute URL>`. The absolute return
   target is accepted only for http/https URLs on the same hostname with a path
   under `/nit/`, `/pero/` or `/term/`.
-- Drop is behind the same cookie. Uploads are written only below
-  `NIT_DROP_ROOT`; ids and relative paths are validated, `entry.json` is
-  reserved. Uploaded HTML is served with `Content-Security-Policy: sandbox`,
-  without same-origin, network or form access, so it cannot call the nit-gui
-  API. Files are private to the logged-in user, not public links. An entry
-  disappears after its TTL.
+- Drop's manager and all writes are behind the same cookie. `/nit/d/` is the
+  only unauthenticated path: it serves an entry only when that entry was
+  explicitly made public; a private entry returns 404. Uploads are written only
+  below `NIT_DROP_ROOT`; ids, slugs and relative paths are validated,
+  `entry.json` is reserved. Public HTML is served with
+  `Content-Security-Policy: sandbox`, an opaque origin, no network (`connect-src
+  'none'`) and no form submission, so it cannot call the nit-gui API. A
+  publication is permanent by default and can be set to expire after two weeks.
 - Instance passwords stay in the Go process and in `instances.json`; they are
   never logged or sent to the browser. SSH hosts are sent only as the sanitized
   connection identifier the editor needs.
@@ -645,12 +648,7 @@ nspell worker. It is not implemented yet.
 
 ## Dependencies
 
-Backend: Go standard library plus `github.com/yuin/goldmark` for the drop
-Markdown reader. No OpenCode or `nit` package is imported.
-
-| Package | Why |
-| --- | --- |
-| `github.com/yuin/goldmark` | GFM markdown rendering for the drop reader, including tables, task lists, autolinks and heading ids. |
+Backend: Go standard library only. No OpenCode or `nit` package is imported.
 
 Frontend runtime:
 

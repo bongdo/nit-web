@@ -82,6 +82,31 @@ func TestAuthLoginAndSession(t *testing.T) {
 	}
 }
 
+func TestAuthBypassesPublicDrop(t *testing.T) {
+	gate := testAuthGate(t)
+	reached := false
+	handler := gate.wrap(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		reached = true
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	public := httptest.NewRecorder()
+	handler.ServeHTTP(public, authRequest(http.MethodGet, "/d/report/", ""))
+	if public.Code != http.StatusOK || !reached {
+		t.Fatalf("public drop status = %d, reached = %v", public.Code, reached)
+	}
+
+	reached = false
+	manager := httptest.NewRecorder()
+	handler.ServeHTTP(manager, authRequest(http.MethodGet, "/drop/", ""))
+	if manager.Code != http.StatusSeeOther || reached {
+		t.Fatalf("manager drop status = %d, reached = %v", manager.Code, reached)
+	}
+	if location := manager.Header().Get("Location"); !strings.HasPrefix(location, "/auth?next=") {
+		t.Fatalf("manager redirect = %q", location)
+	}
+}
+
 func TestAuthLockout(t *testing.T) {
 	gate := testAuthGate(t)
 	handler := gate.wrap(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))

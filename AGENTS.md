@@ -9,12 +9,17 @@
 
 ## Drop
 
-- `drop <path>` publishes a file or directory to `/nit/drop/` and prints a URL.
-  Use it when the user should see a rendered HTML page, a full app, or download
-  a file. Do not paste large HTML into chat instead.
-- `drop web <dir>` requires `index.html`; `drop docs <dir>` publishes docs and
-  returns the reader URL. Relative `.md` links work inside the reader.
-- `drop list`, `drop url <id>`, `drop rm <id>`.
-- Default TTL is 7 days; pass `--ttl 1h`, `24h`, `7d` or `0`.
-- Published pages are behind the same `nit_gate` login, not public.
-- HTML apps run sandboxed without network or form access.
+- `drop <path>` publishes a file, static page or folder and prints a URL. Use it
+  when the user should see a page, a full app, or download a file. Do not paste
+  large HTML into chat instead.
+- Default is private and permanent. `--public` allows anonymous reads;
+  `--expire 2w` deletes after two weeks; `--slug name` sets the URL.
+- `drop list`, `drop url <id|slug>`, `drop rm <id|slug>`,
+  `drop slug <id|slug> <new>`, `drop access <id|slug> public|private`.
+- The manager `/nit/drop/` is behind the `nit_gate` cookie. Public content is
+  `/nit/d/<slug>/`; private links return 404 when anonymous.
+- A folder with `index.html` is served directly as a page, with no iframe. A
+  folder without one gets a bare file index. Markdown is not rendered by drop;
+  the manager links to pero with `?open=<absolute path>`.
+- Public HTML runs sandboxed with an opaque origin, no network and no form
+  submission.

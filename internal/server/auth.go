@@ -141,8 +141,8 @@ func (a *authGate) wrap(next http.Handler) http.Handler {
 		return next
 	}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		path := a.trimBase(r.URL.Path)
-		switch path {
+		requestPath := a.trimBase(r.URL.Path)
+		switch requestPath {
 		case "/auth", "/auth/":
 			a.handleLogin(w, r)
 			return
@@ -150,11 +150,16 @@ func (a *authGate) wrap(next http.Handler) http.Handler {
 			a.handleLogout(w, r)
 			return
 		}
+		clean := path.Clean(requestPath)
+		if requestPath == "/d" || (strings.HasPrefix(requestPath, "/d/") && (clean == "/d" || strings.HasPrefix(clean, "/d/"))) {
+			next.ServeHTTP(w, r)
+			return
+		}
 		if a.authenticated(r) {
 			next.ServeHTTP(w, r)
 			return
 		}
-		if path == "/api" || strings.HasPrefix(path, "/api/") {
+		if requestPath == "/api" || strings.HasPrefix(requestPath, "/api/") {
 			writeError(w, http.StatusUnauthorized, "authentication required")
 			return
 		}

@@ -810,3 +810,15 @@ Rejected: a separate changes API in pero (nit-gui already has the patches); a st
 Cost: the query string becomes a small contract between the two repos; ranges only cover patches present in tool metadata, so a pure write opens the file without a highlight.
 
 
+
+## 2026-11-09 — Drop becomes a public file host, not a reader
+
+Context: the seven-day buffer and its Markdown reader duplicated pero, wrapped every entry in a page and iframe, and made sharing a file require the nit password.
+
+Decision: entries get a mutable slug, aliases, a public flag and an optional expiry; the manager stays at `/nit/drop/` behind the cookie, while public content moves to `/nit/d/`. Publicity is per publication. Old `/drop/e/`, `/drop/files/`, `/drop/download/` and `?file=` URLs redirect to the slug URL. Markdown rendering, the reader, previews and goldmark are removed; Markdown opens in pero instead.
+
+Why: one publication is one link, one visibility switch and one asset graph; direct URLs are what recipients need, and the browser already renders PDF, images and HTML.
+
+Rejected: per-file visibility, reader wrappers, iframes and a second public toggle for downloads.
+
+Cost: public HTML is anonymous hosting on the same origin, so the CSP sandbox and no-index headers are part of the contract; slug changes rely on the alias list, and old links live forever in `entry.json`.

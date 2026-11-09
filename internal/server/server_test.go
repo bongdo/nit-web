@@ -48,6 +48,7 @@ func (p *staticProvider) Drop()                                            {}
 
 func newHandler(t *testing.T, upstreamURL string) http.Handler {
 	t.Helper()
+	t.Setenv("NIT_DROP_ROOT", t.TempDir())
 	client := opencode.New(opencode.Endpoint{URL: upstreamURL, Password: testPassword})
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
 	return server.New(&staticProvider{client: client}, fstest.MapFS{
@@ -1400,6 +1401,7 @@ func (p *multiProvider) Replace(specs []opencode.InstanceSpec) error {
 
 func newMultiHandler(t *testing.T, provider *multiProvider) http.Handler {
 	t.Helper()
+	t.Setenv("NIT_DROP_ROOT", t.TempDir())
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
 	return server.New(provider, fstest.MapFS{
 		"index.html": &fstest.MapFile{Data: []byte("<html>nit</html>")},

@@ -99,7 +99,8 @@ type Server struct {
 	publicHost   string
 	peroURL      string
 	termURL      string
-	dropHandler  http.Handler
+	dropManager  http.Handler
+	dropPublic   http.Handler
 	allowedHosts map[string]struct{}
 }
 
@@ -140,12 +141,8 @@ func New(provider ClientProvider, static fs.FS, log *slog.Logger) http.Handler {
 	if store, err := drop.Open(drop.DefaultRoot()); err != nil {
 		log.Error("drop store unavailable", "error", err)
 	} else {
-		s.dropHandler = drop.NewHandler(store, s.dropWriteAllowed, log, drop.Nav{
-			Nit:  s.basePath + "/",
-			Pero: s.peroURL,
-			Term: s.termURL,
-			Drop: s.basePath + "/drop/",
-		})
+		s.dropManager = drop.NewManager(store, s.dropWriteAllowed, log, s.peroURL, s.basePath)
+		s.dropPublic = drop.NewPublic(store, s.dropReadAllowed, log, s.basePath)
 	}
 	s.routes()
 	go s.warm()
@@ -257,10 +254,17 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("GET /drop", func(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, s.basePath+"/drop/", http.StatusTemporaryRedirect)
 	})
-	if s.dropHandler != nil {
-		s.mux.Handle("/drop/", s.dropHandler)
+	if s.dropManager != nil {
+		s.mux.Handle("/drop/", s.dropManager)
 	} else {
 		s.mux.HandleFunc("/drop/", func(w http.ResponseWriter, r *http.Request) {
+			writeError(w, http.StatusServiceUnavailable, "drop is unavailable")
+		})
+	}
+	if s.dropPublic != nil {
+		s.mux.Handle("/d/", s.dropPublic)
+	} else {
+		s.mux.HandleFunc("/d/", func(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusServiceUnavailable, "drop is unavailable")
 		})
 	}
@@ -272,6 +276,10 @@ func (s *Server) dropWriteAllowed(r *http.Request) bool {
 		return false
 	}
 	return s.allowedOrigin(r)
+}
+
+func (s *Server) dropReadAllowed(r *http.Request) bool {
+	return !s.auth.enabled || s.auth.authenticated(r)
 }
 
 func (s *Server) middleware(next http.Handler) http.Handler {
@@ -302,8 +310,10 @@ func (s *Server) middleware(next http.Handler) http.Handler {
 			writeError(w, http.StatusForbidden, "origin not allowed")
 			return
 		}
-		switch r.URL.Path {
-		case "/api/events", "/api/file", "/api/tts/audio", "/api/tts/stream", "/drop/api/upload":
+		switch {
+		case r.URL.Path == "/api/events", r.URL.Path == "/api/file",
+			r.URL.Path == "/api/tts/audio", r.URL.Path == "/api/tts/stream",
+			r.URL.Path == "/drop/api/upload", strings.HasPrefix(r.URL.Path, "/d/"):
 		default:
 			_ = http.NewResponseController(w).SetWriteDeadline(time.Now().Add(30 * time.Second))
 		}

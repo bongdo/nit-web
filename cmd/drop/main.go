@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"net/url"
 	"os"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -30,26 +29,28 @@ func main() {
 		remove(store, args[1:])
 	case "url":
 		showURL(store, args[1:])
-	case "web":
-		publishWeb(store, args[1:])
-	case "docs", "doc":
-		publishDocs(store, args[1:])
+	case "slug":
+		setSlug(store, args[1:])
+	case "access":
+		setAccess(store, args[1:])
+	case "web", "docs", "doc":
+		publish(store, args[1:])
 	default:
 		publish(store, args)
 	}
 }
 
 func usage() {
-	fmt.Print(`drop — publish a file, site or docs to nit-gui
+	fmt.Print(`drop — publish a file, page or folder
 
-  drop <path> [--ttl 7d] [--name name]
-  drop web <dir> [--ttl 7d]
-  drop docs <dir> [--ttl 7d]
+  drop <path> [--public] [--slug name] [--expire 2w]
   drop list
-  drop url <id>
-  drop rm <id>
+  drop url <id|slug>
+  drop rm <id|slug>
+  drop slug <id|slug> <new-slug>
+  drop access <id|slug> public|private
 
-TTL accepts 1h, 24h, 7d, 2w or 0 for no expiry. Default: 7d.
+Default: private, forever. --expire 2w deletes after two weeks.
 `)
 }
 
@@ -66,10 +67,10 @@ func list(store *drop.Store, args []string) {
 		return
 	}
 	for _, entry := range entries {
-		fmt.Printf("%s  %-5s  %-28s  %s  %s\n",
+		fmt.Printf("%s  %-24s  %-7s  %-8s  %s\n",
 			entry.ID,
-			entry.Kind,
-			short(entry.Name, 28),
+			short(entry.Slug, 24),
+			access(entry),
 			expires(entry),
 			entryURL(entry),
 		)
@@ -78,7 +79,7 @@ func list(store *drop.Store, args []string) {
 
 func remove(store *drop.Store, args []string) {
 	if len(args) != 1 {
-		fail(fmt.Errorf("usage: drop rm <id>"))
+		fail(fmt.Errorf("usage: drop rm <id|slug>"))
 	}
 	if err := store.Delete(args[0]); err != nil {
 		fail(err)
@@ -88,7 +89,7 @@ func remove(store *drop.Store, args []string) {
 
 func showURL(store *drop.Store, args []string) {
 	if len(args) != 1 {
-		fail(fmt.Errorf("usage: drop url <id>"))
+		fail(fmt.Errorf("usage: drop url <id|slug>"))
 	}
 	entry, err := store.Get(args[0])
 	if err != nil {
@@ -97,123 +98,133 @@ func showURL(store *drop.Store, args []string) {
 	fmt.Println(entryURL(entry))
 }
 
-func publishWeb(store *drop.Store, args []string) {
-	pathArgs, ttl, name, err := parse(args)
+func setSlug(store *drop.Store, args []string) {
+	if len(args) != 2 {
+		fail(fmt.Errorf("usage: drop slug <id|slug> <new-slug>"))
+	}
+	entry, err := store.SetSlug(args[0], args[1])
 	if err != nil {
 		fail(err)
 	}
-	if len(pathArgs) != 1 {
-		fail(fmt.Errorf("usage: drop web <dir> [--ttl 7d]"))
-	}
-	info, err := os.Stat(pathArgs[0])
-	if err != nil {
-		fail(err)
-	}
-	if info.IsDir() {
-		if _, err := os.Stat(filepath.Join(pathArgs[0], "index.html")); err != nil {
-			fail(fmt.Errorf("%s has no index.html", pathArgs[0]))
-		}
-	} else if !isHTML(pathArgs[0]) {
-		fail(fmt.Errorf("%s is not an html file", pathArgs[0]))
-	}
-	publishPath(store, pathArgs[0], name, ttl, false)
+	fmt.Println(entryURL(entry))
+	fmt.Printf("%s  %s\n", entry.ID, entry.Slug)
 }
 
-func publishDocs(store *drop.Store, args []string) {
-	pathArgs, ttl, name, err := parse(args)
+func setAccess(store *drop.Store, args []string) {
+	if len(args) != 2 {
+		fail(fmt.Errorf("usage: drop access <id|slug> public|private"))
+	}
+	var public bool
+	switch strings.ToLower(args[1]) {
+	case "public":
+		public = true
+	case "private":
+		public = false
+	default:
+		fail(fmt.Errorf("access must be public or private"))
+	}
+	entry, err := store.SetPublic(args[0], public)
 	if err != nil {
 		fail(err)
 	}
-	if len(pathArgs) != 1 {
-		fail(fmt.Errorf("usage: drop docs <dir> [--ttl 7d]"))
-	}
-	publishPath(store, pathArgs[0], name, ttl, true)
+	fmt.Println(entryURL(entry))
+	fmt.Printf("%s  %s\n", entry.ID, access(entry))
 }
 
 func publish(store *drop.Store, args []string) {
-	pathArgs, ttl, name, err := parse(args)
+	parsed, err := parse(args)
 	if err != nil {
 		fail(err)
 	}
-	if len(pathArgs) != 1 {
-		fail(fmt.Errorf("usage: drop <path> [--ttl 7d] [--name name]"))
-	}
-	publishPath(store, pathArgs[0], name, ttl, false)
-}
-
-func publishPath(store *drop.Store, src, name string, ttl time.Duration, docs bool) {
-	entry, err := store.PublishPath(src, name, ttl)
+	entry, err := store.PublishPath(parsed.path, parsed.name, drop.PublishOptions{
+		Slug:   parsed.slug,
+		Public: parsed.public,
+		TTL:    parsed.ttl,
+	})
 	if err != nil {
 		fail(err)
 	}
-	link := entryURL(entry)
-	if docs {
-		if doc := entry.Doc(); doc != "" {
-			link += "?file=" + url.QueryEscape(doc)
-		}
-	}
-	fmt.Println(link)
-	fmt.Printf("%s  %s  %s\n", entry.ID, entry.Kind, expires(entry))
+	fmt.Println(entryURL(entry))
+	fmt.Printf("%s  %s  %s  %s\n", entry.ID, entry.Slug, access(entry), expires(entry))
 }
 
-func parse(args []string) (paths []string, ttl time.Duration, name string, err error) {
-	ttl = drop.DefaultTTL
+type publishArgs struct {
+	path   string
+	name   string
+	slug   string
+	public bool
+	ttl    time.Duration
+}
+
+func parse(args []string) (publishArgs, error) {
+	var parsed publishArgs
+	var paths []string
 	for index := 0; index < len(args); index++ {
 		switch args[index] {
-		case "--ttl", "-ttl":
+		case "--public", "-public":
+			parsed.public = true
+		case "--ttl", "-ttl", "--expire", "-expire":
 			index++
 			if index >= len(args) {
-				return nil, 0, "", fmt.Errorf("--ttl needs a value")
+				return publishArgs{}, fmt.Errorf("%s needs a value", args[index-1])
 			}
-			ttl, err = drop.ParseTTL(args[index])
+			ttl, err := drop.ParseTTL(args[index])
 			if err != nil {
-				return nil, 0, "", err
+				return publishArgs{}, err
 			}
+			parsed.ttl = ttl
 		case "--name", "-name":
 			index++
 			if index >= len(args) {
-				return nil, 0, "", fmt.Errorf("--name needs a value")
+				return publishArgs{}, fmt.Errorf("--name needs a value")
 			}
-			name = args[index]
+			parsed.name = args[index]
+		case "--slug", "-slug":
+			index++
+			if index >= len(args) {
+				return publishArgs{}, fmt.Errorf("--slug needs a value")
+			}
+			parsed.slug = args[index]
 		case "--help", "-h":
 			usage()
 			os.Exit(0)
 		default:
 			if strings.HasPrefix(args[index], "-") {
-				return nil, 0, "", fmt.Errorf("unknown flag %s", args[index])
+				return publishArgs{}, fmt.Errorf("unknown flag %s", args[index])
 			}
 			paths = append(paths, args[index])
 		}
 	}
-	return paths, ttl, name, nil
+	if len(paths) != 1 {
+		return publishArgs{}, fmt.Errorf("usage: drop <path> [--public] [--slug name] [--expire 2w]")
+	}
+	parsed.path = paths[0]
+	return parsed, nil
 }
 
 func entryURL(entry drop.Entry) string {
-	return publicBase() + "e/" + entry.ID + "/"
+	return publicBase() + url.PathEscape(entry.Slug) + "/"
 }
 
 func publicBase() string {
 	if value := strings.TrimSpace(os.Getenv("DROP_PUBLIC_BASE")); value != "" {
 		return strings.TrimRight(value, "/") + "/"
 	}
-	return "http://127.0.0.1:7788/drop/"
+	return "http://127.0.0.1:7788/nit/d/"
+}
+
+func access(entry drop.Entry) string {
+	if entry.Public {
+		return "public"
+	}
+	return "private"
 }
 
 func expires(entry drop.Entry) string {
-	if entry.Expires.IsZero() {
+	if entry.Expires == nil {
 		return "never"
 	}
-	left := time.Until(entry.Expires)
-	if left <= 0 {
-		return "expired"
-	}
-	if left >= 48*time.Hour {
-		return fmt.Sprintf("%dd", int(left/(24*time.Hour)))
-	}
-	if left >= time.Hour {
-		return fmt.Sprintf("%dh", int(left/time.Hour))
-	}
-	return fmt.Sprintf("%dm", int(left/time.Minute))
+	return entry.Expires.Format("2006-01-02")
 }
 
 func short(value string, max int) string {
@@ -221,14 +232,6 @@ func short(value string, max int) string {
 		return value
 	}
 	return value[:max-1] + "…"
-}
-
-func isHTML(name string) bool {
-	switch strings.ToLower(filepath.Ext(name)) {
-	case ".html", ".htm":
-		return true
-	}
-	return false
 }
 
 func fail(err error) {

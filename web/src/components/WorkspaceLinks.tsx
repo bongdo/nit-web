@@ -31,11 +31,10 @@ export function WorkspaceLinks({
           aria-label={`Open ${directory} in ${name}`}
           className={cn(
             buttonVariants({ variant: "ghost", size: "sm" }),
-            "text-muted-foreground hover:text-foreground h-9 gap-1.5 px-2",
+            "text-muted-foreground hover:text-foreground h-9 px-2",
           )}
         >
           <Icon />
-          <span className="hidden font-mono text-[11px] sm:inline">{name}</span>
         </a>
       ))}
     </div>

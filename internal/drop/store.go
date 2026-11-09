@@ -473,7 +473,7 @@ func (s *Store) migrate() error {
 			entry.Public = raw.Public
 			entry.Name = cleanName(raw.Name)
 		}
-		if entry.Slug == "" || used[entry.Slug] != "" {
+		if !validSlug(entry.Slug) || used[entry.Slug] != "" {
 			entry.Slug = uniqueSlug(used, slugBase(entry))
 		}
 		used[entry.Slug] = entry.ID
@@ -890,7 +890,7 @@ func isHTMLPath(name string) bool {
 func isReadableText(name string) bool {
 	switch strings.ToLower(path.Ext(name)) {
 	case ".md", ".markdown", ".mdown", ".txt", ".rst", ".adoc", ".log",
-		".json", ".yaml", ".yml", ".toml", ".csv", ".ini", ".conf",
+		".json", ".yaml", ".yml", ".toml", ".csv", ".ini", ".conf", ".comf",
 		".go", ".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".css",
 		".py", ".rs", ".rb", ".sh", ".bash", ".zsh", ".sql", ".xml":
 		return true

@@ -61,12 +61,15 @@ PDF and images are served inline and left to the browser.
 ## Security
 
 - The manager and writes require the same `nit_gate` cookie as nit, pero and
-  term. `/nit/d/` bypasses the cookie only when the entry is public; a private
-  entry returns 404 without revealing that it exists.
+  term. `/nit/d/` is outside that gate: public entries are served anonymously,
+  while a private entry needs a valid session cookie and otherwise returns 404
+  without revealing that it exists.
 - Uploads are limited to 128 MiB per request (`NIT_DROP_MAX_UPLOAD`).
 - Anonymous HTML is served only for public entries, with `Content-Security-Policy:
   sandbox` (opaque origin), `connect-src 'none'`, `form-action 'none'` and no
-  access to nit-gui API cookies. Self-contained scripts, styles and images work.
+  access to nit-gui API cookies. Self-contained scripts, styles and images
+  work. External images and scripts are not blocked; publish only content you
+  trust.
 - The store is `$NIT_DROP_ROOT` (default `~/.local/share/nit-gui/drop`), one
   `0700` directory per entry with a `0600` `entry.json`. Path traversal and
   `entry.json` requests are rejected. Dotfiles are hidden from the file index.

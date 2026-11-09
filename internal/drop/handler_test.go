@@ -124,6 +124,40 @@ func TestOldURLRedirects(t *testing.T) {
 	}
 }
 
+func TestBasePathRedirects(t *testing.T) {
+	store := testStore(t)
+	src := t.TempDir()
+	writeFile(t, filepath.Join(src, "sub", "a.txt"), "a")
+	entry, err := store.PublishPath(src, "folder", PublishOptions{Public: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	mux := http.NewServeMux()
+	mux.Handle("/drop/", NewManager(store, func(*http.Request) bool { return true }, nil, "/pero/", "/nit"))
+	mux.Handle("/d/", NewPublic(store, nil, nil, "/nit"))
+	server := httptest.NewServer(mux)
+	defer server.Close()
+	client := noRedirectClient()
+
+	resp, err := client.Get(server.URL + "/drop/e/" + entry.ID + "/")
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusMovedPermanently || resp.Header.Get("Location") != "/nit/d/folder/" {
+		t.Fatalf("old entry redirect = %d %q", resp.StatusCode, resp.Header.Get("Location"))
+	}
+
+	resp, err = client.Get(server.URL + "/d/folder/sub")
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusMovedPermanently || resp.Header.Get("Location") != "/nit/d/folder/sub/" {
+		t.Fatalf("directory redirect = %d %q", resp.StatusCode, resp.Header.Get("Location"))
+	}
+}
+
 func TestUploadUpdateAliasAndDelete(t *testing.T) {
 	store := testStore(t)
 	server := testDropServer(t, store, nil)

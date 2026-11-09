@@ -525,7 +525,8 @@ nspell worker. It is not implemented yet.
 - The Go listener stays on loopback. `bin/frankfurt` starts Caddy on
   `127.0.0.1:7792`; Tailscale Funnel terminates public TLS. The app trusts a
   `Host` name only when it is loopback or listed in `NIT_GUI_ALLOWED_HOSTS`.
-- Every route except `/auth` requires a session cookie. The login page uses a
+- Every route except `/auth` and public drop content under `/d/` requires a
+  session cookie. The login page uses a
   PBKDF2-SHA256 hash (600k rounds), an HttpOnly Secure SameSite=Lax `nit_gate`
   cookie on path `/`, no-store and a strict CSP. The cookie is an HMAC-signed
   expiry, so it survives restarts and is accepted by pero-gui and term-gui on
@@ -541,9 +542,11 @@ nspell worker. It is not implemented yet.
   explicitly made public; a private entry returns 404. Uploads are written only
   below `NIT_DROP_ROOT`; ids, slugs and relative paths are validated,
   `entry.json` is reserved. Public HTML is served with
-  `Content-Security-Policy: sandbox`, an opaque origin, no network (`connect-src
-  'none'`) and no form submission, so it cannot call the nit-gui API. A
-  publication is permanent by default and can be set to expire after two weeks.
+  `Content-Security-Policy: sandbox`, an opaque origin, no `fetch`/XHR/WebSocket
+  (`connect-src 'none'`) and no form submission, so it cannot call the nit-gui
+  API. External images and scripts are not blocked; make an entry public only
+  when you trust its contents. A publication is permanent by default and can
+  be set to expire after two weeks.
 - Instance passwords stay in the Go process and in `instances.json`; they are
   never logged or sent to the browser. SSH hosts are sent only as the sanitized
   connection identifier the editor needs.

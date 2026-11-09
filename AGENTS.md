@@ -21,5 +21,5 @@
 - A folder with `index.html` is served directly as a page, with no iframe. A
   folder without one gets a bare file index. Markdown is not rendered by drop;
   the manager links to pero with `?open=<absolute path>`.
-- Public HTML runs sandboxed with an opaque origin, no network and no form
-  submission.
+- Public HTML runs sandboxed with an opaque origin, no fetch/XHR/WebSocket and
+  no form submission.

@@ -23,7 +23,7 @@ import (
 
 const (
 	managerCSP = "default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'; img-src 'self' data:; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
-	appCSP     = "sandbox allow-scripts allow-popups allow-downloads; connect-src 'none'; form-action 'none'; base-uri 'none'; frame-ancestors 'none'"
+	appCSP     = "sandbox allow-scripts allow-popups allow-downloads allow-top-navigation-by-user-activation; connect-src 'none'; form-action 'none'; base-uri 'none'; frame-ancestors 'none'"
 	svgCSP     = "sandbox; default-src 'none'; style-src 'unsafe-inline'"
 )
 
@@ -94,7 +94,6 @@ type entryRow struct {
 	Public    bool
 	DocURL    string
 	RawDocURL string
-	HasDoc    bool
 }
 
 func (h *Manager) redirectIndex(w http.ResponseWriter, r *http.Request) {
@@ -127,7 +126,6 @@ func (h *Manager) row(entry Entry) entryRow {
 		Public:   entry.Public,
 	}
 	if doc := entry.Text(); doc != "" {
-		row.HasDoc = true
 		row.RawDocURL = h.publicBase + url.PathEscape(entry.Slug) + "/" + escapePath(doc)
 		row.DocURL = peroLink(h.peroURL, filepath.Join(h.store.Root(), entry.ID, filepath.FromSlash(doc)))
 	}
@@ -135,6 +133,9 @@ func (h *Manager) row(entry Entry) entryRow {
 }
 
 func peroLink(base, file string) string {
+	if strings.TrimSpace(base) == "" {
+		return ""
+	}
 	parsed, err := url.Parse(base)
 	if err != nil {
 		return ""
@@ -368,7 +369,7 @@ func (h *Manager) static(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Content-Type", mime.TypeByExtension(path.Ext(name)))
-	w.Header().Set("Cache-Control", "private, max-age=3600")
+	w.Header().Set("Cache-Control", "no-store")
 	_, _ = w.Write(data)
 }
 
@@ -411,6 +412,7 @@ func (h *Public) headers(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("X-Content-Type-Options", "nosniff")
 		w.Header().Set("Referrer-Policy", "no-referrer")
+		w.Header().Set("X-Frame-Options", "DENY")
 		w.Header().Set("X-Robots-Tag", "noindex, nofollow")
 		next.ServeHTTP(w, r)
 	})
@@ -465,7 +467,7 @@ func (h *Public) serve(w http.ResponseWriter, r *http.Request) {
 	}
 	if info.IsDir() {
 		if !strings.HasSuffix(r.URL.Path, "/") {
-			target := r.URL.Path + "/"
+			target := h.publicBase + url.PathEscape(r.PathValue("slug")) + "/" + escapePath(rel) + "/"
 			if r.URL.RawQuery != "" {
 				target += "?" + r.URL.RawQuery
 			}
@@ -522,7 +524,11 @@ func (h *Public) file(w http.ResponseWriter, r *http.Request, entry Entry, rel s
 		case ".txt", ".log":
 			contentType = "text/plain; charset=utf-8"
 		default:
-			contentType = "application/octet-stream"
+			if isReadableText(rel) {
+				contentType = "text/plain; charset=utf-8"
+			} else {
+				contentType = "application/octet-stream"
+			}
 		}
 	}
 	if isHTMLPath(rel) {
@@ -533,11 +539,7 @@ func (h *Public) file(w http.ResponseWriter, r *http.Request, entry Entry, rel s
 		w.Header().Set("Content-Security-Policy", svgCSP)
 	}
 	w.Header().Set("Content-Type", contentType)
-	if entry.Public {
-		w.Header().Set("Cross-Origin-Resource-Policy", "cross-origin")
-	} else {
-		w.Header().Set("Cross-Origin-Resource-Policy", "same-origin")
-	}
+	w.Header().Set("Cross-Origin-Resource-Policy", "cross-origin")
 	if isHTMLPath(rel) || ext == ".md" || ext == ".markdown" || ext == ".txt" {
 		w.Header().Set("Cache-Control", "no-store")
 	} else {

@@ -6,7 +6,7 @@
 <meta name="robots" content="noindex,nofollow">
 <link rel="icon" href="data:,">
 <title>drop</title>
-<link rel="stylesheet" href="static/drop.css">
+<link rel="stylesheet" href="static/drop.css?v=2">
 </head>
 <body>
 <main class="page{{if not .Entries}} empty{{end}}">
@@ -37,10 +37,12 @@
       </a>
       <a class="slug" href="{{.URL}}" target="_blank" rel="noreferrer">{{.SlugPath}}</a>
       <div class="actions">
-        {{if .HasDoc}}
-        <a class="act" href="{{.DocURL}}" title="Open in pero" aria-label="Open in pero">
+        {{if .DocURL}}
+        <a class="act" href="{{.DocURL}}" target="_blank" rel="noreferrer" title="Open in pero" aria-label="Open in pero">
           <svg viewBox="0 0 24 24"><path d="m8 7-5 5 5 5M16 7l5 5-5 5"/></svg>
         </a>
+        {{end}}
+        {{if .RawDocURL}}
         <a class="act" href="{{.RawDocURL}}" target="_blank" rel="noreferrer" title="Raw file" aria-label="Raw file">
           <svg viewBox="0 0 24 24"><path d="M6 3h8l4 4v14H6z"/><path d="M14 3v5h5"/></svg>
         </a>
@@ -73,6 +75,6 @@
   </ul>
   {{end}}
 </main>
-<script src="static/drop.js" defer></script>
+<script src="static/drop.js?v=2" defer></script>
 </body>
 </html>

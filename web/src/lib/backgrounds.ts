@@ -14,7 +14,3 @@ export const BACKGROUNDS: { id: SceneSetting; label: string; hint: string; menu:
   { id: "spiral", label: "Spiral", hint: "contours", menu: "Spiral" },
   { id: "random", label: "Random", hint: "per chat", menu: "Random per new chat" },
 ];
-
-export function backgroundLabel(background: SceneSetting): string {
-  return BACKGROUNDS.find((item) => item.id === background)?.label ?? background;
-}

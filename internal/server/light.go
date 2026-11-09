@@ -5,6 +5,90 @@ import (
 	"strconv"
 )
 
+type editedFile struct {
+	Path      string `json:"path"`
+	Additions int    `json:"additions,omitempty"`
+	Deletions int    `json:"deletions,omitempty"`
+}
+
+var editedWriters = map[string]bool{
+	"write":     true,
+	"edit":      true,
+	"multiedit": true,
+	"patch":     true,
+}
+
+func fileEntries(raw json.RawMessage) []editedFile {
+	var metadata struct {
+		Files []struct {
+			File      string `json:"file"`
+			Path      string `json:"path"`
+			Additions int    `json:"additions"`
+			Deletions int    `json:"deletions"`
+		} `json:"files"`
+	}
+	if len(raw) == 0 || json.Unmarshal(raw, &metadata) != nil {
+		return nil
+	}
+	files := make([]editedFile, 0, len(metadata.Files))
+	for _, item := range metadata.Files {
+		path := item.File
+		if path == "" {
+			path = item.Path
+		}
+		if path == "" {
+			continue
+		}
+		files = append(files, editedFile{
+			Path:      path,
+			Additions: item.Additions,
+			Deletions: item.Deletions,
+		})
+	}
+	return files
+}
+
+func editedFromPart(part json.RawMessage) []editedFile {
+	var tool struct {
+		Name  string `json:"name"`
+		State struct {
+			Input    json.RawMessage `json:"input"`
+			Metadata json.RawMessage `json:"metadata"`
+		} `json:"state"`
+	}
+	if json.Unmarshal(part, &tool) != nil {
+		return nil
+	}
+	if files := fileEntries(tool.State.Metadata); len(files) > 0 {
+		return files
+	}
+	if !editedWriters[tool.Name] {
+		return nil
+	}
+	var input map[string]any
+	if json.Unmarshal(tool.State.Input, &input) != nil {
+		return nil
+	}
+	for _, key := range []string{"path", "filePath", "file_path"} {
+		if path, ok := input[key].(string); ok && path != "" {
+			return []editedFile{{Path: path}}
+		}
+	}
+	return nil
+}
+
+func addEdited(target *[]editedFile, index map[string]int, files []editedFile) {
+	for _, file := range files {
+		if at, ok := index[file.Path]; ok {
+			(*target)[at].Additions += file.Additions
+			(*target)[at].Deletions += file.Deletions
+			continue
+		}
+		index[file.Path] = len(*target)
+		*target = append(*target, file)
+	}
+}
+
 func lightenTranscript(data []byte) ([]byte, error) {
 	var messages []json.RawMessage
 	if err := json.Unmarshal(data, &messages); err != nil {
@@ -45,6 +129,8 @@ func lightenMessage(raw []byte) (json.RawMessage, error) {
 	}
 	kept := make([]json.RawMessage, 0, len(parts))
 	steps, tools, errors := 0, 0, 0
+	edited := make([]editedFile, 0)
+	editedIndex := map[string]int{}
 	for _, part := range parts {
 		var partKind struct {
 			Type  string `json:"type"`
@@ -66,6 +152,7 @@ func lightenMessage(raw []byte) (json.RawMessage, error) {
 			if partKind.State.Status == "error" {
 				errors++
 			}
+			addEdited(&edited, editedIndex, editedFromPart(part))
 			continue
 		}
 		kept = append(kept, part)
@@ -88,6 +175,15 @@ func lightenMessage(raw []byte) (json.RawMessage, error) {
 		message["errors"] = json.RawMessage(strconv.Itoa(errors))
 	} else {
 		delete(message, "errors")
+	}
+	if len(edited) > 0 {
+		encoded, err := json.Marshal(edited)
+		if err != nil {
+			return nil, err
+		}
+		message["edited"] = encoded
+	} else {
+		delete(message, "edited")
 	}
 	return json.Marshal(message)
 }

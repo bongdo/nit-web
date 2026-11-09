@@ -270,6 +270,39 @@ describe("light transcripts", () => {
     expect(light[0].errors).toBeUndefined();
   });
 
+  it("keeps edited files without their tool parts", () => {
+    const messages: Message[] = [
+      {
+        id: "m1",
+        type: "assistant",
+        time: { created: 1 },
+        content: [
+          { type: "text", text: "answer", ordinal: 0 },
+          {
+            type: "tool",
+            id: "t1",
+            name: "edit",
+            state: {
+              status: "completed",
+              metadata: {
+                files: [
+                  { file: "/a", additions: 2 },
+                  { file: "/b", deletions: 1 },
+                ],
+              },
+            },
+          },
+        ],
+      },
+    ];
+    const light = lightMessages(messages);
+    expect(light[0].content).toEqual([{ type: "text", text: "answer", ordinal: 0 }]);
+    expect(light[0].edited).toEqual([
+      { path: "/a", additions: 2 },
+      { path: "/b", deletions: 1 },
+    ]);
+  });
+
   it("keeps step markers that came from the server", () => {
     const message = {
       id: "m1",
@@ -670,6 +703,7 @@ describe("light transcripts", () => {
         time: { created: 1 },
         steps: 2,
         tools: 1,
+        edited: [{ path: "/a", additions: 2 }],
         content: [{ type: "text", text: "answer" }],
       },
     ];
@@ -683,6 +717,7 @@ describe("light transcripts", () => {
     );
     expect(messages[0].steps).toBeUndefined();
     expect(messages[0].tools).toBeUndefined();
+    expect(messages[0].edited).toBeUndefined();
     expect(messages[0].content?.some((part) => part.type === "tool")).toBe(true);
   });
 

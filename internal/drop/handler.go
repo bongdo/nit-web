@@ -275,6 +275,11 @@ func (h *Handler) reader(w http.ResponseWriter, r *http.Request, entry Entry, fi
 		RawURL:      "../../files/" + entry.ID + "/" + escapePath(rel),
 		DownloadURL: "../../download/" + entry.ID + "/" + escapePath(rel),
 	}
+	if info.Size() > 4<<20 && (isDocPath(rel) || isReadableText(rel)) {
+		data.Kind = "binary"
+		h.render(w, http.StatusOK, "reader.html", data)
+		return
+	}
 	switch {
 	case isImagePath(rel):
 		data.Kind = "image"

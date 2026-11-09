@@ -682,7 +682,7 @@ export function Scene({
       window.addEventListener("mouseleave", leave);
     }
     document.addEventListener("visibilitychange", visibility);
-    started = performance.now();
+    started = performance.now() - (preview ? STILL_TIME * 1000 : 0);
     if (!paused) {
       resize();
       if (!reduced) frame = requestAnimationFrame(loop);

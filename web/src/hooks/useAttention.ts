@@ -40,6 +40,7 @@ function notify(title: string, session: Session | undefined, onOpen: (id: string
 
 type AttentionOptions = {
   enabled: boolean;
+  ready: boolean;
   sessions: Session[];
   doneIds?: ReadonlySet<string>;
   onOpen: (id: string) => void;
@@ -47,10 +48,12 @@ type AttentionOptions = {
 
 export function useAttention(
   waitingIds: Set<string>,
-  { enabled, sessions, doneIds, onOpen }: AttentionOptions,
+  { enabled, ready, sessions, doneIds, onOpen }: AttentionOptions,
 ) {
   const previous = useRef(waitingIds);
   const previousDone = useRef(doneIds ?? new Set<string>());
+  const waitingBaseline = useRef(!ready);
+  const doneBaseline = useRef(!ready);
   const open = useRef(onOpen);
   open.current = onOpen;
   const list = useRef(sessions);
@@ -63,19 +66,36 @@ export function useAttention(
   useEffect(() => {
     const fresh = [...waitingIds].find((id) => !previous.current.has(id));
     previous.current = waitingIds;
-    if (!fresh || (!document.hidden && document.hasFocus())) return;
+    if (!ready) {
+      waitingBaseline.current = true;
+      return;
+    }
+    if (waitingBaseline.current) {
+      waitingBaseline.current = false;
+      return;
+    }
+    if (!fresh || !enabled || (!document.hidden && document.hasFocus())) return;
     const session = list.current.find((item) => item.id === fresh);
-    if (enabled && notify("Waiting for your answer", session, open.current, "nit-gui-waiting")) return;
+    if (notify("Waiting for your answer", session, open.current, "nit-gui-waiting")) return;
     chime();
-  }, [waitingIds, enabled]);
+  }, [waitingIds, enabled, ready]);
 
   useEffect(() => {
     const done = doneIds ?? new Set<string>();
     const fresh = [...done].find((id) => !previousDone.current.has(id));
     previousDone.current = done;
-    if (!fresh || waitingIds.has(fresh) || (!document.hidden && document.hasFocus())) return;
+    if (!ready) {
+      doneBaseline.current = true;
+      return;
+    }
+    if (doneBaseline.current) {
+      doneBaseline.current = false;
+      return;
+    }
+    if (!fresh || !enabled || waitingIds.has(fresh)) return;
+    if (!document.hidden && document.hasFocus()) return;
     const session = list.current.find((item) => item.id === fresh);
-    if (enabled && notify("Run finished", session, open.current, "nit-gui-done")) return;
+    if (notify("Run finished", session, open.current, "nit-gui-done")) return;
     chime();
-  }, [doneIds, enabled, waitingIds]);
+  }, [doneIds, enabled, waitingIds, ready]);
 }

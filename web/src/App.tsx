@@ -254,6 +254,7 @@ export default function App({
   const [doneIds, setDoneIds] = useState<Set<string>>(() => new Set());
   const failedRef = useRef<Set<string>>(new Set());
   const [notifyOn, setNotifyOn] = useState(() => localStorage.getItem("nit-gui.notify") === "on");
+  const [uiReady, setUiReady] = useState(false);
   const [hiddenIds, setHiddenIds] = useState<Set<string>>(() => new Set());
   const [showHidden, setShowHidden] = useState(false);
   const [showOlder, setShowOlder] = useState(false);
@@ -388,6 +389,7 @@ export default function App({
       }
       applyUiState(state);
     } catch {}
+    setUiReady(true);
   }, [applyUiState]);
 
   useEffect(() => {
@@ -1086,7 +1088,21 @@ export default function App({
     setNotifyOn(true);
   }, [notifications]);
 
-  useAttention(waitingIds, { enabled: notifications, sessions, doneIds, onOpen: selectSession });
+  useEffect(() => {
+    const sync = (event: StorageEvent) => {
+      if (event.key === "nit-gui.notify") setNotifyOn(event.newValue === "on");
+    };
+    window.addEventListener("storage", sync);
+    return () => window.removeEventListener("storage", sync);
+  }, []);
+
+  useAttention(waitingIds, {
+    enabled: notifications,
+    ready: uiReady,
+    sessions,
+    doneIds,
+    onOpen: selectSession,
+  });
 
   const selectWorkspace = useCallback((directory: string) => {
     saveCurrentTranscript();

@@ -784,3 +784,16 @@ Why: a fourth binary would duplicate the gate, deploy and port, while Tailscale 
 Rejected: a standalone drop-gui service (duplicate auth/deploy); a new `/drop` Funnel path (the prefix is stripped, so it would collide with the nit SPA); rendering docs in the chat (no stable links, no app hosting); storing uploads in the browser (no cross-device buffer).
 
 Cost: nit-gui gains a file store and a Markdown dependency; uploaded HTML runs in a sandbox without network or forms; drop links require the same login, so they are not public.
+
+## 2026-11-09 — Edited files travel inside the light transcript
+
+Context: collapsed chats load a light transcript with text and step counters only. Edited files lived in tool metadata, so the reply footer showed nothing until every step message was loaded.
+
+Decision: light messages now carry a deduplicated `edited` list (path, additions, deletions). The reply footer renders one "N files" toggle from those markers; once a message's steps are loaded, its tool parts replace the markers.
+
+Why: the count and the hidden file list must be available without fetching tool output, and a few short strings per message fit the existing 12 MB transcript cache.
+
+Rejected: loading full step messages just to build the list (defeats the lazy cache); caching only a count (the expanded list would still need a heavy fetch); a separate file-summary endpoint.
+
+Cost: light transcripts and the cache grow slightly; paths are not normalized, so the same file recorded once as absolute and once as relative counts twice.
+

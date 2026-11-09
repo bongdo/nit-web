@@ -9,7 +9,7 @@ import {
 } from "react";
 import { flushSync } from "react-dom";
 import { CircleAlert, Plus, RefreshCw, X } from "lucide-react";
-import { api } from "./lib/api";
+import { api, nextSessionCursor } from "./lib/api";
 import type {
   Agent,
   Config,
@@ -203,7 +203,7 @@ export default function App({
   });
   const [scope, setScopeState] = useState<Scope>(() => {
     const value = localStorage.getItem("nit-gui.scope");
-    return value === "mine" || value === "all" ? value : "directory";
+    return value === "mine" || value === "all" ? "mine" : "directory";
   });
   const scopeRef = useRef(scope);
   scopeRef.current = scope;
@@ -573,7 +573,7 @@ export default function App({
           if (keep) data = [keep, ...data];
         }
       }
-      const cursor = nested.cursor?.next ?? null;
+      const cursor = nextSessionCursor(list);
       sessionCursorRef.current = cursor;
       setSessionCursor(cursor);
       setSessions(data);
@@ -606,7 +606,7 @@ export default function App({
         const add = page.data.filter((session) => !known.has(session.id));
         return add.length > 0 ? [...previous, ...add] : previous;
       });
-      const next = page.cursor?.next ?? null;
+      const next = nextSessionCursor(page);
       sessionCursorRef.current = next;
       setSessionCursor(next);
     } catch (error) {
@@ -2011,6 +2011,10 @@ export default function App({
     () => listedSessions(scopeSessions(sessions, scope, agents), hiddenIds, showHidden),
     [agents, hiddenIds, scope, sessions, showHidden],
   );
+  const scopedDirectories = useMemo(
+    () => new Set(scopedSessions.map((session) => session.location?.directory ?? "")).size,
+    [scopedSessions],
+  );
   const ageKeepIds = useMemo(() => {
     const ids = new Set<string>();
     for (const session of scopedSessions) {
@@ -2032,10 +2036,11 @@ export default function App({
     [ageKeepIds, ageNow, scopedSessions],
   );
   const visibleSessions = useMemo(
-    () => (showOlder || search.trim() ? scopedSessions : recentSessions),
-    [recentSessions, scopedSessions, search, showOlder],
+    () =>
+      showOlder || search.trim() || scope !== "directory" ? scopedSessions : recentSessions,
+    [recentSessions, scopedSessions, search, showOlder, scope],
   );
-  const olderCount = search.trim() ? 0 : olderSessions.length;
+  const olderCount = search.trim() || scope !== "directory" ? 0 : olderSessions.length;
   const hiddenCount = useMemo(
     () => sessions.filter((session) => hiddenIds.has(session.id)).length,
     [hiddenIds, sessions],
@@ -2236,6 +2241,8 @@ export default function App({
             subagents={visibleSubagents}
             workspace={workspace}
             scope={scope}
+            poolChats={scopedSessions.length}
+            poolDirectories={scopedDirectories}
             selectedId={selectedId}
             loading={sessionsLoading}
             health={health}

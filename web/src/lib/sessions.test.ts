@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  groupByDirectory,
   groupSessions,
   isTechnical,
   listedSessions,
@@ -51,7 +52,23 @@ describe("sessions", () => {
       session({ id: "c", parentID: "a" }),
     ];
     expect(scopeSessions(list, "mine", agents).map((item) => item.id)).toEqual(["a"]);
-    expect(scopeSessions(list, "all", agents)).toHaveLength(3);
+    expect(scopeSessions(list, "directory", agents)).toHaveLength(3);
+  });
+
+  it("groups chats by directory with the current project first", () => {
+    const rows = [
+      { session: session({ id: "a", location: { directory: "/work/nit" }, time: { created: 0, updated: 10 } }), depth: 0 },
+      { session: session({ id: "b", location: { directory: "/work/gui" }, time: { created: 0, updated: 20 } }), depth: 0 },
+      { session: session({ id: "c", location: { directory: "/work/nit" }, time: { created: 0, updated: 30 } }), depth: 0 },
+    ];
+    expect(groupByDirectory(rows, "/work/gui")).toEqual([
+      { directory: "/work/gui", rows: [rows[1]] },
+      { directory: "/work/nit", rows: [rows[0], rows[2]] },
+    ]);
+    expect(groupByDirectory(rows, null).map((group) => group.directory)).toEqual([
+      "/work/nit",
+      "/work/gui",
+    ]);
   });
 
   it("never lists subagent sessions and still honors hidden chats", () => {

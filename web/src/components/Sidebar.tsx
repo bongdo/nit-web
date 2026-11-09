@@ -10,6 +10,7 @@ import {
 import {
   Bell,
   BellOff,
+  ChevronDown,
   ChevronRight,
   ClipboardCheck,
   CornerDownRight,
@@ -32,7 +33,7 @@ import type { Health, Session } from "../lib/types";
 import type { StreamStatus } from "../hooks/useEventStream";
 import { themeLabel, type Theme } from "../lib/themes";
 import { basename, filterSessions, formatRelative } from "../lib/format";
-import { SCOPES, groupSessions, type Scope, type SessionRow } from "../lib/sessions";
+import { SCOPES, groupByDirectory, groupSessions, type Scope, type SessionRow } from "../lib/sessions";
 import { cn } from "../lib/utils";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
@@ -253,6 +254,8 @@ export const Sidebar = memo(function Sidebar({
   subagents,
   workspace,
   scope,
+  poolChats,
+  poolDirectories,
   selectedId,
   loading,
   health,
@@ -296,6 +299,8 @@ export const Sidebar = memo(function Sidebar({
   subagents: Session[];
   workspace: string | null;
   scope: Scope;
+  poolChats: number;
+  poolDirectories: number;
   selectedId: string | null;
   loading: boolean;
   health: Health | null;
@@ -337,6 +342,9 @@ export const Sidebar = memo(function Sidebar({
 }) {
   const [now, setNow] = useState(Date.now());
   const [fading, setFading] = useState(false);
+  const showLoad = Boolean(hasMore || olderCount > 0);
+  const [loadLeaving, setLoadLeaving] = useState(false);
+  const loadShown = useRef(showLoad);
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
   const autoExpanded = useRef<string | null>(null);
   const modKey =
@@ -406,8 +414,10 @@ export const Sidebar = memo(function Sidebar({
     : null;
   const selectedRank = selectedSession ? rank(selectedSession) : null;
   const runningFrom = runningStart === -1 ? visible.length : runningStart;
+  const pool = scope !== "directory";
+  const poolGroups = pool ? groupByDirectory(visible.slice(0, runningFrom), workspace) : [];
 
-  const renderRow = ({ session, depth }: SessionRow) => {
+  const renderRow = ({ session, depth }: SessionRow, grouped = false) => {
     const children = childrenByParent.get(session.id) ?? [];
     const runningChildren = children.filter((child) => isRunning(child.id)).length;
     const open = expanded.has(session.id);
@@ -424,7 +434,7 @@ export const Sidebar = memo(function Sidebar({
           animated={animated}
           hidden={hiddenIds.has(session.id)}
           now={now}
-          showDirectory={scope !== "directory"}
+          showDirectory={scope !== "directory" && !grouped}
           subagentCount={children.length}
           runningSubagents={runningChildren}
           expanded={open}
@@ -513,6 +523,16 @@ export const Sidebar = memo(function Sidebar({
   });
 
   useEffect(() => {
+    if (loadShown.current && !showLoad) {
+      setLoadLeaving(true);
+      loadShown.current = false;
+      const timer = window.setTimeout(() => setLoadLeaving(false), 200);
+      return () => window.clearTimeout(timer);
+    }
+    loadShown.current = showLoad;
+  }, [showLoad]);
+
+  useEffect(() => {
     if (!selectedId || selectedRank === null) return;
     const row = listRef.current?.querySelector<HTMLElement>(
       `[data-session-row="${selectedId}"]`,
@@ -527,25 +547,72 @@ export const Sidebar = memo(function Sidebar({
           ? `${waitingCount} chat${waitingCount === 1 ? "" : "s"} waiting for your answer`
           : ""}
       </span>
-      <div className="flex items-center gap-2 px-3 pt-3 pb-2">
-        <div className="bg-foreground text-background flex size-7 items-center justify-center rounded-md font-mono text-xs font-bold">
-          n
-        </div>
+      <div className="flex items-center gap-2 px-3 pt-3 pb-1.5">
         <button
           type="button"
           onClick={onWorkspace}
-          className="hover:bg-accent/60 -mx-1 min-w-0 flex-1 rounded-md px-1 py-0.5 text-left"
+          className="hover:bg-accent/40 -mx-1 flex min-w-0 flex-1 items-center gap-2 rounded-md px-1 py-0.5 text-left"
           title={workspace ?? "Choose a workspace"}
         >
-          <div>
-            <div className="truncate text-[13px] font-semibold leading-tight">
-              {workspace ? basename(workspace) : "No workspace"}
-            </div>
-            <div className="text-muted-foreground flex items-center gap-1 truncate text-[10px] leading-tight">
-              <FolderOpen className="size-3 shrink-0" />
-              <span className="truncate">{workspace ?? "Choose a directory"}</span>
-            </div>
-          </div>
+          <span className="relative size-7 shrink-0">
+            <span
+              className={cn(
+                "bg-foreground text-background absolute inset-0 flex items-center justify-center rounded-md font-mono text-xs font-bold",
+                animated && "transition-all duration-300 ease-out",
+                pool && "scale-75 opacity-0",
+              )}
+            >
+              n
+            </span>
+            <span
+              className={cn(
+                "bg-muted text-muted-foreground absolute inset-0 flex items-center justify-center rounded-md",
+                animated && "transition-all duration-300 ease-out",
+                !pool && "scale-75 opacity-0",
+              )}
+            >
+              <Layers className="size-3.5" />
+            </span>
+          </span>
+          <span className="relative grid min-w-0 flex-1">
+            <span
+              className={cn(
+                "col-start-1 row-start-1 min-w-0",
+                animated && "transition-all duration-300 ease-out",
+                pool && "pointer-events-none translate-y-1 opacity-0",
+              )}
+            >
+              <span className="block truncate text-[13px] leading-tight font-semibold">
+                {workspace ? basename(workspace) : "No workspace"}
+              </span>
+              <span className="text-muted-foreground flex items-center gap-1 text-[10px] leading-tight">
+                <FolderOpen className="size-3 shrink-0" />
+                <span className="truncate">{workspace ?? "Choose a directory"}</span>
+              </span>
+            </span>
+            <span
+              className={cn(
+                "col-start-1 row-start-1 min-w-0",
+                animated && "transition-all duration-300 ease-out",
+                !pool && "pointer-events-none -translate-y-1 opacity-0",
+              )}
+            >
+              <span className="block truncate text-[13px] leading-tight font-semibold">
+                All chats
+              </span>
+              <span className="text-muted-foreground block truncate text-[10px] leading-tight">
+                {poolDirectories} {poolDirectories === 1 ? "directory" : "directories"} ·{" "}
+                {poolChats} chats
+              </span>
+            </span>
+          </span>
+          <ChevronDown
+            className={cn(
+              "text-muted-foreground size-3.5 shrink-0",
+              animated && "transition-transform duration-300",
+              pool && "rotate-180",
+            )}
+          />
         </button>
         {waitingCount > 0 && (
           <span
@@ -566,22 +633,58 @@ export const Sidebar = memo(function Sidebar({
         )}
       </div>
 
-      <div className="px-3 pb-2">
-        <button
-          type="button"
-          onClick={onReview}
-          className="hover:bg-accent/60 flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left"
-          title="Review: pending vision and acceptance"
-        >
-          <ClipboardCheck className="text-muted-foreground size-3.5" />
-          <span className="text-xs font-medium">Review</span>
-          {reviewCount > 0 && (
-            <span className="bg-spark text-background ml-auto rounded-full px-1.5 text-[10px] leading-5 tabular-nums">
-              {reviewCount}
-            </span>
-          )}
-        </button>
+      <div className="px-3 pb-2" role="group" aria-label="Chat scope">
+        <div className="relative grid grid-cols-2 text-[11px] font-medium">
+          <span
+            aria-hidden
+            className={cn(
+              "bg-accent/70 absolute inset-y-0 left-0 w-1/2 rounded-md",
+              animated && "transition-transform duration-300 ease-out",
+            )}
+            style={{ transform: pool ? "translateX(100%)" : "translateX(0)" }}
+          />
+          {SCOPES.map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              aria-pressed={scope === item.id}
+              onClick={() => onScope(item.id)}
+              className={cn(
+                "relative z-10 min-w-0 truncate rounded-md px-2 py-1 transition-colors",
+                scope === item.id
+                  ? "text-foreground"
+                  : "text-muted-foreground hover:text-foreground",
+              )}
+              title={
+                item.id === "directory"
+                  ? (workspace ?? "Chats in this directory")
+                  : "Every chat, every directory"
+              }
+            >
+              {item.id === "directory" && workspace ? basename(workspace) : item.label}
+            </button>
+          ))}
+        </div>
       </div>
+
+      {!pool && (
+        <div className="px-3 pb-2">
+          <button
+            type="button"
+            onClick={onReview}
+            className="hover:bg-accent/60 flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left"
+            title="Review: pending vision and acceptance"
+          >
+            <ClipboardCheck className="text-muted-foreground size-3.5" />
+            <span className="text-xs font-medium">Review</span>
+            {reviewCount > 0 && (
+              <span className="bg-spark text-background ml-auto rounded-full px-1.5 text-[10px] leading-5 tabular-nums">
+                {reviewCount}
+              </span>
+            )}
+          </button>
+        </div>
+      )}
 
       <div className="px-3 pb-2">
         <div className="relative">
@@ -616,32 +719,6 @@ export const Sidebar = memo(function Sidebar({
         </div>
       </div>
 
-      <div className="mx-3 mb-2 flex items-center gap-1" role="group" aria-label="Chat scope">
-        {SCOPES.map((item) => (
-          <button
-            key={item.id}
-            type="button"
-            aria-pressed={scope === item.id}
-            onClick={() => onScope(item.id)}
-            className={cn(
-              "min-w-0 flex-1 truncate rounded px-2 py-1 text-[10px] font-medium transition-colors",
-              scope === item.id
-                ? "bg-accent/60 text-foreground"
-                : "text-muted-foreground hover:bg-accent/30 hover:text-foreground",
-            )}
-            title={
-              item.id === "directory"
-                ? (workspace ?? "Chats in this workspace")
-                : item.id === "mine"
-                  ? "Your chats, every workspace"
-                  : "Every top-level chat, every workspace"
-            }
-          >
-            {item.id === "directory" && workspace ? basename(workspace) : item.label}
-          </button>
-        ))}
-      </div>
-
       <div className="px-3 pb-2">
         <Button
           variant="outline"
@@ -652,6 +729,11 @@ export const Sidebar = memo(function Sidebar({
         >
           <Plus />
           New chat
+          {pool && workspace && (
+            <span className="text-muted-foreground ml-1 truncate text-[10px] font-normal">
+              in {basename(workspace)}
+            </span>
+          )}
           <kbd className="border-border text-muted-foreground ml-auto rounded border px-1 font-mono text-[9px] font-normal">
             Alt N
           </kbd>
@@ -685,14 +767,34 @@ export const Sidebar = memo(function Sidebar({
                   ? "No chats in this workspace yet."
                   : "No chats yet."}
             </div>
+          ) : pool ? (
+            <div className="relative space-y-0.5">
+              {poolGroups.map((group) => (
+                <Fragment key={group.directory}>
+                  <div className="text-muted-foreground flex items-center gap-2 px-3 pt-2.5 pb-0.5 text-[10px] font-medium">
+                    <span className="truncate" title={group.directory}>
+                      {basename(group.directory) || group.directory || "unknown"}
+                    </span>
+                    <span className="tabular-nums opacity-60">{group.rows.length}</span>
+                    <span className="bg-border h-px flex-1 opacity-50" />
+                  </div>
+                  {group.rows.map((row) => renderRow(row, true))}
+                </Fragment>
+              ))}
+            </div>
           ) : (
             <div className="relative space-y-0.5">
-              {visible.slice(0, runningFrom).map(renderRow)}
+              {visible.slice(0, runningFrom).map((row) => renderRow(row))}
             </div>
           )}
         </div>
-        {(hasMore || olderCount > 0) && (
-          <div className="px-2">
+        {(showLoad || loadLeaving) && (
+          <div
+            className={cn(
+              "px-2 transition-opacity duration-200",
+              !showLoad && "pointer-events-none opacity-0",
+            )}
+          >
             <button
               type="button"
               onClick={olderCount > 0 ? onShowOlder : onLoadMore}
@@ -717,7 +819,7 @@ export const Sidebar = memo(function Sidebar({
               </span>
               <span className="bg-border h-px flex-1 opacity-60" />
             </div>
-            {visible.slice(runningFrom).map(renderRow)}
+            {visible.slice(runningFrom).map((row) => renderRow(row))}
           </div>
         )}
         <div className="flex-1" />

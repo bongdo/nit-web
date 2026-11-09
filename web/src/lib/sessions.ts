@@ -1,12 +1,11 @@
 import { sessionRunning } from "./format";
 import type { Agent, FormInfo, Session } from "./types";
 
-export type Scope = "directory" | "mine" | "all";
+export type Scope = "directory" | "mine";
 
 export const SCOPES: { id: Scope; label: string }[] = [
-  { id: "directory", label: "This dir" },
-  { id: "mine", label: "Mine" },
-  { id: "all", label: "All" },
+  { id: "directory", label: "This project" },
+  { id: "mine", label: "All chats" },
 ];
 
 export function isTechnical(session: Session, agents: Agent[]): boolean {
@@ -111,6 +110,24 @@ export function newlyRunning(
 }
 
 export type SessionRow = { session: Session; depth: number };
+
+export type SessionGroup = { directory: string; rows: SessionRow[] };
+
+export function groupByDirectory(rows: SessionRow[], current: string | null): SessionGroup[] {
+  const groups = new Map<string, SessionRow[]>();
+  for (const row of rows) {
+    const directory = row.session.location?.directory ?? "";
+    const list = groups.get(directory);
+    if (list) list.push(row);
+    else groups.set(directory, [row]);
+  }
+  const updated = (list: SessionRow[]) => Math.max(...list.map((row) => row.session.time.updated));
+  return Array.from(groups, ([directory, list]) => ({ directory, rows: list })).sort((a, b) => {
+    if (a.directory === current) return -1;
+    if (b.directory === current) return 1;
+    return updated(b.rows) - updated(a.rows);
+  });
+}
 
 export function nextSessionId(
   sessions: Session[],

@@ -94,6 +94,14 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
   return (text ? JSON.parse(text) : undefined) as T;
 }
 
+export const SESSIONS_PAGE_SIZE = 100;
+
+// shortcut: the API always requests 100 sessions per page; update if the server limit changes.
+export function nextSessionCursor(page: SessionList): string | null {
+  if (page.data.length < SESSIONS_PAGE_SIZE) return null;
+  return page.cursor?.next ?? null;
+}
+
 export const api = {
   setInstance,
   instances: (probe = false) =>

@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<link rel="icon" href="data:,">
+<title>drop — временный буфер</title>
+<link rel="stylesheet" href="static/drop.css">
+</head>
+<body>
+<div class="shell">
+<header class="top">
+  <a class="brand" href="./"><b>d</b> drop</a>
+  <nav class="nav" aria-label="Приложения">
+    <a href="{{.Nav.Nit}}">nit</a>
+    <a href="{{.Nav.Pero}}">pero</a>
+    <a href="{{.Nav.Term}}">term</a>
+    <a class="active" href="{{.Nav.Drop}}">drop</a>
+  </nav>
+</header>
+
+<main>
+<h1>Временный буфер</h1>
+<p class="sub">Файлы для скачивания, HTML-страницы, приложения и доки. Всё живёт 7 дней, если не выбрать другой срок.</p>
+
+<section class="panel">
+  <div class="panel-h"><span class="dot"></span> загрузить</div>
+  <form class="body upload" action="api/upload" method="post" enctype="multipart/form-data" data-upload-form>
+    <div class="dropzone" data-dropzone tabindex="0" role="button" aria-label="Выбрать файлы">
+      <div class="arrow">↓</div>
+      <strong>Перетащи файлы сюда</strong>
+      <span>или нажми, чтобы выбрать. Папку с приложением публикуй командой <code>drop web &lt;dir&gt;</code></span>
+    </div>
+    <input type="file" name="file" multiple hidden data-file-input>
+    <div class="row wrap">
+      <button class="btn primary" type="submit">Загрузить</button>
+      <button class="btn ghost" type="button" data-pick>Выбрать файлы</button>
+      <label class="ttl">Срок
+        <select name="ttl">
+          <option value="1h">1 час</option>
+          <option value="24h">1 день</option>
+          <option value="7d" selected>7 дней</option>
+          <option value="30d">30 дней</option>
+        </select>
+      </label>
+      <span class="status" data-status></span>
+    </div>
+    <p class="hint">Лимит одного запроса: {{.Max}}. Несколько файлов станут одной публикацией.</p>
+  </form>
+</section>
+
+<section class="panel" style="margin-top:16px">
+  <div class="panel-h"><span class="dot"></span> публикации <span class="count">{{len .Entries}}</span></div>
+  {{if .Entries}}
+  <div class="items">
+    {{range .Entries}}
+    <article class="item">
+      <a class="item-main" href="{{.URL}}">
+        <span class="icon">{{if eq .KindCode "site"}}&lt;/&gt;{{else if eq .KindCode "docs"}}md{{else if eq .KindCode "file"}}file{{else}}dir{{end}}</span>
+        <span class="meta">
+          <span class="name">{{.Entry.Name}}</span>
+          <span class="subline">файлов: {{.Files}} · {{.Size}} · {{.Expires}}</span>
+        </span>
+        <span class="pill {{if eq .KindCode "site"}}app{{else if eq .KindCode "docs"}}docs{{else}}buf{{end}}">{{.Kind}}</span>
+      </a>
+      <span class="actions">
+        {{if .HasDoc}}<a class="btn ghost" href="{{.DocURL}}">читать</a>{{end}}
+        {{if .DownloadURL}}<a class="btn ghost" href="{{.DownloadURL}}">скачать</a>{{end}}
+        <button class="btn ghost" type="button" data-copy="{{.URL}}">копировать</button>
+        <button class="btn danger" type="button" data-delete="{{.Entry.ID}}">удалить</button>
+      </span>
+    </article>
+    {{end}}
+  </div>
+  {{else}}
+  <div class="empty">Пока пусто. Загрузи файл или запусти <code>drop ./report.html</code>.</div>
+  {{end}}
+</section>
+</main>
+
+<footer class="foot">
+  <span>Пароль общий с nit / pero / term</span>
+  <span>HTML запускается в sandbox без доступа к API</span>
+  <span>Агент: <code>drop &lt;path&gt;</code></span>
+</footer>
+</div>
+<script src="static/drop.js" defer></script>
+</body>
+</html>

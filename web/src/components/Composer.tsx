@@ -59,7 +59,7 @@ type AutoFix = {
 
 const MAX_UPLOAD = 20 << 20;
 const MAX_RECORDING = 120;
-const ASK_PREFIX = /^\s*(?:ask|аск|вопрос)(?=\s|$|[:：,，—–-])/i;
+const ASK_PREFIX = /^\s*(?:ask|аск|вопрос)(?=\s|$|[:：,，—–\-?？!！.。])/i;
 
 function attachmentId() {
   return `att-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;

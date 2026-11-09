@@ -11,6 +11,7 @@ import (
 	"log/slog"
 	"mime"
 	"net/http"
+	"net/http/httputil"
 	"net/url"
 	"os"
 	"path"
@@ -92,6 +93,7 @@ type entryRow struct {
 	Expires   string
 	Forever   bool
 	Public    bool
+	Status    string
 	DocURL    string
 	RawDocURL string
 }
@@ -124,6 +126,12 @@ func (h *Manager) row(entry Entry) entryRow {
 		Expires:  expiresLabel(entry, h.now()),
 		Forever:  entry.Forever(),
 		Public:   entry.Public,
+	}
+	if entry.Kind == "service" && entry.Service != nil {
+		row.Status = entry.Service.Status
+		if row.Status == "" {
+			row.Status = "unknown"
+		}
 	}
 	if doc := entry.Text(); doc != "" {
 		row.RawDocURL = h.publicBase + url.PathEscape(entry.Slug) + "/" + escapePath(doc)
@@ -386,25 +394,27 @@ func (h *Manager) render(w http.ResponseWriter, status int, name string, data an
 
 type Public struct {
 	store         *Store
+	services      *Services
 	authenticated func(*http.Request) bool
 	log           *slog.Logger
 	publicBase    string
 }
 
-func NewPublic(store *Store, authenticated func(*http.Request) bool, log *slog.Logger, basePath string) http.Handler {
+func NewPublic(store *Store, authenticated func(*http.Request) bool, log *slog.Logger, basePath string, services *Services) http.Handler {
 	if log == nil {
 		log = slog.Default()
 	}
 	h := &Public{
 		store:         store,
+		services:      services,
 		authenticated: authenticated,
 		log:           log,
 		publicBase:    strings.TrimRight(basePath, "/") + "/d/",
 	}
 	mux := http.NewServeMux()
-	mux.HandleFunc("GET /d/{slug}", h.redirectSlash)
-	mux.HandleFunc("GET /d/{slug}/{$}", h.serve)
-	mux.HandleFunc("GET /d/{slug}/{path...}", h.serve)
+	mux.HandleFunc("/d/{slug}", h.redirectSlash)
+	mux.HandleFunc("/d/{slug}/{$}", h.serve)
+	mux.HandleFunc("/d/{slug}/{path...}", h.serve)
 	return h.headers(mux)
 }
 
@@ -424,7 +434,11 @@ func (h *Public) redirectSlash(w http.ResponseWriter, r *http.Request) {
 	if r.URL.RawQuery != "" {
 		target += "?" + r.URL.RawQuery
 	}
-	http.Redirect(w, r, target, http.StatusMovedPermanently)
+	status := http.StatusMovedPermanently
+	if r.Method != http.MethodGet && r.Method != http.MethodHead {
+		status = http.StatusPermanentRedirect
+	}
+	http.Redirect(w, r, target, status)
 }
 
 func (h *Public) serve(w http.ResponseWriter, r *http.Request) {
@@ -435,6 +449,15 @@ func (h *Public) serve(w http.ResponseWriter, r *http.Request) {
 	}
 	if !entry.Public && (h.authenticated == nil || !h.authenticated(r)) {
 		http.NotFound(w, r)
+		return
+	}
+	if entry.Kind == "service" {
+		h.service(w, r, entry)
+		return
+	}
+	if r.Method != http.MethodGet && r.Method != http.MethodHead {
+		w.Header().Set("Allow", "GET, HEAD")
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 	rel := strings.TrimPrefix(r.PathValue("path"), "/")
@@ -482,6 +505,120 @@ func (h *Public) serve(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	h.file(w, r, entry, rel)
+}
+
+func (h *Public) service(w http.ResponseWriter, r *http.Request, entry Entry) {
+	if h.services == nil {
+		http.Error(w, "services are unavailable", http.StatusServiceUnavailable)
+		return
+	}
+	port, err := h.services.Port(entry)
+	if err != nil {
+		h.services.Forget(entry.ID)
+		h.log.Warn("drop service is not reachable", "slug", entry.Slug, "error", err)
+		http.Error(w, "service is not running", http.StatusBadGateway)
+		return
+	}
+	slug := r.PathValue("slug")
+	prefix := strings.TrimSuffix(h.publicBase, "/") + "/" + url.PathEscape(slug)
+	rest := strings.TrimPrefix(r.URL.Path, "/d/"+slug)
+	if rest == "" {
+		rest = "/"
+	}
+	host := fmt.Sprintf("127.0.0.1:%d", port)
+	originalHost := r.Host
+	originalProto := r.Header.Get("X-Forwarded-Proto")
+	proxy := httputil.NewSingleHostReverseProxy(&url.URL{Scheme: "http", Host: host})
+	proxy.FlushInterval = -1
+	proxy.Director = func(req *http.Request) {
+		req.URL.Scheme = "http"
+		req.URL.Host = host
+		req.URL.Path = rest
+		req.URL.RawPath = ""
+		req.Host = host
+		stripServiceHeaders(req.Header)
+		req.Header.Set("X-Forwarded-Prefix", prefix)
+		req.Header.Set("X-Forwarded-Host", originalHost)
+		if req.Header.Get("X-Forwarded-Proto") == "" {
+			proto := originalProto
+			if proto == "" {
+				proto = "http"
+				if r.TLS != nil {
+					proto = "https"
+				}
+			}
+			req.Header.Set("X-Forwarded-Proto", proto)
+		}
+	}
+	cookiePath := prefix + "/"
+	proxy.ModifyResponse = func(resp *http.Response) error {
+		rewriteServiceCookies(resp.Header, cookiePath)
+		return nil
+	}
+	proxy.ErrorHandler = func(w http.ResponseWriter, _ *http.Request, err error) {
+		h.services.Forget(entry.ID)
+		h.log.Warn("drop service proxy failed", "slug", entry.Slug, "error", err)
+		http.Error(w, "service is not reachable", http.StatusBadGateway)
+	}
+	proxy.ServeHTTP(w, r)
+}
+
+func stripServiceHeaders(header http.Header) {
+	header.Del("Authorization")
+	for name := range header {
+		if strings.HasPrefix(strings.ToLower(name), "x-nit-") {
+			delete(header, name)
+		}
+	}
+	values := header.Values("Cookie")
+	if len(values) == 0 {
+		return
+	}
+	kept := make([]string, 0, len(values))
+	for _, value := range values {
+		for _, part := range strings.Split(value, ";") {
+			part = strings.TrimSpace(part)
+			if part == "" {
+				continue
+			}
+			name, _, _ := strings.Cut(part, "=")
+			if strings.EqualFold(strings.TrimSpace(name), "nit_gate") {
+				continue
+			}
+			kept = append(kept, part)
+		}
+	}
+	if len(kept) == 0 {
+		header.Del("Cookie")
+		return
+	}
+	header.Set("Cookie", strings.Join(kept, "; "))
+}
+
+func rewriteServiceCookies(header http.Header, path string) {
+	values := header.Values("Set-Cookie")
+	if len(values) == 0 {
+		return
+	}
+	rewritten := make([]string, 0, len(values))
+	for _, value := range values {
+		cookie, err := http.ParseSetCookie(value)
+		if err != nil {
+			rewritten = append(rewritten, value)
+			continue
+		}
+		if strings.EqualFold(cookie.Name, "nit_gate") {
+			continue
+		}
+		cookie.Domain = ""
+		cookie.Path = path
+		rewritten = append(rewritten, cookie.String())
+	}
+	if len(rewritten) == 0 {
+		header.Del("Set-Cookie")
+		return
+	}
+	header["Set-Cookie"] = rewritten
 }
 
 func dirIndex(entry Entry, dir string) string {

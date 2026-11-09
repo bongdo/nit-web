@@ -141,8 +141,11 @@ func New(provider ClientProvider, static fs.FS, log *slog.Logger) http.Handler {
 	if store, err := drop.Open(drop.DefaultRoot()); err != nil {
 		log.Error("drop store unavailable", "error", err)
 	} else {
+		services := drop.NewServices(store)
+		services.SetBasePath(s.basePath)
 		s.dropManager = drop.NewManager(store, s.dropWriteAllowed, log, s.peroURL, s.basePath)
-		s.dropPublic = drop.NewPublic(store, s.dropReadAllowed, log, s.basePath)
+		s.dropPublic = drop.NewPublic(store, s.dropReadAllowed, log, s.basePath, services)
+		go services.Restore(context.Background())
 	}
 	s.routes()
 	go s.warm()

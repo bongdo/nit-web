@@ -1,6 +1,8 @@
 package main
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"net/url"
 	"os"
@@ -15,6 +17,7 @@ func main() {
 	if err != nil {
 		fail(err)
 	}
+	services := drop.NewServices(store)
 	args := os.Args[1:]
 	if len(args) == 0 {
 		usage()
@@ -24,7 +27,7 @@ func main() {
 	case "help", "-h", "--help":
 		usage()
 	case "list", "ls":
-		list(store, args[1:])
+		list(store, services, args[1:])
 	case "rm", "delete":
 		remove(store, args[1:])
 	case "url":
@@ -33,6 +36,16 @@ func main() {
 		setSlug(store, args[1:])
 	case "access":
 		setAccess(store, args[1:])
+	case "service":
+		publishService(store, services, args[1:])
+	case "start":
+		serviceAction(store, services, "start", args[1:])
+	case "stop":
+		serviceAction(store, services, "stop", args[1:])
+	case "restart":
+		serviceAction(store, services, "restart", args[1:])
+	case "logs":
+		serviceLogs(store, services, args[1:])
 	case "web", "docs", "doc":
 		publish(store, args[1:])
 	default:
@@ -44,17 +57,22 @@ func usage() {
 	fmt.Print(`drop — publish a file, page or folder
 
   drop <path> [--public] [--slug name] [--expire 2w]
+  drop service <dir> [--public] [--slug name] [--expire 2w]
   drop list
   drop url <id|slug>
   drop rm <id|slug>
   drop slug <id|slug> <new-slug>
   drop access <id|slug> public|private
+  drop start|stop|restart <id|slug>
+  drop logs <id|slug> [-f]
 
+A service needs Containerfile/Dockerfile, or drop.json with "image".
+drop.json may also set {"port":3000,"health":"/","cmd":["..."]}.
 Default: private, forever. --expire 2w deletes after two weeks.
 `)
 }
 
-func list(store *drop.Store, args []string) {
+func list(store *drop.Store, services *drop.Services, args []string) {
 	if len(args) != 0 {
 		fail(fmt.Errorf("usage: drop list"))
 	}
@@ -67,11 +85,17 @@ func list(store *drop.Store, args []string) {
 		return
 	}
 	for _, entry := range entries {
-		fmt.Printf("%s  %-24s  %-7s  %-8s  %s\n",
+		status := ""
+		if entry.Kind == "service" {
+			status = services.Status(context.Background(), entry)
+		}
+		fmt.Printf("%s  %-24s  %-9s  %-7s  %-8s  %-10s  %s\n",
 			entry.ID,
 			short(entry.Slug, 24),
+			entry.Kind,
 			access(entry),
 			expires(entry),
+			status,
 			entryURL(entry),
 		)
 	}
@@ -129,6 +153,97 @@ func setAccess(store *drop.Store, args []string) {
 	}
 	fmt.Println(entryURL(entry))
 	fmt.Printf("%s  %s\n", entry.ID, access(entry))
+}
+
+func publishService(store *drop.Store, services *drop.Services, args []string) {
+	parsed, err := parse(args)
+	if err != nil {
+		fail(err)
+	}
+	cfg, err := drop.LoadServiceConfig(parsed.path)
+	if err != nil {
+		fail(err)
+	}
+	fmt.Fprintf(os.Stderr, "drop: building %s\n", cfg.Dir)
+	entry, err := services.Create(context.Background(), cfg.Dir, drop.PublishOptions{
+		Slug:   parsed.slug,
+		Public: parsed.public,
+		TTL:    parsed.ttl,
+	}, cfg)
+	if err != nil {
+		fail(err)
+	}
+	fmt.Println(entryURL(entry))
+	fmt.Printf("%s  %s  service  %s  %s  %s\n", entry.ID, entry.Slug, access(entry), expires(entry), serviceStatus(entry))
+}
+
+func serviceAction(store *drop.Store, services *drop.Services, action string, args []string) {
+	if len(args) != 1 {
+		fail(fmt.Errorf("usage: drop %s <id|slug>", action))
+	}
+	entry, err := store.Get(args[0])
+	if err != nil {
+		fail(err)
+	}
+	if entry.Kind != "service" || entry.Service == nil {
+		fail(errors.New("not a service"))
+	}
+	ctx := context.Background()
+	switch action {
+	case "start":
+		entry, err = services.Start(ctx, entry)
+	case "stop":
+		entry, err = services.Stop(ctx, entry)
+	case "restart":
+		entry, err = services.Restart(ctx, entry)
+	}
+	if err != nil {
+		fail(err)
+	}
+	fmt.Println(entryURL(entry))
+	fmt.Printf("%s  %s  %s\n", entry.ID, entry.Slug, serviceStatus(entry))
+}
+
+func serviceLogs(store *drop.Store, services *drop.Services, args []string) {
+	follow := false
+	ref := ""
+	for _, arg := range args {
+		switch arg {
+		case "-f", "--follow":
+			follow = true
+		default:
+			if strings.HasPrefix(arg, "-") {
+				fail(fmt.Errorf("unknown flag %s", arg))
+			}
+			if ref != "" {
+				fail(errors.New("usage: drop logs <id|slug> [-f]"))
+			}
+			ref = arg
+		}
+	}
+	if ref == "" {
+		fail(errors.New("usage: drop logs <id|slug> [-f]"))
+	}
+	entry, err := store.Get(ref)
+	if err != nil {
+		fail(err)
+	}
+	if entry.Kind != "service" || entry.Service == nil {
+		fail(errors.New("not a service"))
+	}
+	if err := services.Logs(context.Background(), entry, follow, os.Stdout, os.Stderr); err != nil {
+		fail(err)
+	}
+}
+
+func serviceStatus(entry drop.Entry) string {
+	if entry.Service == nil {
+		return ""
+	}
+	if entry.Service.Status == "" {
+		return "unknown"
+	}
+	return entry.Service.Status
 }
 
 func publish(store *drop.Store, args []string) {

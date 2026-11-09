@@ -18,6 +18,11 @@ drop url d-0123456789abcdef
 drop rm d-0123456789abcdef
 drop slug d-0123456789abcdef docs-v2
 drop access d-0123456789abcdef public
+drop service ./app --slug app --public
+drop start app
+drop stop app
+drop restart app
+drop logs app -f
 ```
 
 Each publish prints a public URL on the first line and `<id> <slug>
@@ -30,6 +35,47 @@ comes from the file or folder name. `drop web` and `drop docs` are accepted
 aliases but do not change the output. A single file is copied under its base
 name. A directory is copied recursively; symlinks and non-regular files are
 skipped.
+
+## Services
+
+`drop service <dir>` builds and runs a long-lived HTTP service in a rootless
+podman container. The command waits for a health check and prints the public
+URL, so the agent can publish in one step.
+
+The directory must contain a `Containerfile` or `Dockerfile`, or a `drop.json`
+with an `image`:
+
+```json
+{"port": 3000, "health": "/healthz", "cmd": ["python", "app.py"]}
+```
+
+`port` is the port inside the container (default 3000); `health` is the path
+used for readiness (default `/`); `cmd` overrides the image command. With an
+`image` and no Containerfile, the source directory is mounted read-only at
+`/app` with `WORKDIR /app`. With a Containerfile, the image contains the code
+and the directory is not mounted.
+
+Containers are named `drop-<slug>`, run rootless without `--privileged`,
+`--network host` or a podman socket, and publish only on `127.0.0.1` at a random
+port chosen by the manager. They are labeled `nit.drop.id=<id>`. The proxy
+never trusts the port stored in `entry.json`; it asks podman for the live
+mapping. Containers survive a nit-gui restart and are reconnected or started on
+boot.
+
+`/nit/d/<slug>/...` proxies every method, WebSocket upgrade, SSE stream and
+API request to the container. The proxy sets `X-Forwarded-Prefix` and
+`X-Forwarded-Proto`, forces the upstream `Host` to loopback, and removes
+`nit_gate`, `Authorization` and `X-Nit-*` headers. Cookies set by a service are
+scoped to its own `/d/<slug>/` path. The application must be prefix-aware:
+absolute links such as `/assets/app.js` are not rewritten. Use relative URLs,
+a configured base path or `X-Forwarded-Prefix`.
+
+A private service requires `nit_gate` and returns 404 to anonymous visitors. A
+public service is anonymous. Write operations still require the manager cookie
+and the origin guard. `drop rm` stops and removes the container; the source
+directory is never deleted. `--expire 2w` stops and removes the container when
+the entry expires. Logs are available through `drop logs` (podman's `k8s-file`
+driver, 10 MB cap per container).
 
 ## Model
 
@@ -70,6 +116,16 @@ PDF and images are served inline and left to the browser.
   access to nit-gui API cookies. Self-contained scripts, styles and images
   work. External images and scripts are not blocked; publish only content you
   trust.
+- Services run as rootless podman containers with `no-new-privileges` and all
+  capabilities dropped. They can still reach the network and run arbitrary code
+  from the directory, so publish only trusted code. A Containerfile build runs
+  as your user. Do not point `drop service` at your home directory or at the
+  drop store.
+- The browser is still on one origin with nit-gui. A service opened by the
+  logged-in owner can call the nit API from its JavaScript. Removing cookies
+  from the proxy protects the container process, not the browser. The path-based
+  Funnel URL does not permit a separate origin; treat public services as trusted
+  code.
 - The store is `$NIT_DROP_ROOT` (default `~/.local/share/nit-gui/drop`), one
   `0700` directory per entry with a `0600` `entry.json`. Path traversal and
   `entry.json` requests are rejected. Dotfiles are hidden from the file index.
@@ -88,4 +144,11 @@ Old URLs redirect to the new slug. `drop url <id>` still works.
 | --- | --- | --- |
 | `NIT_DROP_ROOT` | `~/.local/share/nit-gui/drop` | Store directory. |
 | `NIT_DROP_MAX_UPLOAD` | `134217728` | Upload limit in bytes. |
+| `NIT_DROP_PODMAN` | `podman` | Podman binary or wrapper used for services and logs. |
+| `NIT_DROP_BASE_PATH` | empty | Prefix passed to service containers as `NIT_DROP_BASE_PATH`. |
 | `DROP_PUBLIC_BASE` | `https://frankfurt.tailf358cb.ts.net/nit/d/` | Base used by `bin/drop`. |
+
+Rootless podman needs a working user session. If `podman info` reports a stale
+pause process, repair the user systemd session or point `NIT_DROP_PODMAN` at a
+wrapper that runs podman with a writable `XDG_RUNTIME_DIR` and
+`--cgroup-manager=cgroupfs`.

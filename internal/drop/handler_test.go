@@ -18,7 +18,7 @@ func testDropServer(t *testing.T, store *Store, authenticated func(*http.Request
 	t.Helper()
 	mux := http.NewServeMux()
 	mux.Handle("/drop/", NewManager(store, func(*http.Request) bool { return true }, nil, "/pero/", ""))
-	mux.Handle("/d/", NewPublic(store, authenticated, nil, ""))
+	mux.Handle("/d/", NewPublic(store, authenticated, nil, "", nil))
 	server := httptest.NewServer(mux)
 	t.Cleanup(server.Close)
 	return server
@@ -134,7 +134,7 @@ func TestBasePathRedirects(t *testing.T) {
 	}
 	mux := http.NewServeMux()
 	mux.Handle("/drop/", NewManager(store, func(*http.Request) bool { return true }, nil, "/pero/", "/nit"))
-	mux.Handle("/d/", NewPublic(store, nil, nil, "/nit"))
+	mux.Handle("/d/", NewPublic(store, nil, nil, "/nit", nil))
 	server := httptest.NewServer(mux)
 	defer server.Close()
 	client := noRedirectClient()

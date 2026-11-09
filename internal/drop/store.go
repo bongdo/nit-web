@@ -44,6 +44,20 @@ type Entry struct {
 	Expires *time.Time `json:"expires,omitempty"`
 	Files   []File     `json:"files"`
 	Size    int64      `json:"size"`
+	Service *Service   `json:"service,omitempty"`
+}
+
+type Service struct {
+	Dir       string   `json:"dir"`
+	Image     string   `json:"image,omitempty"`
+	Container string   `json:"container,omitempty"`
+	Cmd       []string `json:"cmd,omitempty"`
+	Port      int      `json:"port,omitempty"`
+	Health    string   `json:"health,omitempty"`
+	HostPort  int      `json:"hostPort,omitempty"`
+	Status    string   `json:"status,omitempty"`
+	Revision  int64    `json:"revision,omitempty"`
+	Stopped   bool     `json:"stopped,omitempty"`
 }
 
 func (e Entry) Expired(now time.Time) bool {
@@ -102,9 +116,10 @@ func (e Entry) App() string {
 }
 
 type Store struct {
-	root string
-	mu   sync.Mutex
-	now  func() time.Time
+	root     string
+	mu       sync.Mutex
+	now      func() time.Time
+	onDelete func(Entry)
 }
 
 func DefaultRoot() string {
@@ -136,6 +151,19 @@ func (s *Store) Root() string {
 	return s.root
 }
 
+func (s *Store) SetDeleteHook(fn func(Entry)) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.onDelete = fn
+}
+
+func (s *Store) deleteLocked(entry Entry) error {
+	if s.onDelete != nil {
+		s.onDelete(entry)
+	}
+	return os.RemoveAll(filepath.Join(s.root, entry.ID))
+}
+
 func (s *Store) List() ([]Entry, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -159,7 +187,7 @@ func (s *Store) listLocked() ([]Entry, error) {
 			continue
 		}
 		if entry.Expired(now) {
-			_ = os.RemoveAll(filepath.Join(s.root, entry.ID))
+			_ = s.deleteLocked(entry)
 			continue
 		}
 		entries = append(entries, entry)
@@ -218,7 +246,7 @@ func (s *Store) bySlugLocked(slug string) (Entry, error) {
 
 func (s *Store) liveLocked(entry Entry) (Entry, error) {
 	if entry.Expired(s.now()) {
-		_ = os.RemoveAll(filepath.Join(s.root, entry.ID))
+		_ = s.deleteLocked(entry)
 		return Entry{}, ErrNotFound
 	}
 	return entry, nil
@@ -231,7 +259,7 @@ func (s *Store) Delete(ref string) error {
 	if err != nil {
 		return err
 	}
-	return os.RemoveAll(filepath.Join(s.root, entry.ID))
+	return s.deleteLocked(entry)
 }
 
 func (s *Store) SetSlug(ref, slug string) (Entry, error) {
@@ -292,6 +320,72 @@ func (s *Store) SetForever(ref string, forever bool) (Entry, error) {
 		entry.Expires = &expires
 	}
 	if err := s.writeEntry(entry); err != nil {
+		return Entry{}, err
+	}
+	return entry, nil
+}
+
+func (s *Store) Update(ref string, edit func(*Entry)) (Entry, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	entry, err := s.resolveLocked(ref)
+	if err != nil {
+		return Entry{}, err
+	}
+	edit(&entry)
+	if err := s.writeEntry(entry); err != nil {
+		return Entry{}, err
+	}
+	return entry, nil
+}
+
+func (s *Store) CreateService(dir, name string, opts PublishOptions, service Service) (Entry, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if name == "" {
+		name = filepath.Base(filepath.Clean(dir))
+	}
+	id, entryDir, err := s.mkdir()
+	if err != nil {
+		return Entry{}, err
+	}
+	entry := Entry{
+		ID:      id,
+		Name:    cleanName(name),
+		Kind:    "service",
+		Public:  opts.Public,
+		Created: s.now(),
+		Service: &service,
+	}
+	if opts.TTL > 0 {
+		expires := entry.Created.Add(opts.TTL)
+		entry.Expires = &expires
+	}
+	if strings.TrimSpace(opts.Slug) != "" {
+		slug := NormalizeSlug(opts.Slug)
+		if !validSlug(slug) {
+			_ = os.RemoveAll(entryDir)
+			return Entry{}, ErrInvalidSlug
+		}
+		if s.slugTakenLocked(slug, "") {
+			_ = os.RemoveAll(entryDir)
+			return Entry{}, ErrSlugTaken
+		}
+		entry.Slug = slug
+	} else {
+		entry.Slug = s.uniqueSlugLocked(slugBase(entry))
+	}
+	if entry.Service.Container == "" {
+		entry.Service.Container = containerName(entry.Slug)
+	}
+	if entry.Service.Port == 0 {
+		entry.Service.Port = defaultServicePort
+	}
+	if entry.Service.Health == "" {
+		entry.Service.Health = "/"
+	}
+	if err := s.writeEntry(entry); err != nil {
+		_ = os.RemoveAll(entryDir)
 		return Entry{}, err
 	}
 	return entry, nil

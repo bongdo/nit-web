@@ -230,6 +230,9 @@ drop url d-0123456789abcdef
 drop rm d-0123456789abcdef
 drop slug d-0123456789abcdef docs-v2
 drop access d-0123456789abcdef public
+drop service ./app --slug app --public
+drop start|stop|restart app
+drop logs app -f
 ```
 
 Every publication gets an id, a slug and a URL such as
@@ -237,6 +240,19 @@ Every publication gets an id, a slug and a URL such as
 default and lives forever. `--public` allows anonymous reads; `--expire 2w`
 deletes it after two weeks. `drop slug` adds the old slug to aliases, so old
 links keep working. Several selected files become one publication.
+
+`drop service <dir>` publishes a long-lived application in a rootless podman
+container. The directory needs a `Containerfile`/`Dockerfile` or a `drop.json`
+with `{"image": "...", "port": 3000, "health": "/healthz", "cmd": [...]}`. The
+manager builds and runs it, waits for the health check and prints
+`/nit/d/<slug>/`. Containers publish only on `127.0.0.1` at a random port, are
+named `drop-<slug>`, carry `nit.drop.id` labels and survive a nit-gui restart.
+The proxy supports WebSocket, SSE and all HTTP methods, forwards
+`X-Forwarded-Prefix`/`X-Forwarded-Proto`, and strips `nit_gate`, `Authorization`
+and `X-Nit-*`. Applications must use relative URLs or honor the forwarded
+prefix; absolute `/assets` paths are not rewritten. `drop start`, `drop stop`,
+`drop restart`, `drop logs` and `drop rm` manage the container. `drop rm` never
+deletes the source directory.
 
 A publication with `index.html` is a static site: the root is the page itself
 and its assets are served from the same path. A single file is served directly;
@@ -256,7 +272,9 @@ become permanent on read; explicit 1h/24h/30d expiries remain. Expired entries
 are removed when the list or a public path is read.
 
 `NIT_DROP_ROOT` moves the store. `NIT_DROP_MAX_UPLOAD` changes the upload limit
-in bytes. `DROP_PUBLIC_BASE` is used by the CLI only; `bin/drop` defaults it to
+in bytes. `NIT_DROP_PODMAN` selects the podman binary (default `podman`).
+`NIT_DROP_BASE_PATH` is passed to containers as a convenience; the proxy always
+sends the authoritative `X-Forwarded-Prefix`. `DROP_PUBLIC_BASE` is used by the CLI only; `bin/drop` defaults it to
 the public `/nit/d/` URL.
 
 ## Workspaces

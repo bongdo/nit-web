@@ -1,6 +1,7 @@
 import { X } from "lucide-react";
 import type { Agent, Model, ModelRef } from "../lib/types";
 import { THEMES, type Theme } from "../lib/themes";
+import { BACKGROUNDS } from "../lib/backgrounds";
 import type { SceneSetting } from "./Scene";
 import type { TimeFormat } from "../lib/time";
 import { modelKey } from "../lib/format";
@@ -270,18 +271,11 @@ export function SettingsPanel({
               value={background}
               onChange={(event) => onBackground(event.target.value as SceneSetting)}
             >
-              <option value="spotlight">Contours · spotlight</option>
-              <option value="magnetic">Contours · magnetic</option>
-              <option value="split">Contours · split</option>
-              <option value="ripple">Contours · ripple</option>
-              <option value="diagonal">Contours · diagonal</option>
-              <option value="bend">Bend</option>
-              <option value="warp">Warp</option>
-              <option value="flow">Flow</option>
-              <option value="sheen">Sheen</option>
-              <option value="fold">Fold</option>
-              <option value="spiral">Spiral</option>
-              <option value="random">Random per new chat</option>
+              {BACKGROUNDS.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.menu}
+                </option>
+              ))}
             </Select>
           </label>
 

@@ -81,6 +81,7 @@ import { WorkspacePicker } from "./components/WorkspacePicker";
 import { SettingsPanel } from "./components/SettingsPanel";
 import { ReviewSheet, type ReviewAction } from "./components/ReviewSheet";
 import { ThemePicker } from "./components/ThemePicker";
+import { BackgroundPicker } from "./components/BackgroundPicker";
 import { FormCard } from "./components/FormCard";
 import { PermissionCard } from "./components/PermissionCard";
 import { BootScreen, OfflineScreen } from "./components/StatusScreens";
@@ -159,6 +160,7 @@ const COMMANDS: ComposerCommand[] = [
   { id: "fork", label: "/fork", description: "Fork before the last message" },
   { id: "retry", label: "/retry", description: "Repeat the last prompt" },
   { id: "theme", label: "/theme", description: "Pick a color theme" },
+  { id: "backgrounds", label: "/backgrounds", description: "Pick a background scene" },
   { id: "clear", label: "/clear", description: "Clear the input" },
   { id: "help", label: "/help", description: "Show command help" },
 ];
@@ -208,6 +210,7 @@ export default function App({
   const [pickerOpen, setPickerOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [themeOpen, setThemeOpen] = useState(false);
+  const [backgroundOpen, setBackgroundOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(() => localStorage.getItem("nit-gui.collapsed") === "1");
   const [sidebarMode, setSidebarMode] = useState<"button" | "hover" | "swipe">(() => {
     const stored = localStorage.getItem("nit-gui.sidebar-mode");
@@ -1392,6 +1395,12 @@ export default function App({
   const closeSettings = useCallback(() => setSettingsOpen(false), []);
   const openTheme = useCallback(() => setThemeOpen(true), []);
   const closeTheme = useCallback(() => setThemeOpen(false), []);
+  const openBackground = useCallback(() => setBackgroundOpen(true), []);
+  const closeBackground = useCallback(() => setBackgroundOpen(false), []);
+  const changeBackground = useCallback((next: SceneSetting) => {
+    setBackground(next);
+    localStorage.setItem("nit-gui.background", next);
+  }, []);
   const changeTheme = useCallback(
     (next: Theme) => {
       if (next === theme) return;
@@ -1982,9 +1991,12 @@ export default function App({
         case "theme":
           setThemeOpen(true);
           break;
+        case "backgrounds":
+          setBackgroundOpen(true);
+          break;
         case "help":
           setBanner(
-            "Commands: /new /dir /instances /compact /revert /fork /retry /theme /clear /help · Shortcuts: Alt+N new chat, Alt+J/K or Ctrl+Tab/Shift+Ctrl+Tab next/prev chat (Tab in a text field completes /commands and accepts the highlighted suggestion), Alt+←/→ this dir / mine / all, Ctrl/⌘K search",
+            "Commands: /new /dir /instances /compact /revert /fork /retry /theme /backgrounds /clear /help · Shortcuts: Alt+N new chat, Alt+J/K or Ctrl+Tab/Shift+Ctrl+Tab next/prev chat (Tab in a text field completes /commands and accepts the highlighted suggestion), Alt+←/→ this dir / mine / all, Ctrl/⌘K search",
           );
           break;
       }
@@ -2093,6 +2105,10 @@ export default function App({
           if (!event.repeat) setThemeOpen(false);
           return;
         }
+        if (backgroundOpen) {
+          if (!event.repeat) setBackgroundOpen(false);
+          return;
+        }
         if (settingsOpen) {
           if (!event.repeat) setSettingsOpen(false);
           return;
@@ -2129,6 +2145,7 @@ export default function App({
     swipe.close,
     swipe.open,
     themeOpen,
+    backgroundOpen,
     pickerOpen,
   ]);
 
@@ -2250,6 +2267,7 @@ export default function App({
             notify={notifications}
             onNotify={() => void toggleNotify()}
             onTheme={openTheme}
+            onBackground={openBackground}
             instance={instance}
             onInstances={onOpenInstances}
             isRunning={isRunning}
@@ -2510,10 +2528,7 @@ export default function App({
             setMotion(value);
             localStorage.setItem("nit-gui.motion", value);
           }}
-          onBackground={(value) => {
-            setBackground(value);
-            localStorage.setItem("nit-gui.background", value);
-          }}
+          onBackground={changeBackground}
           onInstances={onOpenInstances}
           onClose={closeSettings}
         />
@@ -2538,6 +2553,14 @@ export default function App({
 
       {themeOpen && (
         <ThemePicker theme={theme} onPick={changeTheme} onClose={closeTheme} />
+      )}
+
+      {backgroundOpen && (
+        <BackgroundPicker
+          background={background}
+          onPick={changeBackground}
+          onClose={closeBackground}
+        />
       )}
     </div>
   );

@@ -17,6 +17,7 @@ import {
   EyeOff,
   Folder,
   FolderOpen,
+  Layers,
   MessageSquare,
   Monitor,
   Moon,
@@ -275,6 +276,7 @@ export const Sidebar = memo(function Sidebar({
   notify,
   onNotify,
   onTheme,
+  onBackground,
   instance,
   onInstances,
   isRunning,
@@ -317,6 +319,7 @@ export const Sidebar = memo(function Sidebar({
   notify: boolean;
   onNotify: () => void;
   onTheme: () => void;
+  onBackground: () => void;
   instance: string;
   onInstances: () => void;
   isRunning: (id: string) => boolean;
@@ -724,6 +727,15 @@ export const Sidebar = memo(function Sidebar({
           aria-label={`Theme: ${themeLabel(theme)}`}
         >
           <ThemeIcon theme={theme} />
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          onClick={onBackground}
+          title="Backgrounds"
+          aria-label="Backgrounds"
+        >
+          <Layers />
         </Button>
         <Button
           variant="ghost"

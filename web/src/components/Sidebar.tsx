@@ -336,6 +336,7 @@ export const Sidebar = memo(function Sidebar({
   onShowOlder: () => void;
 }) {
   const [now, setNow] = useState(Date.now());
+  const [fading, setFading] = useState(false);
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
   const autoExpanded = useRef<string | null>(null);
   const modKey =
@@ -477,19 +478,10 @@ export const Sidebar = memo(function Sidebar({
     const container = listRef.current;
     if (!container || orderSignature === lastOrder.current) return;
     const rows = Array.from(container.querySelectorAll<HTMLElement>("[data-session-row]"));
-    const offsetIn = (row: HTMLElement) => {
-      let y = 0;
-      let node: HTMLElement | null = row;
-      while (node && node !== container) {
-        y += node.offsetTop;
-        node = node.offsetParent as HTMLElement | null;
-      }
-      return y;
-    };
     const next = new Map<string, number>();
     for (const row of rows) {
       const id = row.dataset.sessionRow;
-      if (id) next.set(id, offsetIn(row));
+      if (id) next.set(id, row.offsetTop);
     }
     if (lastOrder.current && animated) {
       for (const row of rows) {
@@ -509,6 +501,16 @@ export const Sidebar = memo(function Sidebar({
     positions.current = next;
     lastOrder.current = orderSignature;
   }, [animated, orderSignature]);
+
+  useLayoutEffect(() => {
+    const container = listRef.current;
+    if (!container) return;
+    const update = () => setFading(container.scrollHeight > container.clientHeight + 1);
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(container);
+    return () => observer.disconnect();
+  });
 
   useEffect(() => {
     if (!selectedId || selectedRank === null) return;
@@ -656,60 +658,68 @@ export const Sidebar = memo(function Sidebar({
         </Button>
       </div>
 
-      <div
-        ref={listRef}
-        className="scrollbar-thin relative min-h-0 flex-1 overflow-y-auto px-2 pb-2"
-      >
-        {loading && sessions.length === 0 ? (
-          <div className="space-y-2 px-1 py-2">
-            {[0, 1, 2, 3].map((item) => (
-              <div key={item} className="space-y-1.5 rounded-lg px-2 py-2">
-                <div className="bg-muted h-3 w-3/4 animate-pulse rounded" />
-                <div className="bg-muted h-2 w-1/2 animate-pulse rounded" />
-              </div>
-            ))}
-          </div>
-        ) : visible.length === 0 ? (
-          <div className="text-muted-foreground flex flex-col items-center gap-2 px-3 py-10 text-center text-xs">
-            <MessageSquare className="size-5 opacity-60" />
-            {search
-              ? "No chats match."
-              : scope === "directory"
-                ? "No chats in this workspace yet."
-                : "No chats yet."}
-          </div>
-        ) : (
-          <div className="relative space-y-0.5">
-            {visible.slice(0, runningFrom).map(renderRow)}
-            {(hasMore || olderCount > 0) && (
-              <button
-                type="button"
-                onClick={olderCount > 0 ? onShowOlder : onLoadMore}
-                disabled={olderCount === 0 && loadingMore}
-                className="text-muted-foreground hover:bg-accent/60 hover:text-foreground mx-1.5 flex w-[calc(100%-0.75rem)] items-center justify-center rounded-lg py-2 text-[11px] disabled:opacity-60"
-              >
-                {olderCount > 0
-                  ? `Load older chats (${olderCount})`
-                  : loadingMore
-                    ? "Loading older chats…"
-                    : "Load older chats"}
-              </button>
-            )}
-            {runningFrom < visible.length && (
-              <div className="bg-card sticky -bottom-2 z-10 -mx-2 px-2 pb-2">
-                <div className="text-muted-foreground flex items-center gap-2 px-2 pt-3 pb-1 font-mono text-[9px] tracking-[0.12em] uppercase">
-                  <span className="bg-success size-1.5 rounded-full" />
-                  <span>Running</span>
-                  <span className="text-muted-foreground/70 tabular-nums">
-                    {runningGroupCount}
-                  </span>
-                  <span className="bg-border h-px flex-1 opacity-60" />
+      <div className="flex min-h-0 flex-1 flex-col">
+        <div
+          ref={listRef}
+          className={cn(
+            "scrollbar-thin relative min-h-0 overflow-y-auto px-2",
+            fading
+              ? "pb-8 [mask-image:linear-gradient(to_bottom,black_calc(100%_-_2rem),transparent)]"
+              : "pb-2",
+          )}
+        >
+          {loading && sessions.length === 0 ? (
+            <div className="space-y-2 px-1 py-2">
+              {[0, 1, 2, 3].map((item) => (
+                <div key={item} className="space-y-1.5 rounded-lg px-2 py-2">
+                  <div className="bg-muted h-3 w-3/4 animate-pulse rounded" />
+                  <div className="bg-muted h-2 w-1/2 animate-pulse rounded" />
                 </div>
-                {visible.slice(runningFrom).map(renderRow)}
-              </div>
-            )}
+              ))}
+            </div>
+          ) : visible.length === 0 ? (
+            <div className="text-muted-foreground flex flex-col items-center gap-2 px-3 py-10 text-center text-xs">
+              <MessageSquare className="size-5 opacity-60" />
+              {search
+                ? "No chats match."
+                : scope === "directory"
+                  ? "No chats in this workspace yet."
+                  : "No chats yet."}
+            </div>
+          ) : (
+            <div className="relative space-y-0.5">
+              {visible.slice(0, runningFrom).map(renderRow)}
+              {(hasMore || olderCount > 0) && (
+                <button
+                  type="button"
+                  onClick={olderCount > 0 ? onShowOlder : onLoadMore}
+                  disabled={olderCount === 0 && loadingMore}
+                  className="text-muted-foreground hover:bg-accent/60 hover:text-foreground mx-1.5 flex w-[calc(100%-0.75rem)] items-center justify-center rounded-lg py-2 text-[11px] disabled:opacity-60"
+                >
+                  {olderCount > 0
+                    ? `Load older chats (${olderCount})`
+                    : loadingMore
+                      ? "Loading older chats…"
+                      : "Load older chats"}
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+        {runningFrom < visible.length && (
+          <div className="max-h-[70%] shrink-0 overflow-y-auto px-2">
+            <div className="text-muted-foreground flex items-center gap-2 px-2 pt-3 pb-1 font-mono text-[9px] tracking-[0.12em] uppercase">
+              <span className="bg-success size-1.5 rounded-full" />
+              <span>Running</span>
+              <span className="text-muted-foreground/70 tabular-nums">
+                {runningGroupCount}
+              </span>
+              <span className="bg-border h-px flex-1 opacity-60" />
+            </div>
+            {visible.slice(runningFrom).map(renderRow)}
           </div>
         )}
+        <div className="flex-1" />
       </div>
 
       <div className="border-border text-muted-foreground flex items-center gap-0.5 border-t px-1.5 py-1.5 text-[10px]">

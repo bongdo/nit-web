@@ -44,7 +44,10 @@ export function BackgroundPicker({
             <button
               key={item.id}
               type="button"
-              onClick={() => onPick(item.id)}
+              onClick={() => {
+                onPick(item.id);
+                onClose();
+              }}
               onPointerEnter={() => setHovered(item.id)}
               onPointerLeave={() => setHovered(null)}
               onFocus={() => setHovered(item.id)}

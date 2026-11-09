@@ -69,8 +69,8 @@ func TestAuthLoginAndSession(t *testing.T) {
 		t.Fatal("login set no cookie")
 	}
 	cookie := cookies[0]
-	if !cookie.HttpOnly || cookie.SameSite != http.SameSiteStrictMode {
-		t.Fatal("cookie is not HttpOnly/Strict")
+	if !cookie.HttpOnly || cookie.SameSite != http.SameSiteLaxMode || cookie.Path != "/" {
+		t.Fatal("cookie is not HttpOnly/Lax with root path")
 	}
 
 	page := authRequest(http.MethodGet, "/", "")
@@ -121,6 +121,13 @@ func TestAuthSecureCookieOnPublicHost(t *testing.T) {
 	}
 }
 
+func TestSessionTokenSharedWithPeroAndTerm(t *testing.T) {
+	const token = "v1.2000000000.baa6SCK3SkFG1E7DKlobpA735zGYAznmh2p_U3wOIaQ"
+	if !validSessionToken(gateSecret("fixture"), token, time.Unix(1900000000, 0)) {
+		t.Fatal("shared session token rejected")
+	}
+}
+
 func TestSafeNext(t *testing.T) {
 	cases := map[string]string{
 		"":                     "/nit/",
@@ -152,13 +159,9 @@ func TestAllowedOriginPublicHost(t *testing.T) {
 }
 
 func TestAllowedOriginNull(t *testing.T) {
-	s := &Server{
-		basePath: "/nit",
-		auth: &authGate{
-			sessions: map[string]time.Time{"token": time.Now().Add(time.Hour)},
-			now:      time.Now,
-		},
-	}
+	gate := testAuthGate(t)
+	gate.base = "/nit"
+	s := &Server{basePath: "/nit", auth: gate}
 	login := httptest.NewRequest(http.MethodPost, "http://127.0.0.1:7791/auth", nil)
 	login.Header.Set("Origin", "null")
 	if !s.allowedOrigin(login) {
@@ -169,9 +172,25 @@ func TestAllowedOriginNull(t *testing.T) {
 	if s.allowedOrigin(api) {
 		t.Fatal("null origin accepted without a session")
 	}
-	api.AddCookie(&http.Cookie{Name: authCookieName, Value: "token"})
+	api.AddCookie(&http.Cookie{Name: authCookieName, Value: newSessionToken(gate.secret, gate.now())})
 	if !s.allowedOrigin(api) {
 		t.Fatal("null origin rejected with a session")
+	}
+}
+
+func TestAuthSessionExpiresAfterSevenDays(t *testing.T) {
+	gate := testAuthGate(t)
+	now := time.Date(2026, 11, 9, 12, 0, 0, 0, time.UTC)
+	gate.now = func() time.Time { return now }
+	token := newSessionToken(gate.secret, now)
+	if !validSessionToken(gate.secret, token, now.Add(6*24*time.Hour)) {
+		t.Fatal("session expired early")
+	}
+	if validSessionToken(gate.secret, token, now.Add(7*24*time.Hour)) {
+		t.Fatal("session survived its seven day ttl")
+	}
+	if validSessionToken(gateSecret("other"), token, now) {
+		t.Fatal("token accepted with a different password")
 	}
 }
 

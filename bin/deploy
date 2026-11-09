@@ -104,8 +104,9 @@ deploy_frankfurt() {
     . "$auth_env"
     set +a
   fi
-  if [ -z "${NIT_GUI_PASSWORD_HASH:-}" ] && [ -z "${NIT_GUI_PASSWORD:-}" ]; then
-    echo "deploy: no auth password; run bin/auth first or set NIT_GUI_PASSWORD_HASH" >&2
+  if [ -z "${NIT_GATE_PASSWORD_HASH:-}" ] && [ -z "${NIT_GUI_PASSWORD_HASH:-}" ] &&
+    [ -z "${NIT_GATE_PASSWORD:-}" ] && [ -z "${NIT_GUI_PASSWORD:-}" ]; then
+    echo "deploy: no auth password; run bin/auth first or set NIT_GATE_PASSWORD_HASH" >&2
     return 1
   fi
 

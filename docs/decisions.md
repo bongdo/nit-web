@@ -747,3 +747,15 @@ Rejected: SQLite or app-side review state (a second source of truth); editing va
 Cost: decisions are asynchronous, up to one model turn each; the queue refreshes on a 10-second poll.
 
 
+
+## 2026-11-09 — One stateless gate for nit-gui, pero-gui and term-gui
+
+Context: the three apps each had their own password, cookie name and in-memory session map. Every restart logged the user out, and a login in one app did not open the others.
+
+Decision: all three verify the same PBKDF2 hash from `~/.config/nit-gui/auth.env` and accept one HMAC-signed `nit_gate` cookie on path `/`, carrying only an expiry seven days out. The apps stay independent processes; no central auth service or proxy was added.
+
+Why: a signed expiry needs no shared store, survives restarts naturally, and works across ports because cookies are host-scoped. Rotating the password changes the hash and invalidates every session.
+
+Rejected: Caddy forward-auth in front of all three (term is funneled on its own port, so it would need a new proxy layer); shared session database (new service and dependency); per-app cookies with a shared secret (still three prompts).
+
+Cost: the same small token and PBKDF2 code is duplicated in three repos; logout clears the cookie, but an already copied token stays valid until its expiry; the tailnet IP and the public hostname still require separate logins.

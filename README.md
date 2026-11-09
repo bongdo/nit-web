@@ -20,7 +20,7 @@ fallback for every one of them.
 
 | Capability | Runs on | State |
 | --- | --- | --- |
-| Authentication | nit-gui host, `/auth` + session cookie | one shared password |
+| Authentication | nit-gui host, `/auth` + `nit_gate` cookie | one shared password and session for nit-gui, pero-gui and term-gui |
 | Sessions, messages, models, agents | each OpenCode instance | source of truth |
 | Instance list, SSH tunnels | nit-gui host, `~/.config/nit-gui/instances.json` | implemented |
 | STT | browser Web Speech in Chrome, Edge and Safari; host `/api/stt` fallback elsewhere | optional |
@@ -39,7 +39,8 @@ Spelling is the remaining exception; see [Known limits](#known-limits).
 | Where | What |
 | --- | --- |
 | Each OpenCode instance | Sessions, messages, models, agents, working directories. |
-| nit-gui on the host | Instance definitions and SSH tunnels; hidden chats, done/failed markers, drafts, preferred model and agent in `ui-state.json`, keyed by instance; auth sessions in memory; uploads under `/tmp`. |
+| nit-gui on the host | Instance definitions and SSH tunnels; hidden chats, done/failed markers, drafts, preferred model and agent in `ui-state.json`, keyed by instance; the auth cookie is signed and stateless; uploads under
+`/tmp`. |
 | Browser `localStorage` | Device preferences: theme, sidebar mode, motion, background, spelling/autofix, notifications, scope, personal spelling dictionary. Workspace, recent workspaces and selected chat are per instance; the default instance keeps the old unscoped keys. Drafts are mirrored locally only as an instant-load cache. |
 | Browser memory | Transcript cache (up to 12 MiB), running/waiting state, form state, current stream. |
 
@@ -138,7 +139,7 @@ keep background SSE connections.
 Open <http://127.0.0.1:7788>. `bin/run` installs frontend dependencies if
 needed, builds the web bundle when sources are newer, builds the Go binary and
 serves it on loopback. This is local development, not a deployment. Local
-`bin/run` has no login unless `NIT_GUI_PASSWORD` or `NIT_GUI_PASSWORD_HASH` is
+`bin/run` has no login unless `NIT_GATE_PASSWORD` or `NIT_GATE_PASSWORD_HASH` is
 set.
 
 ## Deploy
@@ -150,16 +151,21 @@ bin/funnel      # once: public HTTPS through Tailscale Funnel
 ```
 
 `bin/auth` writes `~/.config/nit-gui/auth.env` with mode `0600` and a
-PBKDF2-SHA256 hash, then prints the password once. Rotate it with
-`bin/auth -force` and restart with `bin/frankfurt`. `bin/funnel` runs the
-one-time `sudo tailscale funnel` command that enables the public URL.
+PBKDF2-SHA256 hash, then prints the password once. The same hash is the one
+password and session key for nit-gui, pero-gui and term-gui: `bin/auth` in
+`pero-gui` or `term-gui` rotates the same file. Rotate it with `bin/auth -force`
+and restart the apps. `bin/funnel` runs the one-time `sudo tailscale funnel`
+command that enables the public URL.
 
 `bin/frankfurt` builds the web bundle with base `/nit/`, restarts the app on
 `127.0.0.1:7791`, and starts a user Caddy on `127.0.0.1:7792`. Caddy is
 loopback-only; Tailscale Funnel terminates HTTPS and exposes the app at
-`https://frankfurt.tailf358cb.ts.net/nit/`. The app serves `/auth`, keeps an
-HttpOnly Secure SameSite=Strict session cookie, and blocks an IP for 15 minutes
-after 5 wrong passwords.
+`https://frankfurt.tailf358cb.ts.net/nit/`. The app serves `/auth` and keeps a
+signed HttpOnly SameSite=Lax `nit_gate` cookie on path `/` for 7 days. The
+cookie is not kept in memory, so a restart does not log you out; it is shared
+with pero-gui and term-gui on the same host. Browsers still keep separate
+cookies for the tailnet IP and the public hostname. Five wrong passwords block
+an IP for 15 minutes.
 
 The box's public IP is `92.5.143.242`. The OCI security list does not expose
 `80`/`7792`, and `443` is used by another service. The supported public path is
@@ -345,8 +351,10 @@ rewritten to loopback. Credentials in a server URL are discarded.
 | `NIT_GUI_PERO_URL` | Base URL for pero links, default `/pero/`. |
 | `NIT_GUI_TERM_URL` | Base URL for term links, default `/term/`. |
 | `NIT_GUI_AUTH_ENV` | Auth env file sourced by `bin/frankfurt`, default `~/.config/nit-gui/auth.env`. |
-| `NIT_GUI_PASSWORD_HASH` | PBKDF2-SHA256 hash used by the login page. Set by `bin/auth`. |
-| `NIT_GUI_PASSWORD` | Plain password for local development; hashed at startup. Do not use in production. |
+| `NIT_GATE_PASSWORD_HASH` | Shared PBKDF2-SHA256 hash used by nit-gui, pero-gui and term-gui. Set by `bin/auth`. |
+| `NIT_GATE_PASSWORD` | Plain shared password for local development; hashed at startup. Do not use in production. |
+| `NIT_GUI_PASSWORD_HASH` | Old name for `NIT_GATE_PASSWORD_HASH`, still accepted. |
+| `NIT_GUI_PASSWORD` | Old name for `NIT_GATE_PASSWORD`, still accepted. |
 | `NIT_GUI_STATE` | Path to `ui-state.json`, default `$XDG_STATE_HOME/nit-gui/ui-state.json` or `~/.local/state/nit-gui/ui-state.json`. |
 | `NIT_GUI_LANGUAGETOOL` | Path to `languagetool-http-server`; the app starts it lazily. |
 | `NIT_GUI_LANGUAGETOOL_URL` | Use an already running LanguageTool server instead of spawning one. |
@@ -465,10 +473,12 @@ nspell worker. It is not implemented yet.
   `127.0.0.1:7792`; Tailscale Funnel terminates public TLS. The app trusts a
   `Host` name only when it is loopback or listed in `NIT_GUI_ALLOWED_HOSTS`.
 - Every route except `/auth` requires a session cookie. The login page uses a
-  PBKDF2-SHA256 hash (600k rounds), an HttpOnly Secure SameSite=Strict cookie,
-  no-store and a strict CSP. Five wrong passwords block the source IP for 15
-  minutes; 50 failures across all clients block new logins for 5 minutes.
-  Password values are never logged or put in a URL.
+  PBKDF2-SHA256 hash (600k rounds), an HttpOnly Secure SameSite=Lax `nit_gate`
+  cookie on path `/`, no-store and a strict CSP. The cookie is an HMAC-signed
+  expiry, so it survives restarts and is accepted by pero-gui and term-gui on
+  the same hostname; it expires after 7 days. Five wrong passwords block the
+  source IP for 15 minutes; 50 failures across all clients block new logins for
+  5 minutes. Password values are never logged or put in a URL.
 - Instance passwords stay in the Go process and in `instances.json`; they are
   never logged or sent to the browser. SSH hosts are sent only as the sanitized
   connection identifier the editor needs.
@@ -506,8 +516,9 @@ nspell worker. It is not implemented yet.
   `allow-same-origin` is absent, so preview scripts run in an opaque origin and
   cannot read the app, cookies or local storage. Preview code can still make
   network requests, so treat it as untrusted content.
-- There is one shared password, no per-user accounts, database, telemetry or
-  analytics. Sessions live in memory and are lost on restart.
+- There is one shared password for nit-gui, pero-gui and term-gui, no per-user
+  accounts, database, telemetry or analytics. The signed session cookie survives
+  restarts and expires after 7 days.
 
 ## Frontend behaviour
 

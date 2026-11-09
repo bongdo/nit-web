@@ -180,8 +180,8 @@ is not measured here.
 | `NIT_GUI_PUBLIC_HOST` | Funnel hostname, default `frankfurt.tailf358cb.ts.net` |
 | `NIT_GUI_BASE_PATH` | External path prefix, default `/nit` |
 | `NIT_GUI_AUTH_ENV` | Auth env file, default `~/.config/nit-gui/auth.env` |
-| `NIT_GUI_PASSWORD_HASH` | PBKDF2-SHA256 login hash set by `bin/auth` |
-| `NIT_GUI_PASSWORD` | Plain local-development password, hashed at startup |
+| `NIT_GATE_PASSWORD_HASH` | Shared PBKDF2-SHA256 login hash set by `bin/auth` |
+| `NIT_GATE_PASSWORD` | Plain local-development password, hashed at startup |
 | `NIT_GUI_STATE` | Shared UI state path, default `~/.local/state/nit-gui/ui-state.json` |
 | `NIT_GUI_DEPLOY_*` | deploy host, port and directory |
 
@@ -205,10 +205,11 @@ or `NIT_GUI_TTS_TOKEN`) when an audio client is connected. The browser's
   loopback; `bin/frankfurt` binds Caddy to `127.0.0.1:7792` and proxies only to
   `127.0.0.1:7791`. Set `NIT_GUI_ALLOWED_HOSTS` for the public name.
 - The app login is a server-side password page at `/auth`. The password is
-  stored as a PBKDF2-SHA256 hash (600k rounds), the session cookie is HttpOnly,
-  Secure and SameSite=Strict, and the login page sends no-store plus a strict
-  CSP. Five wrong passwords block the source IP for 15 minutes; 50 failures
-  across all clients block new logins for 5 minutes.
+  stored as a PBKDF2-SHA256 hash (600k rounds), the signed `nit_gate` cookie is
+  HttpOnly, Secure, SameSite=Lax and shared with pero-gui and term-gui for
+  7 days, and the login page sends no-store plus a strict CSP. Five wrong
+  passwords block the source IP for 15 minutes; 50 failures across all clients
+  block new logins for 5 minutes.
 - Instance editing is authenticated and writes only on the host. A typed
   password goes to a separate `0600` file; the API never returns it. The TTS hub
   token is read by the Go process and never sent to the browser. The login form and

@@ -59,6 +59,7 @@ type AutoFix = {
 
 const MAX_UPLOAD = 20 << 20;
 const MAX_RECORDING = 120;
+const ASK_PREFIX = /^\s*(?:ask|аск|вопрос)(?=\s|$|[:：,，—–-])/i;
 
 function attachmentId() {
   return `att-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
@@ -170,6 +171,7 @@ export const Composer = memo(function Composer({
   const option = question?.options?.find((item) => item.value === value) ?? null;
   const answerText = option ? "" : value;
   const customAnswer = !question || (question.options?.length ?? 0) === 0 || question.custom !== false;
+  const askMode = !question && ASK_PREFIX.test(answerText);
   const updateValue = (next: string | ((current: string) => string)) => {
     const resolved = typeof next === "function" ? next(valueRef.current) : next;
     valueRef.current = resolved;
@@ -1051,6 +1053,7 @@ export const Composer = memo(function Composer({
         <div
           className={cn(
             "border-border bg-card relative rounded-xl border shadow-sm",
+            askMode && "ask-sheen-card",
             disabled && "opacity-60",
             dropActive && "border-ring ring-ring/30 ring-[3px]",
           )}
@@ -1067,6 +1070,8 @@ export const Composer = memo(function Composer({
             }
           }}
         >
+          {askMode && <span className="ask-sheen-label">ask</span>}
+
           <CommandPalette
             open={paletteOpen}
             items={matches}

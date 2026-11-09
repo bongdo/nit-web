@@ -1815,6 +1815,32 @@
     animation: form-sheen-check 360ms cubic-bezier(0.22, 0.7, 0.2, 1) both;
   }
 
+  .ask-sheen-card::before {
+    content: "";
+    position: absolute;
+    inset: -2px;
+    z-index: 20;
+    pointer-events: none;
+    border-radius: var(--radius-xl);
+    border: 1px solid color-mix(in oklab, var(--attention) 55%, transparent);
+    animation: ask-sheen-frame 2.4s ease-in-out infinite;
+  }
+
+  .ask-sheen-label {
+    position: absolute;
+    top: -0.55rem;
+    left: 0.85rem;
+    z-index: 21;
+    padding: 0 0.3rem;
+    border-radius: 0.2rem;
+    background: var(--card);
+    color: var(--attention);
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+
   .attach-sheen-chip {
     position: relative;
     overflow: hidden;
@@ -1855,6 +1881,7 @@
     .form-sheen-option:has(input:checked)::after,
     .form-sheen-chosen::after,
     .form-sheen-check,
+    .ask-sheen-card::before,
     .attach-sheen-chip,
     .attach-sheen-chip::after {
       animation: none;
@@ -1896,6 +1923,18 @@
     100% {
       opacity: 0;
       transform: translateX(360%);
+    }
+  }
+
+  @keyframes ask-sheen-frame {
+    0%,
+    100% {
+      opacity: 0.45;
+      box-shadow: 0 0 0 0 transparent;
+    }
+    50% {
+      opacity: 1;
+      box-shadow: 0 0 18px color-mix(in oklab, var(--attention) 28%, transparent);
     }
   }
 

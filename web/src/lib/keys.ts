@@ -14,6 +14,19 @@ const EDITABLE =
 const SPACE_ACTIONS =
   "button, a[href], summary, [role='button'], [role='checkbox'], [role='radio'], [role='switch'], [role='menuitem'], [role='option'], [role='tab']";
 
+const LATIN_KEYS = "qwertyuiopasdfghjklzxcvbnm";
+const CYRILLIC_KEYS = "йцукенгшщзфывапролдячсмить";
+
+export function shortcutKeys(event: { key: string; code?: string }): string[] {
+  const keys = new Set<string>();
+  if (event.code?.startsWith("Key")) keys.add(event.code.slice(3).toLowerCase());
+  const key = event.key.toLowerCase();
+  if (key.length === 1 && key >= "a" && key <= "z") keys.add(key);
+  const index = CYRILLIC_KEYS.indexOf(key);
+  if (index !== -1) keys.add(LATIN_KEYS[index] as string);
+  return [...keys];
+}
+
 export function isEditableTarget(target: KeyTarget): boolean {
   return Boolean(target?.closest(EDITABLE));
 }

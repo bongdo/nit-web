@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isEditableTarget, shouldCaptureKey, type KeyEvent } from "./keys";
+import { isEditableTarget, shouldCaptureKey, shortcutKeys, type KeyEvent } from "./keys";
 
 const key = (value: string, overrides: Partial<KeyEvent> = {}): KeyEvent => ({
   key: value,
@@ -15,6 +15,36 @@ const target = (kind: "editable" | "action" | "plain") => ({
     (kind === "action" && selector.includes("button"))
       ? {}
       : null,
+});
+
+describe("shortcutKeys", () => {
+  it("reads the letter from the physical code", () => {
+    expect(shortcutKeys({ key: "n", code: "KeyN" })).toEqual(["n"]);
+    expect(shortcutKeys({ key: "N", code: "KeyN" })).toEqual(["n"]);
+  });
+
+  it("keeps a hotkey working on the russian layout", () => {
+    expect(shortcutKeys({ key: "т", code: "KeyN" })).toContain("n");
+    expect(shortcutKeys({ key: "Т", code: "KeyN" })).toContain("n");
+    expect(shortcutKeys({ key: "л", code: "KeyK" })).toContain("k");
+    expect(shortcutKeys({ key: "о", code: "KeyJ" })).toContain("j");
+    expect(shortcutKeys({ key: "щ", code: "KeyO" })).toContain("o");
+    expect(shortcutKeys({ key: "я", code: "KeyZ" })).toContain("z");
+  });
+
+  it("falls back to the russian letter when the code is missing or phonetic", () => {
+    expect(shortcutKeys({ key: "т" })).toContain("n");
+    expect(shortcutKeys({ key: "т", code: "KeyT" })).toContain("n");
+    expect(shortcutKeys({ key: "н", code: "KeyN" })).toContain("n");
+    expect(shortcutKeys({ key: "й", code: "KeyQ" })).toContain("q");
+    expect(shortcutKeys({ key: "ь", code: "KeyM" })).toContain("m");
+  });
+
+  it("ignores non-letter keys", () => {
+    expect(shortcutKeys({ key: "Enter", code: "Enter" })).toEqual([]);
+    expect(shortcutKeys({ key: " ", code: "Space" })).toEqual([]);
+    expect(shortcutKeys({ key: "Escape" })).toEqual([]);
+  });
 });
 
 describe("shouldCaptureKey", () => {

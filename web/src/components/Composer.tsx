@@ -18,7 +18,7 @@ import { loadDraftFiles, saveDraftFiles } from "../lib/draft-files";
 import { loadDraftState, saveDraftState, type DraftState } from "../lib/drafts";
 import { questionAnswer, questionFields } from "../lib/forms";
 import { formatBytes, quoteText } from "../lib/format";
-import { shouldCaptureKey } from "../lib/keys";
+import { shouldCaptureKey, shortcutKeys } from "../lib/keys";
 import { applyIssue, issueAtCaret, issueKey, maskedAt, safeAutoFix, type SpellIssue } from "../lib/spell";
 import { useSpellcheck } from "../hooks/useSpellcheck";
 import { checkSpelling } from "../lib/spell-client";
@@ -1337,7 +1337,7 @@ export const Composer = memo(function Composer({
                 onKeyDown={(event) => {
                   if (
                     (event.metaKey || event.ctrlKey) &&
-                    event.key.toLowerCase() === "z" &&
+                    shortcutKeys(event).includes("z") &&
                     !event.shiftKey &&
                     undoFix
                   ) {

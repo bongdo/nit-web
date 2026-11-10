@@ -63,6 +63,7 @@ import {
   splitByRecency,
   type Scope,
 } from "./lib/sessions";
+import { shortcutKeys } from "./lib/keys";
 import { cn } from "./lib/utils";
 import { instanceScopedKey } from "./lib/instances";
 import { saveDraftFiles } from "./lib/draft-files";
@@ -2120,27 +2121,27 @@ export default function App({
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       const mod = event.metaKey || event.ctrlKey;
-      const key = event.key.toLowerCase();
-      if (mod && key === "k") {
+      const keys = shortcutKeys(event);
+      if (mod && keys.includes("k")) {
         event.preventDefault();
         setSidebarOpen(true);
         window.setTimeout(() => searchRef.current?.focus(), 0);
         return;
       }
-      if (event.altKey && event.code === "KeyO") {
+      if (event.altKey && keys.includes("o")) {
         event.preventDefault();
         setPickerOpen((value) => !value);
         return;
       }
-      if ((event.altKey && event.code === "KeyN") || (mod && key === "n")) {
+      if ((event.altKey || mod) && keys.includes("n")) {
         event.preventDefault();
         newChat();
         return;
       }
-      if (event.altKey && (event.code === "KeyJ" || event.code === "KeyK")) {
+      if (event.altKey && (keys.includes("j") || keys.includes("k"))) {
         if (cycleSessions.length === 0) return;
         event.preventDefault();
-        const step = event.code === "KeyJ" ? 1 : -1;
+        const step = keys.includes("j") ? 1 : -1;
         const nextId = nextSessionId(cycleSessions, selectedIdRef.current, step);
         if (nextId) selectSession(nextId);
         return;

@@ -1816,22 +1816,23 @@
   .ask-sheen-word {
     position: relative;
     border-radius: 3px;
-    background: color-mix(in oklab, var(--attention) 20%, transparent);
   }
 
-  .ask-sheen-badge {
+  .ask-sheen-chip {
     position: absolute;
-    top: -0.7rem;
-    left: 0;
-    padding: 0 0.25rem;
-    border-radius: 0.2rem;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 3px;
     background: var(--attention);
     color: #1a100b;
-    font-size: 9px;
+    font-size: 0.82em;
     font-weight: 700;
-    line-height: 1.2;
-    letter-spacing: 0.02em;
+    line-height: 1;
+    letter-spacing: 0.01em;
     white-space: nowrap;
+    pointer-events: none;
   }
 
   .attach-sheen-chip {

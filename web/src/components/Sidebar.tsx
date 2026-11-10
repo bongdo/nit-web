@@ -33,7 +33,14 @@ import type { StreamStatus } from "../hooks/useEventStream";
 import { themeLabel, type Theme } from "../lib/themes";
 import { basename, filterSessions, formatRelative } from "../lib/format";
 import { BASE_PATH } from "../lib/base";
-import { SCOPES, groupByDirectory, groupSessions, type Scope, type SessionRow } from "../lib/sessions";
+import {
+  SCOPES,
+  groupByDirectory,
+  groupSessions,
+  hoistFinished,
+  type Scope,
+  type SessionRow,
+} from "../lib/sessions";
 import { cn } from "../lib/utils";
 import { Button, buttonVariants } from "./ui/button";
 import { Input } from "./ui/input";
@@ -393,8 +400,6 @@ export const Sidebar = memo(function Sidebar({
     list.sort((a, b) => rank(a) - rank(b) || b.time.updated - a.time.updated);
   }
   const animated = motion === "animated";
-  const runningGroupCount = visible.filter(({ session }) => rank(session) === 2).length;
-  const runningStart = visible.findIndex(({ session }) => rank(session) === 2);
   const orderSignature = visible
     .map(({ session }) => {
       const kids = expanded.has(session.id)
@@ -412,9 +417,14 @@ export const Sidebar = memo(function Sidebar({
     ? ([...sessions, ...subagents].find((session) => session.id === selectedId) ?? null)
     : null;
   const selectedRank = selectedSession ? rank(selectedSession) : null;
-  const runningFrom = runningStart === -1 ? visible.length : runningStart;
   const pool = scope !== "directory";
-  const poolGroups = pool ? groupByDirectory(visible.slice(0, runningFrom)) : [];
+  const { top: finishedRows, rest } = pool
+    ? hoistFinished(visible, (session) => rank(session) === 0)
+    : { top: [], rest: visible };
+  const firstRunning = rest.findIndex(({ session }) => rank(session) === 2);
+  const runningStart = firstRunning === -1 ? rest.length : firstRunning;
+  const runningGroupCount = rest.filter(({ session }) => rank(session) === 2).length;
+  const poolGroups = pool ? groupByDirectory(rest.slice(0, runningStart)) : [];
 
   const renderRow = ({ session, depth }: SessionRow, grouped = false) => {
     const children = childrenByParent.get(session.id) ?? [];
@@ -768,6 +778,7 @@ export const Sidebar = memo(function Sidebar({
             </div>
           ) : pool ? (
             <div className="relative space-y-0.5">
+              {finishedRows.map((row) => renderRow(row))}
               {poolGroups.map((group) => (
                 <Fragment key={group.directory}>
                   <div className="text-muted-foreground flex items-center gap-2 px-3 pt-2.5 pb-0.5 text-[10px] font-medium">
@@ -783,7 +794,7 @@ export const Sidebar = memo(function Sidebar({
             </div>
           ) : (
             <div className="relative space-y-0.5">
-              {visible.slice(0, runningFrom).map((row) => renderRow(row))}
+              {rest.slice(0, runningStart).map((row) => renderRow(row))}
             </div>
           )}
         </div>
@@ -808,7 +819,7 @@ export const Sidebar = memo(function Sidebar({
             </button>
           </div>
         )}
-        {runningFrom < visible.length && (
+        {runningStart < rest.length && (
           <div className="max-h-[70%] shrink-0 overflow-y-auto px-2">
             <div className="text-muted-foreground flex items-center gap-2 px-2 pt-3 pb-1 font-mono text-[9px] tracking-[0.12em] uppercase">
               <span className="bg-success size-1.5 rounded-full" />
@@ -818,7 +829,7 @@ export const Sidebar = memo(function Sidebar({
               </span>
               <span className="bg-border h-px flex-1 opacity-60" />
             </div>
-            {visible.slice(runningFrom).map((row) => renderRow(row))}
+            {rest.slice(runningStart).map((row) => renderRow(row))}
           </div>
         )}
         <div className="flex-1" />

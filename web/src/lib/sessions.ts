@@ -113,6 +113,20 @@ export type SessionRow = { session: Session; depth: number };
 
 export type SessionGroup = { directory: string; rows: SessionRow[] };
 
+export function hoistFinished(
+  rows: SessionRow[],
+  finished: (session: Session) => boolean,
+): { top: SessionRow[]; rest: SessionRow[] } {
+  const top: SessionRow[] = [];
+  const rest: SessionRow[] = [];
+  let inTop = false;
+  for (const row of rows) {
+    if (row.depth === 0) inTop = finished(row.session);
+    (inTop ? top : rest).push(row);
+  }
+  return { top, rest };
+}
+
 export function groupByDirectory(rows: SessionRow[]): SessionGroup[] {
   const groups = new Map<string, SessionRow[]>();
   for (const row of rows) {

@@ -305,6 +305,13 @@ export default function App({
   const formsOwnerRef = useRef<string | null>(null);
   const messagesRef = useRef(messages);
   messagesRef.current = messages;
+  const firstPrompt = useRef<{ sessionId: string; text: string } | null>(null);
+  const restoreDraft = useRef<string | null>(null);
+  useEffect(() => {
+    if (firstPrompt.current && messages.some((message) => message.type === "assistant")) {
+      firstPrompt.current = null;
+    }
+  }, [messages]);
   const [transcriptCache] = useState(() => new TranscriptCache());
   const [messageLoads] = useState(() => new Set<string>());
   const questionIDs = useRef(new Set<string>());
@@ -1128,6 +1135,7 @@ export default function App({
   });
 
   const selectWorkspace = useCallback((directory: string) => {
+    const restore = restoreDraft.current;
     saveCurrentTranscript();
     rememberWorkspace(directory);
     setScopeState("directory");
@@ -1145,6 +1153,10 @@ export default function App({
     setEarlierFailed(false);
     loadingEarlierRef.current = false;
     setPickerOpen(false);
+    if (restore !== null) {
+      restoreDraft.current = null;
+      setComposerDraft({ text: restore, id: Date.now() });
+    }
   }, [rememberWorkspace, saveCurrentTranscript]);
 
   const loadEarlier = useCallback(async () => {
@@ -1270,39 +1282,46 @@ export default function App({
     }
   }, [hiddenIds, runningIds, sessions, unhideSession]);
 
+  const forgetSession = useCallback(
+    async (id: string) => {
+      await api.deleteSession(id);
+      transcriptCache.delete(id);
+      setSessions((current) => current.filter((item) => item.id !== id));
+      setHiddenIds((current) => {
+        if (!current.has(id)) return current;
+        const next = new Set(current);
+        next.delete(id);
+        return next;
+      });
+      setDoneIds((current) => {
+        if (!current.has(id)) return current;
+        const next = new Set(current);
+        next.delete(id);
+        return next;
+      });
+      failedRef.current.delete(id);
+      setFailedIds(new Set(failedRef.current));
+      void api.removeSessionState(id).catch((error) => setBanner(messageOf(error)));
+      if (selectedIdRef.current === id) {
+        loadedIdRef.current = null;
+        selectSession(null);
+      }
+      void loadSessions();
+    },
+    [loadSessions, selectSession],
+  );
+
   const deleteSession = useCallback(
     async (id: string) => {
       if (!window.confirm("Delete this chat? This cannot be undone.")) return;
       setBanner(null);
       try {
-        await api.deleteSession(id);
-        transcriptCache.delete(id);
-        setSessions((current) => current.filter((item) => item.id !== id));
-        setHiddenIds((current) => {
-          if (!current.has(id)) return current;
-          const next = new Set(current);
-          next.delete(id);
-          return next;
-        });
-        setDoneIds((current) => {
-          if (!current.has(id)) return current;
-          const next = new Set(current);
-          next.delete(id);
-          return next;
-        });
-        failedRef.current.delete(id);
-        setFailedIds(new Set(failedRef.current));
-        void api.removeSessionState(id).catch((error) => setBanner(messageOf(error)));
-        if (selectedIdRef.current === id) {
-          loadedIdRef.current = null;
-          selectSession(null);
-        }
-        void loadSessions();
+        await forgetSession(id);
       } catch (error) {
         setBanner(messageOf(error));
       }
     },
-    [loadSessions, selectSession],
+    [forgetSession],
   );
 
   const scheduleSessionsRefresh = useCallback(() => {
@@ -1385,7 +1404,13 @@ export default function App({
   }, []);
 
   const openPicker = useCallback(() => setPickerOpen(true), []);
-  const closePicker = useCallback(() => setPickerOpen(false), []);
+  const closePicker = useCallback(() => {
+    if (restoreDraft.current !== null) {
+      setComposerDraft({ text: restoreDraft.current, id: Date.now() });
+      restoreDraft.current = null;
+    }
+    setPickerOpen(false);
+  }, []);
   const openSettings = useCallback(() => setSettingsOpen(true), []);
   const closeSettings = useCallback(() => setSettingsOpen(false), []);
   const openTheme = useCallback(() => setThemeOpen(true), []);
@@ -1667,6 +1692,7 @@ export default function App({
           data?: { id?: string };
         };
         if (createdSession) {
+          firstPrompt.current = { sessionId, text };
           setSelectedIdState(sessionId);
           localStorage.setItem(sessionKey, sessionId);
           loadedIdRef.current = sessionId;
@@ -1693,15 +1719,32 @@ export default function App({
   const stop = useCallback(async () => {
     const id = selectedIdRef.current;
     if (!id) return;
+    let interrupted = false;
     try {
       await api.interrupt(id);
+      interrupted = true;
     } catch (error) {
       setBanner(messageOf(error));
     } finally {
       runningEventsAt.current[id] = Date.now();
       setRunningIds((previous) => ({ ...previous, [id]: false }));
     }
-  }, []);
+    if (!interrupted) return;
+    const first = firstPrompt.current;
+    if (!first || first.sessionId !== id) return;
+    firstPrompt.current = null;
+    const answered = messagesRef.current.some((message) => message.type === "assistant");
+    const mine = messagesRef.current.filter((message) => message.type === "user").length;
+    if (answered || mine > 1) return;
+    try {
+      await forgetSession(id);
+      restoreDraft.current = first.text;
+      setComposerDraft({ text: first.text, id: Date.now() });
+      setPickerOpen(true);
+    } catch (error) {
+      setBanner(messageOf(error));
+    }
+  }, [forgetSession]);
 
   const changeModel = useCallback(
     async (model: ModelRef) => {

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   groupByDirectory,
   groupSessions,
+  hoistFinished,
   isTechnical,
   listedSessions,
   listedSubagents,
@@ -68,6 +69,22 @@ describe("sessions", () => {
     expect(groupByDirectory([{ ...rows[1] }]).map((group) => group.directory)).toEqual([
       "/work/gui",
     ]);
+  });
+
+  it("hoists finished roots with their children above the remaining rows", () => {
+    const rows = groupSessions(
+      [
+        session({ id: "done-a", location: { directory: "/work/a" }, time: { created: 0, updated: 30 } }),
+        session({ id: "idle-a", location: { directory: "/work/a" }, time: { created: 0, updated: 20 } }),
+        session({ id: "done-b", location: { directory: "/work/b" }, time: { created: 0, updated: 10 } }),
+        session({ id: "child-b", parentID: "done-b", time: { created: 0, updated: 5 } }),
+      ],
+      new Set(),
+      (item) => (item.id.startsWith("done") ? 0 : 1),
+    );
+    const split = hoistFinished(rows, (item) => item.id.startsWith("done"));
+    expect(split.rest.map((row) => row.session.id)).toEqual(["idle-a"]);
+    expect(split.top.map((row) => row.session.id)).toEqual(["done-a", "done-b", "child-b"]);
   });
 
   it("never lists subagent sessions and still honors hidden chats", () => {

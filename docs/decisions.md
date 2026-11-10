@@ -894,3 +894,27 @@ Why: ordering should change only when a chat gets new activity, so the eye never
 Rejected: animating the current project to the top (movement at the moment of a click), freezing order on entering the tab (surprising after activity).
 
 Cost: the current project is no longer guaranteed to be first; finding it in a long pool means scanning the headings or using search.
+
+## 2026-11-10 — Finished chats leave their project group in All chats
+
+Context: in `All chats` the sidebar grouped every chat by project, so a chat that just finished rose to the top of its own project but stayed wherever that project sorted. A finished chat in an idle project stayed below newer projects.
+
+Decision: finished, waiting and failed chats from every project are hoisted into one unlabelled flat block above the project groups; their subagents move with them. Rows keep the project line because the group header is gone. The remaining chats stay grouped by directory and running chats stay docked at the bottom. `hoistFinished` in `web/src/lib/sessions.ts` does the split.
+
+Why: completion is the strongest signal in the list, so it should not depend on which project produced it. No new control: the existing rank already marks these chats.
+
+Rejected: a separate "Finished" heading (visual noise the user does not want); a flat activity mode with a toggle (a second list mode for one need); sorting whole projects by their newest finished chat (the finished chat still sinks with its project).
+
+Cost: hoisted chats mix projects, so the project line is their only context; a project heading no longer counts those chats.
+
+## 2026-11-10 — Stopping the first message returns to the workspace picker
+
+Context: a new chat is created in the remembered workspace on the first prompt. Stopping that prompt left an empty chat in the wrong project, and the next prompt had no way to choose another one.
+
+Decision: when the first prompt of a freshly created chat is interrupted before any assistant message, the chat is deleted, its text returns to the composer, and the workspace picker opens. Picking a directory carries the text into the new composer. A chat that already has an assistant reply is never deleted, and a second user message also keeps it.
+
+Why: an interrupted first prompt has no conversation to preserve, and choosing the project is part of starting a chat.
+
+Rejected: keeping the empty chat and only opening the picker (the next prompt still lands in the old project); asking for confirmation (one extra dialog after an explicit stop).
+
+Cost: the cancelled chat disappears from the list, and its attachments are not restored with the text.

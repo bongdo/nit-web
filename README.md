@@ -293,6 +293,10 @@ The sidebar has three scopes:
 | `Mine` | all top-level chats with a primary agent, across workspaces. |
 | `All` | every top-level chat, including scripted roles, across workspaces. |
 
+In a cross-project scope, chats that finished or wait for an answer rise above
+the project groups as one unlabelled block; each row names its project. The rest
+stay grouped by directory, and running chats keep their dock at the bottom.
+
 Each chat row shows its own subagent counter on the directory line and expands
 only that chat's subagents. In the `This dir` scope the tab shows the workspace
 name and the card omits the directory. The selected chat's `N subagents` menu

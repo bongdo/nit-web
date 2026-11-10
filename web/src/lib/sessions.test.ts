@@ -55,18 +55,17 @@ describe("sessions", () => {
     expect(scopeSessions(list, "directory", agents)).toHaveLength(3);
   });
 
-  it("groups chats by directory with the current project first", () => {
+  it("groups chats by directory, newest project first, and ignores the selected one", () => {
     const rows = [
       { session: session({ id: "a", location: { directory: "/work/nit" }, time: { created: 0, updated: 10 } }), depth: 0 },
       { session: session({ id: "b", location: { directory: "/work/gui" }, time: { created: 0, updated: 20 } }), depth: 0 },
       { session: session({ id: "c", location: { directory: "/work/nit" }, time: { created: 0, updated: 30 } }), depth: 0 },
     ];
-    expect(groupByDirectory(rows, "/work/gui")).toEqual([
-      { directory: "/work/gui", rows: [rows[1]] },
+    expect(groupByDirectory(rows)).toEqual([
       { directory: "/work/nit", rows: [rows[0], rows[2]] },
+      { directory: "/work/gui", rows: [rows[1]] },
     ]);
-    expect(groupByDirectory(rows, null).map((group) => group.directory)).toEqual([
-      "/work/nit",
+    expect(groupByDirectory([{ ...rows[1] }]).map((group) => group.directory)).toEqual([
       "/work/gui",
     ]);
   });

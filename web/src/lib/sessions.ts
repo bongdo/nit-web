@@ -113,7 +113,7 @@ export type SessionRow = { session: Session; depth: number };
 
 export type SessionGroup = { directory: string; rows: SessionRow[] };
 
-export function groupByDirectory(rows: SessionRow[], current: string | null): SessionGroup[] {
+export function groupByDirectory(rows: SessionRow[]): SessionGroup[] {
   const groups = new Map<string, SessionRow[]>();
   for (const row of rows) {
     const directory = row.session.location?.directory ?? "";
@@ -122,11 +122,9 @@ export function groupByDirectory(rows: SessionRow[], current: string | null): Se
     else groups.set(directory, [row]);
   }
   const updated = (list: SessionRow[]) => Math.max(...list.map((row) => row.session.time.updated));
-  return Array.from(groups, ([directory, list]) => ({ directory, rows: list })).sort((a, b) => {
-    if (a.directory === current) return -1;
-    if (b.directory === current) return 1;
-    return updated(b.rows) - updated(a.rows);
-  });
+  return Array.from(groups, ([directory, list]) => ({ directory, rows: list })).sort(
+    (a, b) => updated(b.rows) - updated(a.rows) || a.directory.localeCompare(b.directory),
+  );
 }
 
 export function nextSessionId(

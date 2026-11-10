@@ -414,7 +414,7 @@ export const Sidebar = memo(function Sidebar({
   const selectedRank = selectedSession ? rank(selectedSession) : null;
   const runningFrom = runningStart === -1 ? visible.length : runningStart;
   const pool = scope !== "directory";
-  const poolGroups = pool ? groupByDirectory(visible.slice(0, runningFrom), workspace) : [];
+  const poolGroups = pool ? groupByDirectory(visible.slice(0, runningFrom)) : [];
 
   const renderRow = ({ session, depth }: SessionRow, grouped = false) => {
     const children = childrenByParent.get(session.id) ?? [];
@@ -478,10 +478,11 @@ export const Sidebar = memo(function Sidebar({
   };
 
   useLayoutEffect(() => {
+    if (scope !== "directory") return;
     positions.current = new Map();
     lastOrder.current = "";
     if (listRef.current) listRef.current.scrollTop = 0;
-  }, [workspace]);
+  }, [scope, workspace]);
 
   useLayoutEffect(() => {
     const container = listRef.current;
@@ -650,7 +651,16 @@ export const Sidebar = memo(function Sidebar({
                   : "Every chat, every directory"
               }
             >
-              {item.id === "directory" && workspace ? basename(workspace) : item.label}
+              {item.id === "directory" && workspace ? (
+                <span
+                  key={workspace}
+                  className={cn("block truncate", animated && "sidebar-sheen-scope-in")}
+                >
+                  {basename(workspace)}
+                </span>
+              ) : (
+                item.label
+              )}
             </button>
           ))}
         </div>

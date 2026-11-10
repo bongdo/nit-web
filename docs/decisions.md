@@ -882,3 +882,15 @@ Why: one behaviour needs no explanation, keeps the layout stable, and the slide-
 Rejected: keeping the modes behind a hidden default (a setting nobody needs and a code path per mode); animating width from the finger (the panel is in flow; width can't follow a gesture cheaply).
 
 Cost: no more hover peek and no drag-to-resize; users who liked the slide-over panel lose it, and the stored mode value stays dead in localStorage.
+
+## 2026-11-10 — All chats: stable project order, smooth scope label
+
+Context: switching the project in `All chats` moved that project's group to the top and reset the list scroll, so the list jumped right under the pointer. The project name in the scope tab swapped without a transition.
+
+Decision: drop the "current project first" rule from `groupByDirectory`. Groups are ordered by their newest chat, ties broken by directory; selecting a chat never reorders them. The scroll reset now runs only in the directory scope, where the list content really changes. The project label in the scope tab fades in with `sidebar-sheen-scope-in` (200 ms) and is skipped for reduced motion.
+
+Why: ordering should change only when a chat gets new activity, so the eye never has to re-find a chat after navigating. Project order by recent activity already keeps the project you work on near the top.
+
+Rejected: animating the current project to the top (movement at the moment of a click), freezing order on entering the tab (surprising after activity).
+
+Cost: the current project is no longer guaranteed to be first; finding it in a long pool means scanning the headings or using search.

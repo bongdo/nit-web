@@ -1814,10 +1814,24 @@
   }
 
   .ask-sheen-word {
+    position: relative;
     border-radius: 3px;
-    outline: 1px solid color-mix(in oklab, var(--attention) 65%, transparent);
-    outline-offset: 1px;
-    animation: ask-sheen-word 2.4s ease-in-out infinite;
+    background: color-mix(in oklab, var(--attention) 20%, transparent);
+  }
+
+  .ask-sheen-badge {
+    position: absolute;
+    top: -0.7rem;
+    left: 0;
+    padding: 0 0.25rem;
+    border-radius: 0.2rem;
+    background: var(--attention);
+    color: #1a100b;
+    font-size: 9px;
+    font-weight: 700;
+    line-height: 1.2;
+    letter-spacing: 0.02em;
+    white-space: nowrap;
   }
 
   .attach-sheen-chip {
@@ -1860,7 +1874,6 @@
     .form-sheen-option:has(input:checked)::after,
     .form-sheen-chosen::after,
     .form-sheen-check,
-    .ask-sheen-word,
     .attach-sheen-chip,
     .attach-sheen-chip::after {
       animation: none;
@@ -1902,18 +1915,6 @@
     100% {
       opacity: 0;
       transform: translateX(360%);
-    }
-  }
-
-  @keyframes ask-sheen-word {
-    0%,
-    100% {
-      outline-color: color-mix(in oklab, var(--attention) 45%, transparent);
-      box-shadow: 0 0 0 0 transparent;
-    }
-    50% {
-      outline-color: color-mix(in oklab, var(--attention) 95%, transparent);
-      box-shadow: 0 0 10px color-mix(in oklab, var(--attention) 22%, transparent);
     }
   }
 

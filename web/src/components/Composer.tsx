@@ -1370,6 +1370,32 @@ export const Composer = memo(function Composer({
                     }
                   }
                   if (
+                    event.key === "Backspace" &&
+                    askRange &&
+                    !event.metaKey &&
+                    !event.ctrlKey &&
+                    !event.altKey
+                  ) {
+                    const area = ref.current;
+                    if (
+                      area &&
+                      area.selectionStart === area.selectionEnd &&
+                      area.selectionStart > askRange.start &&
+                      area.selectionStart <= askRange.end
+                    ) {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      const next =
+                        area.value.slice(0, askRange.start) + area.value.slice(askRange.end);
+                      updateValue(next);
+                      setCaret(askRange.start);
+                      requestAnimationFrame(() =>
+                        area.setSelectionRange(askRange.start, askRange.start),
+                      );
+                      return;
+                    }
+                  }
+                  if (
                     event.key === " " &&
                     !event.nativeEvent.isComposing &&
                     !event.metaKey &&

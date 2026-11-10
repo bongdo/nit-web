@@ -53,6 +53,9 @@ export const ComposerHighlights = forwardRef<
     parts.push(
       <span key="ask" className="ask-sheen-word">
         {value.slice(ask.start, ask.end)}
+        <span className="ask-sheen-badge" aria-hidden="true">
+          Ask
+        </span>
       </span>,
     );
     cursor = ask.end;

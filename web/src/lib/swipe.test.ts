@@ -28,6 +28,11 @@ describe("advanceSwipe", () => {
     expect(advanceSwipe(0.9, -500, 280)).toBe(1);
     expect(advanceSwipe(0.1, 500, 280)).toBe(0);
   });
+
+  it("follows a finger one to one with an explicit travel", () => {
+    expect(advanceSwipe(0, -140, 280, 280)).toBeCloseTo(0.5);
+    expect(advanceSwipe(1, 84, 280, 280)).toBeCloseTo(0.7);
+  });
 });
 
 describe("settleSwipe", () => {

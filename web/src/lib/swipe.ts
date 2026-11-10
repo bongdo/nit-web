@@ -15,8 +15,12 @@ export function horizontalScroll(event: WheelLike): number | null {
   return event.deltaX;
 }
 
-export function advanceSwipe(position: number, deltaX: number, width: number): number {
-  const travel = Math.max(1, width * SWIPE_TRAVEL_RATIO);
+export function advanceSwipe(
+  position: number,
+  deltaX: number,
+  width: number,
+  travel = Math.max(1, width * SWIPE_TRAVEL_RATIO),
+): number {
   return Math.min(1, Math.max(0, position - deltaX / travel));
 }
 

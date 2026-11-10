@@ -14,6 +14,7 @@ import type { FormInfo, Model, Session } from "../lib/types";
 import { encodeWav, micLevel } from "../lib/audio";
 import { api } from "../lib/api";
 import { attachmentWarning } from "../lib/attachments";
+import { loadDraftFiles, saveDraftFiles } from "../lib/draft-files";
 import { loadDraftState, saveDraftState, type DraftState } from "../lib/drafts";
 import { questionAnswer, questionFields } from "../lib/forms";
 import { formatBytes, quoteText } from "../lib/format";
@@ -65,6 +66,17 @@ const ASK_WORD =
 
 function attachmentId() {
   return `att-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+}
+
+function restoredAttachment(file: File): Attachment {
+  return {
+    id: attachmentId(),
+    name: file.name || "file",
+    size: file.size,
+    mime: file.type,
+    preview: file.type.startsWith("image/") ? URL.createObjectURL(file) : undefined,
+    file,
+  };
 }
 
 function loadIgnoredWords(): string[] {
@@ -135,6 +147,9 @@ export const Composer = memo(function Composer({
   const editedRef = useRef(false);
   const [submitting, setSubmitting] = useState(false);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
+  const attachmentsRef = useRef<Attachment[]>([]);
+  attachmentsRef.current = attachments;
+  const [filesReady, setFilesReady] = useState(false);
   const [dropActive, setDropActive] = useState(false);
   const [recording, setRecording] = useState(false);
   const [webLive, setWebLive] = useState(false);
@@ -218,6 +233,39 @@ export const Composer = memo(function Composer({
       cancelled = true;
     };
   }, [draftKey, instance]);
+
+  useEffect(() => {
+    let cancelled = false;
+    loadDraftFiles(draftKey)
+      .then((files) => {
+        if (cancelled || files.length === 0) return;
+        setAttachments((current) =>
+          current.length > 0 ? current : files.map(restoredAttachment),
+        );
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (!cancelled) setFilesReady(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [draftKey]);
+
+  useEffect(() => {
+    if (!filesReady) return;
+    const files = attachments.flatMap((item) => (item.file ? [item.file] : []));
+    void saveDraftFiles(draftKey, files).catch(() => {});
+  }, [attachments, draftKey, filesReady]);
+
+  useEffect(
+    () => () => {
+      for (const item of attachmentsRef.current) {
+        if (item.preview) URL.revokeObjectURL(item.preview);
+      }
+    },
+    [],
+  );
 
   useEffect(() => {
     if (!hydrated || question) return;

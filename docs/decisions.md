@@ -834,3 +834,15 @@ Why: live Hunspell underlines are free and instant; an LLM call per message is s
 Rejected: an LLM spell check before send; a blocking "N mistakes, send anyway" gate; a fixed suggestion strip under the input; double-`Tab` for switching chats (`Ctrl+Tab` already does it).
 
 Cost: `Tab` no longer reaches the Send button from the field; in the question form `Tab` keeps the browser default; a stale underline keeps its old position for the ~300 ms until the recheck lands.
+
+## 2026-11-10 — Sidebar swipe works with fingers on tablets
+
+Context: the sidebar had trackpad-wheel swipe on desktop and a bottom sheet on phones. A tablet with the persistent sidebar had no gesture at all: only the header button.
+
+Decision: at `min-width: 48rem` the swipe also accepts touch pointers. Dragging the sidebar left hides it — one-to-one with the finger in "Swipe · follows fingers", a 48 px trigger in "Button + swipe". Pulling right from the left 8 px strip brings it back. Finger direction maps the opposite way to the wheel (right opens). A drag suppresses the click that follows it, and the chat list gets `touch-action: pan-y` so vertical scrolling still wins.
+
+Why: a 280 px panel over the header button is the slowest thing to toggle; on a tablet a horizontal drag is the shortest path, and the follow mode reuses the existing animation.
+
+Rejected: edge-swipe only (system back gestures can swallow it, the strip is a fallback); dragging right anywhere in the transcript (fights with horizontal code scroll); a two-finger gesture (undiscoverable).
+
+Cost: the left 8 px of the screen no longer click through at md+, and iOS/Android edge-back can still win at the very edge, so the header button remains the reliable path.

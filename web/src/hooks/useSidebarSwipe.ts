@@ -9,6 +9,9 @@ import {
 
 export type SidebarSwipeMode = "off" | "follow" | "trigger";
 
+const EDGE_PX = 24;
+const AXIS_PX = 8;
+
 function isScrollableX(target: EventTarget | null, deltaX: number): boolean {
   let node = target instanceof Element ? target : null;
   while (node) {
@@ -118,9 +121,94 @@ export function useSidebarSwipe(mode: SidebarSwipeMode, onTrigger: (open: boolea
       settleTimer.current = window.setTimeout(settle, SWIPE_SETTLE_MS);
     };
 
+    let drag: { id: number; x: number; y: number; lastX: number; moved: boolean } | null = null;
+    let suppressClick = false;
+    let suppressTimer = 0;
+
+    const onPointerDown = (event: PointerEvent) => {
+      if (event.pointerType !== "touch" || !event.isPrimary) return;
+      if (!window.matchMedia("(min-width: 48rem)").matches) return;
+      const inside = Boolean(element && element.contains(event.target as Node));
+      if (!inside && (event.clientX > EDGE_PX || position.current >= 1)) return;
+      travel.current = 0;
+      fired.current = false;
+      drag = { id: event.pointerId, x: event.clientX, y: event.clientY, lastX: event.clientX, moved: false };
+    };
+
+    const onPointerMove = (event: PointerEvent) => {
+      if (!drag || event.pointerId !== drag.id) return;
+      const dx = event.clientX - drag.x;
+      if (!drag.moved) {
+        const dy = event.clientY - drag.y;
+        if (Math.abs(dx) < AXIS_PX && Math.abs(dy) < AXIS_PX) return;
+        if (Math.abs(dy) >= Math.abs(dx)) {
+          drag = null;
+          return;
+        }
+        drag.moved = true;
+      }
+      event.preventDefault();
+      if (mode === "follow") {
+        const width = element?.offsetWidth || 280;
+        const step = event.clientX - drag.lastX;
+        drag.lastX = event.clientX;
+        const next = advanceSwipe(position.current, -step, width, width);
+        lastStep.current = next - position.current;
+        position.current = next;
+        paint(next, false);
+        return;
+      }
+      if (fired.current) return;
+      travel.current = dx;
+      const intent = swipeIntent(-travel.current);
+      if (intent) {
+        fired.current = true;
+        trigger.current(intent === "open");
+      }
+    };
+
+    const onPointerUp = (event: PointerEvent) => {
+      if (!drag || event.pointerId !== drag.id) return;
+      const moved = drag.moved;
+      drag = null;
+      if (!moved) return;
+      suppressClick = true;
+      window.clearTimeout(suppressTimer);
+      suppressTimer = window.setTimeout(() => {
+        suppressClick = false;
+      }, 350);
+      if (mode === "follow") settle();
+      else {
+        travel.current = 0;
+        fired.current = false;
+      }
+    };
+
+    const onPointerCancel = () => {
+      drag = null;
+    };
+
+    const onClick = (event: MouseEvent) => {
+      if (!suppressClick) return;
+      suppressClick = false;
+      event.preventDefault();
+      event.stopPropagation();
+    };
+
     window.addEventListener("wheel", onWheel, { passive: false });
+    window.addEventListener("pointerdown", onPointerDown);
+    window.addEventListener("pointermove", onPointerMove, { passive: false });
+    window.addEventListener("pointerup", onPointerUp);
+    window.addEventListener("pointercancel", onPointerCancel);
+    document.addEventListener("click", onClick, true);
     return () => {
       window.removeEventListener("wheel", onWheel);
+      window.removeEventListener("pointerdown", onPointerDown);
+      window.removeEventListener("pointermove", onPointerMove);
+      window.removeEventListener("pointerup", onPointerUp);
+      window.removeEventListener("pointercancel", onPointerCancel);
+      document.removeEventListener("click", onClick, true);
+      window.clearTimeout(suppressTimer);
       if (settleTimer.current !== null) window.clearTimeout(settleTimer.current);
       settleTimer.current = null;
     };

@@ -1057,6 +1057,25 @@ export default function App({
     });
   }, [transcriptCache]);
 
+  const rememberWorkspace = useCallback((directory: string) => {
+    const value = directory.trim().replace(/\/+$/, "") || "/";
+    setWorkspaceState(value);
+    localStorage.setItem(workspaceKey, value);
+    setRecent((previous) => {
+      const next = [value, ...previous.filter((item) => item !== value)].slice(0, 8);
+      localStorage.setItem(recentKey, JSON.stringify(next));
+      return next;
+    });
+  }, []);
+
+  const selectedDirectory = selectedSession?.location?.directory ?? null;
+
+  useEffect(() => {
+    if (!selectedDirectory) return;
+    const value = selectedDirectory.trim().replace(/\/+$/, "") || "/";
+    if (value !== workspaceRef.current) rememberWorkspace(value);
+  }, [rememberWorkspace, selectedDirectory]);
+
   const selectSession = useCallback((id: string | null) => {
     const current = selectedIdRef.current;
     if (id !== current) {
@@ -1121,14 +1140,7 @@ export default function App({
 
   const selectWorkspace = useCallback((directory: string) => {
     saveCurrentTranscript();
-    const value = directory.trim().replace(/\/+$/, "") || "/";
-    setWorkspaceState(value);
-    localStorage.setItem(workspaceKey, value);
-    setRecent((previous) => {
-      const next = [value, ...previous.filter((item) => item !== value)].slice(0, 8);
-      localStorage.setItem(recentKey, JSON.stringify(next));
-      return next;
-    });
+    rememberWorkspace(directory);
     setScopeState("directory");
     localStorage.setItem("nit-gui.scope", "directory");
     setSelectedIdState(null);
@@ -1144,7 +1156,7 @@ export default function App({
     setEarlierFailed(false);
     loadingEarlierRef.current = false;
     setPickerOpen(false);
-  }, [saveCurrentTranscript]);
+  }, [rememberWorkspace, saveCurrentTranscript]);
 
   const loadEarlier = useCallback(async () => {
     const id = selectedIdRef.current;
@@ -2213,6 +2225,9 @@ export default function App({
           <span className="bg-border/80 block h-full w-px opacity-0 transition-opacity duration-200 group-hover:opacity-100 group-focus-visible:opacity-100" />
         </button>
       )}
+      {!hoverSidebar && (
+        <div aria-hidden className="fixed inset-y-0 left-0 z-20 hidden w-2 touch-none md:block" />
+      )}
       <aside
         ref={swipe.ref}
         onPointerEnter={hoverSidebar ? openHoverSidebar : undefined}
@@ -2221,7 +2236,7 @@ export default function App({
         className={cn(
           "border-border bg-background fixed z-30 border-r",
           "max-md:inset-x-0 max-md:top-auto max-md:bottom-0 max-md:z-50 max-md:h-[min(82dvh,42rem)] max-md:w-full max-md:overscroll-contain max-md:rounded-t-2xl max-md:border-t max-md:border-r-0 max-md:pb-[env(safe-area-inset-bottom)] max-md:shadow-2xl",
-          "md:inset-y-0 md:left-0 md:w-[280px]",
+          "md:inset-y-0 md:left-0 md:w-[280px] md:touch-pan-y",
           "ease-[cubic-bezier(0.32,0.72,0,1)] transition-[translate,opacity,width] duration-300 motion-reduce:transition-none",
           sidebarOpen ? "max-md:translate-y-0" : "max-md:translate-y-full",
           hoverSidebar

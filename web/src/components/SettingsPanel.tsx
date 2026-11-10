@@ -206,6 +206,10 @@ export function SettingsPanel({
               <option value="hover">Hover at the left edge</option>
               <option value="swipe">Swipe · follows fingers</option>
             </Select>
+            <span className="text-muted-foreground block text-xs">
+              On a tablet: drag the chats panel left to hide it, or pull right from the left edge to
+              bring it back. The header button does both.
+            </span>
           </label>
 
           <label className="block space-y-1">

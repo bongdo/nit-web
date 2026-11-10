@@ -741,7 +741,7 @@ export const Sidebar = memo(function Sidebar({
         <div
           ref={listRef}
           className={cn(
-            "scrollbar-thin relative min-h-0 overflow-y-auto px-2 pb-2",
+            "scrollbar-thin relative min-h-0 touch-pan-y overflow-y-auto px-2 pb-2",
             fading &&
               "[mask-image:linear-gradient(to_bottom,black_calc(100%_-_4rem),transparent)]",
           )}

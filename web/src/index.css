@@ -1833,6 +1833,12 @@
     letter-spacing: 0.01em;
     white-space: nowrap;
     pointer-events: none;
+    animation: ask-chip-in 160ms cubic-bezier(0.22, 0.7, 0.2, 1) both;
+  }
+
+  .ask-sheen-chip-leaving {
+    inset: auto;
+    animation: ask-chip-out 140ms cubic-bezier(0.55, 0, 0.8, 0.4) both;
   }
 
   .attach-sheen-chip {
@@ -1875,9 +1881,15 @@
     .form-sheen-option:has(input:checked)::after,
     .form-sheen-chosen::after,
     .form-sheen-check,
+    .ask-sheen-chip,
     .attach-sheen-chip,
     .attach-sheen-chip::after {
       animation: none;
+    }
+
+    .ask-sheen-chip-leaving {
+      animation: none;
+      display: none;
     }
 
     .attach-sheen-chip {
@@ -1916,6 +1928,28 @@
     100% {
       opacity: 0;
       transform: translateX(360%);
+    }
+  }
+
+  @keyframes ask-chip-in {
+    from {
+      opacity: 0;
+      transform: scale(0.92);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
+
+  @keyframes ask-chip-out {
+    from {
+      opacity: 1;
+      transform: scale(1);
+    }
+    to {
+      opacity: 0;
+      transform: scale(0.92);
     }
   }
 

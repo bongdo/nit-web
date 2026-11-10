@@ -63,6 +63,7 @@ export function WorkspacePicker({
   onInstances?: () => void;
 }) {
   const initial = [current, startDirectory].find((value) => value?.startsWith("/")) ?? null;
+  const editable = (directory: string) => (directory === "/" ? "/" : `${directory}/`);
   const [browse, setBrowse] = useState<string | null>(initial);
   const [listing, setListing] = useState<FolderListing | null>(null);
   const [loading, setLoading] = useState(true);
@@ -70,23 +71,23 @@ export function WorkspacePicker({
   const [reload, setReload] = useState(0);
   const listingRef = useRef<FolderListing | null>(null);
 
-  const [path, setPath] = useState(initial ?? "");
+  const [path, setPath] = useState(initial ? editable(initial) : "");
   const [resolved, setResolved] = useState<string | null>(null);
   const [status, setStatus] = useState<PathStatus>("idle");
-  const [suggestions, setSuggestions] = useState<string[]>([]);
-  const [active, setActive] = useState(0);
+  const [active, setActive] = useState(-1);
   const [activeMoved, setActiveMoved] = useState(false);
-  const [suggestOpen, setSuggestOpen] = useState(false);
   const panel = useModalFocus<HTMLDivElement>();
   const inputRef = useRef<HTMLInputElement>(null);
   const crumbsRef = useRef<HTMLDivElement>(null);
+  const rowsRef = useRef<(HTMLButtonElement | null)[]>([]);
   const pressedBackdrop = useRef(false);
+  const editing = useRef(false);
 
   useEffect(() => {
     const input = inputRef.current;
     if (!input) return;
     input.focus();
-    input.select();
+    input.setSelectionRange(input.value.length, input.value.length);
   }, []);
 
   useEffect(() => {
@@ -108,6 +109,7 @@ export function WorkspacePicker({
     api
       .folders(browse ?? undefined, controller.signal)
       .then((data) => {
+        if (controller.signal.aborted) return;
         listingRef.current = data;
         setListing(data);
         setPath((value) => (value.trim() === "" ? data.path : value));
@@ -132,25 +134,21 @@ export function WorkspacePicker({
   useEffect(() => {
     if (!isAbsolutePath(path)) {
       setStatus(path.trim() ? "relative" : "idle");
-      setSuggestions([]);
       setResolved(null);
       return;
     }
     const { dir, prefix } = splitPathInput(path);
     const controller = new AbortController();
+    setStatus("checking");
     const timer = window.setTimeout(() => {
-      setStatus("checking");
       api
         .folders(dir, controller.signal)
         .then((data) => {
           if (controller.signal.aborted) return;
+          if (editing.current) {
+            setBrowse((current) => (current === data.path ? current : data.path));
+          }
           const typed = normalizePath(path);
-          const matches = matchFolders(data.dirs, prefix)
-            .map((name) => joinPath(dir, name))
-            .filter((candidate) => candidate !== typed);
-          setSuggestions(matches.slice(0, 8));
-          setActive(0);
-          setActiveMoved(false);
           const match = data.dirs.find((name) => isFolderName(name, prefix));
           const exact = typed === data.path ? typed : match ? joinPath(dir, match) : null;
           setResolved(exact);
@@ -158,7 +156,6 @@ export function WorkspacePicker({
         })
         .catch((cause) => {
           if (controller.signal.aborted) return;
-          setSuggestions([]);
           setResolved(null);
           setStatus(cause instanceof ApiError && cause.status === 404 ? "missing" : "error");
         });
@@ -171,11 +168,15 @@ export function WorkspacePicker({
 
   const goTo = (directory: string) => {
     const clean = normalizePath(directory);
+    editing.current = false;
     setBrowse(clean);
-    setPath(clean);
-    setSuggestions([]);
-    setSuggestOpen(false);
-    requestAnimationFrame(() => inputRef.current?.focus());
+    setPath(editable(clean));
+    requestAnimationFrame(() => {
+      const input = inputRef.current;
+      if (!input) return;
+      input.focus();
+      input.setSelectionRange(input.value.length, input.value.length);
+    });
   };
 
   const pickTyped = () => {
@@ -196,8 +197,6 @@ export function WorkspacePicker({
           return;
         }
         setStatus("missing");
-        const suggestion = suggestions[active];
-        if (suggestion) goTo(suggestion);
       });
   };
 
@@ -207,7 +206,25 @@ export function WorkspacePicker({
   };
 
   const typed = isAbsolutePath(path) ? normalizePath(path) : "";
+  const pattern = isAbsolutePath(path) ? splitPathInput(path) : null;
+  const matches =
+    pattern && pattern.prefix && listing && pattern.dir === listing.path
+      ? matchFolders(listing.dirs, pattern.prefix)
+      : [];
+  const usingFilter = matches.length > 0;
+  const dirs = usingFilter ? matches : (listing?.dirs ?? []);
+  const picked = active >= 0 ? dirs[active] : undefined;
+  const highlighted = picked && listing ? joinPath(listing.path, picked) : null;
   const invalid = status === "relative" || status === "missing" || status === "error";
+
+  useEffect(() => {
+    setActive(usingFilter ? 0 : -1);
+    setActiveMoved(false);
+  }, [path, usingFilter, listing?.path]);
+
+  useEffect(() => {
+    if (active >= 0) rowsRef.current[active]?.scrollIntoView({ block: "nearest" });
+  }, [active]);
   const target =
     status === "exists" && resolved
       ? resolved
@@ -224,7 +241,7 @@ export function WorkspacePicker({
         : status === "exists"
           ? "Folder exists."
           : status === "missing"
-            ? suggestions.length > 0
+            ? usingFilter
               ? "No exact match. Enter picks the highlighted folder."
               : "No such folder."
             : status === "error"
@@ -327,20 +344,27 @@ export function WorkspacePicker({
             <Loader2 className="size-3.5 animate-spin" />
             Loading folders…
           </div>
-        ) : listing.dirs.length === 0 ? (
+        ) : dirs.length === 0 ? (
           <p className="text-muted-foreground px-2 py-6 text-center text-xs">
             No subfolders. You can still use this folder.
           </p>
         ) : (
-          listing.dirs.map((name) => {
+          dirs.map((name, index) => {
             const directory = joinPath(listing.path, name);
             const project = known.get(directory);
             return (
               <button
                 key={directory}
+                ref={(element) => {
+                  rowsRef.current[index] = element;
+                }}
                 type="button"
                 onClick={() => goTo(directory)}
-                className="group hover:bg-accent/60 flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left"
+                aria-current={index === active ? "true" : undefined}
+                className={cn(
+                  "group hover:bg-accent/60 flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left",
+                  index === active && "bg-accent",
+                )}
               >
                 {project?.vcs ? (
                   <FolderGit2 className="text-muted-foreground size-4 shrink-0" />
@@ -384,56 +408,31 @@ export function WorkspacePicker({
               ref={inputRef}
               value={path}
               onChange={(event) => {
+                editing.current = true;
                 setPath(event.target.value);
-                setSuggestOpen(true);
               }}
-              onBlur={() => setSuggestOpen(false)}
               onKeyDown={(event) => {
-                if (event.key === "Escape") {
-                  if (suggestOpen) {
-                    event.stopPropagation();
-                    setSuggestOpen(false);
-                  }
-                  return;
-                }
-                if (event.key === "ArrowDown" && suggestions.length > 0) {
+                if ((event.key === "ArrowDown" || event.key === "ArrowUp") && dirs.length > 0) {
                   event.preventDefault();
-                  setSuggestOpen(true);
-                  setActive((value) => (value + 1) % suggestions.length);
+                  const step = event.key === "ArrowDown" ? 1 : -1;
+                  setActive((value) =>
+                    value < 0
+                      ? step > 0
+                        ? 0
+                        : dirs.length - 1
+                      : (value + step + dirs.length) % dirs.length,
+                  );
                   setActiveMoved(true);
-                  return;
-                }
-                if (event.key === "ArrowUp" && suggestions.length > 0) {
-                  event.preventDefault();
-                  setSuggestOpen(true);
-                  setActive((value) => (value - 1 + suggestions.length) % suggestions.length);
-                  setActiveMoved(true);
-                  return;
-                }
-                if (event.key === "Tab") {
-                  const suggestion = suggestions[active];
-                  if (!suggestion) return;
-                  event.preventDefault();
-                  setPath(`${suggestion}/`);
-                  setSuggestOpen(true);
                   return;
                 }
                 if (event.key === "Enter") {
                   event.preventDefault();
-                  const suggestion = suggestOpen ? suggestions[active] : undefined;
-                  if (suggestion && (activeMoved || status !== "exists")) onPick(suggestion);
+                  if (highlighted && (activeMoved || status !== "exists")) onPick(highlighted);
                   else pickTyped();
                 }
               }}
               placeholder="Jump to a path, e.g. /home/ubuntu/Projects"
               aria-label="Folder path"
-              role="combobox"
-              aria-controls="folder-suggestions"
-              aria-autocomplete="list"
-              aria-expanded={suggestOpen && suggestions.length > 0}
-              aria-activedescendant={
-                suggestOpen && suggestions[active] ? `folder-suggestion-${active}` : undefined
-              }
               aria-describedby="folder-status"
               aria-invalid={invalid || undefined}
               title={statusText || undefined}
@@ -452,38 +451,6 @@ export function WorkspacePicker({
                 <X className="text-destructive size-3.5" />
               ) : null}
             </span>
-            {suggestOpen && suggestions.length > 0 && (
-              <div
-                id="folder-suggestions"
-                role="listbox"
-                aria-label="Matching folders"
-                className="overlay-popover border-border bg-popover absolute bottom-full left-0 z-20 mb-1 w-full rounded-lg border p-1 shadow-lg"
-              >
-                {suggestions.map((suggestion, index) => (
-                  <button
-                    key={suggestion}
-                    id={`folder-suggestion-${index}`}
-                    type="button"
-                    role="option"
-                    aria-selected={index === active}
-                    tabIndex={-1}
-                    onMouseDown={(event) => event.preventDefault()}
-                    onMouseEnter={() => {
-                      setActive(index);
-                      setActiveMoved(true);
-                    }}
-                    onClick={() => goTo(suggestion)}
-                    className={cn(
-                      "flex w-full items-center gap-2 rounded px-2 py-1.5 text-left",
-                      index === active && "bg-accent",
-                    )}
-                  >
-                    <Folder className="text-muted-foreground size-3.5 shrink-0" />
-                    <span className="truncate font-mono text-[11px]">{suggestion}</span>
-                  </button>
-                ))}
-              </div>
-            )}
           </div>
           <Button
             variant="secondary"
@@ -513,7 +480,7 @@ export function WorkspacePicker({
             invalid ? "text-destructive" : "text-muted-foreground",
           )}
         >
-          {statusText || "Enter picks the folder · Tab completes · ↑↓ browse matches"}
+          {statusText || "↑↓ pick a folder · Enter uses it · click opens it"}
         </p>
       </div>
     </div>

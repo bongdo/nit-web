@@ -1,4 +1,11 @@
-import { forwardRef, useImperativeHandle, useLayoutEffect, useRef, type ReactNode } from "react";
+import {
+  forwardRef,
+  useImperativeHandle,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import type { SpellIssue } from "../lib/spell";
 import { cn } from "../lib/utils";
 
@@ -24,6 +31,10 @@ export const ComposerHighlights = forwardRef<
 >(function ComposerHighlights({ value, issues, active, askRange, onRect }, ref) {
   const layerRef = useRef<HTMLDivElement>(null);
   const activeRef = useRef<HTMLSpanElement>(null);
+  const askRef = useRef<HTMLSpanElement>(null);
+  const lastAsk = useRef<HintRect | null>(null);
+  const wasAsk = useRef(false);
+  const [leaving, setLeaving] = useState<HintRect | null>(null);
   useImperativeHandle(ref, () => layerRef.current as HTMLDivElement);
 
   useLayoutEffect(() => {
@@ -44,6 +55,33 @@ export const ComposerHighlights = forwardRef<
     });
   }, [value, active, onRect]);
 
+  useLayoutEffect(() => {
+    const layer = layerRef.current;
+    const span = askRef.current;
+    if (askRange && span && layer) {
+      const base = layer.getBoundingClientRect();
+      const rect = span.getBoundingClientRect();
+      lastAsk.current = {
+        left: rect.left - base.left,
+        top: rect.top - base.top,
+        width: rect.width,
+        height: rect.height,
+      };
+      wasAsk.current = true;
+      return;
+    }
+    if (!askRange && wasAsk.current && lastAsk.current) {
+      wasAsk.current = false;
+      setLeaving(lastAsk.current);
+    }
+  }, [askRange, value]);
+
+  useLayoutEffect(() => {
+    if (!leaving) return;
+    const timer = window.setTimeout(() => setLeaving(null), 140);
+    return () => window.clearTimeout(timer);
+  }, [leaving]);
+
   const parts: ReactNode[] = [];
   let cursor = 0;
   const ask =
@@ -51,7 +89,7 @@ export const ComposerHighlights = forwardRef<
   if (ask) {
     if (ask.start > 0) parts.push(value.slice(0, ask.start));
     parts.push(
-      <span key="ask" className="ask-sheen-word">
+      <span key="ask" ref={askRef} className="ask-sheen-word">
         {value.slice(ask.start, ask.end)}
         <span className="ask-sheen-chip" aria-hidden="true">
           Ask
@@ -92,6 +130,20 @@ export const ComposerHighlights = forwardRef<
       )}
     >
       {parts}
+      {leaving && !ask && (
+        <span
+          className="ask-sheen-chip ask-sheen-chip-leaving"
+          style={{
+            left: leaving.left,
+            top: leaving.top,
+            width: leaving.width,
+            height: leaving.height,
+          }}
+          aria-hidden="true"
+        >
+          Ask
+        </span>
+      )}
     </div>
   );
 });

@@ -33,6 +33,23 @@ export function splitPathInput(value: string): { dir: string; prefix: string } {
   };
 }
 
+export function matchFolders(names: string[], prefix: string): string[] {
+  const needle = prefix.trim().toLowerCase();
+  if (!needle) return names;
+  const starts: string[] = [];
+  const contains: string[] = [];
+  for (const name of names) {
+    const lower = name.toLowerCase();
+    if (lower.startsWith(needle)) starts.push(name);
+    else if (lower.includes(needle)) contains.push(name);
+  }
+  return [...starts, ...contains];
+}
+
+export function isFolderName(name: string, prefix: string): boolean {
+  return name.toLowerCase() === prefix.trim().toLowerCase();
+}
+
 export function joinPath(dir: string, name: string): string {
   return dir === "/" ? `/${name}` : `${dir}/${name}`;
 }

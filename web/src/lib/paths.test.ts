@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { joinPath, normalizePath, parentPath, pathCrumbs, splitPathInput } from "./paths";
+import {
+  isFolderName,
+  joinPath,
+  matchFolders,
+  normalizePath,
+  parentPath,
+  pathCrumbs,
+  splitPathInput,
+} from "./paths";
 
 describe("paths", () => {
   it("normalizes separators and dot segments", () => {
@@ -24,6 +32,20 @@ describe("paths", () => {
     });
     expect(splitPathInput("/home/ubuntu/")).toEqual({ dir: "/home/ubuntu", prefix: "" });
     expect(splitPathInput("relative/dir")).toEqual({ dir: "", prefix: "relative/dir" });
+  });
+
+  it("matches folder names case-insensitively, prefix first", () => {
+    const names = ["Projects", "nit-gui", "jarvis", "prometheus", "PRO"];
+    expect(matchFolders(names, "pro")).toEqual(["Projects", "prometheus", "PRO"]);
+    expect(matchFolders(names, "GUI")).toEqual(["nit-gui"]);
+    expect(matchFolders(names, "zzz")).toEqual([]);
+    expect(matchFolders(names, "")).toEqual(names);
+  });
+
+  it("compares folder names case-insensitively", () => {
+    expect(isFolderName("Projects", "projects")).toBe(true);
+    expect(isFolderName("Projects", " project ")).toBe(false);
+    expect(isFolderName("Projects", "Project")).toBe(false);
   });
 
   it("joins and splits paths for breadcrumbs", () => {

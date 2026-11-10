@@ -65,6 +65,7 @@ import {
 } from "./lib/sessions";
 import { cn } from "./lib/utils";
 import { instanceScopedKey } from "./lib/instances";
+import { saveDraftFiles } from "./lib/draft-files";
 import { parseSnooze, pendingCount, snoozeItem, type SnoozeMap } from "./lib/review";
 import type { TimeFormat } from "./lib/time";
 import { useAttention } from "./hooks/useAttention";
@@ -423,9 +424,12 @@ export default function App({
   backgroundPermissionRef.current = backgroundPermissionIds;
   const permissionsOwnerRef = useRef<string | null>(null);
   const selectedSession = sessions.find((session) => session.id === selectedId) ?? null;
+  const draftKeyFor = useCallback(
+    (key: string) => (instance === defaultInstance ? key : `${instance}:${key}`),
+    [defaultInstance, instance],
+  );
   const composerKey = selectedId ?? `new:${workspace ?? ""}`;
-  const composerDraftKey =
-    instance === defaultInstance ? composerKey : `${instance}:${composerKey}`;
+  const composerDraftKey = draftKeyFor(composerKey);
   const parentSession = selectedSession?.parentID
     ? (sessions.find((session) => session.id === selectedSession.parentID) ?? null)
     : null;
@@ -1302,13 +1306,14 @@ export default function App({
       failedRef.current.delete(id);
       setFailedIds(new Set(failedRef.current));
       void api.removeSessionState(id).catch((error) => setBanner(messageOf(error)));
+      void saveDraftFiles(draftKeyFor(id), []).catch(() => {});
       if (selectedIdRef.current === id) {
         loadedIdRef.current = null;
         selectSession(null);
       }
       void loadSessions();
     },
-    [loadSessions, selectSession],
+    [draftKeyFor, loadSessions, selectSession],
   );
 
   const deleteSession = useCallback(
@@ -1594,6 +1599,7 @@ export default function App({
       failedRef.current.delete(sessionID);
       setFailedIds(new Set(failedRef.current));
       void api.removeSessionState(sessionID).catch(() => {});
+      void saveDraftFiles(draftKeyFor(sessionID), []).catch(() => {});
     }
 
     if (
@@ -2044,7 +2050,7 @@ export default function App({
           break;
         case "help":
           setBanner(
-            "Commands: /new /dir /instances /compact /revert /fork /retry /theme /backgrounds /clear /help · Shortcuts: Alt+N new chat, Alt+J/K or Ctrl+Tab/Shift+Ctrl+Tab next/prev chat (Tab in a text field completes /commands, accepts the highlighted suggestion, otherwise indents two spaces; Shift+Tab or Esc leaves the field), Alt+←/→ this dir / mine / all, Ctrl/⌘K search",
+            "Commands: /new /dir /instances /compact /revert /fork /retry /theme /backgrounds /clear /help · Shortcuts: Alt+N new chat, Alt+O switch workspace, Alt+J/K or Ctrl+Tab/Shift+Ctrl+Tab next/prev chat (Tab in a text field completes /commands, accepts the highlighted suggestion, otherwise indents two spaces; Shift+Tab or Esc leaves the field), Alt+←/→ this dir / mine / all, Ctrl/⌘K search",
           );
           break;
       }
@@ -2118,6 +2124,11 @@ export default function App({
         event.preventDefault();
         setSidebarOpen(true);
         window.setTimeout(() => searchRef.current?.focus(), 0);
+        return;
+      }
+      if (event.altKey && event.code === "KeyO") {
+        event.preventDefault();
+        setPickerOpen((value) => !value);
         return;
       }
       if ((event.altKey && event.code === "KeyN") || (mod && key === "n")) {

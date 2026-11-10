@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import type { KeyboardEvent as ReactKeyboardEvent } from "react";
 import {
   ArrowUp,
   Check,
@@ -13,7 +14,16 @@ import {
 } from "lucide-react";
 import type { FolderListing, Project } from "../lib/types";
 import { basename, formatRelative } from "../lib/format";
-import { isAbsolutePath, joinPath, normalizePath, parentPath, pathCrumbs, splitPathInput } from "../lib/paths";
+import {
+  isAbsolutePath,
+  isFolderName,
+  joinPath,
+  matchFolders,
+  normalizePath,
+  parentPath,
+  pathCrumbs,
+  splitPathInput,
+} from "../lib/paths";
 import { ApiError, api } from "../lib/api";
 import { useModalFocus } from "../hooks/useModalFocus";
 import { cn } from "../lib/utils";
@@ -64,8 +74,24 @@ export function WorkspacePicker({
   const [status, setStatus] = useState<PathStatus>("idle");
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [active, setActive] = useState(0);
+  const [activeMoved, setActiveMoved] = useState(false);
   const [suggestOpen, setSuggestOpen] = useState(false);
   const panel = useModalFocus<HTMLDivElement>();
+  const inputRef = useRef<HTMLInputElement>(null);
+  const crumbsRef = useRef<HTMLDivElement>(null);
+  const pressedBackdrop = useRef(false);
+
+  useEffect(() => {
+    const input = inputRef.current;
+    if (!input) return;
+    input.focus();
+    input.select();
+  }, []);
+
+  useEffect(() => {
+    const crumbs = crumbsRef.current;
+    if (crumbs) crumbs.scrollLeft = crumbs.scrollWidth;
+  }, [browse]);
 
   const known = useMemo(
     () => new Map(projects.map((project) => [project.canonical, project])),
@@ -115,14 +141,16 @@ export function WorkspacePicker({
       api
         .folders(dir, controller.signal)
         .then((data) => {
+          if (controller.signal.aborted) return;
           const typed = normalizePath(path);
-          const matches = data.dirs
-            .filter((name) => name.toLowerCase().startsWith(prefix.toLowerCase()))
+          const matches = matchFolders(data.dirs, prefix)
             .map((name) => joinPath(dir, name))
             .filter((candidate) => candidate !== typed);
           setSuggestions(matches.slice(0, 8));
           setActive(0);
-          setStatus(typed === data.path || data.dirs.includes(prefix) ? "exists" : "missing");
+          setActiveMoved(false);
+          const exact = data.dirs.some((name) => isFolderName(name, prefix));
+          setStatus(typed === data.path || exact ? "exists" : "missing");
         })
         .catch((cause) => {
           if (controller.signal.aborted) return;
@@ -142,6 +170,7 @@ export function WorkspacePicker({
     setPath(clean);
     setSuggestions([]);
     setSuggestOpen(false);
+    requestAnimationFrame(() => inputRef.current?.focus());
   };
 
   const pickTyped = () => {
@@ -203,7 +232,7 @@ export function WorkspacePicker({
       aria-label={onClose ? "Choose a workspace" : undefined}
       tabIndex={-1}
       onClick={onClose ? (event) => event.stopPropagation() : undefined}
-      className="overlay-modal bg-background border-border relative flex w-full max-w-xl flex-col overflow-hidden rounded-xl border shadow-xl outline-none"
+      className="overlay-modal bg-background border-border relative flex max-h-[calc(100dvh-2rem)] w-full max-w-xl flex-col overflow-hidden rounded-xl border shadow-xl outline-none"
     >
       <div className="border-border flex items-center gap-2 border-b px-4 py-3">
         <Folder className="text-muted-foreground size-4" />
@@ -243,7 +272,10 @@ export function WorkspacePicker({
         >
           <ArrowUp />
         </Button>
-        <div className="scrollbar-thin flex min-w-0 flex-1 items-center overflow-x-auto whitespace-nowrap">
+        <div
+          ref={crumbsRef}
+          className="scrollbar-thin flex min-w-0 flex-1 items-center overflow-x-auto whitespace-nowrap"
+        >
           {pathCrumbs(browse ?? "/").map((crumb, index, all) => (
             <span key={crumb.path} className="flex shrink-0 items-center">
               {index > 0 && (
@@ -338,119 +370,144 @@ export function WorkspacePicker({
         )}
       </div>
 
-      <div className="border-border flex items-center gap-2 border-t px-3 py-3">
-        <div className="relative min-w-0 flex-1">
-          <Input
-            value={path}
-            onChange={(event) => {
-              setPath(event.target.value);
-              setSuggestOpen(true);
-            }}
-            onKeyDown={(event) => {
-              if (event.key === "Escape") {
-                if (suggestOpen) {
-                  event.stopPropagation();
-                  setSuggestOpen(false);
+      <div className="border-border border-t px-3 pt-2.5 pb-2">
+        <div className="flex items-center gap-2">
+          <div className="relative min-w-0 flex-1">
+            <Input
+              ref={inputRef}
+              value={path}
+              onChange={(event) => {
+                setPath(event.target.value);
+                setSuggestOpen(true);
+              }}
+              onBlur={() => setSuggestOpen(false)}
+              onKeyDown={(event) => {
+                if (event.key === "Escape") {
+                  if (suggestOpen) {
+                    event.stopPropagation();
+                    setSuggestOpen(false);
+                  }
+                  return;
                 }
-                return;
+                if (event.key === "ArrowDown" && suggestions.length > 0) {
+                  event.preventDefault();
+                  setSuggestOpen(true);
+                  setActive((value) => (value + 1) % suggestions.length);
+                  setActiveMoved(true);
+                  return;
+                }
+                if (event.key === "ArrowUp" && suggestions.length > 0) {
+                  event.preventDefault();
+                  setSuggestOpen(true);
+                  setActive((value) => (value - 1 + suggestions.length) % suggestions.length);
+                  setActiveMoved(true);
+                  return;
+                }
+                if (event.key === "Tab") {
+                  const suggestion = suggestions[active];
+                  if (!suggestion) return;
+                  event.preventDefault();
+                  setPath(`${suggestion}/`);
+                  setSuggestOpen(true);
+                  return;
+                }
+                if (event.key === "Enter") {
+                  event.preventDefault();
+                  const suggestion = suggestOpen ? suggestions[active] : undefined;
+                  if (suggestion && (activeMoved || status !== "exists")) onPick(suggestion);
+                  else pickTyped();
+                }
+              }}
+              placeholder="Jump to a path, e.g. /home/ubuntu/Projects"
+              aria-label="Folder path"
+              role="combobox"
+              aria-controls="folder-suggestions"
+              aria-autocomplete="list"
+              aria-expanded={suggestOpen && suggestions.length > 0}
+              aria-activedescendant={
+                suggestOpen && suggestions[active] ? `folder-suggestion-${active}` : undefined
               }
-              if (event.key === "ArrowDown" && suggestions.length > 0) {
-                event.preventDefault();
-                setSuggestOpen(true);
-                setActive((value) => (value + 1) % suggestions.length);
-                return;
-              }
-              if (event.key === "ArrowUp" && suggestions.length > 0) {
-                event.preventDefault();
-                setSuggestOpen(true);
-                setActive((value) => (value - 1 + suggestions.length) % suggestions.length);
-                return;
-              }
-              if (event.key === "Tab") {
-                const suggestion = suggestions[active];
-                if (!suggestion) return;
-                event.preventDefault();
-                setPath(`${suggestion}/`);
-                setSuggestOpen(true);
-                return;
-              }
-              if (event.key === "Enter") {
-                event.preventDefault();
-                pickTyped();
-              }
-            }}
-            placeholder="Jump to a path, e.g. /home/ubuntu/Projects"
-            aria-label="Folder path"
-            role="combobox"
-            aria-controls="folder-suggestions"
-            aria-autocomplete="list"
-            aria-expanded={suggestOpen && suggestions.length > 0}
-            aria-invalid={invalid || undefined}
-            title={statusText || undefined}
-            className={cn(
-              "h-8 pr-8 font-mono text-xs",
-              invalid &&
-                "border-destructive focus-visible:border-destructive focus-visible:ring-destructive/20",
+              aria-describedby="folder-status"
+              aria-invalid={invalid || undefined}
+              title={statusText || undefined}
+              className={cn(
+                "h-8 pr-8 font-mono text-xs",
+                invalid &&
+                  "border-destructive focus-visible:border-destructive focus-visible:ring-destructive/20",
+              )}
+            />
+            <span className="pointer-events-none absolute top-1/2 right-2 -translate-y-1/2">
+              {status === "checking" ? (
+                <Loader2 className="text-muted-foreground size-3.5 animate-spin" />
+              ) : status === "exists" ? (
+                <Check className="text-success size-3.5" />
+              ) : invalid ? (
+                <X className="text-destructive size-3.5" />
+              ) : null}
+            </span>
+            {suggestOpen && suggestions.length > 0 && (
+              <div
+                id="folder-suggestions"
+                role="listbox"
+                aria-label="Matching folders"
+                className="overlay-popover border-border bg-popover absolute bottom-full left-0 z-20 mb-1 w-full rounded-lg border p-1 shadow-lg"
+              >
+                {suggestions.map((suggestion, index) => (
+                  <button
+                    key={suggestion}
+                    id={`folder-suggestion-${index}`}
+                    type="button"
+                    role="option"
+                    aria-selected={index === active}
+                    tabIndex={-1}
+                    onMouseDown={(event) => event.preventDefault()}
+                    onMouseEnter={() => {
+                      setActive(index);
+                      setActiveMoved(true);
+                    }}
+                    onClick={() => goTo(suggestion)}
+                    className={cn(
+                      "flex w-full items-center gap-2 rounded px-2 py-1.5 text-left",
+                      index === active && "bg-accent",
+                    )}
+                  >
+                    <Folder className="text-muted-foreground size-3.5 shrink-0" />
+                    <span className="truncate font-mono text-[11px]">{suggestion}</span>
+                  </button>
+                ))}
+              </div>
             )}
-          />
-          <span className="pointer-events-none absolute top-1/2 right-2 -translate-y-1/2">
-            {status === "checking" ? (
-              <Loader2 className="text-muted-foreground size-3.5 animate-spin" />
-            ) : status === "exists" ? (
-              <Check className="text-success size-3.5" />
-            ) : invalid ? (
-              <X className="text-destructive size-3.5" />
-            ) : null}
-          </span>
-          {suggestOpen && suggestions.length > 0 && (
-            <div
-              id="folder-suggestions"
-              role="listbox"
-              aria-label="Matching folders"
-              className="overlay-popover border-border bg-popover absolute bottom-full left-0 z-20 mb-1 w-full rounded-lg border p-1 shadow-lg"
-            >
-              {suggestions.map((suggestion, index) => (
-                <button
-                  key={suggestion}
-                  type="button"
-                  role="option"
-                  aria-selected={index === active}
-                  onMouseDown={(event) => event.preventDefault()}
-                  onMouseEnter={() => setActive(index)}
-                  onClick={() => goTo(suggestion)}
-                  className={cn(
-                    "flex w-full items-center gap-2 rounded px-2 py-1.5 text-left",
-                    index === active && "bg-accent",
-                  )}
-                >
-                  <Folder className="text-muted-foreground size-3.5 shrink-0" />
-                  <span className="truncate font-mono text-[11px]">{suggestion}</span>
-                </button>
-              ))}
-            </div>
-          )}
+          </div>
+          <Button
+            variant="secondary"
+            size="sm"
+            disabled={status !== "exists"}
+            onClick={browseTyped}
+            title="Show this folder in the list"
+          >
+            Browse
+          </Button>
+          <Button
+            size="sm"
+            className="max-w-44 shrink-0"
+            disabled={!target}
+            onClick={() => target && onPick(target)}
+            title={target ? `Use ${target}` : undefined}
+          >
+            <span className="truncate">{target ? `Use “${basename(target)}”` : "Use folder"}</span>
+          </Button>
         </div>
-        <Button
-          variant="secondary"
-          size="sm"
-          disabled={status !== "exists"}
-          onClick={browseTyped}
-          title="Show this folder in the list"
+        <p
+          id="folder-status"
+          role="status"
+          aria-live="polite"
+          className={cn(
+            "mt-1.5 truncate text-[10px]",
+            invalid ? "text-destructive" : "text-muted-foreground",
+          )}
         >
-          Browse
-        </Button>
-        <Button
-          size="sm"
-          className="max-w-44 shrink-0"
-          disabled={!target}
-          onClick={() => target && onPick(target)}
-          title={target ? `Use ${target}` : undefined}
-        >
-          <span className="truncate">{target ? `Use “${basename(target)}”` : "Use folder"}</span>
-        </Button>
-        <span className="sr-only" role="status" aria-live="polite">
-          {statusText}
-        </span>
+          {statusText || "Enter picks the folder · Tab completes · ↑↓ browse matches"}
+        </p>
       </div>
     </div>
   );
@@ -459,7 +516,12 @@ export function WorkspacePicker({
     return (
       <div
         className="overlay-backdrop fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
-        onClick={onClose}
+        onPointerDown={(event) => {
+          pressedBackdrop.current = event.target === event.currentTarget;
+        }}
+        onClick={() => {
+          if (pressedBackdrop.current) onClose();
+        }}
       >
         {body}
       </div>
@@ -489,6 +551,8 @@ export function WorkspaceMenu({
 }) {
   const [open, setOpen] = useState(false);
   const root = useRef<HTMLDivElement>(null);
+  const trigger = useRef<HTMLButtonElement>(null);
+  const menu = useRef<HTMLDivElement>(null);
   const known = new Map(projects.map((project) => [project.canonical, project]));
   const directories = workspaceOptions(projects, recent).filter(
     (directory) => directory !== current,
@@ -499,25 +563,51 @@ export function WorkspaceMenu({
     const onPointerDown = (event: PointerEvent) => {
       if (!root.current?.contains(event.target as Node)) setOpen(false);
     };
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setOpen(false);
-    };
     document.addEventListener("pointerdown", onPointerDown);
-    document.addEventListener("keydown", onKeyDown);
-    return () => {
-      document.removeEventListener("pointerdown", onPointerDown);
-      document.removeEventListener("keydown", onKeyDown);
-    };
+    return () => document.removeEventListener("pointerdown", onPointerDown);
   }, [open]);
+
+  useEffect(() => {
+    if (open) menu.current?.querySelector<HTMLElement>("[role='menuitem']")?.focus();
+  }, [open]);
+
+  const close = () => {
+    setOpen(false);
+    trigger.current?.focus();
+  };
+
+  const onMenuKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
+    const items = Array.from(
+      event.currentTarget.querySelectorAll<HTMLElement>("[role='menuitem']"),
+    );
+    const index = items.indexOf(document.activeElement as HTMLElement);
+    if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+      event.preventDefault();
+      const step = event.key === "ArrowDown" ? 1 : -1;
+      items[(index + step + items.length) % items.length]?.focus();
+      return;
+    }
+    if (event.key === "Home" || event.key === "End") {
+      event.preventDefault();
+      items[event.key === "Home" ? 0 : items.length - 1]?.focus();
+      return;
+    }
+    if (event.key === "Tab" || event.key === "Escape") {
+      event.preventDefault();
+      event.stopPropagation();
+      close();
+    }
+  };
 
   return (
     <div ref={root} className="relative inline-block max-w-full">
       <button
+        ref={trigger}
         type="button"
         onClick={() => setOpen((value) => !value)}
         aria-haspopup="menu"
         aria-expanded={open}
-        title="Switch workspace"
+        title="Switch workspace (Alt+O)"
         className="text-muted-foreground hover:bg-accent hover:text-foreground mx-auto flex max-w-full items-center gap-1.5 rounded-md px-2 py-1 font-mono text-[11px]"
       >
         <Folder className="size-3.5 shrink-0" />
@@ -529,7 +619,9 @@ export function WorkspaceMenu({
 
       {open && (
         <div
+          ref={menu}
           role="menu"
+          onKeyDown={onMenuKeyDown}
           className="overlay-popover border-border bg-popover absolute top-full left-1/2 z-40 mt-1 w-80 max-w-[calc(100vw-2rem)] -translate-x-1/2 rounded-lg border p-1 text-left shadow-lg"
         >
           <div className="text-muted-foreground px-2 py-1 text-[10px] font-medium tracking-wide uppercase">
@@ -548,6 +640,7 @@ export function WorkspaceMenu({
                     key={directory}
                     role="menuitem"
                     type="button"
+                    tabIndex={-1}
                     onClick={() => {
                       setOpen(false);
                       onPick(directory);
@@ -575,6 +668,7 @@ export function WorkspaceMenu({
           <button
             role="menuitem"
             type="button"
+            tabIndex={-1}
             onClick={() => {
               setOpen(false);
               onBrowse();

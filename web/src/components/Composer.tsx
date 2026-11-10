@@ -252,7 +252,7 @@ export const Composer = memo(function Composer({
     };
   }, [draftKey]);
 
-  // shortcut: a draft that is never sent or cleared keeps its files in IndexedDB, prune them when chat drafts get deleted
+  // shortcut: an abandoned draft that is never sent or cleared keeps its files in IndexedDB, prune them when the app gains draft expiry
   useEffect(() => {
     if (!filesReady) return;
     const files = attachments.flatMap((item) => (item.file ? [item.file] : []));
@@ -999,6 +999,7 @@ export const Composer = memo(function Composer({
         .map((issue) => issue.word.toLowerCase());
       if (misspelled.length > 0) learnSentWords(misspelled);
       updateValue("");
+      void saveDraftFiles(draftKey, []).catch(() => {});
       for (const item of attachments) {
         if (item.preview) URL.revokeObjectURL(item.preview);
       }

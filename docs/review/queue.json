@@ -1,5 +1,5 @@
 {
-  "updated": 1794095000,
+  "updated": 1794300000,
   "items": [
     {
       "id": "vision-diagrams",
@@ -15,12 +15,12 @@
     {
       "id": "T4",
       "kind": "feature",
-      "status": "proposed",
+      "status": "accepted",
       "title": "Copy a whole assistant reply",
       "quote": "Кнопка Copy в шапке ответа копирует весь текст ответа.",
       "source": "T4",
       "note": "vault/features/copy-reply.md",
-      "body": "bin/check зелёный; тест в transcripts.test.ts.",
+      "body": "Принято 2026-11-10: формулировка записана в vault/features/copy-reply.md, заметка получила статус «принято». Открытое расхождение: пользователь ранее просил Copy под сообщением (ses_e4f3dd6d1ffemYuWXmY3wyxi7i).",
       "created": 1794086879
     },
     {

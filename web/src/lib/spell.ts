@@ -374,3 +374,10 @@ export function maskedAt(text: string, index: number): boolean {
   if (index < 0 || index >= text.length) return false;
   return maskCode(text)[index] === " " && text[index] !== " ";
 }
+
+export function keepStale(previous: string, next: string, issues: SpellIssue[]): SpellIssue[] {
+  const max = Math.min(previous.length, next.length);
+  let prefix = 0;
+  while (prefix < max && previous[prefix] === next[prefix]) prefix += 1;
+  return issues.filter((issue) => issue.end <= prefix);
+}

@@ -5,6 +5,7 @@ import {
   findIssues,
   grammarIssues,
   issueAtCaret,
+  keepStale,
   languageOf,
   levenshtein,
   maskCode,
@@ -13,6 +14,7 @@ import {
   safeAutoFix,
   words,
   type SpellChecker,
+  type SpellIssue,
 } from "./spell";
 
 const ru: SpellChecker = {
@@ -210,5 +212,18 @@ describe("spell", () => {
     expect(allowedWord("субагенты")).toBe(true);
     expect(allowedWord("субагентов")).toBe(true);
     expect(allowedWord("сабагенты")).toBe(false);
+  });
+
+  it("keeps stale underlines only before the first edit", () => {
+    const issues: SpellIssue[] = [
+      { start: 0, end: 4, word: "хочю", suggestions: ["хочу"], language: "ru" },
+      { start: 5, end: 9, word: "грам", suggestions: ["грамм"], language: "ru" },
+    ];
+    expect(keepStale("хочю грам", "хочю грам ", issues)).toHaveLength(2);
+    expect(keepStale("хочю грам", "хочю грамма", issues)).toHaveLength(2);
+    expect(keepStale("хочю грам", "хочю хграм", issues)).toHaveLength(1);
+    expect(keepStale("хочю грам", "хочю г", issues)).toHaveLength(1);
+    expect(keepStale("хочю грам", "хочю ", issues)).toHaveLength(1);
+    expect(keepStale("хочю грам", "Хочю грам", issues)).toHaveLength(0);
   });
 });

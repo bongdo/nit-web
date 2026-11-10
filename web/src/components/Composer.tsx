@@ -59,6 +59,7 @@ type AutoFix = {
 
 const MAX_UPLOAD = 20 << 20;
 const MAX_RECORDING = 120;
+const HINT_HEIGHT = 26;
 const ASK_WORD =
   /^\s*(?:(ask)\s*[:：,，—–\-?？!！.。]|(аск|вопрос)(?=\s|$|[:：,，—–\-?？!！.。]))/i;
 
@@ -285,7 +286,9 @@ export const Composer = memo(function Composer({
   const pendingRef = useRef(0);
 
   useEffect(() => {
-    if (focusKey) ref.current?.focus();
+    if (!focusKey) return;
+    if (window.matchMedia("(pointer: coarse)").matches) return;
+    ref.current?.focus();
   }, [focusKey]);
 
   useEffect(() => {
@@ -1055,6 +1058,16 @@ export const Composer = memo(function Composer({
     onCommand(id);
   };
 
+  const hintTop = (() => {
+    if (!hintRect) return 0;
+    const height = ref.current?.clientHeight ?? 0;
+    const below = hintRect.top + hintRect.height + 2;
+    const above = hintRect.top - HINT_HEIGHT - 2;
+    if (below + HINT_HEIGHT <= height) return below;
+    if (above >= 0) return above;
+    return height + 4;
+  })();
+
   return (
     <div className="shrink-0">
       <div className="mx-auto w-full max-w-3xl px-4 pt-2 pb-3">
@@ -1315,6 +1328,8 @@ export const Composer = memo(function Composer({
                   ) {
                     autoCorrectPending.current = true;
                   }
+                  const plainTab =
+                    event.key === "Tab" && !event.ctrlKey && !event.metaKey && !event.altKey;
                   if (paletteOpen) {
                     if (event.key === "ArrowDown") {
                       event.preventDefault();
@@ -1326,7 +1341,7 @@ export const Composer = memo(function Composer({
                       setCommandIndex((current) => (current - 1 + matches.length) % matches.length);
                       return;
                     }
-                    if (event.key === "Tab" && selectedCommand) {
+                    if (plainTab && selectedCommand) {
                       event.preventDefault();
                       updateValue(`/${selectedCommand.id}`);
                       return;
@@ -1343,9 +1358,24 @@ export const Composer = memo(function Composer({
                     }
                   }
                   const firstSuggestion = visibleIssue?.suggestions[0];
-                  if (event.key === "Tab" && visibleIssue && firstSuggestion) {
+                  if (plainTab && visibleIssue && firstSuggestion) {
                     event.preventDefault();
                     applySuggestion(visibleIssue, firstSuggestion);
+                    return;
+                  }
+                  if (plainTab && !event.shiftKey && !question) {
+                    const area = ref.current;
+                    if (!area) return;
+                    event.preventDefault();
+                    const start = area.selectionStart;
+                    const end = area.selectionEnd;
+                    const caretNext = start + 2;
+                    updateValue(`${answerText.slice(0, start)}  ${answerText.slice(end)}`);
+                    setCaret(caretNext);
+                    setDismissed(null);
+                    requestAnimationFrame(() => {
+                      ref.current?.setSelectionRange(caretNext, caretNext);
+                    });
                     return;
                   }
                   if (event.key === "Escape" && visibleIssue) {
@@ -1353,6 +1383,10 @@ export const Composer = memo(function Composer({
                     event.stopPropagation();
                     setDismissed(issueKey(visibleIssue));
                     setHintRect(null);
+                    return;
+                  }
+                  if (event.key === "Escape") {
+                    ref.current?.blur();
                     return;
                   }
                   if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
@@ -1385,7 +1419,7 @@ export const Composer = memo(function Composer({
                         (ref.current?.clientWidth ?? 700) - 230,
                       ),
                     ),
-                    top: Math.max(0, hintRect.top - 2),
+                    top: hintTop,
                   }}
                 >
                   <span className="text-muted-foreground">→</span>

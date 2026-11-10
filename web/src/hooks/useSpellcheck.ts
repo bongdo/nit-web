@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { api } from "../lib/api";
-import { grammarIssues, mergeIssues, type SpellIssue } from "../lib/spell";
+import { grammarIssues, keepStale, mergeIssues, type SpellIssue } from "../lib/spell";
 import { checkSpelling, preloadSpellcheck } from "../lib/spell-client";
 
 let grammarCooldownUntil = 0;
@@ -8,6 +8,18 @@ let grammarCooldownUntil = 0;
 export function useSpellcheck(text: string, enabled: boolean, ignore: string[]) {
   const [spelling, setSpelling] = useState<SpellIssue[]>([]);
   const [grammar, setGrammar] = useState<SpellIssue[]>([]);
+  const checkedRef = useRef(text);
+
+  useEffect(() => {
+    const previous = checkedRef.current;
+    checkedRef.current = text;
+    const keep = (current: SpellIssue[]) => {
+      const next = keepStale(previous, text, current);
+      return next.length === current.length ? current : next;
+    };
+    setSpelling(keep);
+    setGrammar(keep);
+  }, [text]);
 
   useEffect(() => {
     if (!enabled) return;
@@ -21,7 +33,6 @@ export function useSpellcheck(text: string, enabled: boolean, ignore: string[]) 
       return;
     }
     let alive = true;
-    setSpelling([]);
     const timer = window.setTimeout(() => {
       checkSpelling(text, ignore)
         .then((next) => {
@@ -43,7 +54,6 @@ export function useSpellcheck(text: string, enabled: boolean, ignore: string[]) 
       return;
     }
     let alive = true;
-    setGrammar([]);
     const timer = window.setTimeout(() => {
       api
         .grammar(text)

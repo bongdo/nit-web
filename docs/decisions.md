@@ -822,3 +822,15 @@ Why: one publication is one link, one visibility switch and one asset graph; dir
 Rejected: per-file visibility, reader wrappers, iframes and a second public toggle for downloads.
 
 Cost: public HTML is anonymous hosting on the same origin, so the CSP sandbox and no-index headers are part of the contract; slug changes rely on the alias list, and old links live forever in `entry.json`.
+
+## 2026-11-10 — Composer input: mobile focus, hint flip, steady underlines, Tab indents
+
+Context: on a phone the keyboard opened on every entry into a chat; the floating suggestion bar sat on the word's line and covered the text; red underlines vanished on every keystroke; `Tab` in the field only moved focus out.
+
+Decision: the field self-focuses only on `pointer: fine`; the suggestion bar sits below the word when it fits and flips above otherwise; stale issues are kept until the next check returns and dropped only after the first edited character; `Tab` completes `/commands`, accepts the highlighted suggestion, otherwise inserts two spaces, while `Esc` blurs the field and `Shift+Tab` still leaves it. Send-time checking and LLM proofreading were rejected.
+
+Why: live Hunspell underlines are free and instant; an LLM call per message is slower and less precise on single words, and a blocking gate adds friction. One meaning for `Tab` plus an explicit exit is learnable.
+
+Rejected: an LLM spell check before send; a blocking "N mistakes, send anyway" gate; a fixed suggestion strip under the input; double-`Tab` for switching chats (`Ctrl+Tab` already does it).
+
+Cost: `Tab` no longer reaches the Send button from the field; in the question form `Tab` keeps the browser default; a stale underline keeps its old position for the ~300 ms until the recheck lands.

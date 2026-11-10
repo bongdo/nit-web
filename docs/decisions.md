@@ -870,3 +870,15 @@ Why: one chat can only live in one directory, so the project the app shows must 
 Rejected: switching the scope to the directory tab automatically (moves the user out of `All chats` against their choice), rewriting the selected chat when the project changes (the inverse bug).
 
 Cost: picking a chat in `All chats` rewrites the remembered workspace, so the next `New chat` starts in that directory.
+
+## 2026-11-10 — The sidebar has one mode: a button and a swipe
+
+Context: "Button + swipe", "Hover at the left edge" and "Swipe · follows fingers" split one panel into three behaviours. The last two draw the sidebar over the chat instead of pushing it, which the user rejects; the setting itself was the only way to find them.
+
+Decision: the setting is deleted. The sidebar is always a normal flex column that collapses to zero width, toggled by the header button, a horizontal swipe on the panel (left closes), or a right pull from the left screen edge. The follow-finger mode and its `--sidebar-swipe` CSS, `advanceSwipe`, `settleSwipe` and the `sidebar-mode` key are removed; the trigger threshold (48 px) stays. Stored `nit-gui.sidebar-mode` values are ignored.
+
+Why: one behaviour needs no explanation, keeps the layout stable, and the slide-over panel covered the conversation.
+
+Rejected: keeping the modes behind a hidden default (a setting nobody needs and a code path per mode); animating width from the finger (the panel is in flow; width can't follow a gesture cheaply).
+
+Cost: no more hover peek and no drag-to-resize; users who liked the slide-over panel lose it, and the stored mode value stays dead in localStorage.

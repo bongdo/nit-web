@@ -982,24 +982,6 @@
   }
 }
 
-@media (min-width: 48rem) {
-  .swipe-sidebar {
-    translate: calc((var(--sidebar-swipe, 0) - 1) * 100%);
-    transition: translate 200ms cubic-bezier(0.32, 0.72, 0, 1);
-    will-change: translate;
-  }
-
-  .swipe-sidebar[data-dragging] {
-    transition: none;
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    .swipe-sidebar {
-      transition: none;
-    }
-  }
-}
-
 @layer components {
   .row-sheen-copy {
     --sweep: var(--success);

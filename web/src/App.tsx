@@ -212,20 +212,11 @@ export default function App({
   const [themeOpen, setThemeOpen] = useState(false);
   const [backgroundOpen, setBackgroundOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(() => localStorage.getItem("nit-gui.collapsed") === "1");
-  const [sidebarMode, setSidebarMode] = useState<"button" | "hover" | "swipe">(() => {
-    const stored = localStorage.getItem("nit-gui.sidebar-mode");
-    return stored === "hover" || stored === "swipe" ? stored : "button";
-  });
-  const [sidebarHovered, setSidebarHovered] = useState(false);
   const setExpanded = useCallback((open: boolean) => {
     setCollapsed(!open);
     localStorage.setItem("nit-gui.collapsed", open ? "0" : "1");
   }, []);
-  const swipeMode = sidebarMode === "swipe";
-  const swipe = useSidebarSwipe(
-    swipeMode ? "follow" : sidebarMode === "button" ? "trigger" : "off",
-    setExpanded,
-  );
+  const swipe = useSidebarSwipe(setExpanded);
   const [spellcheck, setSpellcheck] = useState(() => localStorage.getItem("nit-gui.spellcheck") !== "0");
   const [autofix, setAutofix] = useState(() => localStorage.getItem("nit-gui.autofix") !== "0");
   const [timeFormat, setTimeFormat] = useState<TimeFormat>(() =>
@@ -304,7 +295,6 @@ export default function App({
   const [preferredAgent, setPreferredAgent] = useState<string | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
   const refreshTimer = useRef<number | null>(null);
-  const hoverTimer = useRef<number | null>(null);
   const firstStreamOpen = useRef(true);
   const runningEventsAt = useRef<Record<string, number>>({});
   const lastEscapeAt = useRef(0);
@@ -1096,8 +1086,7 @@ export default function App({
     if (id) localStorage.setItem(sessionKey, id);
     else localStorage.removeItem(sessionKey);
     setSidebarOpen(false);
-    swipe.close();
-  }, [saveCurrentTranscript, swipe.close]);
+  }, [saveCurrentTranscript]);
 
   const notifications =
     notifyOn && typeof Notification !== "undefined" && Notification.permission === "granted";
@@ -1231,29 +1220,11 @@ export default function App({
   }, [selectSession]);
 
   const toggleSidebar = useCallback(() => {
-    if (sidebarMode === "swipe") {
-      swipe.toggle();
-      return;
-    }
     setCollapsed((current) => {
       const next = !current;
       localStorage.setItem("nit-gui.collapsed", next ? "1" : "0");
       return next;
     });
-  }, [sidebarMode, swipe.toggle]);
-
-  const openHoverSidebar = useCallback(() => {
-    if (hoverTimer.current !== null) window.clearTimeout(hoverTimer.current);
-    hoverTimer.current = null;
-    setSidebarHovered(true);
-  }, []);
-
-  const closeHoverSidebar = useCallback(() => {
-    if (hoverTimer.current !== null) window.clearTimeout(hoverTimer.current);
-    hoverTimer.current = window.setTimeout(() => {
-      hoverTimer.current = null;
-      setSidebarHovered(false);
-    }, 240);
   }, []);
 
   const sessionAndChildren = useCallback((id: string) => {
@@ -2092,7 +2063,6 @@ export default function App({
       if (mod && key === "k") {
         event.preventDefault();
         setSidebarOpen(true);
-        swipe.open();
         window.setTimeout(() => searchRef.current?.focus(), 0);
         return;
       }
@@ -2156,8 +2126,6 @@ export default function App({
           }
         }
         setSidebarOpen(false);
-        setSidebarHovered(false);
-        swipe.close();
       }
     };
     window.addEventListener("keydown", onKeyDown);
@@ -2170,8 +2138,6 @@ export default function App({
     selectSession,
     settingsOpen,
     stop,
-    swipe.close,
-    swipe.open,
     themeOpen,
     backgroundOpen,
     pickerOpen,
@@ -2207,61 +2173,31 @@ export default function App({
   const offlineBanner = health && !health.ok ? "OpenCode service is offline." : null;
   const activeError = banner ?? offlineBanner;
   const running = selectedId ? isRunning(selectedId) : false;
-  const hoverSidebar = sidebarMode === "hover";
   const questionForm = forms[0] && questionFields(forms[0]) ? forms[0] : null;
 
   return (
     <div className="flex h-full min-h-0 overflow-hidden">
-      {hoverSidebar && (
-        <button
-          type="button"
-          aria-label="Open chats"
-          className="group fixed inset-y-0 left-0 z-20 hidden w-2 md:block"
-          onPointerEnter={openHoverSidebar}
-          onFocus={openHoverSidebar}
-          onClick={openHoverSidebar}
-        >
-          <span className="bg-border/80 block h-full w-px opacity-0 transition-opacity duration-200 group-hover:opacity-100 group-focus-visible:opacity-100" />
-        </button>
-      )}
-      {!hoverSidebar && (
-        <div aria-hidden className="fixed inset-y-0 left-0 z-20 hidden w-2 touch-none md:block" />
-      )}
+      <div aria-hidden className="fixed inset-y-0 left-0 z-20 hidden w-2 touch-none md:block" />
       <aside
         ref={swipe.ref}
-        onPointerEnter={hoverSidebar ? openHoverSidebar : undefined}
-        onPointerLeave={hoverSidebar ? closeHoverSidebar : undefined}
         aria-label="Chats"
         className={cn(
           "border-border bg-background fixed z-30 border-r",
           "max-md:inset-x-0 max-md:top-auto max-md:bottom-0 max-md:z-50 max-md:h-[min(82dvh,42rem)] max-md:w-full max-md:overscroll-contain max-md:rounded-t-2xl max-md:border-t max-md:border-r-0 max-md:pb-[env(safe-area-inset-bottom)] max-md:shadow-2xl",
           "md:inset-y-0 md:left-0 md:w-[280px] md:touch-pan-y",
-          "ease-[cubic-bezier(0.32,0.72,0,1)] transition-[translate,opacity,width] duration-300 motion-reduce:transition-none",
+          "ease-[cubic-bezier(0.32,0.72,0,1)] transition-[translate,width] duration-300 motion-reduce:transition-none",
           sidebarOpen ? "max-md:translate-y-0" : "max-md:translate-y-full",
-          hoverSidebar
-            ? sidebarHovered
-              ? "md:z-40 md:translate-x-0 md:opacity-100 md:shadow-2xl"
-              : "md:z-40 md:-translate-x-full md:opacity-0 md:shadow-2xl"
-            : swipeMode
-              ? "swipe-sidebar md:z-40 md:shadow-2xl"
-              : cn(
-                  "md:static md:z-auto md:translate-x-0",
-                  collapsed ? "md:w-0 md:overflow-hidden md:border-r-0" : "md:w-[280px] lg:w-[300px]",
-                ),
+          cn(
+            "md:static md:z-auto md:translate-x-0",
+            collapsed ? "md:w-0 md:overflow-hidden md:border-r-0" : "md:w-[280px] lg:w-[300px]",
+          ),
         )}
       >
         <div className="flex h-full min-h-0 flex-col">
           <div className="flex shrink-0 justify-center pt-2 md:hidden">
             <span aria-hidden className="bg-border h-1 w-10 rounded-full" />
           </div>
-          <div
-            className={cn(
-              "min-h-0 flex-1",
-              hoverSidebar &&
-                "transition-[translate] duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] motion-reduce:transition-none",
-              hoverSidebar && !sidebarHovered && "md:-translate-x-4",
-            )}
-          >
+          <div className="min-h-0 flex-1">
             <Sidebar
             sessions={visibleSessions}
             subagents={visibleSubagents}
@@ -2334,8 +2270,7 @@ export default function App({
           termURL={config?.termURL ?? "/term/"}
           peroURL={config?.peroURL ?? "/pero/"}
           transport={config?.transport ?? ""}
-          collapsed={swipeMode ? !swipe.opened : collapsed}
-          sidebarMode={sidebarMode}
+          collapsed={collapsed}
           subagents={subagents}
           parent={parentSession}
           onOpenSubagent={openSubagent}
@@ -2528,16 +2463,10 @@ export default function App({
           showTime={showTime}
           motion={motion}
           background={background}
-          sidebarMode={sidebarMode}
           instance={instance}
           onModel={(model) => void changeModel(model)}
           onAgent={(agent) => void changeAgent(agent)}
           onTheme={changeTheme}
-          onSidebar={(mode) => {
-            setSidebarMode(mode);
-            localStorage.setItem("nit-gui.sidebar-mode", mode);
-            setSidebarHovered(false);
-          }}
           onSpellcheck={(value) => {
             setSpellcheck(value);
             localStorage.setItem("nit-gui.spellcheck", value ? "1" : "0");

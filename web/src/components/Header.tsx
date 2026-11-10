@@ -143,7 +143,6 @@ export const Header = memo(function Header({
   peroURL,
   transport,
   collapsed,
-  sidebarMode,
   subagents,
   parent,
   onOpenSubagent,
@@ -162,7 +161,6 @@ export const Header = memo(function Header({
   peroURL: string;
   transport: string;
   collapsed: boolean;
-  sidebarMode: "button" | "hover" | "swipe";
   subagents: Session[];
   parent?: Session | null;
   onOpenSubagent: (session: Session) => void;
@@ -172,18 +170,16 @@ export const Header = memo(function Header({
   const directory = session?.location?.directory ?? fallbackDirectory;
   return (
     <header className="from-background via-background/80 pointer-events-none absolute inset-x-0 top-0 z-10 flex items-center gap-2 bg-gradient-to-b to-transparent px-2.5 pt-2 pb-5">
-      {sidebarMode !== "hover" && (
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          className="pointer-events-auto hidden size-9 md:inline-flex"
-          onClick={onToggleSidebar}
-          title={collapsed ? "Show chats" : "Hide chats"}
-          aria-label={collapsed ? "Show chats" : "Hide chats"}
-        >
-          {collapsed ? <PanelLeftOpen /> : <PanelLeftClose />}
-        </Button>
-      )}
+      <Button
+        variant="ghost"
+        size="icon-sm"
+        className="pointer-events-auto hidden size-9 md:inline-flex"
+        onClick={onToggleSidebar}
+        title={collapsed ? "Show chats" : "Hide chats"}
+        aria-label={collapsed ? "Show chats" : "Hide chats"}
+      >
+        {collapsed ? <PanelLeftOpen /> : <PanelLeftClose />}
+      </Button>
 
       <SessionPill
         session={session}

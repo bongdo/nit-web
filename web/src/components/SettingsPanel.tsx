@@ -23,7 +23,6 @@ export function SettingsPanel({
   showTime,
   motion,
   background,
-  sidebarMode,
   notify,
   instance,
   onModel,
@@ -35,7 +34,6 @@ export function SettingsPanel({
   onShowTime,
   onMotion,
   onBackground,
-  onSidebar,
   onNotify,
   onInstances,
   onClose,
@@ -52,7 +50,6 @@ export function SettingsPanel({
   showTime: boolean;
   motion: "animated" | "static";
   background: SceneSetting;
-  sidebarMode: "button" | "hover" | "swipe";
   notify: boolean;
   instance: string;
   onModel: (model: ModelRef) => void;
@@ -64,7 +61,6 @@ export function SettingsPanel({
   onShowTime: (value: boolean) => void;
   onMotion: (mode: "animated" | "static") => void;
   onBackground: (mode: SceneSetting) => void;
-  onSidebar: (mode: "button" | "hover" | "swipe") => void;
   onNotify: () => void;
   onInstances: () => void;
   onClose: () => void;
@@ -197,24 +193,6 @@ export function SettingsPanel({
             </Select>
           </label>
 
-          <label className="block space-y-1">
-            <span className="text-muted-foreground text-[11px]">Chats sidebar</span>
-            <Select
-              className="w-full"
-              value={sidebarMode}
-              onChange={(event) =>
-                onSidebar(event.target.value as "button" | "hover" | "swipe")
-              }
-            >
-              <option value="button">Button + swipe</option>
-              <option value="hover">Hover at the left edge</option>
-              <option value="swipe">Swipe · follows fingers</option>
-            </Select>
-            <span className="text-muted-foreground block text-xs">
-              On a tablet: drag the chats panel left to hide it, or pull right from the left edge to
-              bring it back. The header button does both.
-            </span>
-          </label>
 
           <label className="block space-y-1">
             <span className="text-muted-foreground text-[11px]">Dictation</span>

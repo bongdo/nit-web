@@ -1594,7 +1594,17 @@ export default function App({
       firstStreamOpen.current = false;
       return;
     }
+    const selected = selectedIdRef.current;
+    const keep = selected ? transcriptCache.get(selected) : undefined;
     transcriptCache.clear();
+    if (selected && keep) transcriptCache.set(selected, keep);
+    void (async () => {
+      const result = await loadHealth();
+      if (result.ok) {
+        void loadCatalog();
+        void loadProjects();
+      }
+    })();
     void loadSessions();
     void loadChildren();
     void loadForms();

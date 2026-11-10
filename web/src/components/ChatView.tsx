@@ -593,7 +593,7 @@ export function ChatView({
     );
   }
 
-  if (loading) {
+  if (loading && messages.length === 0) {
     return (
       <div className="relative min-h-0 flex-1 overflow-y-auto">
         {scene}

@@ -71,6 +71,7 @@ export function WorkspacePicker({
   const listingRef = useRef<FolderListing | null>(null);
 
   const [path, setPath] = useState(initial ?? "");
+  const [resolved, setResolved] = useState<string | null>(null);
   const [status, setStatus] = useState<PathStatus>("idle");
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [active, setActive] = useState(0);
@@ -132,6 +133,7 @@ export function WorkspacePicker({
     if (!isAbsolutePath(path)) {
       setStatus(path.trim() ? "relative" : "idle");
       setSuggestions([]);
+      setResolved(null);
       return;
     }
     const { dir, prefix } = splitPathInput(path);
@@ -149,12 +151,15 @@ export function WorkspacePicker({
           setSuggestions(matches.slice(0, 8));
           setActive(0);
           setActiveMoved(false);
-          const exact = data.dirs.some((name) => isFolderName(name, prefix));
-          setStatus(typed === data.path || exact ? "exists" : "missing");
+          const match = data.dirs.find((name) => isFolderName(name, prefix));
+          const exact = typed === data.path ? typed : match ? joinPath(dir, match) : null;
+          setResolved(exact);
+          setStatus(exact ? "exists" : "missing");
         })
         .catch((cause) => {
           if (controller.signal.aborted) return;
           setSuggestions([]);
+          setResolved(null);
           setStatus(cause instanceof ApiError && cause.status === 404 ? "missing" : "error");
         });
     }, 150);
@@ -179,7 +184,7 @@ export function WorkspacePicker({
       return;
     }
     if (status === "exists") {
-      onPick(normalizePath(path));
+      onPick(resolved ?? normalizePath(path));
       return;
     }
     api
@@ -198,17 +203,19 @@ export function WorkspacePicker({
 
   const browseTyped = () => {
     if (status !== "exists") return;
-    goTo(path);
+    goTo(resolved ?? path);
   };
 
   const typed = isAbsolutePath(path) ? normalizePath(path) : "";
   const invalid = status === "relative" || status === "missing" || status === "error";
   const target =
-    typed && (status === "exists" || typed === listing?.path)
-      ? typed
-      : path.trim() === ""
-        ? (listing?.path ?? null)
-        : null;
+    status === "exists" && resolved
+      ? resolved
+      : typed && typed === listing?.path
+        ? typed
+        : path.trim() === ""
+          ? (listing?.path ?? null)
+          : null;
   const statusText =
     status === "relative"
       ? "Use an absolute path, starting with /."
@@ -218,7 +225,7 @@ export function WorkspacePicker({
           ? "Folder exists."
           : status === "missing"
             ? suggestions.length > 0
-              ? "No exact match. Pick a suggestion."
+              ? "No exact match. Enter picks the highlighted folder."
               : "No such folder."
             : status === "error"
               ? "Cannot read this folder."

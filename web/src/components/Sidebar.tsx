@@ -8,8 +8,6 @@ import {
   type RefObject,
 } from "react";
 import {
-  Bell,
-  BellOff,
   ChevronDown,
   ChevronRight,
   ClipboardCheck,
@@ -278,10 +276,7 @@ export const Sidebar = memo(function Sidebar({
   onDelete,
   onToggleHidden,
   onSettings,
-  notify,
-  onNotify,
   onTheme,
-  onBackground,
   instance,
   onInstances,
   isRunning,
@@ -323,10 +318,7 @@ export const Sidebar = memo(function Sidebar({
   onDelete: (id: string) => void;
   onToggleHidden: () => void;
   onSettings: () => void;
-  notify: boolean;
-  onNotify: () => void;
   onTheme: () => void;
-  onBackground: () => void;
   instance: string;
   onInstances: () => void;
   isRunning: (id: string) => boolean;
@@ -850,25 +842,6 @@ export const Sidebar = memo(function Sidebar({
           aria-label={`Theme: ${themeLabel(theme)}`}
         >
           <ThemeIcon theme={theme} />
-        </Button>
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          onClick={onBackground}
-          title="Backgrounds"
-          aria-label="Backgrounds"
-        >
-          <Layers />
-        </Button>
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          className={cn(notify && "text-success")}
-          onClick={onNotify}
-          title={notify ? "Desktop notifications on" : "Desktop notifications off"}
-          aria-label="Desktop notifications"
-        >
-          {notify ? <Bell /> : <BellOff />}
         </Button>
         <Button
           variant="ghost"

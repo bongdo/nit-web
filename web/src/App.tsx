@@ -1419,7 +1419,6 @@ export default function App({
   const closeSettings = useCallback(() => setSettingsOpen(false), []);
   const openTheme = useCallback(() => setThemeOpen(true), []);
   const closeTheme = useCallback(() => setThemeOpen(false), []);
-  const openBackground = useCallback(() => setBackgroundOpen(true), []);
   const closeBackground = useCallback(() => setBackgroundOpen(false), []);
   const changeBackground = useCallback((next: SceneSetting) => {
     setBackground(next);
@@ -2298,10 +2297,7 @@ export default function App({
               setSidebarOpen(false);
               openSettings();
             }}
-            notify={notifications}
-            onNotify={() => void toggleNotify()}
             onTheme={openTheme}
-            onBackground={openBackground}
             instance={instance}
             onInstances={onOpenInstances}
             isRunning={isRunning}
@@ -2563,6 +2559,8 @@ export default function App({
             localStorage.setItem("nit-gui.motion", value);
           }}
           onBackground={changeBackground}
+          notify={notifications}
+          onNotify={() => void toggleNotify()}
           onInstances={onOpenInstances}
           onClose={closeSettings}
         />

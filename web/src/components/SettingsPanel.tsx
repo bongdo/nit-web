@@ -24,6 +24,7 @@ export function SettingsPanel({
   motion,
   background,
   sidebarMode,
+  notify,
   instance,
   onModel,
   onAgent,
@@ -35,6 +36,7 @@ export function SettingsPanel({
   onMotion,
   onBackground,
   onSidebar,
+  onNotify,
   onInstances,
   onClose,
 }: {
@@ -51,6 +53,7 @@ export function SettingsPanel({
   motion: "animated" | "static";
   background: SceneSetting;
   sidebarMode: "button" | "hover" | "swipe";
+  notify: boolean;
   instance: string;
   onModel: (model: ModelRef) => void;
   onAgent: (agent: string) => void;
@@ -62,6 +65,7 @@ export function SettingsPanel({
   onMotion: (mode: "animated" | "static") => void;
   onBackground: (mode: SceneSetting) => void;
   onSidebar: (mode: "button" | "hover" | "swipe") => void;
+  onNotify: () => void;
   onInstances: () => void;
   onClose: () => void;
 }) {
@@ -265,6 +269,20 @@ export function SettingsPanel({
             >
               <option value="on">Show</option>
               <option value="off">Hide</option>
+            </Select>
+          </label>
+
+          <label className="block space-y-1">
+            <span className="text-muted-foreground text-[11px]">Desktop notifications</span>
+            <Select
+              className="w-full"
+              value={notify ? "on" : "off"}
+              onChange={(event) => {
+                if ((event.target.value === "on") !== notify) onNotify();
+              }}
+            >
+              <option value="on">On · waiting and finished chats</option>
+              <option value="off">Off</option>
             </Select>
           </label>
 

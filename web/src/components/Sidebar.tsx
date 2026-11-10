@@ -421,9 +421,13 @@ export const Sidebar = memo(function Sidebar({
   const { top: finishedRows, rest } = pool
     ? hoistFinished(visible, (session) => rank(session) === 0)
     : { top: [], rest: visible };
-  const firstRunning = rest.findIndex(({ session }) => rank(session) === 2);
+  const firstRunning = rest.findIndex(
+    (row) => row.depth === 0 && rank(row.session) === 2,
+  );
   const runningStart = firstRunning === -1 ? rest.length : firstRunning;
-  const runningGroupCount = rest.filter(({ session }) => rank(session) === 2).length;
+  const runningGroupCount = rest
+    .slice(runningStart)
+    .filter((row) => row.depth === 0).length;
   const poolGroups = pool ? groupByDirectory(rest.slice(0, runningStart)) : [];
 
   const renderRow = ({ session, depth }: SessionRow, grouped = false) => {

@@ -15,6 +15,7 @@ const SPACE_ACTIONS =
   "button, a[href], summary, [role='button'], [role='checkbox'], [role='radio'], [role='switch'], [role='menuitem'], [role='option'], [role='tab']";
 
 const LATIN_KEYS = "qwertyuiopasdfghjklzxcvbnm";
+// shortcut: standard ЙЦУКЕН positions; a phonetic layout matches both its physical key and the standard letter.
 const CYRILLIC_KEYS = "йцукенгшщзфывапролдячсмить";
 
 export function shortcutKeys(event: { key: string; code?: string }): string[] {

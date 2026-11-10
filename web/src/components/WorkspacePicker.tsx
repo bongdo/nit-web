@@ -112,7 +112,7 @@ export function WorkspacePicker({
         if (controller.signal.aborted) return;
         listingRef.current = data;
         setListing(data);
-        setPath((value) => (value.trim() === "" ? data.path : value));
+        setPath((value) => (value.trim() === "" ? editable(data.path) : value));
         if (browse === null) setBrowse(data.path);
       })
       .catch((cause) => {

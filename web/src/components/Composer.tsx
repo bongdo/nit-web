@@ -252,6 +252,7 @@ export const Composer = memo(function Composer({
     };
   }, [draftKey]);
 
+  // shortcut: a draft that is never sent or cleared keeps its files in IndexedDB, prune them when chat drafts get deleted
   useEffect(() => {
     if (!filesReady) return;
     const files = attachments.flatMap((item) => (item.file ? [item.file] : []));

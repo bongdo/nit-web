@@ -846,3 +846,27 @@ Why: a 280 px panel over the header button is the slowest thing to toggle; on a 
 Rejected: edge-swipe only (system back gestures can swallow it, the strip is a fallback); dragging right anywhere in the transcript (fights with horizontal code scroll); a two-finger gesture (undiscoverable).
 
 Cost: the left 8 px of the screen no longer click through at md+, and iOS/Android edge-back can still win at the very edge, so the header button remains the reliable path.
+
+## 2026-11-10 — Draft attachments survive a chat switch
+
+Context: an unsent photo or file disappeared whenever the user opened another chat and came back, and again after a reload. The draft text already survived both.
+
+Decision: keep the composer remounted and keyed per chat as before, but store the unsent `File` objects under the same draft key in IndexedDB (`nit-gui.draft-files`) and restore them on mount. Sending or clearing the input deletes the record. Previews are recreated from the restored files. This replaces the "attachments are dropped on a switch" part of 2026-11-06.
+
+Why: IndexedDB stores `File` objects directly, so the same object that was picked is uploaded at send time; nothing is written to the user's workspace until send, and `localStorage` cannot hold 20 MiB payloads.
+
+Rejected: uploading on attach (litters the project before the user sends), base64 in `localStorage` (quota), lifting the attachment list into App state (still lost on reload), a serialized upload queue (not needed once the file itself is stored).
+
+Cost: unsent files take disk in the browser profile, a draft that is never sent keeps them, and the attachments are per device.
+
+## 2026-11-10 — The selected chat moves the project
+
+Context: after picking a chat from another directory in `All chats`, the workspace stayed the old project: the sidebar header named it and the directory tab listed its chats, while an unrelated chat was open.
+
+Decision: derive the workspace from the selected session — whenever the selected chat belongs to another directory, `workspace` and `nit-gui.workspace` switch to that directory, including on restore after a reload. The scope tab is left as the user set it.
+
+Why: one chat can only live in one directory, so the project the app shows must be the project of the open chat. Doing it in one effect on `selectedSession` covers the sidebar, notifications, subagents and reloads.
+
+Rejected: switching the scope to the directory tab automatically (moves the user out of `All chats` against their choice), rewriting the selected chat when the project changes (the inverse bug).
+
+Cost: picking a chat in `All chats` rewrites the remembered workspace, so the next `New chat` starts in that directory.

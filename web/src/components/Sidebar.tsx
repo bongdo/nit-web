@@ -407,7 +407,7 @@ export const Sidebar = memo(function Sidebar({
             .map((child) => child.id)
             .join(",")
         : "";
-      return `${session.id}[${kids}]`;
+      return `${session.id}:${rank(session)}[${kids}]`;
     })
     .join("|");
   const listRef = useRef<HTMLDivElement | null>(null);
@@ -538,11 +538,14 @@ export const Sidebar = memo(function Sidebar({
 
   useEffect(() => {
     if (!selectedId || selectedRank === null) return;
-    const row = listRef.current?.querySelector<HTMLElement>(
-      `[data-session-row="${selectedId}"]`,
-    );
-    row?.scrollIntoView({ block: "nearest" });
-  }, [expanded, selectedId, selectedRank]);
+    const container = listRef.current;
+    const row = container?.querySelector<HTMLElement>(`[data-session-row="${selectedId}"]`);
+    if (!container || !row) return;
+    const box = container.getBoundingClientRect();
+    const target = row.getBoundingClientRect();
+    if (target.top >= box.top && target.bottom <= box.bottom) return;
+    row.scrollIntoView({ block: "nearest", behavior: animated ? "smooth" : "auto" });
+  }, [animated, expanded, selectedId, selectedRank]);
 
   return (
     <div className="bg-card/40 flex h-full min-h-0 flex-col">

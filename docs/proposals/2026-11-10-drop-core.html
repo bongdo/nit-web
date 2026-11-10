@@ -1,0 +1,532 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>drop — обновление на месте и ссылки для шаринга</title>
+<style>
+  :root {
+    color-scheme: dark;
+    --bg: #0c0c0d;
+    --panel: #151517;
+    --panel-2: #1b1b1e;
+    --line: #2a2a2e;
+    --text: #f1f0ee;
+    --muted: #a3a09b;
+    --dim: #6f6c68;
+    --copper: #c4794f;
+    --copper-soft: rgba(196,121,79,.14);
+    --green: #7fb38a;
+    --blue: #7aa2c9;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 22px;
+    background: radial-gradient(circle at 50% 0, #1d1713 0, var(--bg) 46%);
+    color: var(--text);
+    font: 14px/1.55 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  .shell { max-width: 1160px; margin: 0 auto; }
+  .mono { font-family: ui-monospace, "SFMono-Regular", "Cascadia Code", "Liberation Mono", monospace; }
+  .top {
+    display: flex; align-items: center; gap: 12px; margin-bottom: 22px;
+    padding-bottom: 14px; border-bottom: 1px solid var(--line);
+  }
+  .brand { display: flex; align-items: center; gap: 9px; font-weight: 650; letter-spacing: -.01em; }
+  .brand b {
+    display: inline-grid; place-items: center; width: 26px; height: 26px;
+    border-radius: 8px; background: var(--copper); color: #1a100b; font-size: 14px;
+  }
+  .nav { display: flex; gap: 4px; margin-left: auto; flex-wrap: wrap; }
+  .nav a {
+    color: var(--muted); text-decoration: none; padding: 5px 9px; border-radius: 7px;
+    font: 11px ui-monospace, monospace;
+  }
+  .nav a:hover { background: var(--panel-2); color: var(--text); }
+  h1 { margin: 0 0 6px; font-size: 27px; letter-spacing: -.03em; }
+  h2 { margin: 0 0 4px; font-size: 18px; letter-spacing: -.02em; }
+  h3 { margin: 18px 0 8px; font-size: 12px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+  p { margin: 0 0 10px; }
+  .sub { margin: 0 0 24px; color: var(--muted); max-width: 780px; }
+  .section {
+    display: grid; grid-template-columns: 400px minmax(0, 1fr); gap: 22px;
+    margin-bottom: 26px; align-items: start;
+  }
+  .section > .side { position: sticky; top: 18px; }
+  .panel {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 14px;
+    overflow: hidden; box-shadow: 0 18px 60px rgba(0,0,0,.28);
+  }
+  .panel-h {
+    display: flex; align-items: center; gap: 8px; padding: 11px 14px;
+    border-bottom: 1px solid var(--line); color: var(--muted);
+    font: 11px ui-monospace, monospace; letter-spacing: .06em;
+  }
+  .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--green); }
+  .body { padding: 14px; }
+  .tag {
+    display: inline-block; padding: 2px 7px; border-radius: 999px;
+    background: var(--copper-soft); color: var(--copper);
+    font: 10px ui-monospace, monospace; letter-spacing: .06em; text-transform: uppercase;
+  }
+  .tag.green { background: rgba(127,179,138,.12); color: var(--green); }
+  .muted { color: var(--muted); }
+  .dim { color: var(--dim); }
+  .small { font-size: 12px; }
+  .lead { color: var(--muted); font-size: 13px; }
+  .kicker { color: var(--copper); font: 11px ui-monospace, monospace; letter-spacing: .12em; text-transform: uppercase; margin-bottom: 8px; }
+  ul { margin: 0 0 10px; padding-left: 18px; }
+  li { margin: 0 0 6px; color: var(--muted); }
+  li b { color: var(--text); font-weight: 550; }
+  code {
+    padding: 1px 5px; border-radius: 5px; background: var(--panel-2);
+    border: 1px solid var(--line); font: 11px ui-monospace, monospace; color: var(--text);
+  }
+  pre {
+    margin: 10px 0 0; padding: 12px; overflow-x: auto;
+    background: #101012; border: 1px solid var(--line); border-radius: 10px;
+    font: 11.5px/1.7 ui-monospace, monospace; color: #d8d5d0;
+  }
+  pre .c { color: var(--dim); }
+  pre .k { color: var(--copper); }
+
+  /* entry row */
+  .list { border: 1px solid var(--line); border-radius: 12px; overflow: hidden; background: var(--bg); }
+  .row { display: flex; align-items: center; gap: 12px; padding: 12px; border-bottom: 1px solid var(--line); }
+  .row:last-child { border-bottom: 0; }
+  .icon {
+    display: grid; place-items: center; width: 30px; height: 30px; flex: 0 0 auto;
+    border: 1px solid var(--line); border-radius: 8px; color: var(--muted);
+    font: 11px ui-monospace, monospace;
+  }
+  .row .body { flex: 1; min-width: 0; padding: 0; }
+  .line { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .name { font-weight: 600; letter-spacing: -.01em; }
+  .url { color: var(--dim); font: 11px ui-monospace, monospace; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .acts { display: flex; gap: 6px; flex: 0 0 auto; flex-wrap: wrap; justify-content: flex-end; }
+  button {
+    padding: 6px 10px; border: 1px solid var(--line); border-radius: 7px;
+    background: var(--panel-2); color: var(--text); font: 12px ui-sans-serif, system-ui, sans-serif;
+    cursor: pointer; transition: background-color 140ms, border-color 140ms, color 140ms, transform 120ms;
+  }
+  button:hover { background: #26262a; }
+  button:active { transform: scale(.97); }
+  button.primary { background: var(--copper); border-color: var(--copper); color: #1a100b; font-weight: 600; }
+  button.primary:hover { background: #d2895f; }
+  button.ghost { background: none; }
+  button[aria-pressed="true"] { border-color: var(--copper); color: var(--copper); }
+  .chip {
+    padding: 1px 6px; border-radius: 999px; border: 1px solid var(--line);
+    color: var(--muted); font: 10px ui-monospace, monospace;
+  }
+  .chip.live { border-color: rgba(127,179,138,.4); color: var(--green); }
+
+  .history { display: none; padding: 10px 12px 12px; border-bottom: 1px solid var(--line); background: #111113; }
+  .history.open { display: block; }
+  .history h4 { margin: 0 0 8px; font: 10px ui-monospace, monospace; letter-spacing: .1em; text-transform: uppercase; color: var(--dim); }
+  .ver { display: flex; align-items: center; gap: 8px; padding: 5px 0; color: var(--muted); font-size: 12px; }
+  .ver .v { width: 34px; color: var(--text); font: 11px ui-monospace, monospace; }
+  .ver .time { flex: 1; }
+  .ver .current { color: var(--green); font: 10px ui-monospace, monospace; }
+  .ver button { padding: 3px 7px; font-size: 11px; }
+  .ver.new { animation: rise 260ms ease-out; }
+  @keyframes rise { from { opacity: 0; transform: translateY(5px); } }
+  @keyframes flash { 0% { background: var(--copper-soft); } 100% { background: transparent; } }
+  .flash { animation: flash 900ms ease-out; }
+
+  .note {
+    margin-top: 12px; padding: 10px 12px; border-left: 2px solid var(--copper);
+    background: var(--copper-soft); border-radius: 0 8px 8px 0; color: var(--muted); font-size: 12px;
+  }
+  .note b { color: var(--text); }
+
+  /* share mock */
+  .share-wrap { position: relative; }
+  .share-pop {
+    margin-top: 10px; width: 100%; max-width: 360px; padding: 12px;
+    border: 1px solid var(--line); border-radius: 12px; background: var(--bg);
+    box-shadow: 0 18px 50px rgba(0,0,0,.4);
+    animation: pop 160ms ease-out;
+  }
+  @keyframes pop { from { opacity: 0; transform: translateY(-4px) scale(.98); } }
+  .share-pop h4 { margin: 0 0 3px; font-size: 12px; }
+  .share-pop p { margin: 0 0 10px; font-size: 11px; color: var(--muted); }
+  .ttl { display: flex; gap: 4px; margin-bottom: 10px; }
+  .ttl button { flex: 1; padding: 5px 0; font-size: 11px; }
+  .link {
+    display: flex; gap: 6px; align-items: center; padding: 6px 8px;
+    border: 1px solid var(--line); border-radius: 7px; background: var(--panel);
+    font: 11px ui-monospace, monospace; color: var(--muted);
+  }
+  .link span { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .revoked { color: var(--danger, #e57373); font-size: 11px; display: none; margin-top: 8px; }
+
+  /* live drop demo */
+  .demo-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .dropbox {
+    position: relative; display: flex; flex-direction: column; align-items: center;
+    justify-content: center; gap: 6px; height: 150px; overflow: hidden;
+    border: 1px dashed var(--line); border-radius: 12px; color: var(--muted);
+    cursor: pointer; transition: background-color 160ms, border-color 160ms, color 160ms;
+  }
+  .dropbox:hover, .dropbox.over { background: var(--hover, #1b1b1b); border-color: var(--muted); color: var(--text); }
+  .dropbox.over { border-style: solid; border-color: var(--copper); animation: breathe 1.4s ease-in-out infinite; }
+  .dropbox svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; transition: transform 200ms; }
+  .dropbox:hover svg { transform: scale(1.2); }
+  .dropbox .hint { font-size: 12px; }
+  .dropbox .bar { position: absolute; left: 0; right: 0; bottom: 0; height: 2px; background: var(--line); }
+  .dropbox .bar span { display: block; height: 100%; width: 0; background: var(--copper); transition: width 120ms linear; }
+  @keyframes breathe { 50% { box-shadow: inset 0 0 0 1px var(--copper); } }
+  .demo-item {
+    display: flex; align-items: center; gap: 10px; padding: 10px 12px;
+    border-bottom: 1px solid var(--line); border-radius: 8px;
+    animation: rise 240ms ease-out both;
+  }
+  .demo-item:hover { background: var(--hover, #1b1b1b); }
+  .demo-item .body { flex: 1; }
+  .demo-item .body { padding: 0; }
+  .demo-item .line { gap: 6px; }
+  .demo-item .url { font-size: 10px; }
+  .demo-status { min-height: 18px; margin-top: 8px; color: var(--muted); font-size: 12px; }
+  .arrows { display: flex; align-items: center; gap: 8px; color: var(--dim); font: 11px ui-monospace, monospace; margin: 6px 0 14px; flex-wrap: wrap; }
+
+  @media (max-width: 860px) {
+    .section { grid-template-columns: 1fr; }
+    .section > .side { position: static; }
+    .demo-grid { grid-template-columns: 1fr; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: 1ms !important; transition-duration: 1ms !important; }
+  }
+</style>
+</head>
+<body>
+<div class="shell">
+  <header class="top">
+    <div class="brand"><b>d</b> drop</div>
+    <nav class="nav">
+      <a href="#update" class="active">обновление</a>
+      <a href="#share">ссылки</a>
+      <a href="#done">сделано</a>
+    </nav>
+  </header>
+
+  <h1>drop: что улучшить в главной функции</h1>
+  <p class="sub">
+    Главная функция drop — «дал файл, получил ссылку». Сейчас каждое `drop &lt;path&gt;` создаёт
+    новую публикацию, даже если ссылка та же. Ниже две правки, которые меняют модель, — их
+    нужно выбрать до реализации. Анимации и прогресс загрузки уже сделаны и показаны в конце.
+  </p>
+
+  <section class="section" id="update">
+    <div class="side">
+      <div class="kicker">вопрос 1</div>
+      <h2>Обновление на месте</h2>
+      <p class="lead">Опубликовать новую сборку по старой ссылке, не плодя `app-2`, `app-3`.</p>
+
+      <div class="arrows">
+        <code>drop ./dist</code> <span>→</span> <code>app</code>
+        <span>→</span>
+        <code>drop ./dist</code> <span>→</span> <code>app-2</code>
+      </div>
+      <p class="small muted">Сегодня: новая папка, новый слаг, старые ссылки живут отдельно и копятся.</p>
+
+      <h3>Предлагаю</h3>
+      <ul>
+        <li><b>Слаг — это адрес, а не файл.</b> Повторная публикация с тем же слагом заменяет содержимое.</li>
+        <li><b>Версии по желанию.</b> Старое содержимое остаётся в истории, откат — один клик.</li>
+        <li><b>Явный признак.</b> В строке видно `v3` и дату, а не пять почти одинаковых строк.</li>
+      </ul>
+
+      <h3>Что решить</h3>
+      <ul>
+        <li>По умолчанию <code>--slug app</code> <b>заменяет</b> или требует <code>--replace</code>?</li>
+        <li>Сколько версий хранить: 3, 10 или только последнюю?</li>
+        <li>История — во всех публикациях или только для сайтов и сервисов?</li>
+      </ul>
+
+      <pre><span class="c"># обновить app на месте</span>
+drop ./dist <span class="k">--slug app</span>
+
+<span class="c"># обновить и сохранить 3 версии</span>
+drop ./dist <span class="k">--slug app --history 3</span>
+
+<span class="c"># старое поведение: всегда новый адрес</span>
+drop ./dist <span class="k">--new</span></pre>
+
+      <div class="note">
+        <b>Почему это главное.</b> Ссылка на drop живёт в чатах и заметках. Сейчас её нельзя
+        обновить, не сломав или не раздвоив. Версии превращают drop из «свалки файлов» в адрес,
+        на который можно ссылаться.
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-h"><span class="dot"></span> /nit/drop/ · модель строки</div>
+      <div class="body">
+        <div class="list">
+          <div class="row" id="entryRow">
+            <div class="icon">▤</div>
+            <div class="body">
+              <div class="line">
+                <span class="name">app</span>
+                <span class="chip live" id="verChip">v3</span>
+                <span class="small dim" id="updated">2 мин назад</span>
+              </div>
+              <div class="url" id="entryUrl">/nit/d/app/ · 12 файлов · 3.4 MB</div>
+            </div>
+            <div class="acts">
+              <button class="primary" id="publish">Обновить файлы</button>
+              <button class="ghost" id="toggleHistory" aria-pressed="true">История</button>
+            </div>
+          </div>
+          <div class="history open" id="history">
+            <h4>Версии</h4>
+            <div class="ver"><span class="v">v3</span><span class="time">только что · 3.4 MB</span><span class="current">текущая</span></div>
+            <div class="ver"><span class="v">v2</span><span class="time">вчера, 18:04 · 3.2 MB</span><button>Откатить</button></div>
+            <div class="ver"><span class="v">v1</span><span class="time">9 ноября, 14:20 · 2.9 MB</span><button>Откатить</button></div>
+          </div>
+        </div>
+
+        <div class="note" style="border-color: var(--blue); background: rgba(122,162,201,.1)">
+          Нажмите «Обновить файлы»: версия растёт, адрес не меняется. «История» выключает хранение
+          старых версий.
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="share">
+    <div class="side">
+      <div class="kicker">вопрос 2</div>
+      <h2>Ссылка для шаринга</h2>
+      <p class="lead">Отдать один drop человеку без аккаунта, не открывая его навсегда всему интернету.</p>
+
+      <div class="arrows">
+        <code>private</code> <span>→</span> <code>public</code>
+        <span>·</span>
+        <span class="dim">двух состояний мало</span>
+      </div>
+      <p class="small muted">Сегодня приватный drop видит только владелец cookie. Чтобы показать его коллеге, нужно нажать «public» — и он публичен навсегда.</p>
+
+      <h3>Предлагаю</h3>
+      <ul>
+        <li><b>Подписанная ссылка</b> с TTL (1 ч / 24 ч / 7 д) и отзывом.</li>
+        <li><b>Публичность не меняется.</b> Шаринг — отдельный ключ, а не переключатель доступа.</li>
+        <li><b>Одна кнопка</b> в строке: «Поделиться» → ссылка уже в буфере.</li>
+      </ul>
+
+      <h3>Что решить</h3>
+      <ul>
+        <li>Ссылка открывает весь drop или только выбранный файл?</li>
+        <li>Нужен ли лимит скачиваний и журнал «кто открывал»?</li>
+        <li>Максимальный TTL: 7 дней, 30 дней или «пока не отзовут»?</li>
+      </ul>
+
+      <div class="note" style="border-color: var(--blue); background: rgba(122,162,201,.1)">
+        <b>Цена.</b> Токен в URL живёт в истории браузера и логах прокси. Подпись должна
+        проверяться сервером, а не быть просто длинным слагом, иначе её нельзя отозвать.
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-h"><span class="dot"></span> /nit/drop/ · меню «Поделиться»</div>
+      <div class="body">
+        <div class="list">
+          <div class="row">
+            <div class="icon">▤</div>
+            <div class="body">
+              <div class="line"><span class="name">app</span><span class="chip">private</span></div>
+              <div class="url">/nit/d/app/</div>
+            </div>
+            <div class="acts"><button class="primary" id="shareBtn">Поделиться</button></div>
+          </div>
+        </div>
+
+        <div class="share-wrap" id="shareWrap" hidden>
+          <div class="share-pop">
+            <h4>Ссылка с доступом по времени</h4>
+            <p>Любой, у кого есть ссылка, сможет открыть drop. Переключатель public не меняется.</p>
+            <div class="ttl" id="ttl">
+              <button data-ttl="1 ч">1 ч</button>
+              <button data-ttl="24 ч" aria-pressed="true">24 ч</button>
+              <button data-ttl="7 д">7 д</button>
+            </div>
+            <div class="link">
+              <span id="shareLink">https://frankfurt.tailf358cb.ts.net/nit/d/app/?t=k7Qm…</span>
+              <button id="copyBtn">Копировать</button>
+            </div>
+            <button class="ghost" id="revokeBtn" style="margin-top:8px; width:100%">Отозвать ссылку</button>
+            <div class="revoked" id="revoked">Ссылка отозвана. Открыть её больше нельзя.</div>
+          </div>
+        </div>
+
+        <div class="note">
+          В модели это третье состояние доступа: <b>private</b> (владелец), <b>link</b>
+          (есть токен), <b>public</b> (все). Токен хранится хешем, как пароль.
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="done" style="margin-top:34px">
+    <div class="kicker">сделано сейчас</div>
+    <h2>Анимации и загрузка</h2>
+    <p class="sub" style="margin-bottom:16px">
+      Это уже в `/nit/drop/`: появление строк, реакция на перетаскивание, прогресс загрузки,
+      переключение доступа, копирование, удаление и меню. Всё уважает `prefers-reduced-motion`.
+    </p>
+    <div class="panel">
+      <div class="panel-h"><span class="dot"></span> интерактивный макет · нажмите или перетащите файл</div>
+      <div class="body">
+        <div class="demo-grid">
+          <div>
+            <div class="dropbox" id="demoDrop" tabindex="0" role="button" aria-label="Upload demo">
+              <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+              <span class="hint">Перетащите файлы или нажмите</span>
+              <div class="bar"><span id="demoBar"></span></div>
+            </div>
+            <div class="demo-status" id="demoStatus"></div>
+          </div>
+          <div class="list" style="height:max-content">
+            <div class="demo-item"><div class="icon">▤</div><div class="body"><div class="line"><span class="name">report.html</span></div><div class="url">/nit/d/report/</div></div><button class="ghost">•••</button></div>
+            <div class="demo-item" style="animation-delay:60ms"><div class="icon">▤</div><div class="body"><div class="line"><span class="name">shots.zip</span></div><div class="url">/nit/d/shots/</div></div><button class="ghost">•••</button></div>
+            <div class="demo-item" style="animation-delay:120ms"><div class="icon">▤</div><div class="body"><div class="line"><span class="name">app</span></div><div class="url">/nit/d/app/</div></div><button class="ghost">•••</button></div>
+          </div>
+        </div>
+        <div class="note">
+          В макете загрузка нарисована, файл никуда не уходит. Живой drop доступен по адресу
+          <a href="/nit/drop/" style="color:var(--copper)">/nit/drop/</a>.
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <p class="small dim" style="margin-top:26px">
+    Черновик предложения. Реализовано: анимации, прогресс загрузки, вставка файла из буфера.
+    Не реализовано до решения: обновление на месте, история версий, ссылки с TTL.
+  </p>
+</div>
+
+<script>
+  (() => {
+    const $ = (id) => document.getElementById(id);
+
+    let version = 3;
+    const times = ["только что", "вчера, 18:04", "9 ноября, 14:20"];
+
+    $("publish").addEventListener("click", () => {
+      version += 1;
+      const chip = $("verChip");
+      chip.textContent = "v" + version;
+      $("updated").textContent = "только что";
+      $("entryUrl").textContent = "/nit/d/app/ · 12 файлов · 3.5 MB";
+      const row = $("entryRow");
+      row.classList.remove("flash");
+      void row.offsetWidth;
+      row.classList.add("flash");
+
+      const history = $("history");
+      if (history.classList.contains("open")) {
+        history.querySelectorAll(".current").forEach((el) => el.remove());
+        const first = history.querySelector(".ver");
+        first.querySelector(".current")?.remove();
+        first.innerHTML = '<span class="v">v' + (version - 1) + "</span>" +
+          '<span class="time">' + times[0] + " · 3.4 MB</span><button>Откатить</button>";
+        const item = document.createElement("div");
+        item.className = "ver new";
+        item.innerHTML = '<span class="v">v' + version + "</span>" +
+          '<span class="time">только что · 3.5 MB</span><span class="current">текущая</span>';
+        history.insertBefore(item, history.querySelector(".ver"));
+        times.unshift("только что");
+        times.pop();
+      }
+    });
+
+    $("toggleHistory").addEventListener("click", (event) => {
+      const button = event.currentTarget;
+      const open = button.getAttribute("aria-pressed") !== "true";
+      button.setAttribute("aria-pressed", String(open));
+      $("history").classList.toggle("open", open);
+    });
+
+    $("shareBtn").addEventListener("click", () => {
+      const wrap = $("shareWrap");
+      wrap.hidden = !wrap.hidden;
+      if (!wrap.hidden) $("shareLink").textContent = "https://frankfurt.tailf358cb.ts.net/nit/d/app/?t=k7Qm…";
+      $("revoked").style.display = "none";
+    });
+
+    $("ttl").addEventListener("click", (event) => {
+      const button = event.target.closest("button[data-ttl]");
+      if (!button) return;
+      $("ttl").querySelectorAll("button").forEach((item) => item.removeAttribute("aria-pressed"));
+      button.setAttribute("aria-pressed", "true");
+      $("shareLink").textContent = "https://frankfurt.tailf358cb.ts.net/nit/d/app/?t=x" +
+        Math.random().toString(36).slice(2, 6) + "…";
+    });
+
+    $("copyBtn").addEventListener("click", async () => {
+      const text = "https://frankfurt.tailf358cb.ts.net/nit/d/app/?t=demo";
+      try { await navigator.clipboard.writeText(text); } catch {}
+      $("copyBtn").textContent = "Скопировано";
+      setTimeout(() => { $("copyBtn").textContent = "Копировать"; }, 1200);
+    });
+
+    $("revokeBtn").addEventListener("click", () => {
+      $("shareLink").textContent = "ссылка отозвана";
+      $("revoked").style.display = "block";
+    });
+
+    const drop = $("demoDrop");
+    const bar = $("demoBar");
+    const status = $("demoStatus");
+    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+    const simulate = () => {
+      let value = 0;
+      status.textContent = "Загрузка 0%";
+      drop.classList.add("uploading");
+      const timer = setInterval(() => {
+        value = Math.min(100, value + 8 + Math.random() * 10);
+        bar.style.width = value + "%";
+        status.textContent = value < 100 ? "Загрузка " + Math.round(value) + "%" : "Опубликовано";
+        if (value >= 100) {
+          clearInterval(timer);
+          drop.classList.remove("uploading");
+          drop.classList.add("done");
+          if (!reduced) {
+            setTimeout(() => {
+              drop.classList.remove("done");
+              bar.style.width = "0%";
+              status.textContent = "";
+            }, 600);
+          }
+        }
+      }, 90);
+    };
+
+    drop.addEventListener("click", simulate);
+    drop.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        simulate();
+      }
+    });
+    ["dragenter", "dragover"].forEach((name) => {
+      drop.addEventListener(name, (event) => {
+        event.preventDefault();
+        drop.classList.add("over");
+      });
+    });
+    ["dragleave", "drop"].forEach((name) => {
+      drop.addEventListener(name, (event) => {
+        event.preventDefault();
+        drop.classList.remove("over");
+        if (name === "drop") simulate();
+      });
+    });
+  })();
+</script>
+</body>
+</html>

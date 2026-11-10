@@ -6,20 +6,22 @@
 <meta name="robots" content="noindex,nofollow">
 <link rel="icon" href="data:,">
 <title>drop</title>
-<link rel="stylesheet" href="static/drop.css?v=2">
+<link rel="stylesheet" href="static/drop.css?v=3">
 </head>
 <body>
 <main class="page{{if not .Entries}} empty{{end}}">
   <div class="drop" data-dropzone tabindex="0" role="button" aria-label="Upload files">
     <input type="file" multiple hidden data-file-input>
-    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+    <svg class="plus" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+    <span class="hint">Drop files or click to upload</span>
+    <div class="bar" data-progress hidden><span></span></div>
   </div>
   <p class="status" data-status role="status"></p>
 
   {{if .Entries}}
   <ul class="list">
-    {{range .Entries}}
-    <li class="item" data-entry="{{.Entry.ID}}">
+    {{range $i, $entry := .Entries}}
+    <li class="item" data-entry="{{$entry.Entry.ID}}" style="--i: {{$i}}">
       <a class="main" href="{{.URL}}" target="_blank" rel="noreferrer">
         <span class="kind" data-kind="{{.Entry.Kind}}" aria-hidden="true">
           {{if eq .Entry.Kind "site"}}
@@ -77,6 +79,6 @@
   </ul>
   {{end}}
 </main>
-<script src="static/drop.js?v=2" defer></script>
+<script src="static/drop.js?v=3" defer></script>
 </body>
 </html>

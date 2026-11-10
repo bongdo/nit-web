@@ -2,6 +2,11 @@
   const zone = document.querySelector("[data-dropzone]");
   const input = document.querySelector("[data-file-input]");
   const status = document.querySelector("[data-status]");
+  const bar = document.querySelector("[data-progress]");
+  const reduce = window.matchMedia("(prefers-reduced-motion: reduce)");
+
+  const wait = (ms) =>
+    new Promise((resolve) => window.setTimeout(resolve, reduce.matches ? 0 : ms));
 
   const setStatus = (text, error = false) => {
     if (!status) return;
@@ -10,19 +15,55 @@
     if (text && error) status.scrollIntoView({ block: "nearest" });
   };
 
-  const upload = async (files) => {
+  const progress = (value) => {
+    if (!bar) return;
+    bar.hidden = value === null;
+    if (value !== null) bar.style.setProperty("--p", `${value}%`);
+  };
+
+  const busy = (on) => {
+    zone?.classList.toggle("uploading", on);
+    if (!on) progress(null);
+  };
+
+  const upload = (files) => {
     if (!files?.length) return;
     const data = new FormData();
     for (const file of files) data.append("file", file, file.name);
+    zone?.classList.remove("done");
+    zone?.classList.add("uploading");
+    progress(0);
     setStatus(`Uploading ${files.length}…`);
-    try {
-      const response = await fetch("api/upload", { method: "POST", body: data });
-      const body = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(body.error || `HTTP ${response.status}`);
-      location.reload();
-    } catch (error) {
-      setStatus(error instanceof Error ? error.message : "Upload failed", true);
-    }
+
+    const request = new XMLHttpRequest();
+    request.open("POST", "api/upload");
+    request.upload.addEventListener("progress", (event) => {
+      if (!event.lengthComputable) return;
+      const percent = Math.round((event.loaded / event.total) * 100);
+      progress(percent);
+      setStatus(`Uploading ${percent}%`);
+    });
+    request.addEventListener("load", () => {
+      let body = {};
+      try {
+        body = JSON.parse(request.responseText);
+      } catch {}
+      if (request.status < 200 || request.status >= 300) {
+        busy(false);
+        setStatus(body.error || `HTTP ${request.status}`, true);
+        return;
+      }
+      progress(100);
+      zone?.classList.remove("uploading");
+      zone?.classList.add("done");
+      setStatus("Published");
+      window.setTimeout(() => location.reload(), reduce.matches ? 0 : 220);
+    });
+    request.addEventListener("error", () => {
+      busy(false);
+      setStatus("Upload failed", true);
+    });
+    request.send(data);
   };
 
   const choose = () => input?.click();
@@ -38,7 +79,7 @@
     input.addEventListener("change", () => {
       const files = Array.from(input.files ?? []);
       input.value = "";
-      void upload(files);
+      upload(files);
     });
   }
 
@@ -62,7 +103,14 @@
     event.preventDefault();
     dragDepth = 0;
     zone?.classList.remove("over");
-    void upload(event.dataTransfer?.files);
+    upload(event.dataTransfer?.files);
+  });
+
+  document.addEventListener("paste", (event) => {
+    const files = Array.from(event.clipboardData?.files ?? []);
+    if (!files.length) return;
+    event.preventDefault();
+    upload(files);
   });
 
   const copy = async (value) => {
@@ -98,9 +146,11 @@
     if (copyButton) {
       event.preventDefault();
       await copy(copyButton.dataset.copy || "");
+      copyButton.classList.add("copied");
       const previous = copyButton.title;
       copyButton.title = "Copied";
       window.setTimeout(() => {
+        copyButton.classList.remove("copied");
         copyButton.title = previous;
       }, 1200);
       return;
@@ -169,7 +219,10 @@
       event.preventDefault();
       const id = deleteButton.closest("[data-entry]")?.dataset.entry;
       if (!id || !confirm("Delete this drop?")) return;
+      const item = deleteButton.closest("[data-entry]");
       deleteButton.disabled = true;
+      item?.classList.add("removing");
+      await wait(170);
       try {
         const response = await fetch(`api/entries/${encodeURIComponent(id)}`, {
           method: "DELETE",
@@ -177,6 +230,7 @@
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         location.reload();
       } catch (error) {
+        item?.classList.remove("removing");
         setStatus(error instanceof Error ? error.message : "Delete failed", true);
         deleteButton.disabled = false;
       }

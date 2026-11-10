@@ -1599,8 +1599,9 @@ export default function App({
     transcriptCache.clear();
     if (selected && keep) transcriptCache.set(selected, keep);
     void (async () => {
+      const wasOk = healthRef.current?.ok;
       const result = await loadHealth();
-      if (result.ok) {
+      if (result.ok && !wasOk) {
         void loadCatalog();
         void loadProjects();
       }

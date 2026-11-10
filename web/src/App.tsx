@@ -920,6 +920,7 @@ export default function App({
         const wasOk = healthRef.current?.ok;
         const result = await loadHealth();
         if (result.ok && !wasOk) {
+          setBanner(null);
           void loadCatalog();
           void loadSessions();
         }
@@ -2235,8 +2236,8 @@ export default function App({
     );
   }
 
-  const offlineBanner = health && !health.ok ? "OpenCode service is offline." : null;
-  const activeError = banner ?? offlineBanner;
+  const offlineBanner = health && !health.ok ? "No connection to the service. Retrying…" : null;
+  const activeError = offlineBanner ?? banner;
   const running = selectedId ? isRunning(selectedId) : false;
   const questionForm = forms[0] && questionFields(forms[0]) ? forms[0] : null;
 

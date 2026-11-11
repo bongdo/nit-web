@@ -12,7 +12,9 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"path"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -26,13 +28,19 @@ const (
 	serviceCommandTimeout = 5 * time.Minute
 	serviceStopTimeout    = 30 * time.Second
 	serviceTailLimit      = 8 << 10
+	maxServiceEnv         = 64
+	maxServiceEnvValue    = 8 << 10
+	maxServiceEnvFile     = 64 << 10
 )
 
 type serviceFile struct {
-	Image  string   `json:"image"`
-	Port   int      `json:"port"`
-	Health string   `json:"health"`
-	Cmd    []string `json:"cmd"`
+	Image   string            `json:"image"`
+	Port    int               `json:"port"`
+	Health  string            `json:"health"`
+	Cmd     []string          `json:"cmd"`
+	Env     map[string]string `json:"env"`
+	EnvFile string            `json:"env_file"`
+	Volume  string            `json:"volume"`
 }
 
 type serviceRuntime struct {
@@ -44,6 +52,7 @@ type Services struct {
 	store    *Store
 	podman   string
 	basePath string
+	volumes  string
 	log      *slog.Logger
 	client   *http.Client
 
@@ -57,6 +66,7 @@ func NewServices(store *Store) *Services {
 		store:    store,
 		podman:   envOr("NIT_DROP_PODMAN", "podman"),
 		basePath: strings.TrimRight(os.Getenv("NIT_DROP_BASE_PATH"), "/"),
+		volumes:  volumesRoot(),
 		log:      slog.Default(),
 		runtime:  map[string]serviceRuntime{},
 		client: &http.Client{
@@ -69,6 +79,20 @@ func NewServices(store *Store) *Services {
 	services.exec = services.podmanExec
 	store.SetDeleteHook(services.removeEntry)
 	return services
+}
+
+func volumesRoot() string {
+	if value := strings.TrimSpace(os.Getenv("NIT_DROP_VOLUMES")); value != "" {
+		if abs, err := filepath.Abs(value); err == nil {
+			return abs
+		}
+		return value
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return filepath.Join(os.TempDir(), "nit-gui-drop-volumes")
+	}
+	return filepath.Join(home, ".local", "share", "nit-gui", "drop-volumes")
 }
 
 func (s *Services) SetBasePath(path string) {
@@ -112,6 +136,8 @@ func LoadServiceConfig(dir string) (Service, error) {
 
 	service := Service{Dir: abs, Port: defaultServicePort, Health: "/"}
 	configPath := filepath.Join(abs, "drop.json")
+	var env map[string]string
+	var envFile, volume string
 	if data, err := os.ReadFile(configPath); err == nil {
 		if len(data) > 64<<10 {
 			return Service{}, fmt.Errorf("%s is too large", configPath)
@@ -130,6 +156,9 @@ func LoadServiceConfig(dir string) (Service, error) {
 			service.Health = strings.TrimSpace(file.Health)
 		}
 		service.Cmd = file.Cmd
+		env = file.Env
+		envFile = strings.TrimSpace(file.EnvFile)
+		volume = strings.TrimSpace(file.Volume)
 	} else if !errors.Is(err, os.ErrNotExist) {
 		return Service{}, err
 	}
@@ -155,7 +184,63 @@ func LoadServiceConfig(dir string) (Service, error) {
 			return Service{}, fmt.Errorf("%s: invalid cmd argument", configPath)
 		}
 	}
+	if len(env) > maxServiceEnv {
+		return Service{}, fmt.Errorf("%s: too many env values", configPath)
+	}
+	for key, value := range env {
+		if !validEnvKey(key) || reservedEnvKey(key) {
+			return Service{}, fmt.Errorf("%s: invalid env key %q", configPath, key)
+		}
+		if len(value) > maxServiceEnvValue || strings.ContainsAny(value, "\x00\r\n") {
+			return Service{}, fmt.Errorf("%s: invalid value for env %q", configPath, key)
+		}
+	}
+	service.Env = env
+	if envFile != "" {
+		rel := filepath.Clean(envFile)
+		if filepath.IsAbs(rel) || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+			return Service{}, fmt.Errorf("%s: env_file must stay inside the service directory", configPath)
+		}
+		info, err := os.Stat(filepath.Join(abs, rel))
+		if err != nil || !info.Mode().IsRegular() {
+			return Service{}, fmt.Errorf("%s: env_file %s is not readable", configPath, rel)
+		}
+		if info.Size() > maxServiceEnvFile {
+			return Service{}, fmt.Errorf("%s: env_file is too large", configPath)
+		}
+		service.EnvFile = rel
+	}
+	if volume != "" {
+		clean := path.Clean(volume)
+		if !path.IsAbs(clean) || clean == "/" || clean == "/app" || strings.ContainsRune(clean, ':') {
+			return Service{}, fmt.Errorf("%s: volume must be an absolute container path other than / and /app", configPath)
+		}
+		service.Volume = clean
+	}
 	return service, nil
+}
+
+func validEnvKey(key string) bool {
+	if key == "" || len(key) > 128 {
+		return false
+	}
+	for index, r := range key {
+		switch {
+		case r == '_', r >= 'A' && r <= 'Z', r >= 'a' && r <= 'z':
+		case index > 0 && r >= '0' && r <= '9':
+		default:
+			return false
+		}
+	}
+	return true
+}
+
+func reservedEnvKey(key string) bool {
+	switch key {
+	case "PORT", "HOST", "NIT_DROP_BASE_PATH":
+		return true
+	}
+	return false
 }
 
 func serviceContainerfile(dir string) string {
@@ -264,6 +349,14 @@ func (s *Services) run(ctx context.Context, entry *Entry) error {
 	if strings.TrimSpace(cfg.Image) == "" {
 		return errors.New("service image is missing; build it first")
 	}
+	if err := checkEnvFile(cfg); err != nil {
+		return err
+	}
+	if cfg.Volume != "" {
+		if err := os.MkdirAll(s.volumeDir(*entry), 0o700); err != nil {
+			return fmt.Errorf("create drop volume: %w", err)
+		}
+	}
 	name := cfg.Container
 	if name == "" {
 		name = containerName(entry.Slug)
@@ -284,7 +377,10 @@ func (s *Services) run(ctx context.Context, entry *Entry) error {
 		if err != nil {
 			return err
 		}
-		args := s.runArgs(*entry, name, port)
+		args, err := s.runArgs(*entry, name, port)
+		if err != nil {
+			return err
+		}
 		runCtx, cancel := context.WithTimeout(ctx, serviceCommandTimeout)
 		output, err := s.exec(runCtx, args...)
 		cancel()
@@ -313,7 +409,23 @@ func (s *Services) run(ctx context.Context, entry *Entry) error {
 	return lastErr
 }
 
-func (s *Services) runArgs(entry Entry, name string, hostPort int) []string {
+func (s *Services) volumeDir(entry Entry) string {
+	return filepath.Join(s.volumes, entry.ID)
+}
+
+func checkEnvFile(cfg *Service) error {
+	if cfg == nil || cfg.EnvFile == "" {
+		return nil
+	}
+	file := filepath.Join(cfg.Dir, cfg.EnvFile)
+	info, err := os.Stat(file)
+	if err != nil || !info.Mode().IsRegular() {
+		return fmt.Errorf("env file %s is not readable", file)
+	}
+	return nil
+}
+
+func (s *Services) runArgs(entry Entry, name string, hostPort int) ([]string, error) {
 	cfg := entry.Service
 	args := []string{
 		"run", "-d",
@@ -329,15 +441,32 @@ func (s *Services) runArgs(entry Entry, name string, hostPort int) []string {
 		"--env", "PORT=" + strconv.Itoa(cfg.Port),
 		"--env", "HOST=0.0.0.0",
 	}
+	keys := make([]string, 0, len(cfg.Env))
+	for key := range cfg.Env {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	for _, key := range keys {
+		args = append(args, "--env", key+"="+cfg.Env[key])
+	}
+	if cfg.EnvFile != "" {
+		if err := checkEnvFile(cfg); err != nil {
+			return nil, err
+		}
+		args = append(args, "--env-file", filepath.Join(cfg.Dir, cfg.EnvFile))
+	}
 	if s.basePath != "" {
 		args = append(args, "--env", "NIT_DROP_BASE_PATH="+s.basePath+"/d/"+entry.Slug+"/")
 	}
 	if serviceContainerfile(cfg.Dir) == "" {
 		args = append(args, "--volume", cfg.Dir+":/app:ro", "--workdir", "/app")
 	}
+	if cfg.Volume != "" {
+		args = append(args, "--volume", s.volumeDir(entry)+":"+cfg.Volume)
+	}
 	args = append(args, cfg.Image)
 	args = append(args, cfg.Cmd...)
-	return args
+	return args, nil
 }
 
 func (s *Services) Start(ctx context.Context, entry Entry) (Entry, error) {
@@ -427,6 +556,42 @@ func (s *Services) Restart(ctx context.Context, entry Entry) (Entry, error) {
 		updated, _ := s.persistState(&entry, "failed", 0, false)
 		return updated, err
 	}
+	if err := s.run(ctx, &entry); err != nil {
+		updated, _ := s.persistState(&entry, "failed", 0, false)
+		return updated, err
+	}
+	return entry, nil
+}
+
+func (s *Services) Update(ctx context.Context, entry Entry) (Entry, error) {
+	cfg := entry.Service
+	if cfg == nil {
+		return entry, errors.New("not a service")
+	}
+	fresh, err := LoadServiceConfig(cfg.Dir)
+	if err != nil {
+		return entry, err
+	}
+	fresh.Container = cfg.Container
+	fresh.HostPort = cfg.HostPort
+	fresh.Status = cfg.Status
+	fresh.Revision = cfg.Revision
+	fresh.Stopped = false
+	entry.Service = &fresh
+	if err := s.build(ctx, &entry, true); err != nil {
+		return entry, err
+	}
+	if entry.Service != nil {
+		fresh.Image = entry.Service.Image
+	}
+	entry.Service = &fresh
+	saved, err := s.store.Update(entry.ID, func(current *Entry) {
+		current.Service = entry.Service
+	})
+	if err != nil {
+		return entry, err
+	}
+	entry = saved
 	if err := s.run(ctx, &entry); err != nil {
 		updated, _ := s.persistState(&entry, "failed", 0, false)
 		return updated, err

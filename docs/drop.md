@@ -22,6 +22,7 @@ drop service ./app --slug app --public
 drop start app
 drop stop app
 drop restart app
+drop update app
 drop logs app -f
 ```
 
@@ -55,6 +56,66 @@ used for readiness (default `/`); `cmd` overrides the image command. With an
 `/app` with `WORKDIR /app`. With a Containerfile, the image contains the code
 and the directory is not mounted.
 
+For an application with a server, a database or secrets:
+
+```json
+{
+  "port": 3000,
+  "health": "/api/health",
+  "cmd": ["node", "server.js"],
+  "env": {"NODE_ENV": "production", "DB": "/data/app.sqlite"},
+  "env_file": ".env",
+  "volume": "/data"
+}
+```
+
+- `env` — plain values passed to the container. `PORT`, `HOST` and
+  `NIT_DROP_BASE_PATH` are reserved.
+- `env_file` — path inside the service directory, read on start and passed with
+  `--env-file`. It is not copied into the image. The file must exist when the
+  service is published or updated. Put secrets here.
+- `volume` — an absolute container path, for example `/data`. The host side is
+  `$NIT_DROP_VOLUMES/<entry id>` (default
+  `~/.local/share/nit-gui/drop-volumes`), mode `0700`, and survives restarts.
+  `drop rm` leaves the volume; delete the directory when the data is no longer
+  needed. The image should run as root (the default); a `USER` directive may
+  leave the volume unwritable.
+- SQLite is the intended database. Keep the file under the volume
+  (`/data/app.sqlite`) and only one container writes it. There is no Postgres or
+  second container.
+
+`drop update <id|slug>` re-reads `drop.json`, builds the image while the old
+container is still running, then stops it and starts the new one. The pause is
+the container restart plus the health check, usually a few seconds. A failed
+build leaves the old service running. `drop restart` is a hard restart: it
+stops first and rebuilds while the service is down; use it when the config has
+not changed.
+
+Workers run inside the same container: a worker thread, a child process with
+its own supervisor, or a queue in the same process. There is one container per
+service, so a separate worker container is not supported. WebSocket and SSE
+already pass through the proxy; an update drops those connections.
+
+A minimal React plus server image:
+
+```dockerfile
+FROM node:22-alpine AS build
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci
+COPY . .
+RUN npm run build
+
+FROM node:22-alpine
+WORKDIR /app
+COPY --from=build /app/package*.json ./
+RUN npm ci --omit=dev
+COPY --from=build /app/dist ./dist
+COPY --from=build /app/server.js ./
+ENV NODE_ENV=production DB=/data/app.sqlite
+CMD ["node", "server.js"]
+```
+
 Containers are named `drop-<slug>`, run rootless without `--privileged`,
 `--network host` or a podman socket, and publish only on `127.0.0.1` at a random
 port chosen by the manager. They are labeled `nit.drop.id=<id>`. The proxy
@@ -69,6 +130,10 @@ API request to the container. The proxy sets `X-Forwarded-Prefix` and
 scoped to its own `/d/<slug>/` path. The application must be prefix-aware:
 absolute links such as `/assets/app.js` are not rewritten. Use relative URLs,
 a configured base path or `X-Forwarded-Prefix`.
+
+For a React or Vite build this means a relative base (`base: "./"`) and relative
+API calls, or a base path baked for one fixed slug. Renaming the slug does not
+rewrite asset URLs inside the build.
 
 A private service requires `nit_gate` and returns 404 to anonymous visitors. A
 public service is anonymous. Write operations still require the manager cookie
@@ -128,6 +193,10 @@ PDF and images are served inline and left to the browser.
   from the directory, so publish only trusted code. A Containerfile build runs
   as your user. Do not point `drop service` at your home directory or at the
   drop store.
+- Service volumes are ordinary host directories under `NIT_DROP_VOLUMES`; anyone
+  who can read that path can read the database. They are not deleted with the
+  entry. `env_file` stays in the service directory and is passed to podman; it is
+  not baked into the image or written to logs.
 - The browser is still on one origin with nit-gui. A service opened by the
   logged-in owner can call the nit API from its JavaScript. Removing cookies
   from the proxy protects the container process, not the browser. The path-based
@@ -152,6 +221,7 @@ Old URLs redirect to the new slug. `drop url <id>` still works.
 | `NIT_DROP_ROOT` | `~/.local/share/nit-gui/drop` | Store directory. |
 | `NIT_DROP_MAX_UPLOAD` | `134217728` | Upload limit in bytes. |
 | `NIT_DROP_PODMAN` | `podman` | Podman binary or wrapper used for services and logs. |
+| `NIT_DROP_VOLUMES` | `~/.local/share/nit-gui/drop-volumes` | Host directory for service volumes, one `0700` folder per entry. |
 | `NIT_DROP_BASE_PATH` | empty | Prefix passed to service containers as `NIT_DROP_BASE_PATH`. |
 | `DROP_PUBLIC_BASE` | `https://frankfurt.tailf358cb.ts.net/nit/d/` | Base used by `bin/drop`. |
 

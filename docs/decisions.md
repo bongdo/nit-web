@@ -918,3 +918,15 @@ Why: an interrupted first prompt has no conversation to preserve, and choosing t
 Rejected: keeping the empty chat and only opening the picker (the next prompt still lands in the old project); asking for confirmation (one extra dialog after an explicit stop).
 
 Cost: the cancelled chat disappears from the list, and its attachments are not restored with the text.
+
+## 2026-11-11 — Drop hosts one container with SQLite
+
+Context: drop could run a container, but a React app with a server had nowhere to keep data and no way to pass secrets. Every restart removed the container filesystem, so SQLite was lost.
+
+Decision: keep one rootless container per service. `drop.json` gains `env`, `env_file` and `volume`; `drop update` rebuilds while the old container runs, then restarts it. SQLite is the only database: no Postgres, no compose, no second container. Workers run inside the same container.
+
+Why: one volume and one container cover personal apps without an orchestrator, and a pause of a few seconds during deploy is acceptable.
+
+Rejected: compose with Postgres and Redis (operation cost for a need that does not exist); a zero-downtime port swap (not needed); running the app as a plain systemd process without a container (no isolation).
+
+Cost: a worker cannot scale separately, data lives outside the entry and is not deleted by `drop rm`, and an update drops live WebSocket and SSE connections.

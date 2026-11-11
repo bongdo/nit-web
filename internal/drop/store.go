@@ -48,16 +48,19 @@ type Entry struct {
 }
 
 type Service struct {
-	Dir       string   `json:"dir"`
-	Image     string   `json:"image,omitempty"`
-	Container string   `json:"container,omitempty"`
-	Cmd       []string `json:"cmd,omitempty"`
-	Port      int      `json:"port,omitempty"`
-	Health    string   `json:"health,omitempty"`
-	HostPort  int      `json:"hostPort,omitempty"`
-	Status    string   `json:"status,omitempty"`
-	Revision  int64    `json:"revision,omitempty"`
-	Stopped   bool     `json:"stopped,omitempty"`
+	Dir       string            `json:"dir"`
+	Image     string            `json:"image,omitempty"`
+	Container string            `json:"container,omitempty"`
+	Cmd       []string          `json:"cmd,omitempty"`
+	Env       map[string]string `json:"env,omitempty"`
+	EnvFile   string            `json:"envFile,omitempty"`
+	Volume    string            `json:"volume,omitempty"`
+	Port      int               `json:"port,omitempty"`
+	Health    string            `json:"health,omitempty"`
+	HostPort  int               `json:"hostPort,omitempty"`
+	Status    string            `json:"status,omitempty"`
+	Revision  int64             `json:"revision,omitempty"`
+	Stopped   bool              `json:"stopped,omitempty"`
 }
 
 func (e Entry) Expired(now time.Time) bool {

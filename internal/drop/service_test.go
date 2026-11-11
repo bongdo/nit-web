@@ -42,6 +42,37 @@ func TestLoadServiceConfig(t *testing.T) {
 		t.Fatalf("image config = %+v, %v", cfg, err)
 	}
 
+	appDir := t.TempDir()
+	writeFile(t, filepath.Join(appDir, "Containerfile"), "FROM scratch\n")
+	writeFile(t, filepath.Join(appDir, ".env"), "SECRET=1\n")
+	writeFile(t, filepath.Join(appDir, "drop.json"), `{
+		"port": 3000,
+		"env": {"FEATURE": "on"},
+		"env_file": ".env",
+		"volume": "/data"
+	}`)
+	cfg, err = LoadServiceConfig(appDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Env["FEATURE"] != "on" || cfg.EnvFile != ".env" || cfg.Volume != "/data" {
+		t.Fatalf("app config = %+v", cfg)
+	}
+	for _, raw := range []string{
+		`{"env": {"BAD-KEY": "x"}}`,
+		`{"env": {"PORT": "1"}}`,
+		`{"env_file": "../secret"}`,
+		`{"volume": "/"}`,
+		`{"volume": "/app"}`,
+		`{"volume": "data"}`,
+	} {
+		writeFile(t, filepath.Join(appDir, "drop.json"), raw)
+		if _, err := LoadServiceConfig(appDir); err == nil {
+			t.Fatalf("accepted %s", raw)
+		}
+	}
+	writeFile(t, filepath.Join(appDir, "drop.json"), `{"port": 3000}`)
+
 	empty := t.TempDir()
 	if _, err := LoadServiceConfig(empty); err == nil || !strings.Contains(err.Error(), "Containerfile") {
 		t.Fatalf("empty dir error = %v", err)
@@ -224,6 +255,7 @@ type fakePodman struct {
 	listener map[string]net.Listener
 	port     map[string]int
 	id       string
+	lastRun  []string
 }
 
 func newFakePodman(t *testing.T) *fakePodman {
@@ -254,6 +286,7 @@ func (f *fakePodman) run(_ context.Context, args ...string) ([]byte, error) {
 		}
 		return []byte(value), nil
 	case "run":
+		f.lastRun = append([]string(nil), args...)
 		name := argValue(args, "--name")
 		publish := argValue(args, "--publish")
 		parts := strings.Split(publish, ":")
@@ -326,6 +359,7 @@ func exitCodeOne(t *testing.T) error {
 
 func TestServiceLifecycleWithFakePodman(t *testing.T) {
 	store := testStore(t)
+	t.Setenv("NIT_DROP_VOLUMES", t.TempDir())
 	fake := newFakePodman(t)
 	services := NewServices(store)
 	services.exec = fake.run
@@ -372,6 +406,36 @@ func TestServiceLifecycleWithFakePodman(t *testing.T) {
 	}
 	if entry.Service.Status != "running" {
 		t.Fatalf("restarted service = %+v", entry.Service)
+	}
+
+	writeFile(t, filepath.Join(dir, ".env"), "SECRET=1\n")
+	writeFile(t, filepath.Join(dir, "drop.json"), `{
+		"port": 3000,
+		"health": "/",
+		"env": {"FEATURE": "on"},
+		"env_file": ".env",
+		"volume": "/data"
+	}`)
+	entry, err = services.Update(ctx, entry)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if entry.Service.Status != "running" || entry.Service.Env["FEATURE"] != "on" || entry.Service.Volume != "/data" {
+		t.Fatalf("updated service = %+v", entry.Service)
+	}
+	var envFlag, volumeFlag, envFileFlag bool
+	for index := 0; index+1 < len(fake.lastRun); index++ {
+		switch {
+		case fake.lastRun[index] == "--env" && fake.lastRun[index+1] == "FEATURE=on":
+			envFlag = true
+		case fake.lastRun[index] == "--env-file" && fake.lastRun[index+1] == filepath.Join(dir, ".env"):
+			envFileFlag = true
+		case fake.lastRun[index] == "--volume" && strings.HasSuffix(fake.lastRun[index+1], ":/data"):
+			volumeFlag = true
+		}
+	}
+	if !envFlag || !envFileFlag || !volumeFlag {
+		t.Fatalf("run args = %q", fake.lastRun)
 	}
 
 	if err := store.Delete(entry.ID); err != nil {

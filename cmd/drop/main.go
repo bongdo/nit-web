@@ -44,6 +44,8 @@ func main() {
 		serviceAction(store, services, "stop", args[1:])
 	case "restart":
 		serviceAction(store, services, "restart", args[1:])
+	case "update":
+		serviceAction(store, services, "update", args[1:])
 	case "logs":
 		serviceLogs(store, services, args[1:])
 	case "web", "docs", "doc":
@@ -64,11 +66,15 @@ func usage() {
   drop slug <id|slug> <new-slug>
   drop access <id|slug> public|private
   drop start|stop|restart <id|slug>
+  drop update <id|slug>
   drop logs <id|slug> [-f]
 
 A service needs Containerfile/Dockerfile, or drop.json with "image".
-drop.json may also set {"port":3000,"health":"/","cmd":["..."]}.
+drop.json may also set {"port":3000,"health":"/","cmd":["..."],
+"env":{"KEY":"value"},"env_file":".env","volume":"/data"}.
 Default: private, forever. --expire 2w deletes after two weeks.
+update rebuilds the image while the old container still runs, then
+restarts it; use it to deploy. restart is a hard restart.
 `)
 }
 
@@ -196,6 +202,8 @@ func serviceAction(store *drop.Store, services *drop.Services, action string, ar
 		entry, err = services.Stop(ctx, entry)
 	case "restart":
 		entry, err = services.Restart(ctx, entry)
+	case "update":
+		entry, err = services.Update(ctx, entry)
 	}
 	if err != nil {
 		fail(err)

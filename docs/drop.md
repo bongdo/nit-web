@@ -116,6 +116,10 @@ ENV NODE_ENV=production DB=/data/app.sqlite
 CMD ["node", "server.js"]
 ```
 
+`examples/drop-go-sqlite` is a complete Go + React + SQLite service built this
+way. It is deployed as `notes` and doubles as a test for env, volume and
+`drop update`.
+
 Containers are named `drop-<slug>`, run rootless without `--privileged`,
 `--network host` or a podman socket, and publish only on `127.0.0.1` at a random
 port chosen by the manager. They are labeled `nit.drop.id=<id>`. The proxy

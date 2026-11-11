@@ -1,0 +1,273 @@
+:root {
+  color-scheme: dark;
+  --bg: #0c0c0d;
+  --panel: #151517;
+  --line: #2a2a2e;
+  --text: #f1f0ee;
+  --muted: #a3a09b;
+  --dim: #6f6c68;
+  --copper: #c4794f;
+  --copper-soft: rgba(196, 121, 79, 0.14);
+  --danger: #e57373;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  min-height: 100vh;
+  margin: 0;
+  background: radial-gradient(circle at 50% 0, #1d1713 0, var(--bg) 48%);
+  color: var(--text);
+  font: 15px/1.55 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+.page {
+  max-width: 660px;
+  margin: 0 auto;
+  padding: 28px 18px 60px;
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 42px;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}
+
+.mark {
+  display: inline-grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  background: var(--copper);
+  color: #1a100b;
+  font-size: 14px;
+}
+
+.stack {
+  margin-left: auto;
+  color: var(--dim);
+  font: 11px ui-monospace, "SFMono-Regular", monospace;
+  letter-spacing: 0.06em;
+}
+
+.hero {
+  margin-bottom: 22px;
+}
+
+.hero h1 {
+  margin: 0 0 8px;
+  font-size: 27px;
+  line-height: 1.2;
+  letter-spacing: -0.03em;
+}
+
+.hero p {
+  max-width: 520px;
+  margin: 0;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+code {
+  padding: 1px 5px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  background: var(--panel);
+  font: 12px ui-monospace, monospace;
+}
+
+.composer {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.composer input {
+  min-width: 0;
+  flex: 1;
+  padding: 11px 13px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel);
+  color: var(--text);
+  font: inherit;
+  outline: none;
+  transition: border-color 140ms, background-color 140ms;
+}
+
+.composer input:focus {
+  border-color: var(--copper);
+  background: #18181a;
+}
+
+.composer button {
+  padding: 0 18px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--copper);
+  color: #1a100b;
+  font: 600 14px ui-sans-serif, system-ui, sans-serif;
+  cursor: pointer;
+  transition: background-color 140ms, transform 120ms, opacity 140ms;
+}
+
+.composer button:hover:not(:disabled) {
+  background: #d2895f;
+}
+
+.composer button:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+.composer button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.error {
+  margin: 0 0 14px;
+  padding: 9px 12px;
+  border: 1px solid rgba(229, 115, 115, 0.35);
+  border-radius: 9px;
+  background: rgba(229, 115, 115, 0.08);
+  color: var(--danger);
+  font-size: 13px;
+}
+
+.empty {
+  padding: 44px 18px;
+  border: 1px dashed var(--line);
+  border-radius: 12px;
+  color: var(--dim);
+  text-align: center;
+  font-size: 13px;
+}
+
+.list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.item {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--line);
+  background: var(--panel);
+  animation: rise 220ms ease-out both;
+}
+
+.item:last-child {
+  border-bottom: 0;
+}
+
+.text {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.item time {
+  flex-shrink: 0;
+  color: var(--dim);
+  font: 10px ui-monospace, monospace;
+}
+
+.remove {
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: var(--dim);
+  font: 18px/1 system-ui, sans-serif;
+  cursor: pointer;
+  transition: background-color 140ms, color 140ms;
+}
+
+.remove:hover {
+  background: rgba(229, 115, 115, 0.12);
+  color: var(--danger);
+}
+
+.foot {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 16px;
+  color: var(--dim);
+  font: 11px ui-monospace, monospace;
+}
+
+.dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #7fb38a;
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(5px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 1ms !important;
+    transition-duration: 1ms !important;
+  }
+}
+
+@media (max-width: 520px) {
+  .page {
+    padding: 18px 12px 48px;
+  }
+
+  .head {
+    margin-bottom: 30px;
+  }
+
+  .hero h1 {
+    font-size: 23px;
+  }
+
+  .composer {
+    flex-direction: column;
+  }
+
+  .composer button {
+    height: 42px;
+  }
+
+  .item {
+    flex-wrap: wrap;
+  }
+
+  .item time {
+    order: 3;
+    width: 100%;
+  }
+}

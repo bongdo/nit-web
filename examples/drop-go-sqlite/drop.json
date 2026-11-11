@@ -1,0 +1,6 @@
+{
+  "port": 3000,
+  "health": "/api/health",
+  "env": { "DB": "/data/app.db" },
+  "volume": "/data"
+}

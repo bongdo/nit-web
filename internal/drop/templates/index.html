@@ -23,15 +23,15 @@
     {{range $i, $entry := .Entries}}
     <li class="item" data-entry="{{$entry.Entry.ID}}" style="--i: {{$i}}">
       <a class="main" href="{{.URL}}" target="_blank" rel="noreferrer">
-        <span class="kind" data-kind="{{.Entry.Kind}}" aria-hidden="true">
-          {{if eq .Entry.Kind "site"}}
-          <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M7 6.5h.01M10 6.5h.01"/></svg>
-          {{else if eq .Entry.Kind "collection"}}
-          <svg viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
-          {{else if eq .Entry.Kind "service"}}
-          <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 8h10M7 12h10M7 16h6"/></svg>
+        <span class="thumb" data-kind="{{.Entry.Kind}}" aria-hidden="true">
+          {{if eq .PreviewKind "image"}}
+          <img src="{{.PreviewURL}}" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer">
+          {{else if eq .PreviewKind "page"}}
+          <iframe src="{{.PreviewURL}}" title="Preview" loading="lazy" tabindex="-1" scrolling="no" sandbox="allow-scripts" referrerpolicy="no-referrer"></iframe>
+          {{else if eq .PreviewKind "text"}}
+          <span class="paper">{{.PreviewText}}</span>
           {{else}}
-          <svg viewBox="0 0 24 24"><path d="M6 3h8l4 4v14H6z"/><path d="M14 3v5h5"/></svg>
+          <span class="ext">{{.Ext}}</span>
           {{end}}
         </span>
         <span class="text">

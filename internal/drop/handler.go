@@ -23,8 +23,8 @@ import (
 )
 
 const (
-	managerCSP = "default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'; img-src 'self' data:; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
-	appCSP     = "sandbox allow-scripts allow-popups allow-downloads allow-top-navigation-by-user-activation; connect-src 'none'; form-action 'none'; base-uri 'none'; frame-ancestors 'none'"
+	managerCSP = "default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'; img-src 'self' data:; base-uri 'none'; form-action 'self'; frame-ancestors 'self'"
+	appCSP     = "sandbox allow-scripts allow-popups allow-downloads allow-top-navigation-by-user-activation; connect-src 'none'; form-action 'none'; base-uri 'none'; frame-ancestors 'self'"
 	svgCSP     = "sandbox; default-src 'none'; style-src 'unsafe-inline'"
 )
 
@@ -85,17 +85,21 @@ type indexPage struct {
 }
 
 type entryRow struct {
-	Entry     Entry
-	URL       string
-	SlugPath  string
-	Size      string
-	Files     int
-	Expires   string
-	Forever   bool
-	Public    bool
-	Status    string
-	DocURL    string
-	RawDocURL string
+	Entry       Entry
+	URL         string
+	SlugPath    string
+	Size        string
+	Files       int
+	Expires     string
+	Forever     bool
+	Public      bool
+	Status      string
+	DocURL      string
+	RawDocURL   string
+	Ext         string
+	PreviewKind string
+	PreviewURL  string
+	PreviewText string
 }
 
 func (h *Manager) redirectIndex(w http.ResponseWriter, r *http.Request) {
@@ -137,7 +141,65 @@ func (h *Manager) row(entry Entry) entryRow {
 		row.RawDocURL = h.publicBase + url.PathEscape(entry.Slug) + "/" + escapePath(doc)
 		row.DocURL = peroLink(h.peroURL, filepath.Join(h.store.Root(), entry.ID, filepath.FromSlash(doc)))
 	}
+	row.PreviewKind, row.PreviewURL, row.PreviewText = h.preview(entry)
+	row.Ext = entryExt(entry)
 	return row
+}
+
+func entryExt(entry Entry) string {
+	if entry.Kind == "service" {
+		return "APP"
+	}
+	name := entry.Name
+	for _, file := range entry.Files {
+		if path.Ext(file.Path) != "" {
+			name = file.Path
+			break
+		}
+	}
+	ext := strings.ToUpper(strings.TrimPrefix(path.Ext(name), "."))
+	if len(ext) > 4 {
+		ext = ext[:4]
+	}
+	if ext == "" {
+		ext = "FILE"
+	}
+	return ext
+}
+
+func (h *Manager) preview(entry Entry) (string, string, string) {
+	if entry.Kind == "service" {
+		return "", "", ""
+	}
+	if entry.App() != "" {
+		return "page", h.publicBase + url.PathEscape(entry.Slug) + "/", ""
+	}
+	if doc := entry.Text(); doc != "" {
+		return "text", "", h.previewText(entry, doc)
+	}
+	for _, file := range entry.Files {
+		if isImagePath(file.Path) {
+			return "image", h.publicBase + url.PathEscape(entry.Slug) + "/" + escapePath(file.Path), ""
+		}
+	}
+	return "", "", ""
+}
+
+func (h *Manager) previewText(entry Entry, rel string) string {
+	safe, err := safeRel(rel)
+	if err != nil {
+		return ""
+	}
+	file, err := os.Open(filepath.Join(h.store.Root(), entry.ID, filepath.FromSlash(safe)))
+	if err != nil {
+		return ""
+	}
+	defer file.Close()
+	data, err := io.ReadAll(io.LimitReader(file, 1200))
+	if err != nil {
+		return ""
+	}
+	return strings.ToValidUTF8(string(data), " ")
 }
 
 func peroLink(base, file string) string {
@@ -422,7 +484,7 @@ func (h *Public) headers(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("X-Content-Type-Options", "nosniff")
 		w.Header().Set("Referrer-Policy", "no-referrer")
-		w.Header().Set("X-Frame-Options", "DENY")
+		w.Header().Set("X-Frame-Options", "SAMEORIGIN")
 		w.Header().Set("X-Robots-Tag", "noindex, nofollow")
 		next.ServeHTTP(w, r)
 	})

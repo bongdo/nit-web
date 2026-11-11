@@ -91,6 +91,8 @@ to the same publication. Slugs and aliases are globally unique.
 ## URLs
 
 - `/nit/drop/` — private manager: list, upload, public toggle, slug, expiry.
+  Each row shows a mini preview: an image thumbnail, a scaled sandboxed frame
+  for HTML pages, or the first lines of a text file.
 - `/nit/d/<slug>/` — publication root. It serves `index.html`, a single file,
   or a bare file list for a folder without an index.
 - `/nit/d/<slug>/<path>` — a file or static asset.
@@ -116,6 +118,11 @@ PDF and images are served inline and left to the browser.
   access to nit-gui API cookies. Self-contained scripts, styles and images
   work. External images and scripts are not blocked; publish only content you
   trust.
+- HTML previews run in a scaled iframe with `sandbox="allow-scripts"` and no
+  `allow-same-origin`, so a previewed page cannot read the manager DOM or its
+  cookies. Drop responses allow framing by the same origin only
+  (`X-Frame-Options: SAMEORIGIN`, `frame-ancestors 'self'`); public pages keep
+  their opaque sandbox origin and cannot frame other drops.
 - Services run as rootless podman containers with `no-new-privileges` and all
   capabilities dropped. They can still reach the network and run arbitrary code
   from the directory, so publish only trusted code. A Containerfile build runs

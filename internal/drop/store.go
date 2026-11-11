@@ -981,6 +981,14 @@ func isHTMLPath(name string) bool {
 	return false
 }
 
+func isImagePath(name string) bool {
+	switch strings.ToLower(path.Ext(name)) {
+	case ".png", ".jpg", ".jpeg", ".gif", ".webp", ".avif", ".svg", ".bmp":
+		return true
+	}
+	return false
+}
+
 func isReadableText(name string) bool {
 	switch strings.ToLower(path.Ext(name)) {
 	case ".md", ".markdown", ".mdown", ".txt", ".rst", ".adoc", ".log",

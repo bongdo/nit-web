@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 func testDropServer(t *testing.T, store *Store, authenticated func(*http.Request) bool) *httptest.Server {
@@ -155,6 +156,58 @@ func TestBasePathRedirects(t *testing.T) {
 	resp.Body.Close()
 	if resp.StatusCode != http.StatusMovedPermanently || resp.Header.Get("Location") != "/nit/d/folder/sub/" {
 		t.Fatalf("directory redirect = %d %q", resp.StatusCode, resp.Header.Get("Location"))
+	}
+}
+
+func TestRowPreview(t *testing.T) {
+	store := testStore(t)
+	h := &Manager{store: store, publicBase: "/d/", now: time.Now}
+
+	image := publishFile(t, store, "shot.png", "image bytes", PublishOptions{})
+	row := h.row(image)
+	if row.PreviewKind != "image" || row.PreviewURL != "/d/shot/shot.png" {
+		t.Fatalf("image preview = %q %q", row.PreviewKind, row.PreviewURL)
+	}
+
+	doc := publishFile(t, store, "notes.md", "# preview\ntext", PublishOptions{})
+	row = h.row(doc)
+	if row.PreviewKind != "text" || !strings.Contains(row.PreviewText, "# preview") {
+		t.Fatalf("text preview = %q %q", row.PreviewKind, row.PreviewText)
+	}
+
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "index.html"), "<h1>hi</h1>")
+	site, err := store.PublishPath(dir, "site", PublishOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	row = h.row(site)
+	if row.PreviewKind != "page" || row.PreviewURL != "/d/site/" {
+		t.Fatalf("page preview = %q %q", row.PreviewKind, row.PreviewURL)
+	}
+
+	apk := publishFile(t, store, "app.apk", "apk bytes", PublishOptions{})
+	row = h.row(apk)
+	if row.PreviewKind != "" || row.Ext != "APK" {
+		t.Fatalf("fallback = %q %q", row.PreviewKind, row.Ext)
+	}
+}
+
+func TestHTMLFrameableByManager(t *testing.T) {
+	store := testStore(t)
+	publishFile(t, store, "page.html", "<h1>hi</h1>", PublishOptions{Public: true})
+	server := testDropServer(t, store, nil)
+
+	resp, err := http.Get(server.URL + "/d/page/")
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if got := resp.Header.Get("X-Frame-Options"); got != "SAMEORIGIN" {
+		t.Fatalf("X-Frame-Options = %q", got)
+	}
+	if csp := resp.Header.Get("Content-Security-Policy"); !strings.Contains(csp, "frame-ancestors 'self'") {
+		t.Fatalf("CSP = %q", csp)
 	}
 }
 

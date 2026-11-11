@@ -2,6 +2,7 @@ package drop
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"io"
 	"mime/multipart"
@@ -18,7 +19,7 @@ import (
 func testDropServer(t *testing.T, store *Store, authenticated func(*http.Request) bool) *httptest.Server {
 	t.Helper()
 	mux := http.NewServeMux()
-	mux.Handle("/drop/", NewManager(store, func(*http.Request) bool { return true }, nil, "/pero/", ""))
+	mux.Handle("/drop/", NewManager(store, nil, func(*http.Request) bool { return true }, nil, "/pero/", ""))
 	mux.Handle("/d/", NewPublic(store, authenticated, nil, "", nil))
 	server := httptest.NewServer(mux)
 	t.Cleanup(server.Close)
@@ -134,7 +135,7 @@ func TestBasePathRedirects(t *testing.T) {
 		t.Fatal(err)
 	}
 	mux := http.NewServeMux()
-	mux.Handle("/drop/", NewManager(store, func(*http.Request) bool { return true }, nil, "/pero/", "/nit"))
+	mux.Handle("/drop/", NewManager(store, nil, func(*http.Request) bool { return true }, nil, "/pero/", "/nit"))
 	mux.Handle("/d/", NewPublic(store, nil, nil, "/nit", nil))
 	server := httptest.NewServer(mux)
 	defer server.Close()
@@ -164,13 +165,13 @@ func TestRowPreview(t *testing.T) {
 	h := &Manager{store: store, publicBase: "/d/", now: time.Now}
 
 	image := publishFile(t, store, "shot.png", "image bytes", PublishOptions{})
-	row := h.row(image)
+	row := h.row(context.Background(), image)
 	if row.PreviewKind != "image" || row.PreviewURL != "/d/shot/shot.png" {
 		t.Fatalf("image preview = %q %q", row.PreviewKind, row.PreviewURL)
 	}
 
 	doc := publishFile(t, store, "notes.md", "# preview\ntext", PublishOptions{})
-	row = h.row(doc)
+	row = h.row(context.Background(), doc)
 	if row.PreviewKind != "text" || !strings.Contains(row.PreviewText, "# preview") {
 		t.Fatalf("text preview = %q %q", row.PreviewKind, row.PreviewText)
 	}
@@ -181,13 +182,13 @@ func TestRowPreview(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	row = h.row(site)
+	row = h.row(context.Background(), site)
 	if row.PreviewKind != "page" || row.PreviewURL != "/d/site/" {
 		t.Fatalf("page preview = %q %q", row.PreviewKind, row.PreviewURL)
 	}
 
 	apk := publishFile(t, store, "app.apk", "apk bytes", PublishOptions{})
-	row = h.row(apk)
+	row = h.row(context.Background(), apk)
 	if row.PreviewKind != "" || row.Ext != "APK" {
 		t.Fatalf("fallback = %q %q", row.PreviewKind, row.Ext)
 	}
@@ -430,7 +431,7 @@ func TestPeroLinksAndRawDoc(t *testing.T) {
 
 func TestWriteGuard(t *testing.T) {
 	store := testStore(t)
-	handler := NewManager(store, func(*http.Request) bool { return false }, nil, "/pero/", "")
+	handler := NewManager(store, nil, func(*http.Request) bool { return false }, nil, "/pero/", "")
 	server := httptest.NewServer(handler)
 	defer server.Close()
 	resp, err := http.Post(server.URL+"/drop/api/upload", "multipart/form-data; boundary=x", strings.NewReader(""))

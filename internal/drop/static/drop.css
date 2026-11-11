@@ -8,6 +8,7 @@
   --accent: #171717;
   --on-accent: #ffffff;
   --danger: #c0392b;
+  --ok: #2e7d4f;
   --radius: 10px;
 }
 
@@ -21,6 +22,7 @@
     --accent: #ededed;
     --on-accent: #111111;
     --danger: #e57373;
+    --ok: #7fb38a;
   }
 }
 
@@ -264,6 +266,29 @@ body {
 .sub {
   color: var(--muted);
   font-size: 11px;
+}
+
+.state {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.state::before {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--muted);
+  content: "";
+}
+
+.state[data-state="running"]::before {
+  background: var(--ok);
+}
+
+.state[data-state="failed"]::before,
+.state[data-state="missing"]::before {
+  background: var(--danger);
 }
 
 .slug {

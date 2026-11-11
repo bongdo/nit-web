@@ -702,7 +702,10 @@ func (s *Services) Status(ctx context.Context, entry Entry) string {
 		name = containerName(entry.Slug)
 	}
 	exists, owned, err := s.containerState(ctx, name, entry.ID)
-	if err != nil || !exists || !owned {
+	if err != nil {
+		return "unknown"
+	}
+	if !exists || !owned {
 		return "missing"
 	}
 	running, err := s.containerRunning(ctx, name)

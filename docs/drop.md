@@ -157,7 +157,8 @@ to the same publication. Slugs and aliases are globally unique.
 
 - `/nit/drop/` — private manager: list, upload, public toggle, slug, expiry.
   Each row shows a mini preview: an image thumbnail, a scaled sandboxed frame
-  for HTML pages, or the first lines of a text file.
+  for HTML pages, or the first lines of a text file. Service rows show the live
+  container status.
 - `/nit/d/<slug>/` — publication root. It serves `index.html`, a single file,
   or a bare file list for a folder without an index.
 - `/nit/d/<slug>/<path>` — a file or static asset.

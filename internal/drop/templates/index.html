@@ -36,7 +36,7 @@
         </span>
         <span class="text">
           <span class="name">{{.Entry.Name}}</span>
-          <span class="sub">{{if eq .Entry.Kind "service"}}{{.Status}}{{else}}{{.Size}}{{if gt .Files 1}} · {{.Files}}{{end}}{{end}}{{if .Expires}} · {{.Expires}}{{end}}</span>
+          <span class="sub">{{if eq .Entry.Kind "service"}}<span class="state" data-state="{{.Status}}">{{.Status}}</span>{{else}}{{.Size}}{{if gt .Files 1}} · {{.Files}}{{end}}{{end}}{{if .Expires}} · {{.Expires}}{{end}}</span>
         </span>
       </a>
       <a class="slug" href="{{.URL}}" target="_blank" rel="noreferrer">{{.SlugPath}}</a>

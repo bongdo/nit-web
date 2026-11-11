@@ -1,6 +1,7 @@
 package drop
 
 import (
+	"context"
 	"embed"
 	"encoding/json"
 	"errors"
@@ -35,6 +36,7 @@ var pages = template.Must(template.ParseFS(assets, "templates/*.html"))
 
 type Manager struct {
 	store      *Store
+	services   *Services
 	guard      func(*http.Request) bool
 	log        *slog.Logger
 	maxUpload  int64
@@ -43,12 +45,13 @@ type Manager struct {
 	now        func() time.Time
 }
 
-func NewManager(store *Store, guard func(*http.Request) bool, log *slog.Logger, peroURL, basePath string) http.Handler {
+func NewManager(store *Store, services *Services, guard func(*http.Request) bool, log *slog.Logger, peroURL, basePath string) http.Handler {
 	if log == nil {
 		log = slog.Default()
 	}
 	h := &Manager{
 		store:      store,
+		services:   services,
 		guard:      guard,
 		log:        log,
 		maxUpload:  maxUploadBytes(),
@@ -115,12 +118,12 @@ func (h *Manager) index(w http.ResponseWriter, r *http.Request) {
 	}
 	rows := make([]entryRow, 0, len(entries))
 	for _, entry := range entries {
-		rows = append(rows, h.row(entry))
+		rows = append(rows, h.row(r.Context(), entry))
 	}
 	h.render(w, http.StatusOK, "index.html", indexPage{Entries: rows})
 }
 
-func (h *Manager) row(entry Entry) entryRow {
+func (h *Manager) row(ctx context.Context, entry Entry) entryRow {
 	row := entryRow{
 		Entry:    entry,
 		URL:      h.publicBase + url.PathEscape(entry.Slug) + "/",
@@ -133,6 +136,11 @@ func (h *Manager) row(entry Entry) entryRow {
 	}
 	if entry.Kind == "service" && entry.Service != nil {
 		row.Status = entry.Service.Status
+		if h.services != nil {
+			timeout, cancel := context.WithTimeout(ctx, 2*time.Second)
+			row.Status = h.services.Status(timeout, entry)
+			cancel()
+		}
 		if row.Status == "" {
 			row.Status = "unknown"
 		}

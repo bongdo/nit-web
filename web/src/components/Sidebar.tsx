@@ -319,7 +319,7 @@ export const Sidebar = memo(function Sidebar({
   onScope: (scope: Scope) => void;
   onWorkspace: () => void;
   onSelect: (id: string) => void;
-  onNew: () => void;
+  onNew: (directory?: string) => void;
   onHide: (id: string) => void;
   onUnhide: (id: string) => void;
   onDelete: (id: string) => void;
@@ -740,7 +740,7 @@ export const Sidebar = memo(function Sidebar({
           variant="outline"
           size="sm"
           className="w-full justify-start"
-          onClick={onNew}
+          onClick={() => onNew()}
           disabled={!health?.ok || !workspace}
         >
           <Plus />
@@ -788,13 +788,19 @@ export const Sidebar = memo(function Sidebar({
               {finishedRows.map((row) => renderRow(row))}
               {poolGroups.map((group) => (
                 <Fragment key={group.directory}>
-                  <div className="text-muted-foreground flex items-center gap-2 px-3 pt-2.5 pb-0.5 text-[10px] font-medium">
-                    <span className="truncate" title={group.directory}>
+                  <button
+                    type="button"
+                    onClick={() => onNew(group.directory)}
+                    title={`New chat in ${group.directory}`}
+                    aria-label={`New chat in ${group.directory}`}
+                    className="text-muted-foreground hover:bg-accent/60 hover:text-foreground flex w-full items-center gap-2 rounded-md px-3 pt-2.5 pb-0.5 text-left text-[10px] font-medium"
+                  >
+                    <span className="truncate">
                       {basename(group.directory) || group.directory || "unknown"}
                     </span>
                     <span className="tabular-nums opacity-60">{group.rows.length}</span>
                     <span className="bg-border h-px flex-1 opacity-50" />
-                  </div>
+                  </button>
                   {group.rows.map((row) => renderRow(row, true))}
                 </Fragment>
               ))}

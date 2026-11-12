@@ -1230,12 +1230,16 @@ export default function App({
     localStorage.setItem("nit-gui.scope", next);
   }, []);
 
-  const newChat = useCallback(() => {
-    selectSession(null);
-    setSceneEpoch((epoch) => epoch + 1);
-    setSidebarOpen(false);
-    if (!workspaceRef.current) setPickerOpen(true);
-  }, [selectSession]);
+  const newChat = useCallback(
+    (directory?: string) => {
+      if (directory) rememberWorkspace(directory);
+      selectSession(null);
+      setSceneEpoch((epoch) => epoch + 1);
+      setSidebarOpen(false);
+      if (!directory && !workspaceRef.current) setPickerOpen(true);
+    },
+    [rememberWorkspace, selectSession],
+  );
 
   const toggleSidebar = useCallback(() => {
     setCollapsed((current) => {
@@ -2485,7 +2489,7 @@ export default function App({
               variant="ghost"
               size="icon-sm"
               className="size-11 shrink-0"
-              onClick={newChat}
+              onClick={() => newChat()}
               disabled={!health?.ok}
               aria-label="New chat"
               title="New chat"

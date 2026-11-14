@@ -8,13 +8,14 @@ Production has one **nit-gui** service, **Frankfurt**. It can front several
 OpenCode servers, called instances, and the browser switches between them
 without a second login. Everything that needs a model, dictionary, voice, JVM or
 another background process runs on the nit-gui host. The browser is a thin
-client: it renders the UI, records microphone audio and plays audio. It is never
-assumed to have local TTS voices, local STT, Hunspell dictionaries,
-LanguageTool or a GPU.
+client: it renders the UI and plays audio. It is never assumed to have local TTS
+voices, Hunspell dictionaries, LanguageTool or a GPU. Dictation belongs to the
+client device: the composer is a plain textarea, so the OS or browser dictation
+types into it.
 
-`OpenCode` and `nit-gui` are required. Dictation, grammar, speech and
-server-side spelling are optional capabilities; the Instances menu names the
-fallback for every one of them.
+`OpenCode` and `nit-gui` are required. Grammar, speech and server-side spelling
+are optional capabilities; the Instances menu names the fallback for every one of
+them.
 
 ## Runtime contract
 
@@ -23,7 +24,6 @@ fallback for every one of them.
 | Authentication | nit-gui host, `/auth` + `nit_gate` cookie | one shared password and session for nit-gui, pero-gui and term-gui |
 | Sessions, messages, models, agents | each OpenCode instance | source of truth |
 | Instance list, SSH tunnels | nit-gui host, `~/.config/nit-gui/instances.json` | implemented |
-| STT | browser Web Speech in Chrome, Edge and Safari; host `/api/stt` fallback elsewhere | optional |
 | TTS | nit-gui keeps a warm host `piper` worker and streams its audio; browser voice is the fallback | implemented |
 | Spelling | browser nspell worker today; target nit-gui `/api/spell` | migration gap |
 | Drop | nit-gui host, `/nit/drop/` | files, static pages and folders; public links under `/nit/d/` |
@@ -31,8 +31,8 @@ fallback for every one of them.
 | Attachments | the active instance, OpenCode `/api/experimental/fs/write` and `/tmp` | implemented |
 | UI state (hidden, done, failed, drafts, model/agent) | nit-gui host, `~/.local/state/nit-gui/ui-state.json`, scoped by instance | shared across devices |
 
-The supported client is a browser with a microphone and audio output. Features
-must not depend on local models, dictionaries, OS speech voices or a GPU.
+The supported client is a browser with audio output. Features must not depend on
+local models, dictionaries, OS speech voices or a GPU.
 Spelling is the remaining exception; see [Known limits](#known-limits).
 
 ## State
@@ -66,8 +66,8 @@ the OpenCode version and the state. The detail panel has three layers and a
 capability row:
 
 ```
-Browser      UI · microphone · audio · spelling (this device)
-nit-gui      auth · proxy · drafts · dictation · grammar
+Browser      UI · audio · spelling (this device)
+nit-gui      auth · proxy · drafts · grammar
 OpenCode     sessions · models · agents · workspace · speech plugin
 ```
 
@@ -172,20 +172,12 @@ minutes.
 
 The box's public IP is `92.5.143.242`. The OCI security list does not expose
 `80`/`7792`, and `443` is used by another service. The supported public path is
-Tailscale Funnel; do not bind the app or Caddy to `0.0.0.0`. Dictation needs a
-secure context, which the Funnel URL provides.
+Tailscale Funnel; do not bind the app or Caddy to `0.0.0.0`.
 
 When LanguageTool is configured (`NIT_GUI_LANGUAGETOOL` or
 `languagetool-http-server` on `PATH`), `bin/frankfurt` also starts or reuses a
 detached sidecar on `8180` and passes its URL to the app, so grammar stays warm
 across app restarts.
-
-`bin/frankfurt` also runs `bin/gigaam ensure`: the first call creates a Python
-venv, installs `sherpa-onnx` and downloads the 156 MB GigaAM v3 CTC model into
-`~/.local/opt/gigaam`; later calls reuse the warm sidecar on `8177`. The app
-then gets `NIT_GUI_STT_FAST_URL` and sends host dictation there instead of
-spawning `whisper-server`. If the sidecar does not start, the deploy leaves the
-URL unset and fast dictation uses whisper.
 
 `bin/nixos` and `bin/deploy nixos` remain in the tree for the old NixOS host.
 That path is legacy and is not a supported production target; new features are
@@ -340,18 +332,10 @@ server, so hiding a chat or continuing a draft works on the next device.
 - The selected model must accept the input type. The composer warns when the
   current model cannot read an image or PDF; pick a model whose capabilities
   include `image` or `pdf` (for example Gemini or Claude for PDFs).
-- The microphone uses the browser's speech service (`SpeechRecognition` /
-  `webkitSpeechRecognition`, i.e. Google in Chrome and Edge, Apple in Safari):
-  words appear while you speak, with near-zero delay, and the mic button shows
-  bars that follow your voice. The audio goes to that browser vendor's cloud, not
-  to Frankfurt. Where the API is missing (Firefox, Electron, most non-Chromium
-  forks) the mic falls back to the host: 16 kHz mono WAV is uploaded in segments
-  to `/api/stt` and text is appended as you pause. Dictation appends to the
-  existing input and never sends or clears what you typed. The browser does not
-  run local STT itself. The composer is a normal `<textarea>`, so the system
-  keyboard's own dictation (Gboard, Windows voice typing, macOS Dictation) also
-  works there and is usually the fastest option where the browser has no Web
-  Speech.
+- Dictation is not a nit-gui capability. The composer is a normal `<textarea>`,
+  so the system keyboard's dictation (Gboard, Windows voice typing, macOS
+  Dictation) or a browser extension types into it. Audio stays on the device and
+  better STT can be added by the client without a server change.
 - Spelling is checked by an nspell worker in the browser for Russian and
   English today. Misspelled words are red with a wavy underline; put the caret
   in a word (or click it) and a gray `→ ...` chip shows replacements next to
@@ -435,11 +419,6 @@ rewritten to loopback. Credentials in a server URL are discarded.
 | `NIT_GUI_LANGUAGETOOL_URL` | Use an already running LanguageTool server instead of spawning one. |
 | `NIT_GUI_LANGUAGETOOL_PORT` | Spawned server port, default `8179`. |
 | `NIT_GUI_LANGUAGETOOL_JAVA_OPTS` | JVM options, default `-Xms256m -Xmx512m`. |
-| `NIT_GUI_WHISPER_SERVER` | Fast dictation server binary, default `whisper-server` on `PATH`. |
-| `NIT_GUI_STT_FAST_URL` | External fast dictation service (`/health`, `/inference`); skips spawning `whisper-server`. `bin/frankfurt` points it at GigaAM. |
-| `NIT_GUI_GIGAAM_HOME` | Install directory for `bin/gigaam`, default `~/.local/opt/gigaam`. |
-| `NIT_GUI_GIGAAM_PORT` | GigaAM sidecar port, default `8177`. |
-| `NIT_GUI_GIGAAM_THREADS` | GigaAM inference threads, default `2`. |
 | `NIT_GUI_TTS_URL` | OpenCode TTS hub, default `http://127.0.0.1:7787`. |
 | `NIT_GUI_TTS_TOKEN_FILE` | Hub token file, default `$XDG_STATE_HOME/opencode-tts/token` or `~/.local/state/opencode-tts/token`. |
 | `NIT_GUI_TTS_TOKEN` | Direct hub token, overrides the token file. |
@@ -448,7 +427,7 @@ rewritten to loopback. Credentials in a server URL are discarded.
 | `NIT_GUI_TTS_PIPER` | `piper` binary, default on `PATH`. |
 | `NIT_GUI_TTS_PIPER_MODEL` | Piper voice, default `$XDG_DATA_HOME/piper-voices/ru_RU-irina-medium.onnx` or `~/.local/share/piper-voices/...`. |
 | `NIT_GUI_TTS_RATE` | Speech rate, default `1.0`. |
-| `NIT_GUI_WARM` | Set to `0` to skip eager LanguageTool, fast-dictation and host-voice warmup. |
+| `NIT_GUI_WARM` | Set to `0` to skip eager LanguageTool and host-voice warmup. |
 | `--addr` | Listener address, default `127.0.0.1:7788`. |
 
 TTS has four paths, in order:
@@ -516,7 +495,6 @@ All `/api` endpoints except `/api/instances*` accept `X-Nit-Instance: <id>` or
 | `POST /api/sessions/{id}/fork` | Fork before `{before?}`. |
 | `POST /api/sessions/{id}/compact` | Compact the context. |
 | `POST /api/upload?dir=&name=` | Raw file body up to 20 MiB, written through OpenCode `/api/experimental/fs/write`. |
-| `POST /api/stt` | Raw 16 kHz mono WAV; `?mode=fast` transcribes with `whisper-server`, otherwise with `whisper-cli`. |
 | `POST /api/grammar` | `{text}`; optional LanguageTool grammar/punctuation check on the nit-gui host. |
 | `POST /api/sessions/{id}/model` | Switch model `{model: {id, providerID, variant?}}`. |
 | `POST /api/sessions/{id}/agent` | Switch agent `{agent}`. |
@@ -591,12 +569,11 @@ nspell worker. It is not implemented yet.
   requests also accept `Origin: null`, which some privacy browsers and
   extensions send; unauthenticated API requests do not.
 - Responses set `X-Content-Type-Options`, `X-Frame-Options: DENY`,
-  `Referrer-Policy: no-referrer`, `Permissions-Policy: microphone=(self)`,
-  COOP/CORP, and HSTS on the public host. Caddy repeats the safe subset.
-- JSON request bodies are capped at 1 MiB, uploads at 20 MiB and audio at 30 MiB.
-  Upstream JSON responses are capped at 64 MiB. API requests have a 20 second
-  upstream timeout; the event stream is exempt and is cancelled when the browser
-  disconnects.
+  `Referrer-Policy: no-referrer`, COOP/CORP, and HSTS on the public host. Caddy
+  repeats the safe subset.
+- JSON request bodies are capped at 1 MiB and uploads at 20 MiB. Upstream JSON
+  responses are capped at 64 MiB. API requests have a 20 second upstream timeout;
+  the event stream is exempt and is cancelled when the browser disconnects.
 - Markdown is rendered by `react-markdown` without raw-HTML rehype. Model text,
   tool output and markdown elements are inserted as DOM text and elements, not as
   raw HTML. Raw HTML is never injected into the app DOM: an HTML-looking message,
@@ -710,8 +687,8 @@ are warm, and about 0.5 GB of disk for LanguageTool plus the JRE. Without it,
 the composer only checks spelling. The browser never talks to LanguageTool
 directly.
 
-The app warms both LanguageTool and fast dictation at startup, so the first
-check in a running app is not a cold start. To keep LanguageTool alive across
+The app warms LanguageTool at startup, so the first check in a running app is
+not a cold start. To keep LanguageTool alive across
 app restarts as well, start it separately:
 
 ```sh
@@ -750,21 +727,9 @@ own startup warmup.
 - Drafts, hidden chats and done/failed markers are scoped by instance. The
   default instance keeps the old unscoped `localStorage` keys; other instances
   use a `:<instance>` suffix.
-- Dictation is browser speech first: `SpeechRecognition` /
-  `webkitSpeechRecognition` streams interim text and needs HTTPS (or localhost), a
-  supporting browser (Chrome, Edge, Safari) and a network path to that vendor.
-  Firefox, Electron and most non-Chromium forks have no working recognition, so
-  the mic falls back to host segments through `/api/stt?mode=fast`. On Frankfurt
-  `bin/frankfurt` starts `bin/gigaam`: GigaAM v3 CTC with punctuation, 217 MB
-  model, ~300 MB RAM and an RTF around 0.1 on this host, so a short segment comes
-  back in about half a second. Without it the same endpoint spawns
-  `whisper-server` (override with `NIT_GUI_WHISPER_SERVER`) with
-  `~/.local/share/whisper/ggml-small-q5_1.bin` (override with
-  `NIT_GUI_STT_FAST_MODEL`); that path is much slower. The endpoint also runs
-  `whisper-cli` with `ggml-large-v3-turbo-q5_0.bin` when `mode` is not `fast`
-  (model override `NIT_GUI_WHISPER_MODEL`, language `NIT_GUI_STT_LANG`), but the
-  UI no longer selects it. The mic bars use a second microphone stream for
-  levels only and write nothing.
+- Dictation belongs to the client. The composer has no mic button: use the
+  system keyboard's dictation or a browser extension. A future server-side STT
+  can come back as an optional capability without changing the composer.
 - Spelling still runs in a browser worker. It is the remaining client-side
   capability: a thin browser without Web Workers or the ~4 MB dictionaries gets
   no spelling until `/api/spell` lands on Frankfurt. It is spellcheck only:

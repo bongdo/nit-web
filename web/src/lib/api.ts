@@ -263,19 +263,6 @@ export const api = {
     if (!response.ok) throw new ApiError(await errorText(response), response.status);
     return (await response.json()) as { path: string; name: string; size: number };
   },
-  stt: async (audio: Blob, mode?: "fast") => {
-    const response = await fetch(appPath(`/api/stt${mode ? `?mode=${mode}` : ""}`), {
-      method: "POST",
-      headers: {
-        "Content-Type": "audio/wav",
-        ...(instance ? { "X-Nit-Instance": instance } : {}),
-      },
-      body: audio,
-      signal: AbortSignal.timeout(180_000),
-    });
-    if (!response.ok) throw new ApiError(await errorText(response), response.status);
-    return (await response.json()) as { text: string };
-  },
   grammar: async (text: string) => {
     const result = await request<{ matches: GrammarMatch[] }>("/api/grammar", {
       method: "POST",

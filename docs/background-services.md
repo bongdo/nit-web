@@ -4,11 +4,10 @@
 
 Production runs one nit-gui service on the Frankfurt host. It fronts one or
 more OpenCode servers, called instances: a local server, an explicit URL, or a
-server reached through an SSH tunnel. nit-gui, Caddy, LanguageTool, Whisper and
-the TTS hub live on the nit-gui host. The browser is a thin client: it renders
-the UI, records microphone audio and plays audio. It is not assumed to have
-local TTS voices, local STT, Hunspell dictionaries, LanguageTool, a GPU or any
-other capability.
+server reached through an SSH tunnel. nit-gui, Caddy, LanguageTool and the TTS
+hub live on the nit-gui host. The browser is a thin client: it renders the UI and
+plays audio. It is not assumed to have local TTS voices, Hunspell dictionaries,
+LanguageTool, a GPU or any other capability.
 
 Caddy listens on loopback only. Tailscale Funnel terminates public HTTPS and
 exposes the app at `https://frankfurt.tailf358cb.ts.net/nit/`. Authentication is
@@ -37,8 +36,6 @@ on every device.
 | Caddy | `127.0.0.1:7792` | Loopback reverse proxy, security headers, `/nit` path | yes |
 | Tailscale Funnel | `https://frankfurt.tailf358cb.ts.net/nit/` | Public HTTPS ingress | for public access |
 | LanguageTool | `127.0.0.1:8180` | Grammar and real-word checks | optional |
-| `whisper-server` | `127.0.0.1:8178` | Fast dictation while recording | optional |
-| `whisper-cli` | none | Accurate dictation, one process per request | optional |
 | OpenCode TTS plugin | `127.0.0.1:7787` target; currently `0.0.0.0:7787` | Speech text hub for an audio client; nit-gui publishes to it | optional |
 | `piper` | nit-gui host | Warm host voice worker; browser voice is the last fallback | optional |
 | Spelling | browser worker today, `/api/spell` on nit-gui target | RU/EN Hunspell checks | migration gap |
@@ -83,11 +80,11 @@ OpenCode servers:
 The browser sends `X-Nit-Instance: <id>` on every API request and `?instance=`
 on `EventSource` and `/api/file` links. Only the active instance keeps an event
 stream; switching remounts the chat view and reloads that instance's sessions,
-models, agents and drafts. Dictation, grammar and host TTS run on the nit-gui
+models, agents and drafts. Grammar and host TTS run on the nit-gui
 host and are therefore shared by all instances; sessions, models, agents and
 workspaces are per instance.
 
-Only Tailscale Funnel is public. Caddy, OpenCode, nit-gui, LanguageTool, Whisper
+Only Tailscale Funnel is public. Caddy, OpenCode, nit-gui, LanguageTool
 and the TTS hub stay on loopback; the TTS hub does not meet that yet. The host
 public IP `92.5.143.242` is not the ingress: `80`/`7792` are not open in the OCI
 security list and `443` is used by another service.
@@ -97,7 +94,6 @@ security list and `443` is used by another service.
 The browser may:
 
 - render the UI and talk only to the same-origin `/api` endpoints;
-- capture 16 kHz mono WAV from the microphone and upload it to `/api/stt`;
 - play audio returned by the host;
 - keep UI preferences and the personal spelling dictionary in `localStorage`;
 - mirror drafts to `localStorage` for instant load, but treat `/api/ui` as the
@@ -113,11 +109,12 @@ The browser may:
 The browser must not be required to:
 
 - have a host TTS voice; a browser without a local voice simply gets no speech;
-- run a model, a GPU or local STT;
+- run a model, a GPU or local STT. Dictation is the client device's job: the
+  composer is a plain textarea and the OS or browser dictation types into it;
 - carry Hunspell dictionaries or a spelling engine (target state);
-- reach OpenCode, LanguageTool, Whisper or the TTS hub directly.
+- reach OpenCode, LanguageTool or the TTS hub directly.
 
-A browser with a microphone and audio output is enough for the product. A
+A browser with audio output is enough for the product. A
 feature that only works on a developer laptop because it has a local model,
 voice or dictionary is not finished; the Instances menu must say which fallback
 is in use.
@@ -125,12 +122,12 @@ is in use.
 ## Startup order
 
 1. OpenCode and its TTS plugin.
-2. LanguageTool and `whisper-server` (they can start in parallel).
+2. LanguageTool.
 3. nit-gui.
 4. Caddy on loopback.
 5. Tailscale Funnel (`bin/funnel`).
 
-The Go app warms LanguageTool and fast dictation at startup. A local or URL
+The Go app warms LanguageTool at startup. A local or URL
 instance is contacted on demand; an SSH tunnel opens on the first request that
 needs that instance. If LanguageTool is started as a detached sidecar
 (`bin/languagetool`), it can start before the app and survive app restarts.
@@ -143,15 +140,12 @@ Enable Funnel only after the app and Caddy health checks pass.
 | nit-gui process | 25–40 MB RSS |
 | LanguageTool JVM | 0.6–0.7 GB RSS after RU+EN warm; 256 MB heap minimum |
 | LanguageTool package + JRE | ~0.5 GB (Nix closure ~0.8 GB) |
-| Fast Whisper model | 182 MB (`ggml-small-q5_1.bin`) |
-| Accurate Whisper model | 548 MB (`ggml-large-v3-turbo-q5_0.bin`) |
 | nspell dictionaries | ~4 MB in the web bundle while spelling stays in the browser |
 | Caddy | ~20 MB |
 
 Four cores are enough for one user. Russian grammar checks are about 250 ms,
-English about 30–40 ms after warmup. Fast dictation segments are much cheaper
-than the accurate one-shot pass. TTS cost depends on the plugin's provider and
-is not measured here.
+English about 30–40 ms after warmup. TTS cost depends on the plugin's provider
+and is not measured here.
 
 ## Configuration
 
@@ -165,9 +159,6 @@ is not measured here.
 | `NIT_GUI_LANGUAGETOOL_URL` | use an already running LanguageTool |
 | `NIT_GUI_LANGUAGETOOL_PORT` | spawned LanguageTool port, default `8179` |
 | `NIT_GUI_LANGUAGETOOL_JAVA_OPTS` | JVM options, default `-Xms256m -Xmx512m` |
-| `NIT_GUI_WHISPER_SERVER` | fast dictation server binary |
-| `NIT_GUI_STT_FAST_MODEL` | fast model path |
-| `NIT_GUI_WHISPER`, `NIT_GUI_WHISPER_MODEL`, `NIT_GUI_STT_LANG` | accurate dictation |
 | `NIT_GUI_TTS_URL` | OpenCode TTS hub, default `http://127.0.0.1:7787` |
 | `NIT_GUI_TTS_TOKEN_FILE` | hub token file, default `$XDG_STATE_HOME/opencode-tts/token` |
 | `NIT_GUI_TTS_TOKEN` | direct hub token, overrides the file |
@@ -223,14 +214,14 @@ or `NIT_GUI_TTS_TOKEN`) when an audio client is connected. The browser's
 - SSE must not be buffered or timed out by the proxy. Caddy works with the
   current `/api/events` proxy; verify long-lived connections and reconnect
   behavior after proxy changes.
-- API rate limiting is still missing. Put limits on `/api/prompt`, `/api/stt`,
+- API rate limiting is still missing. Put limits on `/api/prompt`,
   `/api/grammar` and uploads at the proxy, or add them to the app.
 - Uploaded files are written under `/tmp` on the OpenCode host and are never
   cleaned up. A public deployment needs retention and quota rules.
 - `ui-state.json` contains draft text and must stay mode `0600`. Back up the
   OpenCode data directory and configuration; `/tmp` uploads are not a backup.
   `auth.env`, `ui-state.json`, the Caddy config and Tailscale state also matter.
-- Use systemd/journald for the Go app, Caddy, LanguageTool and Whisper. Set
+- Use systemd/journald for the Go app, Caddy and LanguageTool. Set
   restart policies and log rotation; watch disk for models, JRE and uploads.
 
 ## Migration gaps
@@ -267,19 +258,17 @@ or `NIT_GUI_TTS_TOKEN`) when an audio client is connected. The browser's
 - **No supervisor.** `bin/frankfurt` starts the app and Caddy with `setsid`;
   they do not survive reboot. `bin/languagetool` also has no supervisor.
   systemd is the durable answer.
-- **`whisper-server` is not installed on the current host.** Only
-  `whisper-cli` is available, so fast dictation is unavailable until the server
-  binary is installed. Accurate dictation loads the large model on every
-  request; a second warm `whisper-server` with the large model would cost more
-  RAM.
+- **Dictation is client-side by design.** nit-gui has no STT endpoint or model.
+  The composer is a plain textarea, so the device's own dictation works. Better
+  STT can return later as an optional server capability.
 - **No per-user isolation.** There are no accounts, quotas or session scoping.
   A public link exposes the same sessions to every visitor.
-- **No API rate limits.** Login has lockout, but prompt, STT, grammar and
+- **No API rate limits.** Login has lockout, but prompt, grammar and
   uploads do not. Add limits at Caddy or in the Go app before exposing the
   instance beyond the tailnet.
 - **No upload retention.** `/tmp/nit-gui-*` grows without cleanup.
 - **No observability.** Use journald, restart policies and disk alerts for the
-  Go app, Caddy, LanguageTool and Whisper.
+  Go app, Caddy and LanguageTool.
 
 ## Suggested systemd shape
 
@@ -322,17 +311,16 @@ RestartSec=2
 WantedBy=default.target
 ```
 
-Do the same for `whisper-server` with `NIT_GUI_WHISPER_SERVER`, and for Caddy
-with its own unit. OpenCode already has a service; make nit-gui `After=` and
-`Wants=` it rather than starting a second copy. The TTS plugin starts with
-OpenCode; do not run a second TTS hub.
+Do the same for Caddy with its own unit. OpenCode already has a service; make
+nit-gui `After=` and `Wants=` it rather than starting a second copy. The TTS
+plugin starts with OpenCode; do not run a second TTS hub.
 
 ## Before exposing beyond the tailnet
 
 1. Keep TLS at Tailscale Funnel; Caddy and the app stay on loopback.
 2. Replace the shared password with real per-user authentication if more than
    one person needs access.
-3. Add rate limits for prompt, STT, grammar and uploads.
+3. Add rate limits for prompt, grammar and uploads.
 4. Add upload retention and a quota.
 5. Move spelling behind `/api/spell` so the client needs no dictionaries.
 6. Move the TTS hub to loopback and proxy it through nit-gui.

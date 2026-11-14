@@ -5,13 +5,11 @@ import {
   Check,
   ChevronDown,
   Loader2,
-  Mic,
   Paperclip,
   Square,
   X,
 } from "lucide-react";
 import type { FormInfo, Model, Session } from "../lib/types";
-import { encodeWav, micLevel } from "../lib/audio";
 import { api } from "../lib/api";
 import { attachmentWarning } from "../lib/attachments";
 import { loadDraftFiles, saveDraftFiles } from "../lib/draft-files";
@@ -22,11 +20,6 @@ import { shouldCaptureKey, shortcutKeys } from "../lib/keys";
 import { applyIssue, issueAtCaret, issueKey, maskedAt, safeAutoFix, type SpellIssue } from "../lib/spell";
 import { useSpellcheck } from "../hooks/useSpellcheck";
 import { checkSpelling } from "../lib/spell-client";
-import {
-  dictationText,
-  speechRecognition,
-  type SpeechRecognitionLike,
-} from "../lib/web-speech";
 import { cn } from "../lib/utils";
 import { FileTypeIcon } from "./Attachment";
 import { CommandPalette } from "./CommandPalette";
@@ -59,7 +52,6 @@ type AutoFix = {
 };
 
 const MAX_UPLOAD = 20 << 20;
-const MAX_RECORDING = 120;
 const HINT_HEIGHT = 26;
 const ASK_WORD =
   /^\s*(?:(ask)\s*[:：,，—–\-?？!！.。]|(аск|вопрос)(?=\s|$|[:：,，—–\-?？!！.。]))/i;
@@ -151,11 +143,6 @@ export const Composer = memo(function Composer({
   attachmentsRef.current = attachments;
   const [filesReady, setFilesReady] = useState(false);
   const [dropActive, setDropActive] = useState(false);
-  const [recording, setRecording] = useState(false);
-  const [webLive, setWebLive] = useState(false);
-  const [finishing, setFinishing] = useState(false);
-  const [pending, setPending] = useState(0);
-  const [elapsed, setElapsed] = useState(0);
   const [commandIndex, setCommandIndex] = useState(0);
   const [commandDismissed, setCommandDismissed] = useState(false);
   const [ignored, setIgnored] = useState<string[]>(loadIgnoredWords);
@@ -290,49 +277,12 @@ export const Composer = memo(function Composer({
 
   const { issues: detected } = useSpellcheck(
     question && !customAnswer ? "" : answerText,
-    spellcheck && !recording && !finishing,
+    spellcheck,
     ignored,
   );
   const issues = askRange
     ? detected.filter((issue) => issue.end <= askRange.start || issue.start >= askRange.end)
     : detected;
-  const audio = useRef<{
-    context: AudioContext;
-    stream: MediaStream;
-    source: MediaStreamAudioSourceNode;
-    processor: ScriptProcessorNode;
-    gain: GainNode;
-    segment: Float32Array[];
-    preroll: Float32Array[];
-    hasSpeech: boolean;
-    silence: number;
-    timer: number;
-    started: number;
-  } | null>(null);
-  const meter = useRef<{
-    context: AudioContext;
-    stream: MediaStream;
-    source: MediaStreamAudioSourceNode;
-    analyser: AnalyserNode;
-    owned: boolean;
-    raf: number;
-    level: number;
-  } | null>(null);
-  const barsRef = useRef<HTMLSpanElement>(null);
-  const web = useRef<{
-    recognition: SpeechRecognitionLike | null;
-    base: string;
-    spoken: string;
-    interim: string;
-    shown: string;
-    timer: number;
-    started: number;
-    active: boolean;
-  } | null>(null);
-  const webUnavailable = useRef(false);
-  const fallbackWarned = useRef(false);
-  const queue = useRef<Promise<void>>(Promise.resolve());
-  const pendingRef = useRef(0);
 
   useEffect(() => {
     if (!focusKey) return;
@@ -380,17 +330,6 @@ export const Composer = memo(function Composer({
     updateValue(draftBeforeForm.current);
     setFormError(null);
   }, [form, questions.length]);
-
-  useEffect(
-    () => () => {
-      const state = audio.current;
-      if (!state) return;
-      window.clearInterval(state.timer);
-      for (const track of state.stream.getTracks()) track.stop();
-      void state.context.close().catch(() => undefined);
-    },
-    [],
-  );
 
   useEffect(
     () => () => {
@@ -666,311 +605,12 @@ export const Composer = memo(function Composer({
     removeTimers.current.add(timer);
   };
 
-  const enqueueSegment = (chunks: Float32Array[], rate: number) => {
-    if (chunks.length === 0) return;
-    const blob = encodeWav(chunks, rate);
-    pendingRef.current += 1;
-    setPending(pendingRef.current);
-    queue.current = queue.current
-      .then(async () => {
-        const { text } = await api.stt(blob, "fast");
-        appendText(text);
-      })
-      .catch((error) => {
-        onError(error instanceof Error ? error.message : "Transcription failed");
-      })
-      .finally(() => {
-        pendingRef.current = Math.max(0, pendingRef.current - 1);
-        setPending(pendingRef.current);
-      });
-  };
-
-  const flushSegment = (state: NonNullable<typeof audio.current>) => {
-    const chunks = state.segment;
-    state.segment = [];
-    state.hasSpeech = false;
-    state.silence = 0;
-    const seconds = chunks.reduce((total, chunk) => total + chunk.length, 0) / state.context.sampleRate;
-    if (seconds < 0.3) return;
-    enqueueSegment(chunks, state.context.sampleRate);
-  };
-
-  const stopMeter = () => {
-    const state = meter.current;
-    if (!state) return;
-    meter.current = null;
-    cancelAnimationFrame(state.raf);
-    state.source.disconnect();
-    state.analyser.disconnect();
-    barsRef.current?.style.setProperty("--level", "0");
-    if (!state.owned) return;
-    for (const track of state.stream.getTracks()) track.stop();
-    void state.context.close().catch(() => undefined);
-  };
-
-  const startMeter = (stream: MediaStream, context?: AudioContext) => {
-    stopMeter();
-    const ctx = context ?? new AudioContext();
-    void ctx.resume().catch(() => undefined);
-    const source = ctx.createMediaStreamSource(stream);
-    const analyser = ctx.createAnalyser();
-    analyser.fftSize = 512;
-    source.connect(analyser);
-    const samples = new Float32Array(analyser.fftSize);
-    const state = {
-      context: ctx,
-      stream,
-      source,
-      analyser,
-      owned: !context,
-      raf: 0,
-      level: 0,
-    };
-    const tick = () => {
-      analyser.getFloatTimeDomainData(samples);
-      state.level = state.level * 0.55 + micLevel(samples) * 0.45;
-      barsRef.current?.style.setProperty("--level", state.level.toFixed(3));
-      state.raf = requestAnimationFrame(tick);
-    };
-    state.raf = requestAnimationFrame(tick);
-    meter.current = state;
-  };
-
-  const renderWeb = (state: NonNullable<typeof web.current>) => {
-    if (valueRef.current !== state.shown) {
-      state.base = valueRef.current;
-      state.spoken = "";
-    }
-    const text = dictationText(state.base, state.spoken, state.interim);
-    state.shown = text;
-    if (text !== valueRef.current) updateValue(text);
-    requestAnimationFrame(() => {
-      const area = ref.current;
-      if (!area) return;
-      area.scrollTop = area.scrollHeight;
-      setCaret(area.value.length);
-    });
-  };
-
-  const stopWeb = (state: NonNullable<typeof web.current>, message?: string) => {
-    if (!state.active) return;
-    state.active = false;
-    window.clearInterval(state.timer);
-    state.recognition?.stop();
-    if (web.current === state) web.current = null;
-    stopMeter();
-    setWebLive(false);
-    setRecording(false);
-    setPending(0);
-    if (message) onError(message);
-  };
-
-  const wireWeb = (state: NonNullable<typeof web.current>, Ctor: new () => SpeechRecognitionLike) => {
-    const recognition = new Ctor();
-    recognition.lang = "ru-RU";
-    recognition.continuous = true;
-    recognition.interimResults = true;
-    recognition.maxAlternatives = 1;
-    recognition.onresult = (event) => {
-      let interim = "";
-      for (let index = event.resultIndex; index < event.results.length; index += 1) {
-        const result = event.results[index];
-        const transcript = result[0]?.transcript ?? "";
-        if (result.isFinal) state.spoken += transcript;
-        else interim += transcript;
-      }
-      state.interim = interim;
-      renderWeb(state);
-    };
-    recognition.onerror = (event) => {
-      if (event.error === "no-speech" || event.error === "aborted") return;
-      if (event.error === "network" || event.error === "service-not-allowed") {
-        webUnavailable.current = true;
-      }
-      stopWeb(
-        state,
-        event.error === "not-allowed"
-          ? "Microphone access was denied."
-          : "Browser speech failed. The next dictation uses the host model.",
-      );
-    };
-    recognition.onend = () => {
-      if (!state.active) return;
-      state.interim = "";
-      renderWeb(state);
-      try {
-        wireWeb(state, Ctor);
-        state.recognition?.start();
-      } catch {
-        stopWeb(state, "Browser speech stopped.");
-      }
-    };
-    state.recognition = recognition;
-  };
-
-  const startWebDictation = (Ctor: new () => SpeechRecognitionLike) => {
-    const state: NonNullable<typeof web.current> = {
-      recognition: null,
-      base: valueRef.current,
-      spoken: "",
-      interim: "",
-      shown: valueRef.current,
-      timer: 0,
-      started: Date.now(),
-      active: true,
-    };
-    wireWeb(state, Ctor);
-    web.current = state;
-    setElapsed(0);
-    setRecording(true);
-    setWebLive(true);
-    state.timer = window.setInterval(() => {
-      const seconds = Math.floor((Date.now() - state.started) / 1000);
-      setElapsed(seconds);
-      if (seconds >= MAX_RECORDING) stopWeb(state);
-    }, 500);
-    try {
-      state.recognition?.start();
-    } catch {
-      stopWeb(state, "Browser speech could not start.");
-      return;
-    }
-    void navigator.mediaDevices
-      ?.getUserMedia({ audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true } })
-      .then((stream) => {
-        if (web.current === state) startMeter(stream);
-        else for (const track of stream.getTracks()) track.stop();
-      })
-      .catch(() => {});
-  };
-
-  const stopDictation = async () => {
-    const live = web.current;
-    if (live) {
-      stopWeb(live);
-      return;
-    }
-    const state = audio.current;
-    if (!state) return;
-    audio.current = null;
-    window.clearInterval(state.timer);
-    stopMeter();
-    setRecording(false);
-    for (const track of state.stream.getTracks()) track.stop();
-    state.source.disconnect();
-    state.processor.disconnect();
-    state.gain.disconnect();
-    await state.context.close().catch(() => undefined);
-    setFinishing(true);
-    try {
-      flushSegment(state);
-      await queue.current;
-    } catch (error) {
-      onError(error instanceof Error ? error.message : "Transcription failed");
-    } finally {
-      setFinishing(false);
-      setPending(0);
-    }
-  };
-
-  const startDictation = async () => {
-    if (!webUnavailable.current) {
-      const Ctor = speechRecognition();
-      if (Ctor) {
-        startWebDictation(Ctor);
-        return;
-      }
-      webUnavailable.current = true;
-      if (!fallbackWarned.current) {
-        fallbackWarned.current = true;
-        onError(
-          window.isSecureContext
-            ? "This browser has no speech recognition. Use the keyboard microphone for instant dictation; the host model is slower."
-            : "Browser dictation needs HTTPS. Open the https:// address for instant dictation; the host model is slower.",
-        );
-      }
-    }
-    if (!navigator.mediaDevices?.getUserMedia) {
-      onError("This browser does not expose a microphone API.");
-      return;
-    }
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true },
-      });
-      const context = new AudioContext();
-      const source = context.createMediaStreamSource(stream);
-      const processor = context.createScriptProcessor(4096, 1, 1);
-      const gain = context.createGain();
-      gain.gain.value = 0;
-      const state: NonNullable<typeof audio.current> = {
-        context,
-        stream,
-        source,
-        processor,
-        gain,
-        segment: [],
-        preroll: [],
-        hasSpeech: false,
-        silence: 0,
-        timer: 0,
-        started: Date.now(),
-      };
-      processor.onaudioprocess = (event) => {
-        const block = new Float32Array(event.inputBuffer.getChannelData(0));
-        let sum = 0;
-        for (let index = 0; index < block.length; index += 1) sum += block[index] * block[index];
-        const rms = Math.sqrt(sum / block.length);
-        const speech = rms > 0.012;
-        if (!state.hasSpeech) {
-          state.preroll.push(block);
-          if (state.preroll.length > 3) state.preroll.shift();
-          if (speech) {
-            state.hasSpeech = true;
-            state.segment.push(...state.preroll);
-            state.preroll = [];
-            state.silence = 0;
-          }
-          return;
-        }
-        state.segment.push(block);
-        if (speech) state.silence = 0;
-        else state.silence += block.length / context.sampleRate;
-        const seconds =
-          state.segment.reduce((total, chunk) => total + chunk.length, 0) / context.sampleRate;
-        if ((state.silence >= 0.6 && seconds >= 0.4) || seconds >= 6) {
-          flushSegment(state);
-        }
-      };
-      source.connect(processor);
-      processor.connect(gain);
-      gain.connect(context.destination);
-      startMeter(stream, context);
-      state.timer = window.setInterval(() => {
-        const seconds = Math.floor((Date.now() - state.started) / 1000);
-        setElapsed(seconds);
-        if (seconds >= MAX_RECORDING) void stopDictation();
-      }, 500);
-      audio.current = state;
-      setElapsed(0);
-      setRecording(true);
-    } catch (error) {
-      onError(error instanceof Error ? error.message : "Microphone access was denied.");
-    }
-  };
-
-  const toggleDictation = () => {
-    if (recording) void stopDictation();
-    else if (!finishing) void startDictation();
-  };
-
   const visibleAttachments = attachments.filter((item) => !removing.includes(item.id));
   const readyFiles = visibleAttachments.filter((item) => !item.error);
 
   const submit = async () => {
     const text = value.trim();
-    if ((!text && readyFiles.length === 0) || !workspace || disabled || submitting || finishing)
-      return;
+    if ((!text && readyFiles.length === 0) || !workspace || disabled || submitting) return;
     const dir = workspace;
     setSubmitting(true);
     try {
@@ -1095,7 +735,7 @@ export const Composer = memo(function Composer({
     query !== null && !query.includes(" ")
       ? commands.filter((item) => item.id.startsWith(query.toLowerCase()))
       : [];
-  const paletteOpen = !question && matches.length > 0 && !commandDismissed && !recording;
+  const paletteOpen = !question && matches.length > 0 && !commandDismissed;
   const selectedCommand = matches[Math.min(commandIndex, Math.max(0, matches.length - 1))];
 
   const runCommand = (id: string) => {
@@ -1548,56 +1188,12 @@ export const Composer = memo(function Composer({
                 <Paperclip />
               </Button>
             )}
-            {!question && (
-              <Button
-                variant={recording ? "destructive" : "ghost"}
-                size={recording || finishing ? "sm" : "icon-sm"}
-                onClick={toggleDictation}
-                disabled={disabled || !workspace || finishing || submitting}
-                title={recording ? "Stop dictation" : "Dictate"}
-                aria-label={recording ? "Stop dictation" : "Dictate"}
-              >
-                {finishing ? (
-                  <Loader2 className="animate-spin" />
-                ) : recording ? (
-                  <span ref={barsRef} className="dictation-bars" aria-hidden="true">
-                    <i />
-                    <i />
-                    <i />
-                    <i />
-                  </span>
-                ) : (
-                  <Mic />
-                )}
-                {recording && (
-                  <span className="font-mono text-[11px]">
-                    0:{String(elapsed).padStart(2, "0")}
-                    {pending > 0 ? ` · ${pending}` : ""}
-                  </span>
-                )}
-                {finishing && <span className="text-[11px]">Transcribing…</span>}
-              </Button>
-            )}
-            <span
-              aria-live="polite"
-              className={cn(
-                "hidden text-[11px] sm:inline",
-                recording ? "text-destructive" : "text-muted-foreground",
-              )}
-            >
+            <span aria-live="polite" className="hidden text-[11px] text-muted-foreground sm:inline">
               {question
                 ? customAnswer
                   ? "Enter to answer · Shift+Enter for a new line"
                   : "Pick an option above"
-                : finishing
-                  ? "Finishing transcription…"
-                  : recording
-                    ? pending > 0
-                      ? `Recording · ${pending} segment${pending === 1 ? "" : "s"} queued`
-                      : webLive
-                        ? "Recording · text appears as you speak"
-                        : "Recording · host model, text appears as you pause"
-                    : "Enter to send · Shift+Enter for a new line · / commands"}
+                : "Enter to send · Shift+Enter for a new line · / commands"}
             </span>
             <div className="ml-auto flex items-center gap-1">
               {running && !question && (
@@ -1654,8 +1250,7 @@ export const Composer = memo(function Composer({
                     !workspace ||
                     disabled ||
                     (!value.trim() && readyFiles.length === 0) ||
-                    submitting ||
-                    finishing
+                    submitting
                   }
                   aria-label={running ? "Steer message" : "Send"}
                 >

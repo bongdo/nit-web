@@ -136,14 +136,6 @@ deploy_frankfurt() {
     fi
   fi
 
-  if [ -z "${NIT_GUI_STT_FAST_URL:-}" ] && [ -x "$PWD/bin/gigaam" ]; then
-    if "$PWD/bin/gigaam" ensure >/dev/null 2>&1; then
-      export NIT_GUI_STT_FAST_URL="http://127.0.0.1:${NIT_GUI_GIGAAM_PORT:-8177}"
-    else
-      echo "deploy: gigaam did not start; fast dictation uses whisper" >&2
-    fi
-  fi
-
   NIT_GUI_TERM_URL="${NIT_GUI_TERM_URL:-https://$public_host:8443/term/}" \
     NIT_GUI_ALLOWED_HOSTS="$allowed" NIT_GUI_BASE_PATH="$base_path" NIT_GUI_PUBLIC_HOST="$public_host" setsid "$bin" --addr "127.0.0.1:$port" >"$run_dir/nit-gui.log" 2>&1 < /dev/null &
 
@@ -173,7 +165,6 @@ deploy_frankfurt() {
 	header {
 		X-Content-Type-Options nosniff
 		Referrer-Policy no-referrer
-		Permissions-Policy "microphone=(self)"
 		Cross-Origin-Opener-Policy same-origin
 		-Server
 	}

@@ -64,16 +64,14 @@ func (s *Server) instances(w http.ResponseWriter, r *http.Request) {
 }
 
 type sharedCapabilities struct {
-	dictation capabilityOut
-	grammar   capabilityOut
-	speech    capabilityOut
+	grammar capabilityOut
+	speech  capabilityOut
 }
 
 func (s *Server) sharedCapabilities(ctx context.Context) sharedCapabilities {
 	return sharedCapabilities{
-		dictation: s.dictationCapability(),
-		grammar:   s.grammarCapability(ctx),
-		speech:    s.speechCapability(ctx),
+		grammar: s.grammarCapability(ctx),
+		speech:  s.speechCapability(ctx),
 	}
 }
 
@@ -128,27 +126,10 @@ func (s *Server) capabilities(version, chatState, chatDetail string, shared shar
 	}
 	return []capabilityOut{
 		{ID: "chat", Label: "Chat & sessions", Owner: "opencode", State: chatState, Required: true, Detail: chatDetail},
-		shared.dictation,
 		shared.grammar,
 		shared.speech,
 		{ID: "spelling", Label: "Spelling", Owner: "browser", State: "fallback", Detail: "nspell RU+EN · this device"},
 	}
-}
-
-func (s *Server) dictationCapability() capabilityOut {
-	fastOK, _ := s.fast.available()
-	accurateOK, _ := accurateSTTAvailable()
-	state := "off"
-	detail := "not installed on the nit-gui host"
-	switch {
-	case fastOK && accurateOK:
-		state, detail = "on", "fast + accurate"
-	case fastOK:
-		state, detail = "on", "fast only"
-	case accurateOK:
-		state, detail = "on", "accurate only"
-	}
-	return capabilityOut{ID: "dictation", Label: "Dictation", Owner: "nit-gui", State: state, Detail: detail}
 }
 
 func (s *Server) speechCapability(ctx context.Context) capabilityOut {

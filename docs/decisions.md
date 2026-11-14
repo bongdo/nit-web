@@ -930,3 +930,15 @@ Why: one volume and one container cover personal apps without an orchestrator, a
 Rejected: compose with Postgres and Redis (operation cost for a need that does not exist); a zero-downtime port swap (not needed); running the app as a plain systemd process without a container (no isolation).
 
 Cost: a worker cannot scale separately, data lives outside the entry and is not deleted by `drop rm`, and an update drops live WebSocket and SSE connections.
+
+## 2026-11-14 — Dictation leaves nit-gui
+
+Context: dictation was a client-side browser API with a host fallback through `/api/stt`, `whisper-server`, `whisper-cli` and a GigaAM sidecar. The user wants dictation treated as a client problem, not a service feature, while keeping room for better STT later.
+
+Decision: remove the mic button, Web Speech wiring, audio capture, `/api/stt`, Whisper and GigaAM from nit-gui and the deploy. The composer stays a plain textarea, so OS and browser dictation type into it unchanged.
+
+Why: audio capture and STT models were the only client-hardware dependency left in the service, and the device already has dictation that is faster and better than the host fallback.
+
+Rejected: keeping Web Speech as an app feature (still client-side, but more code to own); keeping the host fallback behind a flag (models, ports and startup cost for a path the user does not want).
+
+Cost: Firefox and other browsers without system dictation lose the mic button; returning server STT needs a new optional capability and endpoint.

@@ -15,7 +15,6 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -89,7 +88,6 @@ type Server struct {
 	static       fs.FS
 	log          *slog.Logger
 	mux          *http.ServeMux
-	fast         *fastSTT
 	grammar      *grammarChecker
 	tts          *ttsHub
 	voice        *hostVoice
@@ -121,7 +119,6 @@ func New(provider ClientProvider, static fs.FS, log *slog.Logger) http.Handler {
 		static:       static,
 		log:          log,
 		mux:          http.NewServeMux(),
-		fast:         newFastSTT(log),
 		grammar:      newGrammarChecker(log),
 		tts:          newTTSHub(),
 		voice:        newHostVoice(),
@@ -180,15 +177,6 @@ func (s *Server) warm() {
 		}
 		s.log.Info("grammar ready", "url", s.grammar.url)
 	}()
-	go func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
-		defer cancel()
-		if err := s.fast.ensure(ctx); err != nil {
-			s.log.Debug("fast stt warmup skipped", "error", err)
-			return
-		}
-		s.log.Info("fast stt ready")
-	}()
 	if s.voice != nil && s.voice.worker != nil {
 		go func() {
 			if err := s.voice.warm(); err != nil {
@@ -220,7 +208,6 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("POST /api/sessions/{id}/revert", s.revert)
 	s.mux.HandleFunc("POST /api/sessions/{id}/fork", s.fork)
 	s.mux.HandleFunc("POST /api/sessions/{id}/compact", s.compact)
-	s.mux.HandleFunc("POST /api/stt", s.stt)
 	s.mux.HandleFunc("POST /api/tts", s.ttsSay)
 	s.mux.HandleFunc("POST /api/tts/audio", s.ttsAudio)
 	s.mux.HandleFunc("POST /api/tts/stream", s.ttsStream)
@@ -297,7 +284,6 @@ func (s *Server) middleware(next http.Handler) http.Handler {
 		w.Header().Set("X-Content-Type-Options", "nosniff")
 		w.Header().Set("Referrer-Policy", "no-referrer")
 		w.Header().Set("X-Frame-Options", "DENY")
-		w.Header().Set("Permissions-Policy", "microphone=(self)")
 		w.Header().Set("Cross-Origin-Opener-Policy", "same-origin")
 		w.Header().Set("Cross-Origin-Resource-Policy", "same-origin")
 		if s.auth.secure(r) {
@@ -1082,10 +1068,7 @@ func (s *Server) agents(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"data": env.Data})
 }
 
-const (
-	maxUploadBody = 20 << 20
-	maxSTTBody    = 30 << 20
-)
+const maxUploadBody = 20 << 20
 
 func uploadPrefix() string {
 	return filepath.Join(os.TempDir(), "nit-gui-")
@@ -1551,128 +1534,6 @@ func (s *Server) grammarCheck(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"matches": matches})
-}
-
-func (s *Server) stt(w http.ResponseWriter, r *http.Request) {
-	data, err := io.ReadAll(io.LimitReader(r.Body, maxSTTBody+1))
-	if err != nil {
-		writeError(w, http.StatusBadRequest, "could not read audio")
-		return
-	}
-	if len(data) == 0 {
-		writeError(w, http.StatusBadRequest, "audio is empty")
-		return
-	}
-	if len(data) > maxSTTBody {
-		writeError(w, http.StatusRequestEntityTooLarge, "audio is too large")
-		return
-	}
-	var text string
-	if r.URL.Query().Get("mode") == "fast" {
-		text, err = s.fast.transcribe(r.Context(), data)
-	} else {
-		text, err = transcribe(r.Context(), data)
-	}
-	if err != nil {
-		writeError(w, http.StatusServiceUnavailable, err.Error())
-		return
-	}
-	writeJSON(w, http.StatusOK, map[string]string{"text": text})
-}
-
-func accurateSTTBinary() (string, error) {
-	if bin := strings.TrimSpace(os.Getenv("NIT_GUI_WHISPER")); bin != "" {
-		return bin, nil
-	}
-	return exec.LookPath("whisper-cli")
-}
-
-func accurateSTTModel() string {
-	if model := strings.TrimSpace(os.Getenv("NIT_GUI_WHISPER_MODEL")); model != "" {
-		return model
-	}
-	home, _ := os.UserHomeDir()
-	return filepath.Join(home, ".local/share/whisper/ggml-large-v3-turbo-q5_0.bin")
-}
-
-func accurateSTTAvailable() (bool, string) {
-	if _, err := accurateSTTBinary(); err != nil {
-		return false, "whisper-cli not installed"
-	}
-	if _, err := os.Stat(accurateSTTModel()); err != nil {
-		return false, "accurate model not installed"
-	}
-	return true, "accurate"
-}
-
-func transcribe(ctx context.Context, data []byte) (string, error) {
-	file, err := os.CreateTemp("", "nit-gui-stt-*.wav")
-	if err != nil {
-		return "", err
-	}
-	path := file.Name()
-	defer os.Remove(path)
-	if _, err := file.Write(data); err != nil {
-		file.Close()
-		return "", err
-	}
-	if err := file.Close(); err != nil {
-		return "", err
-	}
-	bin, err := accurateSTTBinary()
-	if err != nil {
-		return "", fmt.Errorf("whisper-cli not found on the nit-gui host")
-	}
-	model := accurateSTTModel()
-	if _, err := os.Stat(model); err != nil {
-		return "", fmt.Errorf("whisper model not found: %s", model)
-	}
-	lang := strings.TrimSpace(os.Getenv("NIT_GUI_STT_LANG"))
-	if lang == "" {
-		lang = "ru"
-	}
-	runCtx, cancel := context.WithTimeout(ctx, 3*time.Minute)
-	defer cancel()
-	cmd := exec.CommandContext(runCtx, bin, "-m", model, "-l", lang, "-nt", "-t", "12",
-		"-sns", "--prompt", fastSTTPrompt, "-f", path)
-	var stdout, stderr bytes.Buffer
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
-	if err := cmd.Run(); err != nil {
-		message := strings.TrimSpace(stderr.String())
-		if message == "" {
-			message = err.Error()
-		}
-		return "", fmt.Errorf("whisper: %s", message)
-	}
-	return parseTranscription(stdout.String()), nil
-}
-
-func parseTranscription(out string) string {
-	lines := make([]string, 0, 8)
-	for _, line := range strings.Split(out, "\n") {
-		line = strings.TrimSpace(line)
-		if line == "" || strings.HasPrefix(line, "[") || strings.HasPrefix(line, "(") {
-			continue
-		}
-		if strings.HasPrefix(line, "whisper_") || strings.HasPrefix(line, "system_info") ||
-			strings.HasPrefix(line, "main:") || strings.HasPrefix(line, "ggml_") {
-			continue
-		}
-		low := strings.ToLower(strings.Trim(line, " .,!…"))
-		if strings.HasPrefix(low, "продолжение следует") ||
-			strings.HasPrefix(low, "редактор субтитров") ||
-			strings.HasPrefix(low, "субтитры сделал") ||
-			strings.HasPrefix(low, "субтитры делал") ||
-			strings.HasPrefix(low, "корректор ") ||
-			strings.HasPrefix(low, "добро пожаловать на наш канал") ||
-			strings.HasPrefix(low, "спасибо за просмотр") ||
-			strings.HasPrefix(low, "thank you for watching") {
-			continue
-		}
-		lines = append(lines, line)
-	}
-	return strings.TrimSpace(strings.Join(lines, " "))
 }
 
 func (s *Server) config(w http.ResponseWriter, r *http.Request) {

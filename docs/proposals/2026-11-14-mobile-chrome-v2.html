@@ -1,0 +1,360 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>nit-gui — мобильная шапка v2</title>
+<style>
+  :root {
+    color-scheme: dark;
+    --bg: oklch(0.165 0.008 260);
+    --card: oklch(0.195 0.009 260);
+    --pop: oklch(0.205 0.009 260);
+    --sec: oklch(0.245 0.01 260);
+    --accent: oklch(0.26 0.01 260);
+    --muted: oklch(0.66 0.012 255);
+    --border: oklch(0.29 0.01 260);
+    --fg: oklch(0.93 0.004 250);
+    --spark: oklch(0.78 0.14 55);
+    --success: oklch(0.75 0.16 155);
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 18px;
+    background: oklch(0.135 0.006 260);
+    color: var(--fg);
+    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  svg { display: block; }
+  .nm { max-width: 980px; margin: 0 auto; }
+  .nm-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
+  .nm-kicker { font: 500 9px/1.4 ui-monospace, monospace; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); }
+  .nm-head h1 { margin: 3px 0 0; font-size: 17px; font-weight: 600; letter-spacing: -.01em; }
+  .nm-head p { margin: 4px 0 0; max-width: 48rem; font-size: 11px; line-height: 1.5; color: var(--muted); }
+  .nm-rail { display: grid; grid-template-columns: repeat(3, 300px); justify-content: center; gap: 16px; }
+  .nm-card { min-width: 0; background: color-mix(in oklab, var(--card) 72%, transparent); border: 1px solid var(--border); border-radius: 15px; padding: 10px; }
+  .nm-tag { display: flex; align-items: center; justify-content: space-between; gap: 6px; margin-bottom: 8px; font: 500 8px/1 ui-monospace, monospace; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+  .nm-tag b { color: var(--spark); font-weight: 600; }
+  .nm-phone { width: 280px; height: 570px; margin: 0 auto; border-radius: 26px; overflow: hidden; background: #0b0c0e; border: 1px solid #3a3b40; box-shadow: 0 16px 36px rgba(0,0,0,.45); display: flex; flex-direction: column; position: relative; }
+  .nm-phone--sheet { height: 500px; }
+  .nm-status { height: 23px; flex: none; display: flex; align-items: center; justify-content: space-between; padding: 0 12px; background: #0e0f11; color: #b9bac0; font: 600 8px/1 ui-sans-serif, sans-serif; }
+  .nm-status-r { display: flex; align-items: center; gap: 4px; font-size: 7px; letter-spacing: .08em; opacity: .85; }
+  .nm-batt { width: 11px; height: 5px; border: 1px solid currentColor; border-radius: 1px; padding: 1px; }
+  .nm-batt i { display: block; width: 70%; height: 100%; background: currentColor; }
+  .nm-screen { flex: 1; min-height: 0; display: flex; flex-direction: column; position: relative; background: radial-gradient(120% 62% at 86% 0%, color-mix(in oklab, var(--success) 7%, var(--bg)) 0%, var(--bg) 58%); }
+  .nm-ghost { position: absolute; top: 5px; left: 10px; right: 10px; z-index: 0; color: var(--fg); opacity: .38; font-size: 9.5px; line-height: 1.6; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .nm-top { position: absolute; inset: 0 0 auto; z-index: 4; padding: 8px 10px 18px; background: linear-gradient(to bottom, var(--bg) 0%, color-mix(in oklab, var(--bg) 82%, transparent) 55%, transparent 100%); }
+  .nm-toprow { display: flex; align-items: center; gap: 5px; min-width: 0; }
+  .nm-toptext { flex: 1; min-width: 0; }
+  .nm-title { font-size: 12.5px; font-weight: 600; line-height: 1.2; letter-spacing: -.01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .nm-sub { display: flex; align-items: center; gap: 4px; margin-top: 2px; min-width: 0; color: var(--muted); font-size: 9px; line-height: 1.35; white-space: nowrap; }
+  .nm-dir { display: flex; align-items: center; gap: 2px; min-width: 0; overflow: hidden; }
+  .nm-dir svg { width: 8px; height: 8px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+  .nm-dir span { overflow: hidden; text-overflow: ellipsis; }
+  .nm-sep { flex: none; opacity: .55; }
+  .nm-ctx { display: flex; align-items: center; gap: 3px; flex: none; }
+  .nm-meter { width: 36px; height: 3px; flex: none; overflow: hidden; border-radius: 2px; background: color-mix(in oklab, var(--muted) 20%, transparent); }
+  .nm-meter i { display: block; width: 7%; height: 100%; border-radius: 2px; background: var(--fg); }
+  .nm-cost { flex: none; }
+  .nm-icon { width: 26px; height: 26px; border-radius: 7px; display: grid; place-items: center; color: var(--muted); flex: none; }
+  .nm-icon svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+  .nm-thread { position: relative; z-index: 1; flex: 1; min-height: 0; overflow: hidden; display: flex; flex-direction: column; gap: 8px; padding: 60px 10px 0; font-size: 9.5px; line-height: 1.5; color: color-mix(in oklab, var(--fg) 88%, transparent); }
+  .nm-role { display: block; margin-bottom: 2px; font: 500 6.5px/1.4 ui-monospace, monospace; letter-spacing: .14em; color: var(--muted); }
+  .nm-you { margin-left: 15%; padding: 6px 8px; border: 1px solid var(--border); border-radius: 9px; background: var(--sec); }
+  .nm-ai p { margin: 0; }
+  .nm-code { display: inline-block; margin-top: 4px; padding: 1px 4px; border: 1px solid var(--border); border-radius: 4px; background: var(--card); font: 8px/1.4 ui-monospace, monospace; color: color-mix(in oklab, var(--fg) 80%, transparent); }
+  .nm-line { height: 5px; margin-top: 5px; border-radius: 3px; background: color-mix(in oklab, var(--border) 70%, transparent); }
+  .nm-line.s { width: 82%; }
+  .nm-line.m { width: 64%; }
+  .nm-composer { flex: none; padding: 6px 8px 7px; background: linear-gradient(to top, var(--bg) 55%, transparent); }
+  .nm-box { border: 1px solid var(--border); border-radius: 12px; background: var(--card); padding: 7px 8px 5px; }
+  .nm-ph { min-height: 14px; font-size: 9.5px; color: var(--muted); }
+  .nm-ph span { opacity: .7; }
+  .nm-tools { display: flex; align-items: center; gap: 2px; margin-top: 4px; color: var(--muted); }
+  .nm-tools .nm-icon { width: 22px; height: 22px; }
+  .nm-tools .nm-icon svg { width: 13px; height: 13px; }
+  .nm-send { margin-left: auto; display: flex; align-items: center; gap: 3px; padding: 4px 9px; border-radius: 7px; background: #4a4b52; color: var(--fg); font-size: 8.5px; font-weight: 600; }
+  .nm-send svg { width: 10px; height: 10px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  .nm-dock { flex: none; display: flex; align-items: center; gap: 6px; padding: 5px 8px; border-top: 1px solid var(--border); background: color-mix(in oklab, var(--bg) 96%, transparent); }
+  .nm-dockbtn { display: flex; align-items: center; gap: 4px; padding: 6px 7px; border-radius: 8px; color: var(--muted); font-size: 9px; font-weight: 500; }
+  .nm-dockbtn svg { width: 13px; height: 13px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+  .nm-dockbtn.primary { margin-left: auto; border: 1px solid var(--border); background: var(--card); color: var(--fg); }
+  .nm-bot { width: 30px; height: 27px; display: grid; place-items: center; position: relative; flex: none; border: 1px solid var(--border); border-radius: 7px; color: var(--muted); }
+  .nm-bot svg { width: 13px; height: 13px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+  .nm-bot::after { content: "1"; position: absolute; top: -3px; right: -3px; min-width: 10px; height: 10px; padding: 0 2px; border-radius: 5px; background: var(--spark); color: var(--bg); font: 600 6.5px/10px ui-sans-serif, sans-serif; text-align: center; }
+  .nm-behind { position: absolute; inset: 0; padding: 70px 14px 0; display: flex; flex-direction: column; gap: 10px; }
+  .nm-behind .nm-line { background: color-mix(in oklab, var(--border) 55%, transparent); }
+  .nm-scrim { position: absolute; inset: 0; background: rgba(5,6,8,.56); }
+  .nm-sheet { position: absolute; left: 0; right: 0; bottom: 0; height: 80%; display: flex; flex-direction: column; overflow: hidden; border-radius: 16px 16px 0 0; border-top: 1px solid var(--border); background: var(--pop); box-shadow: 0 -12px 30px rgba(0,0,0,.35); }
+  .nm-grab { width: 30px; height: 3px; flex: none; margin: 7px auto 5px; border-radius: 2px; background: var(--border); }
+  .nm-lhead { flex: none; display: flex; align-items: center; gap: 6px; padding: 5px 9px; }
+  .nm-lhead b { font-size: 12px; font-weight: 600; letter-spacing: -.01em; }
+  .nm-lsub { margin-top: 1px; font-size: 7.5px; color: var(--muted); }
+  .nm-lnum { font: 7.5px/1.4 ui-monospace, monospace; color: var(--muted); }
+  .nm-chev { margin-left: auto; color: var(--muted); }
+  .nm-chev svg { width: 11px; height: 11px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+  .nm-live { width: 5px; height: 5px; margin-left: auto; border-radius: 50%; background: var(--success); flex: none; }
+  .nm-seg { flex: none; display: flex; gap: 2px; margin: 0 8px 5px; padding: 2px; border-radius: 7px; background: var(--sec); font-size: 7.5px; color: var(--muted); }
+  .nm-seg span { flex: 1; padding: 3px 2px; border-radius: 5px; text-align: center; }
+  .nm-seg .on { background: var(--accent); color: var(--fg); }
+  .nm-search { flex: none; display: flex; align-items: center; gap: 4px; margin: 0 8px 5px; padding: 5px 6px; border: 1px solid var(--border); border-radius: 7px; background: var(--card); font-size: 8px; color: var(--muted); }
+  .nm-search svg { width: 9px; height: 9px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; }
+  .nm-search kbd { margin-left: auto; border: 1px solid var(--border); border-radius: 3px; padding: 0 3px; font: 7px/1.5 ui-monospace, monospace; color: var(--muted); }
+  .nm-newrow { flex: none; display: flex; align-items: center; gap: 4px; margin: 0 8px 5px; padding: 5px 6px; border: 1px solid var(--border); border-radius: 7px; background: var(--card); font-size: 8.5px; font-weight: 500; }
+  .nm-newrow svg { width: 10px; height: 10px; fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round; }
+  .nm-newrow .nm-mut { font-size: 7.5px; font-weight: 400; color: var(--muted); }
+  .nm-newrow kbd { margin-left: auto; border: 1px solid var(--border); border-radius: 3px; padding: 0 3px; font: 7px/1.5 ui-monospace, monospace; color: var(--muted); font-weight: 400; }
+  .nm-group { flex: none; display: flex; align-items: center; gap: 4px; padding: 4px 10px 2px; font: 500 7px/1.4 ui-monospace, monospace; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+  .nm-group i { flex: 1; height: 1px; background: var(--border); opacity: .5; }
+  .nm-lrow { flex: none; display: flex; align-items: center; gap: 5px; min-width: 0; padding: 5px 10px; }
+  .nm-lrow .dot { width: 3px; height: 3px; border-radius: 50%; background: var(--border); flex: none; }
+  .nm-lrow .dot.run { background: var(--success); box-shadow: 0 0 0 2px color-mix(in oklab, var(--success) 20%, transparent); }
+  .nm-lrow .t { flex: 1; min-width: 0; font-size: 8.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .nm-lrow time { flex: none; font-size: 7px; color: var(--muted); }
+  .nm-lrow .tag { flex: none; font: 6.5px/1.4 ui-monospace, monospace; color: var(--success); }
+  .nm-lfoot { flex: none; display: flex; align-items: center; gap: 5px; margin-top: auto; padding: 5px 9px; border-top: 1px solid var(--border); font-size: 7px; color: var(--muted); }
+  .nm-lfoot .sig { color: var(--success); font-size: 8px; }
+  .nm-lfoot .num { margin-left: auto; font: 7.5px/1 ui-monospace, monospace; }
+  .nm-note { margin: 9px 2px 0; padding: 0; list-style: none; font-size: 10px; line-height: 1.5; color: var(--muted); }
+  .nm-note li { position: relative; padding-left: 10px; margin-top: 3px; }
+  .nm-note li::before { content: ""; position: absolute; left: 0; top: .55em; width: 3px; height: 3px; border-radius: 50%; background: color-mix(in oklab, var(--spark) 80%, transparent); }
+  .nm-note b { color: var(--fg); font-weight: 500; }
+  .nm-foot { margin: 10px 2px 0; font-size: 9px; line-height: 1.45; color: color-mix(in oklab, var(--muted) 80%, transparent); }
+  .nm-wide { margin-top: 18px; background: color-mix(in oklab, var(--card) 72%, transparent); border: 1px solid var(--border); border-radius: 15px; padding: 10px; }
+  .nm-sheetgrid { display: grid; grid-template-columns: 280px minmax(0, 1fr); gap: 16px; align-items: start; }
+  .nm-sheetnotes h3 { margin: 2px 0 0; font-size: 14px; font-weight: 600; letter-spacing: -.01em; }
+  .nm-sheetnotes .nm-note { font-size: 11px; }
+  .nm-verdict { max-width: 640px; margin: 18px auto 0; padding: 10px 12px; border: 1px solid var(--border); border-left: 2px solid var(--spark); border-radius: 0 8px 8px 0; background: color-mix(in oklab, var(--card) 60%, transparent); font-size: 11px; line-height: 1.5; color: var(--muted); }
+  .nm-verdict b { color: var(--fg); font-weight: 500; }
+  @media (max-width: 900px) {
+    body { padding: 12px; }
+    .nm-rail { grid-template-columns: minmax(0, 300px); justify-content: center; }
+    .nm-card, .nm-wide { padding: 8px; }
+    .nm-sheetgrid { grid-template-columns: minmax(0, 1fr); }
+  }
+</style>
+</head>
+<body>
+<div class="nm">
+  <div class="nm-head">
+    <div>
+      <div class="nm-kicker">nit-gui · mobile chrome · v2</div>
+      <h1>Шапка в градиенте: title, dir, ctx, $</h1>
+      <p>Без рамки и подложки — прозрачный слой в том же градиенте, что и сейчас. model и build убраны. Полосу ctx и счётчик $ не трогал. Снизу три варианта; sidebar остаётся листом снизу.</p>
+    </div>
+  </div>
+
+  <div class="nm-rail">
+    <article class="nm-card">
+      <div class="nm-tag"><span>B1 · пусто</span><span>максимум высоты</span></div>
+      <div class="nm-phone">
+        <div class="nm-status"><span>13:10</span><span class="nm-status-r">5G <span class="nm-batt"><i></i></span></span></div>
+        <div class="nm-screen">
+          <div class="nm-ghost">…предыдущий ответ уходит под градиент, а не под серую коробку.</div>
+          <div class="nm-top">
+            <div class="nm-toprow">
+              <span class="nm-icon"><svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></svg></span>
+              <div class="nm-toptext">
+                <div class="nm-title">React Native Android assistant app</div>
+                <div class="nm-sub">
+                  <span class="nm-dir"><svg viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg><span>nit-gui</span></span>
+                  <span class="nm-sep">·</span>
+                  <span class="nm-ctx">ctx 7% <span class="nm-meter"><i></i></span></span>
+                  <span class="nm-sep">·</span>
+                  <span class="nm-cost">~$0.05</span>
+                </div>
+              </div>
+              <span class="nm-icon"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></span>
+              <span class="nm-icon"><svg viewBox="0 0 24 24"><circle cx="6" cy="12" r="1.2" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.2" fill="currentColor" stroke="none"/><circle cx="18" cy="12" r="1.2" fill="currentColor" stroke="none"/></svg></span>
+            </div>
+          </div>
+          <div class="nm-thread">
+            <div class="nm-you"><span class="nm-role">YOU</span>Поменяй мобильную шапку: title наверх, нижнюю панель упрости.</div>
+            <div class="nm-ai"><span class="nm-role">NIT</span><p>Шапка теперь в градиенте. model и build убраны, dir и ctx остались.</p><div class="nm-line s"></div><div class="nm-line m"></div></div>
+          </div>
+          <div class="nm-composer">
+            <div class="nm-box">
+              <div class="nm-ph">Ask anything… <span>/ for commands</span></div>
+              <div class="nm-tools">
+                <span class="nm-icon"><svg viewBox="0 0 24 24"><path d="M20 11l-8.5 8.5a5 5 0 0 1-7-7L14 3a3.5 3.5 0 0 1 5 5l-9 9a2 2 0 0 1-3-3l8-8"/></svg></span>
+                <span class="nm-icon"><svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></span>
+                <span class="nm-send"><svg viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7"/></svg> Send</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <ul class="nm-note">
+        <li><b>Под композером ничего:</b> −52 px к текущему.</li>
+        <li><b>＋</b> и <b>⋯</b> в шапке; список — из <b>☰</b>.</li>
+        <li>Максимум переписки, но список открывается только сверху.</li>
+      </ul>
+      <div class="nm-foot">Если низ не нужен вообще — самый чистый вариант.</div>
+    </article>
+
+    <article class="nm-card">
+      <div class="nm-tag"><span>B2 · низ для пальца</span><b>рекомендую</b></div>
+      <div class="nm-phone">
+        <div class="nm-status"><span>13:10</span><span class="nm-status-r">5G <span class="nm-batt"><i></i></span></span></div>
+        <div class="nm-screen">
+          <div class="nm-ghost">…предыдущий ответ уходит под градиент, а не под серую коробку.</div>
+          <div class="nm-top">
+            <div class="nm-toprow">
+              <div class="nm-toptext">
+                <div class="nm-title">React Native Android assistant app</div>
+                <div class="nm-sub">
+                  <span class="nm-dir"><svg viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg><span>nit-gui</span></span>
+                  <span class="nm-sep">·</span>
+                  <span class="nm-ctx">ctx 7% <span class="nm-meter"><i></i></span></span>
+                  <span class="nm-sep">·</span>
+                  <span class="nm-cost">~$0.05</span>
+                </div>
+              </div>
+              <span class="nm-icon"><svg viewBox="0 0 24 24"><circle cx="6" cy="12" r="1.2" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.2" fill="currentColor" stroke="none"/><circle cx="18" cy="12" r="1.2" fill="currentColor" stroke="none"/></svg></span>
+            </div>
+          </div>
+          <div class="nm-thread">
+            <div class="nm-you"><span class="nm-role">YOU</span>Поменяй мобильную шапку: title наверх, нижнюю панель упрости.</div>
+            <div class="nm-ai"><span class="nm-role">NIT</span><p>Шапка теперь в градиенте. model и build убраны, dir и ctx остались.</p><div class="nm-line s"></div><div class="nm-line m"></div></div>
+          </div>
+          <div class="nm-composer">
+            <div class="nm-box">
+              <div class="nm-ph">Ask anything… <span>/ for commands</span></div>
+              <div class="nm-tools">
+                <span class="nm-icon"><svg viewBox="0 0 24 24"><path d="M20 11l-8.5 8.5a5 5 0 0 1-7-7L14 3a3.5 3.5 0 0 1 5 5l-9 9a2 2 0 0 1-3-3l8-8"/></svg></span>
+                <span class="nm-icon"><svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></span>
+                <span class="nm-send"><svg viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7"/></svg> Send</span>
+              </div>
+            </div>
+          </div>
+          <div class="nm-dock">
+            <span class="nm-dockbtn"><svg viewBox="0 0 24 24"><path d="M12 3l9 5-9 5-9-5 9-5z"/><path d="M3 13l9 5 9-5"/></svg> Chats <svg viewBox="0 0 24 24" style="width:10px;height:10px"><path d="M6 15l6-6 6 6"/></svg></span>
+            <span class="nm-dockbtn primary"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg> New</span>
+          </div>
+        </div>
+      </div>
+      <ul class="nm-note">
+        <li><b>Внизу только Chats и New:</b> ни title, ни meta.</li>
+        <li><b>Chats</b> открывает тот же лист снизу; ручка листа рабочая.</li>
+        <li>Шапка без ☰ и ＋: только контекст и <b>⋯</b>.</li>
+      </ul>
+      <div class="nm-foot">Совпадает с тем, что нравится: лист снизу и действия под большим пальцем.</div>
+    </article>
+
+    <article class="nm-card">
+      <div class="nm-tag"><span>B3 · только действия</span><span>ближе к текущему</span></div>
+      <div class="nm-phone">
+        <div class="nm-status"><span>13:10</span><span class="nm-status-r">5G <span class="nm-batt"><i></i></span></span></div>
+        <div class="nm-screen">
+          <div class="nm-ghost">…предыдущий ответ уходит под градиент, а не под серую коробку.</div>
+          <div class="nm-top">
+            <div class="nm-toprow">
+              <span class="nm-icon"><svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></svg></span>
+              <div class="nm-toptext">
+                <div class="nm-title">React Native Android assistant app</div>
+                <div class="nm-sub">
+                  <span class="nm-dir"><svg viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg><span>nit-gui</span></span>
+                  <span class="nm-sep">·</span>
+                  <span class="nm-ctx">ctx 7% <span class="nm-meter"><i></i></span></span>
+                  <span class="nm-sep">·</span>
+                  <span class="nm-cost">~$0.05</span>
+                </div>
+              </div>
+              <span class="nm-icon"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></span>
+              <span class="nm-icon"><svg viewBox="0 0 24 24"><circle cx="6" cy="12" r="1.2" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.2" fill="currentColor" stroke="none"/><circle cx="18" cy="12" r="1.2" fill="currentColor" stroke="none"/></svg></span>
+            </div>
+          </div>
+          <div class="nm-thread">
+            <div class="nm-you"><span class="nm-role">YOU</span>Поменяй мобильную шапку: title наверх, нижнюю панель упрости.</div>
+            <div class="nm-ai"><span class="nm-role">NIT</span><p>Шапка теперь в градиенте. model и build убраны, dir и ctx остались.</p><div class="nm-line s"></div><div class="nm-line m"></div></div>
+          </div>
+          <div class="nm-composer">
+            <div class="nm-box">
+              <div class="nm-ph">Ask anything… <span>/ for commands</span></div>
+              <div class="nm-tools">
+                <span class="nm-icon"><svg viewBox="0 0 24 24"><path d="M20 11l-8.5 8.5a5 5 0 0 1-7-7L14 3a3.5 3.5 0 0 1 5 5l-9 9a2 2 0 0 1-3-3l8-8"/></svg></span>
+                <span class="nm-icon"><svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></span>
+                <span class="nm-send"><svg viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7"/></svg> Send</span>
+              </div>
+            </div>
+          </div>
+          <div class="nm-dock">
+            <span class="nm-dockbtn primary" style="flex:1;justify-content:center"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg> New chat</span>
+            <span class="nm-bot"><svg viewBox="0 0 24 24"><rect x="4" y="8" width="16" height="11" rx="3"/><path d="M12 8V5M8 13h.01M16 13h.01M8 16h8"/></svg></span>
+          </div>
+        </div>
+      </div>
+      <ul class="nm-note">
+        <li><b>Внизу New chat и сабагенты;</b> список — из ☰.</li>
+        <li>Если ＋ нужен под палец, а лист — сверху.</li>
+        <li>Самый близкий к текущему по привычкам.</li>
+      </ul>
+      <div class="nm-foot">Если нижняя панель нужна только ради нового чата.</div>
+    </article>
+  </div>
+
+  <div class="nm-wide">
+    <div class="nm-tag"><span>Sidebar · остаётся снизу</span><span>82dvh, не full page</span></div>
+    <div class="nm-sheetgrid">
+      <div class="nm-phone nm-phone--sheet">
+        <div class="nm-status"><span>13:10</span><span class="nm-status-r">5G <span class="nm-batt"><i></i></span></span></div>
+        <div class="nm-screen">
+          <div class="nm-ghost">…предыдущий ответ под градиентом.</div>
+          <div class="nm-top">
+            <div class="nm-toprow">
+              <div class="nm-toptext">
+                <div class="nm-title">React Native Android assistant app</div>
+                <div class="nm-sub">
+                  <span class="nm-dir"><svg viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg><span>nit-gui</span></span>
+                  <span class="nm-sep">·</span>
+                  <span class="nm-ctx">ctx 7% <span class="nm-meter"><i></i></span></span>
+                  <span class="nm-sep">·</span>
+                  <span class="nm-cost">~$0.05</span>
+                </div>
+              </div>
+              <span class="nm-icon"><svg viewBox="0 0 24 24"><circle cx="6" cy="12" r="1.2" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.2" fill="currentColor" stroke="none"/><circle cx="18" cy="12" r="1.2" fill="currentColor" stroke="none"/></svg></span>
+            </div>
+          </div>
+          <div class="nm-behind"><div class="nm-line s"></div><div class="nm-line"></div><div class="nm-line m"></div></div>
+          <div class="nm-scrim"></div>
+          <div class="nm-sheet">
+            <div class="nm-grab"></div>
+            <div class="nm-lhead">
+              <span class="nm-icon"><svg viewBox="0 0 24 24"><path d="M12 3l9 5-9 5-9-5 9-5z"/><path d="M3 13l9 5 9-5"/></svg></span>
+              <div><b>All chats</b><div class="nm-lsub">8 directories · 22 chats</div></div>
+              <span class="nm-live"></span><span class="nm-lnum">1</span>
+              <span class="nm-chev"><svg viewBox="0 0 24 24"><path d="M6 15l6-6 6 6"/></svg></span>
+            </div>
+            <div class="nm-seg"><span>nit-gui</span><span class="on">All chats</span></div>
+            <div class="nm-search"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6"/><path d="M16 16l4 4"/></svg> Search chats <kbd>Ctrl K</kbd></div>
+            <div class="nm-newrow"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg> New chat <span class="nm-mut">in nit-gui</span><kbd>Alt N</kbd></div>
+            <div class="nm-group">nit-gui <span>7</span><i></i></div>
+            <div class="nm-lrow"><span class="dot"></span><span class="t">Кликабельные заголовки директорий</span><time>1d</time></div>
+            <div class="nm-lrow"><span class="dot"></span><span class="t">Завершённые чаты в «Все чаты»</span><time>3d</time></div>
+            <div class="nm-lrow"><span class="dot"></span><span class="t">Vision: archive pass</span><time>3d</time></div>
+            <div class="nm-lrow"><span class="dot"></span><span class="t">Ошибка висит и ждёт нажатия</span><time>3d</time></div>
+            <div class="nm-group">running <span>1</span><i></i></div>
+            <div class="nm-lrow"><span class="dot run"></span><span class="t">Полноэкранный браузер для Android</span><span class="tag">running</span></div>
+            <div class="nm-lfoot"><span class="sig">●</span> online · drop · theme · settings <span class="num">99 22</span></div>
+          </div>
+        </div>
+      </div>
+      <div class="nm-sheetnotes">
+        <h3>Тот же лист, но ручка живая</h3>
+        <ul class="nm-note">
+          <li><b>82dvh, не full page:</b> высота и вид как сейчас.</li>
+          <li><b>Ручка тянется:</b> вниз — закрыть, вверх — до 92dvh. Тап по фону тоже закрывает.</li>
+          <li><b>Drag только за ручку/шапку,</b> список под ней скроллится отдельно.</li>
+          <li>Открытие: <b>Chats</b> внизу (B2) или <b>☰</b> в B1/B3.</li>
+        </ul>
+        <div class="nm-foot">Сейчас ручка декоративная: на телефоне drag не подключён, свайп от 48 rem. Это единственное, что надо починить в листе.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="nm-verdict"><b>Выбор:</b> B2. Верх — контекст в градиенте, низ — две кнопки, лист снизу остаётся. B1 — если низ не нужен вообще; B3 — если снизу нужен только новый чат.</div>
+</div>
+</body>
+</html>

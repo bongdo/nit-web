@@ -193,15 +193,6 @@ export function SettingsPanel({
             </Select>
           </label>
 
-
-          <label className="block space-y-1">
-            <span className="text-muted-foreground text-[11px]">Dictation</span>
-            <span className="text-muted-foreground block text-xs">
-              Browser speech, words appear as you speak. Audio goes to your browser&apos;s speech
-              service; Firefox falls back to the host model.
-            </span>
-          </label>
-
           <label className="block space-y-1">
             <span className="text-muted-foreground text-[11px]">Spelling & grammar</span>
             <Select

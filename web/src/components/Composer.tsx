@@ -440,24 +440,6 @@ export const Composer = memo(function Composer({
     setCommandDismissed(false);
   }, [value]);
 
-  const appendText = (text: string) => {
-    const clean = text.trim();
-    if (!clean) return;
-    setDismissed(null);
-    updateValue((current) => {
-      if (!current) return clean;
-      return /\s$/.test(current) ? `${current}${clean}` : `${current} ${clean}`;
-    });
-    requestAnimationFrame(() => {
-      const area = ref.current;
-      if (!area) return;
-      area.focus();
-      area.setSelectionRange(area.value.length, area.value.length);
-      area.scrollTop = area.scrollHeight;
-      setCaret(area.value.length);
-    });
-  };
-
   const applySuggestion = (issue: SpellIssue, replacement: string) => {
     const position = issue.start + replacement.length;
     updateValue(applyIssue(answerText, issue, replacement));

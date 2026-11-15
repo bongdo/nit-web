@@ -1172,3 +1172,47 @@ Cost: loopback is trusted, so any local process can act as admin at the gate. Th
 is already true for the services themselves, but it must not become an excuse for
 opening `/i/` to the network without a session.
 
+
+## 2026-11-15 — gate pages wear the nit-gui stock theme
+
+Context: the root page and the admin were a one-off dark palette with the orange
+`#c4794f` as the primary colour, so every link, button and border competed with
+it and the page read as an orange site.
+
+Decision: the gate templates use the same tokens as nit-gui stock light/dark:
+neutral `--primary`, `--accent` for surfaces, and `--success`/`--attention`/
+`--danger` only as state colours. A toggle in the header switches light and dark,
+remembers the choice in `localStorage`, and falls back to `prefers-color-scheme`.
+Motion is short (0.3s rises, 0.18s hover) and disabled by `prefers-reduced-motion`.
+
+Why: two front doors on the same host should not look like two products, and a
+neutral primary leaves the accent free to mean "look here".
+
+Rejected: a third palette of its own (more to maintain, no benefit); a theme
+picker with all 14 nit-gui themes (the gate needs light and dark, not Gruvbox).
+
+Cost: the gate CSS is a hand-written copy of the tokens, not an import from the
+web app; changing the palette in nit-gui does not update the gate.
+
+## 2026-11-15 — an unknown device gets a name, not "неизвестно"
+
+Context: the admin showed every device as "неизвестно". Device names came only
+from a User-Agent table with five browser tokens; anything else — curl, a Go
+client, a session created before devices existed — fell through to a placeholder,
+and those rows were indistinguishable from each other.
+
+Decision: sessions without a device adopt one on their next authenticated
+request, the name table now covers mobile browsers, Chromium-based brands and
+common non-browser clients, an unrecognised User-Agent falls back to its product
+token, and every row shows a short device id. A device with no User-Agent is the
+only case that still says "неизвестное устройство".
+
+Why: a list where every row is the same word cannot be used to revoke one
+session, which is the only reason the list exists.
+
+Rejected: one device per user (loses the ability to revoke a single session);
+deduplicating by name and IP (two identical phones behind one NAT would share a
+row, so revoking one would revoke both).
+
+Cost: a browser that logs in again creates another row; the id column is the only
+way to tell them apart until devices get a stable cookie.

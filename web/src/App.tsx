@@ -268,6 +268,10 @@ export default function App({
   const hiddenSeq = useRef<Record<string, number>>({});
   const shownSeq = useRef(0);
   const hiddenIds = hiddenByInstance[instance] ?? NO_HIDDEN;
+  const isHidden = useMemo(
+    () => hiddenLookup(hiddenByInstance, instance),
+    [hiddenByInstance, instance],
+  );
   const [showHidden, setShowHidden] = useState(false);
   const [sessions, setSessions] = useState<Session[]>(() =>
     cachedSessions(boot, scope, workspace, instance),
@@ -386,7 +390,7 @@ export default function App({
     const hiddenBefore = hiddenSeq.current[instance] ?? 0;
     const shownBefore = shownSeq.current;
     try {
-      let state = await api.ui();
+      let state = await api.ui(instance);
       if (localStorage.getItem(UI_MIGRATED_KEY) !== "1") {
         let legacy: string[] = [];
         try {
@@ -396,7 +400,7 @@ export default function App({
             : [];
         } catch {}
         if (legacy.length > 0 && state.hidden.length === 0) {
-          const written = await api.setHidden(legacy, true);
+          const written = await api.setHidden(legacy, true, instance);
           state = { ...state, hidden: written.hidden };
         }
         localStorage.setItem(UI_MIGRATED_KEY, "1");
@@ -1138,10 +1142,12 @@ export default function App({
   }, [sessions, sessionsLoading, selectedId]);
 
   useEffect(() => {
-    if (!selectedId || showHidden || !hiddenIds.has(selectedId)) return;
+    if (!selectedId || showHidden) return;
+    const selected = sessions.find((session) => session.id === selectedId);
+    if (!selected || !isHidden(selected)) return;
     setSelectedIdState(null);
     localStorage.removeItem(sessionKey);
-  }, [hiddenIds, selectedId, showHidden]);
+  }, [isHidden, selectedId, sessions, showHidden]);
 
   const saveCurrentTranscript = useCallback(() => {
     const current = selectedIdRef.current;
@@ -2238,10 +2244,6 @@ export default function App({
   runCommandRef.current = runCommand;
   const runCommandStable = useCallback((id: string) => runCommandRef.current(id), []);
 
-  const isHidden = useMemo(
-    () => hiddenLookup(hiddenByInstance, instance),
-    [hiddenByInstance, instance],
-  );
   const scopedSessions = useMemo(
     () => listedSessions(scopeSessions(sessions, scope, agents), isHidden, showHidden),
     [agents, isHidden, scope, sessions, showHidden],

@@ -40,7 +40,7 @@ Spelling is the remaining exception; see [Known limits](#known-limits).
 | Where | What |
 | --- | --- |
 | Each OpenCode instance | Sessions, messages, models, agents, working directories. |
-| nit-gui on the host | Instance definitions and SSH tunnels; hidden chats, done/failed markers, drafts, preferred model and agent in `ui-state.json`, keyed by instance; the auth cookie is signed and stateless; uploads under
+| nit-gui on the host | Instance definitions and SSH tunnels; hidden chats, the show-hidden toggle, done/failed markers, drafts, preferred model and agent in `ui-state.json`, keyed by instance; the auth cookie is signed and stateless; uploads under
 `/tmp`. |
 | Browser `localStorage` | Device preferences: theme, sidebar mode, motion, background, spelling/autofix, notifications, scope, personal spelling dictionary. Workspace, recent workspaces and selected chat are per instance; the default instance keeps the old unscoped keys. Drafts are mirrored locally only as an instant-load cache. |
 | Browser memory | Transcript cache (up to 12 MiB), running/waiting state, form state, current stream, and the per-instance boot cache (health, models, agents, projects, chats). |
@@ -50,6 +50,22 @@ lose. Hidden chats, done/failed markers, drafts, model and agent are deliberatel
 on the server: they are the same on every device and scoped to the instance.
 Theme, sidebar, motion, workspace and the selected chat stay local because they
 describe the device you are sitting at.
+
+### Hidden chats
+
+Hidden chats are `ui-state.json` on the nit-gui host, keyed by instance, and the
+server is the only source of truth. `POST /api/ui/hidden` answers with the whole
+hidden list it just stored, and the sidebar shows that list; a failed write is
+reported and the previous list comes back. Another device's hide shows up on the
+existing `/api/ui` refresh (10 s, plus focus, visibility and event-stream
+reconnect), so no reload is needed. `Everywhere` reads `/api/ui` from each
+connected instance and keeps the hidden ids tagged per instance, so a chat hidden
+on one machine is hidden there and nowhere else.
+
+The eye toggle (`showHidden`) is stored per instance too (`POST
+/api/ui/show-hidden`) and defaults to hiding hidden chats. A legacy
+`localStorage["nit-gui.hidden"]` list is still pushed to the server once per
+browser and then deleted; that shim can go after one more release.
 
 ## Instances
 
@@ -547,8 +563,9 @@ All `/api` endpoints except `/api/instances*` accept `X-Nit-Instance: <id>` or
 | `POST /api/sessions/{id}/model` | Switch model `{model: {id, providerID, variant?}}`. |
 | `POST /api/sessions/{id}/agent` | Switch agent `{agent}`. |
 | `GET /api/models`, `GET /api/agents` | Pickers. |
-| `GET /api/ui` | Shared `{hidden, status, model, agent}` UI state for the active instance. |
-| `POST /api/ui/hidden` | `{ids, hidden}`; hide or unhide chats. |
+| `GET /api/ui` | Shared `{hidden, status, model, agent, showHidden}` UI state for the active instance. |
+| `POST /api/ui/hidden` | `{ids, hidden}`; hide or unhide chats and return the resulting `{ok, hidden}` list. |
+| `POST /api/ui/show-hidden` | `{showHidden}`; whether the hidden chats are revealed, shared per instance. |
 | `GET /api/ui/drafts?key=` | Read one shared draft with its `updatedAt` and `cleared` flag. |
 | `POST /api/ui/drafts` | `{key, text}`; save or clear a shared draft. A clear keeps a tombstone so other devices drop their stale copy. |
 | `POST /api/ui/model` | `{model}`; save the preferred model. |

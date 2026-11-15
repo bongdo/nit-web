@@ -697,7 +697,7 @@ On this 4-core host a 1–6 second segment took 12–17 seconds with
 Russian reliably.
 
 Decision: `bin/gigaam` runs GigaAM v3 CTC with punctuation through sherpa-onnx
-(217 MB ONNX, MIT) on `127.0.0.1:8177`. `bin/frankfurt` starts the sidecar and
+(217 MB ONNX, MIT) on `127.0.0.1:8177`. `bin/deploy` starts the sidecar and
 exports `NIT_GUI_STT_FAST_URL`; the Go fast path posts raw 16 kHz WAV there and
 does not spawn `whisper-server`. If the sidecar cannot start, the deploy leaves
 the URL unset and the old whisper path remains.
@@ -1064,3 +1064,22 @@ with a host prefix (still one machine's editor).
 Cost: a value without a trailing slash is passed through as written; the Drop
 manager keeps using the host-wide editor because its store is host-wide.
 
+## 2026-11-15 — One publish path: bin/deploy, web only
+
+Context: `bin/deploy [nixos|frankfurt]` with `bin/nixos` and `bin/frankfurt`
+aliases from 2026-11-06. The service has been web-only for a while, and the two
+targets made "deployed" ambiguous: a change landed on nixos while
+`https://bongdo.space/nit/` still served the old build.
+
+Decision: `bin/deploy` is the only publish command and always does the Frankfurt
+path (web bundle with base `/nit/`, Go binary, app on `127.0.0.1:7791`, Caddy on
+`:7792`, public at `https://bongdo.space/nit/`). `bin/nixos` and `bin/frankfurt`
+are deleted. `bin/check` stays the only build and test command.
+
+Why: one command, one URL, nothing to pick and get wrong.
+
+Rejected: keeping the aliases as no-ops (they would keep two names for one
+action and hide the break from habit-driven callers).
+
+Cost: anything outside this repo that called `bin/frankfurt` or `bin/nixos`
+must switch to `bin/deploy`; the NixOS host is no longer updated by this tree.

@@ -196,7 +196,7 @@ or `NIT_GUI_TTS_TOKEN`) when an audio client is connected. The browser's
   instance is a separate OpenCode namespace, not a security or quota boundary.
   This is a one-user product until real per-user auth and session scoping exist.
 - Tailscale Funnel terminates public TLS. Caddy and the Go app stay on
-  loopback; `bin/frankfurt` binds Caddy to `127.0.0.1:7792` and proxies only to
+  loopback; `bin/deploy` binds Caddy to `127.0.0.1:7792` and proxies only to
   `127.0.0.1:7791`. Set `NIT_GUI_ALLOWED_HOSTS` for the public name.
 - The app login is a server-side password page at `/auth`. The password is
   stored as a PBKDF2-SHA256 hash (600k rounds), the signed `nit_gate` cookie is
@@ -256,7 +256,7 @@ or `NIT_GUI_TTS_TOKEN`) when an audio client is connected. The browser's
 - **Public IP is not the ingress.** `92.5.143.242` has no usable inbound
   `80`/`443` path here; public access depends on Tailscale Funnel. A real
   domain would need DNS and a free TLS port.
-- **No supervisor.** `bin/frankfurt` starts the app and Caddy with `setsid`;
+- **No supervisor.** `bin/deploy` starts the app and Caddy with `setsid`;
   they do not survive reboot. `bin/languagetool` also has no supervisor.
   systemd is the durable answer.
 - **Dictation is client-side by design.** nit-gui has no STT endpoint or model.

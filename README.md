@@ -158,7 +158,7 @@ set.
 
 ```sh
 bin/auth        # once: generate the server password
-bin/frankfurt   # build and restart the app and its local Caddy
+bin/deploy      # build and restart the app and its local Caddy
 bin/funnel      # once: public HTTPS through Tailscale Funnel
 ```
 
@@ -169,7 +169,7 @@ password and session key for nit-gui, pero-gui and term-gui: `bin/auth` in
 and restart the apps. `bin/funnel` runs the one-time `sudo tailscale funnel`
 command that enables the public URL.
 
-`bin/frankfurt` builds the web bundle with base `/nit/`, restarts the app on
+`bin/deploy` builds the web bundle with base `/nit/`, restarts the app on
 `127.0.0.1:7791`, and starts a user Caddy on `127.0.0.1:7792`. Caddy is
 loopback-only; Tailscale Funnel terminates HTTPS and exposes the app at
 `https://frankfurt.tailf358cb.ts.net/nit/`. The app serves `/auth` and keeps a
@@ -186,13 +186,12 @@ The box's public IP is `92.5.143.242`. The OCI security list does not expose
 Tailscale Funnel; do not bind the app or Caddy to `0.0.0.0`.
 
 When LanguageTool is configured (`NIT_GUI_LANGUAGETOOL` or
-`languagetool-http-server` on `PATH`), `bin/frankfurt` also starts or reuses a
+`languagetool-http-server` on `PATH`), `bin/deploy` also starts or reuses a
 detached sidecar on `8180` and passes its URL to the app, so grammar stays warm
 across app restarts.
 
-`bin/nixos` and `bin/deploy nixos` remain in the tree for the old NixOS host.
-That path is legacy and is not a supported production target; new features are
-only verified on Frankfurt.
+`bin/deploy` is the only publish target. The old cross-compile-to-NixOS path is
+gone: the app is web-only.
 
 See [`docs/background-services.md`](docs/background-services.md) for the full
 list of Frankfurt-side processes, ports, memory, startup order and the
@@ -421,12 +420,12 @@ rewritten to loopback. Credentials in a server URL are discarded.
 | `XDG_CONFIG_HOME` | Used to locate `opencode/service.json` and `nit-gui/instances.json`. |
 | `NIT_GUI_INSTANCES` | Path to `instances.json`, default `$XDG_CONFIG_HOME/nit-gui/instances.json`. |
 | `NIT_GUI_ALLOWED_HOSTS` | Comma-separated extra `Host` names accepted behind a reverse proxy. Loopback is always accepted. |
-| `NIT_GUI_PUBLIC_PORT` | Caddy port for `bin/frankfurt`, default `7792`. |
+| `NIT_GUI_PUBLIC_PORT` | Caddy port for `bin/deploy`, default `7792`. |
 | `NIT_GUI_PUBLIC_HOST` | Public Funnel host; also marks requests for Secure cookies and HSTS. |
-| `NIT_GUI_BASE_PATH` | External path prefix, default `/nit` in `bin/frankfurt`. |
+| `NIT_GUI_BASE_PATH` | External path prefix, default `/nit` in `bin/deploy`. |
 | `NIT_GUI_PERO_URL` | Base URL for pero links, default `/pero/`. |
 | `NIT_GUI_TERM_URL` | Base URL for term links, default `/term/`. |
-| `NIT_GUI_AUTH_ENV` | Auth env file sourced by `bin/frankfurt`, default `~/.config/nit-gui/auth.env`. |
+| `NIT_GUI_AUTH_ENV` | Auth env file sourced by `bin/deploy`, default `~/.config/nit-gui/auth.env`. |
 | `NIT_GATE_PASSWORD_HASH` | Shared PBKDF2-SHA256 hash used by nit-gui, pero-gui and term-gui. Set by `bin/auth`. |
 | `NIT_GATE_PASSWORD` | Plain shared password for local development; hashed at startup. Do not use in production. |
 | `NIT_GUI_PASSWORD_HASH` | Old name for `NIT_GATE_PASSWORD_HASH`, still accepted. |
@@ -542,7 +541,7 @@ nspell worker. It is not implemented yet.
 - Production is one nit-gui service on Frankfurt; it fronts one or more OpenCode
   instances. The browser is untrusted and thin: it gets only the same-origin
   API, never host files, service credentials, model paths or a local shell.
-- The Go listener stays on loopback. `bin/frankfurt` starts Caddy on
+- The Go listener stays on loopback. `bin/deploy` starts Caddy on
   `127.0.0.1:7792`; Tailscale Funnel terminates public TLS. The app trusts a
   `Host` name only when it is loopback or listed in `NIT_GUI_ALLOWED_HOSTS`.
 - Every route except `/auth` and public drop content under `/d/` requires a
@@ -716,7 +715,7 @@ app restarts as well, start it separately:
 
 ```sh
 NIT_GUI_LANGUAGETOOL=/path/to/languagetool-http-server bin/languagetool
-NIT_GUI_LANGUAGETOOL_URL=http://127.0.0.1:8179 bin/frankfurt
+NIT_GUI_LANGUAGETOOL_URL=http://127.0.0.1:8179 bin/deploy
 ```
 
 `bin/languagetool` detaches the server, waits for `/v2/languages`, and warms

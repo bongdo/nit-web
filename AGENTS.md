@@ -1,15 +1,13 @@
 # nit-gui
 
-- `bin/check` — typecheck, unit tests, production build, `gofmt`, `go vet`, Go tests and build. It must be green before you report or deploy.
-- `bin/deploy [nixos|frankfurt]`, `bin/nixos` and `bin/frankfurt` — build and
-  restart the app. `bin/nixos` copies to the remote host; `bin/frankfurt` runs
-  locally behind Caddy on `:7792`.
-- Cycle: green `bin/check` → `save "<what changed>"` → `bin/deploy` (nixos by
-  default, `frankfurt` for the public URL) → report the URL and what to look at.
+- `bin/check` — typecheck, unit tests, production build, `gofmt`, `go vet`, Go tests and build. The only build and test command; it must be green before you report or deploy.
+- `bin/deploy` — the only publish command: builds the web bundle with base `/nit/`, builds the Go binary, restarts the app behind Caddy on `:7792`, public at `https://bongdo.space/nit/`. There is no other deploy target.
+- Cycle: green `bin/check` → `save "<what changed>"` → `bin/deploy` → report `https://bongdo.space/nit/` and what to look at.
 - A UI or behavior change is not done until it is deployed: the user sees the old build.
 - `bin/auth` prints the password once and stores only its hash. If you rotate it,
   print the new password in the reply.
 - `bin/run` is the local development server on `127.0.0.1:7788`.
+- `bin/funnel` is the one-time Tailscale Funnel setup for public HTTPS.
 - If `bin/` gains or loses a command, update this list in the same change.
 
 ## Drop

@@ -22,6 +22,7 @@ import { useSpellcheck } from "../hooks/useSpellcheck";
 import { checkSpelling } from "../lib/spell-client";
 import { cn } from "../lib/utils";
 import { FileTypeIcon } from "./Attachment";
+import { ImageCrop } from "./ImageCrop";
 import { CommandPalette } from "./CommandPalette";
 import { COMPOSER_TEXT, ComposerHighlights, type HintRect } from "./ComposerHighlights";
 import { Button } from "./ui/button";
@@ -156,6 +157,7 @@ export const Composer = memo(function Composer({
   const [formStep, setFormStep] = useState(0);
   const formAnswers = useRef<Record<string, string>>({});
   const [removing, setRemoving] = useState<string[]>([]);
+  const [cropId, setCropId] = useState<string | null>(null);
   const ref = useRef<HTMLTextAreaElement>(null);
   const highlightRef = useRef<HTMLDivElement>(null);
   const autoCorrectPending = useRef(false);
@@ -587,7 +589,34 @@ export const Composer = memo(function Composer({
     removeTimers.current.add(timer);
   };
 
+  const applyCrop = (id: string, file: File) => {
+    setCropId(null);
+    if (file.size > MAX_UPLOAD) {
+      onError(`${file.name} is larger than ${formatBytes(MAX_UPLOAD)}.`);
+      return;
+    }
+    const previous = attachmentsRef.current.find((item) => item.id === id)?.preview;
+    if (previous) URL.revokeObjectURL(previous);
+    const preview = URL.createObjectURL(file);
+    setAttachments((current) =>
+      current.map((item) =>
+        item.id === id
+          ? {
+              ...item,
+              name: file.name,
+              size: file.size,
+              mime: file.type,
+              file,
+              preview,
+              error: undefined,
+            }
+          : item,
+      ),
+    );
+  };
+
   const visibleAttachments = attachments.filter((item) => !removing.includes(item.id));
+  const cropItem = attachments.find((item) => item.id === cropId);
   const readyFiles = visibleAttachments.filter((item) => !item.error);
 
   const submit = async () => {
@@ -868,7 +897,15 @@ export const Composer = memo(function Composer({
                     style={{ animationDelay: `${addedDelay.current.get(item.id) ?? 0}ms` }}
                   >
                     {item.preview ? (
-                      <img src={item.preview} alt="" className="size-5 rounded object-cover" />
+                      <button
+                        type="button"
+                        onClick={() => setCropId(item.id)}
+                        aria-label={`Open and crop ${item.name}`}
+                        title="Open and crop"
+                        className="hover:ring-ring shrink-0 rounded ring-offset-1 hover:ring-1"
+                      >
+                        <img src={item.preview} alt="" className="size-5 rounded object-cover" />
+                      </button>
                     ) : (
                       <FileTypeIcon
                         name={item.name}
@@ -1244,6 +1281,16 @@ export const Composer = memo(function Composer({
           </div>
         </div>
       </div>
+
+      {cropItem?.preview && cropItem.file && (
+        <ImageCrop
+          src={cropItem.preview}
+          name={cropItem.name}
+          file={cropItem.file}
+          onApply={(file) => applyCrop(cropItem.id, file)}
+          onClose={() => setCropId(null)}
+        />
+      )}
     </div>
   );
 });

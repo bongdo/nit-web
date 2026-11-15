@@ -13,14 +13,16 @@ import (
 )
 
 type instanceInput struct {
-	Original     string `json:"original"`
-	Name         string `json:"name"`
-	Transport    string `json:"transport"`
-	URL          string `json:"url"`
-	SSH          string `json:"ssh"`
-	Dir          string `json:"dir"`
-	Password     string `json:"password"`
-	PasswordFile string `json:"passwordFile"`
+	Original     string  `json:"original"`
+	Name         string  `json:"name"`
+	Transport    string  `json:"transport"`
+	URL          string  `json:"url"`
+	SSH          string  `json:"ssh"`
+	Dir          string  `json:"dir"`
+	Password     string  `json:"password"`
+	PasswordFile string  `json:"passwordFile"`
+	PeroURL      *string `json:"peroURL"`
+	TermURL      *string `json:"termURL"`
 }
 
 func (s *Server) saveInstance(w http.ResponseWriter, r *http.Request) {
@@ -102,6 +104,22 @@ func (s *Server) saveInstance(w http.ResponseWriter, r *http.Request) {
 	if index >= 0 {
 		spec.Password = specs[index].Password
 		spec.PasswordFile = specs[index].PasswordFile
+		spec.PeroURL = specs[index].PeroURL
+		spec.TermURL = specs[index].TermURL
+	}
+	if in.PeroURL != nil {
+		spec.PeroURL = strings.TrimSpace(*in.PeroURL)
+	}
+	if in.TermURL != nil {
+		spec.TermURL = strings.TrimSpace(*in.TermURL)
+	}
+	if !opencode.ValidAppURL(spec.PeroURL) {
+		writeError(w, http.StatusBadRequest, "pero url must be an http(s) url or a path starting with /")
+		return
+	}
+	if !opencode.ValidAppURL(spec.TermURL) {
+		writeError(w, http.StatusBadRequest, "term url must be an http(s) url or a path starting with /")
+		return
 	}
 	if in.PasswordFile != "" {
 		path, err := s.confinedPasswordPath(in.PasswordFile)

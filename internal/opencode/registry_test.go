@@ -348,6 +348,55 @@ func TestRegistryReplaceWritesAndReloads(t *testing.T) {
 	}
 }
 
+func TestValidAppURL(t *testing.T) {
+	cases := map[string]bool{
+		"":                                    true,
+		"/pero/":                              true,
+		"/ed":                                 true,
+		"https://frankfurt.example/pero/":     true,
+		"http://127.0.0.1:7795/term/":         true,
+		"ftp://example.com/pero/":             false,
+		"pero/":                               false,
+		"//evil.example/pero/":                false,
+		"https://user:pass@example.com/pero/": false,
+		"https:///pero/":                      false,
+		"https://example.com/ a":              false,
+	}
+	for raw, want := range cases {
+		if got := ValidAppURL(raw); got != want {
+			t.Fatalf("ValidAppURL(%q) = %v, want %v", raw, got, want)
+		}
+	}
+}
+
+func TestRegistryAppURLsRoundTrip(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "instances.json")
+	t.Setenv("NIT_GUI_INSTANCES", path)
+	r := NewRegistry()
+	defer r.Close()
+
+	if err := r.Replace([]InstanceSpec{
+		{Name: "riga", SSH: "riga-dev", PeroURL: "https://riga.example/pero/", TermURL: "/term/riga/"},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	spec, ok := r.Spec("riga")
+	if !ok || spec.PeroURL != "https://riga.example/pero/" || spec.TermURL != "/term/riga/" {
+		t.Fatalf("Spec(riga) = %+v, %v", spec, ok)
+	}
+
+	if err := r.Replace([]InstanceSpec{{Name: "riga", SSH: "riga-dev"}}); err != nil {
+		t.Fatal(err)
+	}
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(raw), "peroURL") || strings.Contains(string(raw), "termURL") {
+		t.Fatalf("cleared app urls were saved: %s", raw)
+	}
+}
+
 func TestRegistryReplaceValidation(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "instances.json")
 	t.Setenv("NIT_GUI_INSTANCES", path)
@@ -359,6 +408,8 @@ func TestRegistryReplaceValidation(t *testing.T) {
 		{{Name: "a"}, {Name: "a"}},
 		{{Name: "a", Dir: "relative"}},
 		{{Name: "a", URL: "http://x", SSH: "host"}},
+		{{Name: "a", PeroURL: "ftp://example.com/pero/"}},
+		{{Name: "a", TermURL: "https://user:pass@example.com/term/"}},
 	}
 	for _, specs := range cases {
 		if err := r.Replace(specs); err == nil {

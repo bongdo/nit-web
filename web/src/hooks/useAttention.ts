@@ -96,6 +96,7 @@ export function useAttention(
     if (!fresh || !enabled || waitingIds.has(fresh)) return;
     if (!document.hidden && document.hasFocus()) return;
     const session = list.current.find((item) => item.id === fresh);
+    if (session?.parentID) return;
     if (notify("Run finished", session, open.current, "nit-gui-done")) return;
     chime();
   }, [doneIds, enabled, waitingIds, ready]);

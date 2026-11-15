@@ -59,6 +59,7 @@ func (s *Server) instances(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{
 		"app":         map[string]string{"name": "nit-gui", "host": host, "version": "dev"},
 		"default":     s.multi.DefaultInstance(),
+		"defaults":    map[string]string{"peroURL": s.peroURL, "termURL": s.termURL},
 		"configPath":  s.multi.ConfigPath(),
 		"configError": s.multi.ConfigError(),
 		"instances":   instances,
@@ -86,6 +87,8 @@ func (s *Server) instanceInfo(ctx context.Context, spec opencode.InstanceSpec, p
 		State:            "unknown",
 		URL:              instanceURL(spec.URL),
 		SSH:              spec.SSH,
+		PeroURL:          spec.PeroURL,
+		TermURL:          spec.TermURL,
 		DefaultDirectory: spec.Dir,
 	}
 	if spec.SSH != "" && !probeAll && !s.multi.Connected(spec.Name) {

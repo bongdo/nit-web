@@ -251,7 +251,7 @@ export const Sidebar = memo(function Sidebar({
   theme,
   search,
   searchRef,
-  hiddenIds,
+  isHidden,
   hiddenCount,
   showHidden,
   onSearch,
@@ -288,7 +288,7 @@ export const Sidebar = memo(function Sidebar({
   theme: Theme;
   search: string;
   searchRef: RefObject<HTMLInputElement | null>;
-  hiddenIds: Set<string>;
+  isHidden: (session: Pick<Session, "id" | "instance">) => boolean;
   hiddenCount: number;
   showHidden: boolean;
   onSearch: (value: string) => void;
@@ -408,7 +408,7 @@ export const Sidebar = memo(function Sidebar({
           waiting={waitingIds.has(session.id)}
           failed={failedIds.has(session.id)}
           done={doneIds.has(session.id)}
-          hidden={hiddenIds.has(session.id)}
+          hidden={isHidden(session)}
           now={now}
           showDirectory={scope !== "directory" && !grouped}
           subagentCount={children.length}
@@ -439,7 +439,7 @@ export const Sidebar = memo(function Sidebar({
                 waiting={waitingIds.has(child.id)}
                 failed={failedIds.has(child.id)}
                 done={doneIds.has(child.id)}
-                hidden={hiddenIds.has(child.id)}
+                hidden={isHidden(child)}
                 now={now}
                 onClick={() => onSelect(child.id)}
                 onHide={() => onHide(child.id)}

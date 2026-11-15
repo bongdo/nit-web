@@ -52,15 +52,19 @@ import {
 import { questionFields } from "./lib/forms";
 import {
   groupSessions,
+  hiddenLookup,
   listedSessions,
   listedSubagents,
   mergeInstanceSessions,
   mergeWaitingSessionIds,
   newlyRunning,
   nextSessionId,
+  NO_HIDDEN,
   pollSessionIds,
   SCOPES,
   scopeSessions,
+  type HiddenIndex,
+  type InstanceHidden,
   type Scope,
 } from "./lib/sessions";
 import { shortcutKeys } from "./lib/keys";
@@ -258,7 +262,12 @@ export default function App({
   const failedRef = useRef<Set<string>>(new Set());
   const [notifyOn, setNotifyOn] = useState(() => localStorage.getItem("nit-gui.notify") === "on");
   const [uiReady, setUiReady] = useState(false);
-  const [hiddenIds, setHiddenIds] = useState<Set<string>>(() => new Set());
+  const [hiddenByInstance, setHiddenByInstance] = useState<HiddenIndex>({});
+  const hiddenByInstanceRef = useRef(hiddenByInstance);
+  hiddenByInstanceRef.current = hiddenByInstance;
+  const hiddenSeq = useRef<Record<string, number>>({});
+  const shownSeq = useRef(0);
+  const hiddenIds = hiddenByInstance[instance] ?? NO_HIDDEN;
   const [showHidden, setShowHidden] = useState(false);
   const [sessions, setSessions] = useState<Session[]>(() =>
     cachedSessions(boot, scope, workspace, instance),
@@ -338,8 +347,28 @@ export default function App({
   const loadedIdRef = useRef<string | null>(null);
   const lastEpochRef = useRef(0);
 
+  const applyHidden = useCallback((owner: string, ids: ReadonlySet<string>) => {
+    setHiddenByInstance((current) =>
+      current[owner] === ids ? current : { ...current, [owner]: ids },
+    );
+  }, []);
+
+  const dropHidden = useCallback((id: string) => {
+    setHiddenByInstance((current) => {
+      let changed = false;
+      const next: HiddenIndex = { ...current };
+      for (const [owner, ids] of Object.entries(current)) {
+        if (!ids.has(id)) continue;
+        const copy = new Set(ids);
+        copy.delete(id);
+        next[owner] = copy;
+        changed = true;
+      }
+      return changed ? next : current;
+    });
+  }, []);
+
   const applyUiState = useCallback((state: UiState) => {
-    const hidden = new Set(Array.isArray(state.hidden) ? state.hidden : []);
     const done = new Set<string>();
     const failed = new Set<string>();
     for (const [id, status] of Object.entries(state.status ?? {})) {
@@ -347,7 +376,6 @@ export default function App({
       else if (status === "failed") failed.add(id);
     }
     failedRef.current = failed;
-    setHiddenIds(hidden);
     setDoneIds(done);
     setFailedIds(failed);
     if (state.model) setPreferredModel(state.model);
@@ -355,6 +383,8 @@ export default function App({
   }, []);
 
   const loadUiState = useCallback(async () => {
+    const hiddenBefore = hiddenSeq.current[instance] ?? 0;
+    const shownBefore = shownSeq.current;
     try {
       let state = await api.ui();
       if (localStorage.getItem(UI_MIGRATED_KEY) !== "1") {
@@ -366,8 +396,8 @@ export default function App({
             : [];
         } catch {}
         if (legacy.length > 0 && state.hidden.length === 0) {
-          await api.setHidden(legacy, true);
-          state = { ...state, hidden: legacy };
+          const written = await api.setHidden(legacy, true);
+          state = { ...state, hidden: written.hidden };
         }
         localStorage.setItem(UI_MIGRATED_KEY, "1");
         localStorage.removeItem(LEGACY_HIDDEN_KEY);
@@ -394,9 +424,13 @@ export default function App({
         localStorage.removeItem("nit-gui.agent");
       }
       applyUiState(state);
+      if ((hiddenSeq.current[instance] ?? 0) === hiddenBefore && shownSeq.current === shownBefore) {
+        applyHidden(instance, new Set(Array.isArray(state.hidden) ? state.hidden : []));
+        setShowHidden(Boolean(state.showHidden));
+      }
     } catch {}
     setUiReady(true);
-  }, [applyUiState]);
+  }, [applyHidden, applyUiState, instance]);
 
   useEffect(() => {
     void loadUiState();
@@ -460,9 +494,29 @@ export default function App({
   const saveStatus = useCallback((id: string, status: "" | "done" | "failed") => {
     void api.setSessionStatus(id, status).catch((error) => setBanner(messageOf(error)));
   }, []);
-  const saveHidden = useCallback((ids: string[], hidden: boolean) => {
-    void api.setHidden(ids, hidden).catch((error) => setBanner(messageOf(error)));
-  }, []);
+  const saveHidden = useCallback(
+    async (ids: string[], hidden: boolean, owner: string) => {
+      const before = hiddenByInstanceRef.current[owner] ?? NO_HIDDEN;
+      const next = new Set(before);
+      for (const id of ids) {
+        if (hidden) next.add(id);
+        else next.delete(id);
+      }
+      const seq = (hiddenSeq.current[owner] ?? 0) + 1;
+      hiddenSeq.current[owner] = seq;
+      applyHidden(owner, next);
+      try {
+        const result = await api.setHidden(ids, hidden, owner);
+        if (hiddenSeq.current[owner] === seq) {
+          applyHidden(owner, new Set(Array.isArray(result.hidden) ? result.hidden : next));
+        }
+      } catch (error) {
+        if (hiddenSeq.current[owner] === seq) applyHidden(owner, before);
+        setBanner(messageOf(error));
+      }
+    },
+    [applyHidden],
+  );
   const markDone = useCallback(
     (id: string) => {
       if (failedRef.current.has(id)) return;
@@ -546,6 +600,31 @@ export default function App({
     }
   }, [instance]);
 
+  const applyForeignHidden = useCallback(
+    (pools: InstanceHidden[]) => {
+      setHiddenByInstance((current) => {
+        let changed = false;
+        const next: HiddenIndex = { ...current };
+        for (const pool of pools) {
+          if (pool.instance === instance) continue;
+          const ids = new Set(pool.hidden);
+          const previous = current[pool.instance];
+          if (
+            previous &&
+            previous.size === ids.size &&
+            [...ids].every((id) => previous.has(id))
+          ) {
+            continue;
+          }
+          next[pool.instance] = ids;
+          changed = true;
+        }
+        return changed ? next : current;
+      });
+    },
+    [instance],
+  );
+
   const loadEverywhere = useCallback(async (query: string) => {
     const { instances } = await api.instances();
     const connected = instances.filter((item) => item.state === "connected");
@@ -553,11 +632,16 @@ export default function App({
       connected.map(async (item) => ({
         instance: item.name,
         sessions: await api.allSessions(undefined, query || undefined, item.id),
+        hidden: (await api.ui(item.id).catch(() => null))?.hidden ?? [],
       })),
     );
-    return mergeInstanceSessions(
-      results.flatMap((result) => (result.status === "fulfilled" ? [result.value] : [])),
+    const pools = results.flatMap((result) =>
+      result.status === "fulfilled" ? [result.value] : [],
     );
+    return {
+      sessions: mergeInstanceSessions(pools),
+      hidden: pools.map(({ instance: owner, hidden }) => ({ instance: owner, hidden })),
+    };
   }, []);
 
   const loadSessions = useCallback(async () => {
@@ -568,7 +652,9 @@ export default function App({
     try {
       let data: Session[];
       if (currentScope === "everywhere") {
-        data = await loadEverywhere(query);
+        const merged = await loadEverywhere(query);
+        data = merged.sessions;
+        applyForeignHidden(merged.hidden);
       } else {
         // shortcut: children=true returns the newest 100 sessions, paginate when older subagents matter.
         const [list, nested] = await Promise.all([
@@ -609,7 +695,7 @@ export default function App({
     } finally {
       setSessionsLoading(false);
     }
-  }, [instance, loadEverywhere]);
+  }, [applyForeignHidden, instance, loadEverywhere]);
 
   const loadPoolCache = useCallback(async () => {
     if (
@@ -1338,28 +1424,18 @@ export default function App({
         return;
       }
       const ids = sessionAndChildren(id);
-      setHiddenIds((current) => {
-        const next = new Set(current);
-        for (const item of ids) next.add(item);
-        return next;
-      });
-      saveHidden(ids, true);
+      void saveHidden(ids, true, instance);
       if (selectedIdRef.current && ids.includes(selectedIdRef.current)) selectSession(null);
     },
-    [foreignInstance, saveHidden, selectSession, sessionAndChildren],
+    [foreignInstance, instance, saveHidden, selectSession, sessionAndChildren],
   );
 
   const unhideSession = useCallback(
     (id: string) => {
       const ids = sessionAndChildren(id);
-      setHiddenIds((current) => {
-        const next = new Set(current);
-        for (const item of ids) next.delete(item);
-        return next;
-      });
-      saveHidden(ids, false);
+      void saveHidden(ids, false, foreignInstance(id) ?? instance);
     },
-    [saveHidden, sessionAndChildren],
+    [foreignInstance, instance, saveHidden, sessionAndChildren],
   );
 
   useEffect(() => {
@@ -1379,12 +1455,7 @@ export default function App({
       await api.deleteSession(id);
       transcriptCache.delete(id);
       setSessions((current) => current.filter((item) => item.id !== id));
-      setHiddenIds((current) => {
-        if (!current.has(id)) return current;
-        const next = new Set(current);
-        next.delete(id);
-        return next;
-      });
+      dropHidden(id);
       setDoneIds((current) => {
         if (!current.has(id)) return current;
         const next = new Set(current);
@@ -1401,7 +1472,7 @@ export default function App({
       }
       void loadSessions();
     },
-    [draftKeyFor, loadSessions, selectSession],
+    [draftKeyFor, dropHidden, loadSessions, selectSession],
   );
 
   const deleteSession = useCallback(
@@ -1534,7 +1605,19 @@ export default function App({
     [motion, setTheme, theme],
   );
   const openSidebar = useCallback(() => setSidebarOpen(true), []);
-  const toggleHidden = useCallback(() => setShowHidden((value) => !value), []);
+  const toggleHidden = useCallback(async () => {
+    const next = !showHidden;
+    const before = showHidden;
+    const seq = (shownSeq.current += 1);
+    setShowHidden(next);
+    try {
+      const result = await api.setShowHidden(next, instance);
+      if (shownSeq.current === seq) setShowHidden(Boolean(result.showHidden));
+    } catch (error) {
+      if (shownSeq.current === seq) setShowHidden(before);
+      setBanner(messageOf(error));
+    }
+  }, [instance, showHidden]);
   const clearComposerDraft = useCallback(() => setComposerDraft(null), []);
   const clearComposerInsert = useCallback(() => setComposerInsert(null), []);
   const finishForm = useCallback(() => {
@@ -1678,12 +1761,7 @@ export default function App({
 
     if (event.type === "session.deleted" && sessionID) {
       transcriptCache.delete(sessionID);
-      setHiddenIds((current) => {
-        if (!current.has(sessionID)) return current;
-        const next = new Set(current);
-        next.delete(sessionID);
-        return next;
-      });
+      dropHidden(sessionID);
       setDoneIds((current) => {
         if (!current.has(sessionID)) return current;
         const next = new Set(current);
@@ -1735,6 +1813,7 @@ export default function App({
     void loadChildren();
     void loadForms();
     void loadPermissions();
+    void loadUiState();
     reloadSelected();
   };
 
@@ -2159,17 +2238,21 @@ export default function App({
   runCommandRef.current = runCommand;
   const runCommandStable = useCallback((id: string) => runCommandRef.current(id), []);
 
+  const isHidden = useMemo(
+    () => hiddenLookup(hiddenByInstance, instance),
+    [hiddenByInstance, instance],
+  );
   const scopedSessions = useMemo(
-    () => listedSessions(scopeSessions(sessions, scope, agents), hiddenIds, showHidden),
-    [agents, hiddenIds, scope, sessions, showHidden],
+    () => listedSessions(scopeSessions(sessions, scope, agents), isHidden, showHidden),
+    [agents, isHidden, scope, sessions, showHidden],
   );
   const scopedDirectories = useMemo(
     () => new Set(scopedSessions.map((session) => session.location?.directory ?? "")).size,
     [scopedSessions],
   );
   const hiddenCount = useMemo(
-    () => sessions.filter((session) => hiddenIds.has(session.id)).length,
-    [hiddenIds, sessions],
+    () => sessions.filter(isHidden).length,
+    [isHidden, sessions],
   );
   const cycleSessions = useMemo(
     () =>
@@ -2180,8 +2263,8 @@ export default function App({
   );
   const visibleSubagents = useMemo(() => {
     const parentIds = new Set(scopedSessions.map((session) => session.id));
-    return listedSubagents(sessions, parentIds, hiddenIds, showHidden);
-  }, [hiddenIds, sessions, showHidden, scopedSessions]);
+    return listedSubagents(sessions, parentIds, isHidden, showHidden);
+  }, [isHidden, sessions, showHidden, scopedSessions]);
 
   const quoteSelection = useCallback((text: string) => {
     const clean = text.trim();
@@ -2349,7 +2432,7 @@ export default function App({
             theme={theme}
             search={search}
             searchRef={searchRef}
-            hiddenIds={hiddenIds}
+            isHidden={isHidden}
             hiddenCount={hiddenCount}
             showHidden={showHidden}
             onSearch={setSearch}

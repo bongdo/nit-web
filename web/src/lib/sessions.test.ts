@@ -3,6 +3,8 @@ import {
   groupByDirectory,
   groupKey,
   groupSessions,
+  hiddenIndex,
+  hiddenLookup,
   hoistFinished,
   isTechnical,
   listedSessions,
@@ -178,10 +180,9 @@ describe("sessions", () => {
       session({ id: "hidden" }),
       session({ id: "child", parentID: "visible" }),
     ];
-    expect(listedSessions(list, new Set(["hidden"]), false).map((item) => item.id)).toEqual([
-      "visible",
-    ]);
-    expect(listedSessions(list, new Set(["hidden"]), true).map((item) => item.id)).toEqual([
+    const isHidden = hiddenLookup(hiddenIndex([{ instance: "local", hidden: ["hidden"] }]), "local");
+    expect(listedSessions(list, isHidden, false).map((item) => item.id)).toEqual(["visible"]);
+    expect(listedSessions(list, isHidden, true).map((item) => item.id)).toEqual([
       "visible",
       "hidden",
     ]);
@@ -195,16 +196,48 @@ describe("sessions", () => {
       session({ id: "orphan", parentID: "missing" }),
       session({ id: "other", parentID: "elsewhere" }),
     ];
+    const isHidden = hiddenLookup(hiddenIndex([{ instance: "local", hidden: ["hidden"] }]), "local");
     expect(
-      listedSubagents(list, new Set(["visible"]), new Set(["hidden"]), false).map(
-        (item) => item.id,
-      ),
+      listedSubagents(list, new Set(["visible"]), isHidden, false).map((item) => item.id),
     ).toEqual(["child"]);
     expect(
-      listedSubagents(list, new Set(["visible"]), new Set(["hidden"]), true).map(
-        (item) => item.id,
-      ),
+      listedSubagents(list, new Set(["visible"]), isHidden, true).map((item) => item.id),
     ).toEqual(["hidden", "child"]);
+  });
+
+  it("keeps hidden chats per instance in the everywhere scope", () => {
+    const index = hiddenIndex([
+      { instance: "frankfurt", hidden: ["ses_shared", "ses_local"] },
+      { instance: "riga", hidden: ["ses_shared"] },
+    ]);
+    const isHidden = hiddenLookup(index, "frankfurt");
+    const list = [
+      session({ id: "ses_shared", instance: "frankfurt" }),
+      session({ id: "ses_shared", instance: "riga" }),
+      session({ id: "ses_local", instance: "riga" }),
+      session({ id: "ses_local" }),
+    ];
+    expect(list.filter(isHidden).map((item) => [item.id, item.instance])).toEqual([
+      ["ses_shared", "frankfurt"],
+      ["ses_shared", "riga"],
+      ["ses_local", undefined],
+    ]);
+    expect(listedSessions(list, isHidden, false).map((item) => item.id)).toEqual(["ses_local"]);
+  });
+
+  it("hides a chat only on the instance that hid it", () => {
+    const isHidden = hiddenLookup(hiddenIndex([{ instance: "riga", hidden: ["ses_a"] }]), "frankfurt");
+    expect(isHidden({ id: "ses_a", instance: "frankfurt" })).toBe(false);
+    expect(isHidden({ id: "ses_a" })).toBe(false);
+    expect(isHidden({ id: "ses_a", instance: "riga" })).toBe(true);
+  });
+
+  it("merges repeated pools for one instance", () => {
+    const index = hiddenIndex([
+      { instance: "riga", hidden: ["a"] },
+      { instance: "riga", hidden: ["b"] },
+    ]);
+    expect([...index.riga].sort()).toEqual(["a", "b"]);
   });
 
   it("nests children under their parent and leaves orphans as roots", () => {

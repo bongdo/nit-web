@@ -26,7 +26,7 @@ export type InstanceHidden = { instance: string; hidden: string[] };
 
 export type HiddenIndex = Record<string, ReadonlySet<string>>;
 
-const NO_HIDDEN: ReadonlySet<string> = new Set();
+export const NO_HIDDEN: ReadonlySet<string> = new Set();
 
 export function hiddenIndex(pools: InstanceHidden[]): HiddenIndex {
   const index: HiddenIndex = {};

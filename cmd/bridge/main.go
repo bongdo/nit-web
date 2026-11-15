@@ -302,7 +302,7 @@ func serve(ctx context.Context, client *http.Client, cfg config, ws *gate.WSConn
 		}
 	}
 	if frame.Target == "opencode" && password != "" {
-		request.Header.Set("Authorization", "Bearer "+password)
+		request.SetBasicAuth("opencode", password)
 	}
 	start := time.Now()
 	response, err := client.Do(request)
@@ -353,7 +353,7 @@ func probeVersion(ctx context.Context, client *http.Client, base string, passwor
 		return ""
 	}
 	if password != "" {
-		request.Header.Set("Authorization", "Bearer "+password)
+		request.SetBasicAuth("opencode", password)
 	}
 	response, err := client.Do(request)
 	if err != nil {

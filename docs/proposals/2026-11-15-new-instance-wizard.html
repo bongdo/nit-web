@@ -335,8 +335,8 @@ services.nit-bridge = {
 </section>
 
 <footer>
-  Макет, не код: в репозитории нет ни <code>cmd/bridge</code>, ни <code>termcore</code>,
-  ни нового диалога. Пакеты term-gui названы по факту (<code>internal/pty</code>,
+  Макет: транспорт и установка уже в коде (<code>cmd/bridge</code>,
+  <code>bin/bridge add</code>), диалога и встроенного терминала ещё нет. Пакеты term-gui названы по факту (<code>internal/pty</code>,
   <code>internal/session</code>, <code>internal/ws</code>), используются
   <code>github.com/creack/pty</code> и tmux.<br>
   Транспорт и протокол: <a href="../agent-transport/">дизайн моста</a> ·

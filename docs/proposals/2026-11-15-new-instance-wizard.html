@@ -309,7 +309,7 @@ services.nit-bridge = {
   <h2>6 · Что писать и в каком порядке</h2>
   <div class="steps">
     <div class="step"><div><b>termcore</b><span>Вынести <code>pty</code>, <code>session</code>, <code>ws</code> из term-gui в общий модуль. term-gui остаётся зелёным, поведение не меняется. Это первый шаг, потому что он трогает чужой репозиторий и его надо сделать до того, как на него начнут опираться.</span></div></div>
-    <div class="step"><div><b>мост: транспорт + цели</b><span>Сокет, reverse-транспорт, цели <code>http</code> и <code>builtin:term</code>, токен, heartbeat, systemd-юнит. Инстанс переключается на <code>agent</code>, ssh остаётся фолбэком.</span></div></div>
+    <div class="step"><div><b>мост: транспорт + цели</b><span>Сокет, цели <code>http</code>, <code>builtin:term</code>, токен, heartbeat, systemd-юнит. Живёт как агент гейта; инстанс в nit-gui после этого — обычный URL на <code>/i/&lt;machine&gt;/opencode</code>, ssh остаётся фолбэком.</span></div></div>
     <div class="step"><div><b>установка</b><span><code>bin/bridge add &lt;host&gt;</code>, скрипт <code>/i/install.sh</code>, сниппет для flake, ручной набор. Все четыре ведут к одному <code>hello</code>.</span></div></div>
     <div class="step"><div><b>диалог</b><span>Левая колонка способов, правая — панель выбранного, чек-лист ожидания, сохранение только после «opencode отвечает». Существующая форма SSH/URL остаётся как есть.</span></div></div>
     <div class="step"><div><b>события и тёплое переключение</b><span>Один поток событий на все инстансы, кэш бутстрапа, прогрев. Уведомление «прогон закончился» с любой машины.</span></div></div>

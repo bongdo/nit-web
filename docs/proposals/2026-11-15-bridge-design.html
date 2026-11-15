@@ -140,16 +140,19 @@
       <div class="what"><b>Caddy + гейт</b> — TLS, сессии, роли, маршруты
       <code>/nit</code> <code>/pero</code> <code>/term</code> <code>/share</code>
       и отдельный <code>/agent</code> для машин.
-      <div class="sub">пользовательская кука и машинный токен — разные вещи, разные маршруты</div></div>
+      <div class="sub">гейт уже есть: <code>cmd/gate</code> на 127.0.0.1:8090.
+      Он же держит сокеты мостов и отдаёт цели по <code>/i/&lt;machine&gt;/&lt;target&gt;/</code>,
+      поэтому мост — его агент, а не часть nit-gui</div></div>
     </div>
     <div class="arrow">↓</div>
 
     <div class="lane">
       <div class="who">nit-gui</div>
-      <div class="what"><b>реестр инстансов + события</b> — инстанс с полем
-      <code>agent: "nixos"</code> резолвится не в ssh-туннель, а в сокет моста.
-      Один <code>/api/events?all</code> отдаёт браузеру события всех машин с тегом
-      инстанса.</div>
+      <div class="what"><b>реестр инстансов</b> — инстанс машины это обычный URL
+      <code>http://127.0.0.1:8090/i/nixos/opencode</code> с подписанной
+      сервисной идентичностью для loopback. Никакого нового транспорта в nit-gui.
+      <div class="sub">события: SSE по тому же URL, один поток на инстанс; сведение
+      в один <code>/api/events?all</code> — отдельным шагом</div></div>
     </div>
     <div class="arrow">↓ wss, сокет держит машина</div>
 
@@ -374,11 +377,12 @@
         <tr><th>Где</th><th>Что</th><th>Объём</th></tr>
       </thead>
       <tbody>
-        <tr><td class="mono">cmd/bridge</td><td>новый бинарник: конфиг, сокет, локальный SSE, цели <code>http</code> и <code>tcp</code>, heartbeat</td><td class="mono">~600–750 строк</td></tr>
-        <tr><td class="mono">internal/agent</td><td>реестр соединений, reverse-транспорт <code>http.RoundTripper</code>, tcp-цели, раздача событий</td><td class="mono">~450 строк + тесты</td></tr>
-        <tr><td class="mono">internal/opencode/registry.go</td><td>поле <code>agent</code> в инстансе, резолв в сокет вместо ssh</td><td class="mono">~80 строк</td></tr>
-        <tr><td class="mono">internal/server</td><td><code>/agent</code> (wss), <code>/api/events?all</code>, маршрут <code>/i/&lt;machine&gt;/&lt;target&gt;/</code></td><td class="mono">~250 строк</td></tr>
-        <tr><td class="mono">term-gui</td><td>remote-режим: вместо локального <code>exec</code> — ssh через сокет моста, tmux остаётся на машине</td><td class="mono">~150–250 строк</td></tr>
+        <tr><td class="mono">cmd/bridge</td><td>новый бинарник: конфиг, сокет, локальный SSE, цели <code>http</code>, <code>tcp</code> и встроенный терминал, heartbeat</td><td class="mono">~750 строк</td></tr>
+        <tr><td class="mono">termcore</td><td>перенос <code>pty</code>, <code>session</code>, <code>ws</code> из term-gui в общий модуль; мост и term-gui импортируют его</td><td class="mono">перенос, ~0 новых</td></tr>
+        <tr><td class="mono">internal/gate</td><td><code>/agent</code> (wss), реестр сокетов, прокси <code>/i/&lt;machine&gt;/&lt;target&gt;/</code>, сервисная идентичность для loopback</td><td class="mono">~450 строк + тесты</td></tr>
+        <tr><td class="mono">internal/opencode/registry.go</td><td>ничего: инстанс машины — обычный <code>url</code> на гейт</td><td class="mono">0</td></tr>
+        <tr><td class="mono">internal/server</td><td><code>/api/events?all</code> — один поток для браузера</td><td class="mono">~120 строк</td></tr>
+        <tr><td class="mono">term-gui</td><td>базовый путь SPA: страница на <code>/i/&lt;machine&gt;/term/</code> ходит в свой <code>apiBase()</code></td><td class="mono">~50 строк</td></tr>
         <tr><td class="mono">web/src</td><td>один поток событий на все инстансы, кэш бутстрапа, бейдж машины на уровне директории</td><td class="mono">~300 строк</td></tr>
         <tr><td class="mono">bin/bridge</td><td>установка по ssh, токен, systemd-юнит, linger, <code>bin/bridge add &lt;host&gt;</code></td><td class="mono">~90 строк</td></tr>
       </tbody>

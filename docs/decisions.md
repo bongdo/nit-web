@@ -1083,3 +1083,65 @@ action and hide the break from habit-driven callers).
 
 Cost: anything outside this repo that called `bin/frankfurt` or `bin/nixos`
 must switch to `bin/deploy`; the NixOS host is no longer updated by this tree.
+
+## 2026-11-15 — The bridge is the gate's agent, not a nit-gui transport
+
+Context: a machine that runs OpenCode needs to be reachable from the house
+without ssh, and the gate now owns authentication, routes and the public entry.
+
+Decision: the bridge holds an outbound WebSocket to the gate at `/agent`, and the
+gate exposes every machine target as an ordinary path `/i/<machine>/<target>/`.
+nit-gui then stores a plain `url` instance pointing at
+`http://127.0.0.1:8090/i/<machine>/opencode` with a signed service identity for
+loopback requests. Events come over the same path as SSE.
+
+Why: the gate already decides who may reach what, so one place owns the socket,
+the token and the routing. nit-gui keeps no transport code and no machine
+credentials, and a future app on the same machine is one more target rather than
+a second integration.
+
+Rejected: an `agent` transport inside nit-gui (two owners of the same socket,
+machine tokens living in the app's config, and no way for other apps to use it);
+an sshd tcp target as the only story (uses sshd as a proxy when we already have
+one).
+
+Cost: the gate grows a socket registry and a proxy that can fail mid-stream; a
+loopback service identity has to be signed by both binaries from the same key.
+
+## 2026-11-15 — The terminal lives inside the bridge
+
+Context: a remote machine needs a shell, and a second binary on that machine is
+exactly the dependency the setup tries to avoid.
+
+Decision: the bridge hosts the terminal. term-gui's `pty`, `session` and `ws`
+packages move into a shared module `termcore`; term-gui and the bridge both
+import it, so the terminal behaviour is the same code, only a different owner.
+
+Why: tmux, resize, reattach and scrollback already exist and are tested; copying
+or reimplementing them inside the bridge would be a slower and worse terminal.
+
+Rejected: term-gui on the machine (second binary, second updater); sshd through
+the bridge plus a remote mode in term-gui (uses sshd as a PTY server and needs
+the same amount of code in another place).
+
+Cost: termcore is a shared module with its own version, and term-gui's SPA needs
+a base path so the same bundle runs under `/i/<machine>/term/`.
+
+## 2026-11-15 — Another machine's editor is one pero-gui over sshfs
+
+Context: file chips from a nixos chat must open the editor, but the editor reads
+a local filesystem.
+
+Decision: mount the machine on the house over sshfs and point the existing
+per-workspace pero-gui instance at that mount. No pero-gui on the machine.
+
+Why: editing is a house-side activity; the mount gives real paths and real
+permissions, and no new service is installed on the machine. A bridge `pero`
+target stays available for the day a local editor on the machine is worth it.
+
+Rejected: pero-gui on every machine (one more binary, its own updates, another
+auth surface); a file-editing API in the bridge (a second editor protocol).
+
+Cost: writes go through sshfs, so a slow or sleeping link makes saving slow; the
+mount has to exist before the editor starts.
+

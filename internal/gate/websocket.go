@@ -189,6 +189,9 @@ func (c *WSConn) SetReadDeadline(t time.Time) error {
 
 func (c *WSConn) SetIdleTimeout(d time.Duration) {
 	c.idle = d
+	if d > 0 {
+		_ = c.conn.SetReadDeadline(time.Now().Add(d))
+	}
 }
 
 func (c *WSConn) Close() error {

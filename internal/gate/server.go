@@ -21,7 +21,9 @@ const (
 	sessionTTL    = 7 * 24 * time.Hour
 	forwardTTL    = 60 * time.Second
 	maxFailures   = 5
-	blockTime     = 15 * time.Minute
+	blockTime     = time.Minute
+	blockMax      = 15 * time.Minute
+	blockForget   = time.Hour
 )
 
 type ctxKey int
@@ -32,6 +34,7 @@ type Server struct {
 	routes  *Routes
 	users   *Store
 	agents  *Agents
+	devices *Devices
 	hub     *agentHub
 	secret  []byte
 	log     *slog.Logger
@@ -39,22 +42,39 @@ type Server struct {
 	mu      sync.Mutex
 	failed  map[string]int
 	blocked map[string]time.Time
+	blocks  map[string]int
+	last    map[string]time.Time
 }
 
-func New(routes *Routes, users *Store, agents *Agents, secret []byte, log *slog.Logger) *Server {
+func New(routes *Routes, users *Store, agents *Agents, secret []byte, log *slog.Logger, devices ...*Devices) *Server {
 	if log == nil {
 		log = slog.Default()
+	}
+	deviceStore := &Devices{now: time.Now, items: map[string]Device{}}
+	switch {
+	case len(devices) > 0 && devices[0] != nil:
+		deviceStore = devices[0]
+	default:
+		opened, err := OpenDevices(DefaultDevicesPath())
+		if err != nil {
+			log.Warn("gate devices unavailable", "error", err)
+		} else {
+			deviceStore = opened
+		}
 	}
 	return &Server{
 		routes:  routes,
 		users:   users,
 		agents:  agents,
+		devices: deviceStore,
 		hub:     newAgentHub(),
 		secret:  secret,
 		log:     log,
 		now:     time.Now,
 		failed:  map[string]int{},
 		blocked: map[string]time.Time{},
+		blocks:  map[string]int{},
+		last:    map[string]time.Time{},
 	}
 }
 
@@ -68,9 +88,11 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /signup", s.signupSubmit)
 	mux.HandleFunc("GET /account", s.accountPage)
 	mux.HandleFunc("POST /account/password", s.accountPassword)
+	mux.HandleFunc("POST /account/devices/remove", s.accountDeviceRemove)
 	mux.HandleFunc("GET /admin", s.adminPage)
 	mux.HandleFunc("POST /admin/approve", s.adminApprove)
 	mux.HandleFunc("POST /admin/reject", s.adminReject)
+	mux.HandleFunc("POST /admin/devices/remove", s.adminDeviceRemove)
 	mux.HandleFunc("GET /i/{token}", s.invitePage)
 	mux.HandleFunc("POST /i/{token}", s.inviteSubmit)
 	mux.HandleFunc("GET /agent", s.agentSocket)
@@ -150,6 +172,12 @@ func (s *Server) session(r *http.Request) (gateid.Identity, bool) {
 	if err != nil || id.Anonymous() {
 		return gateid.Identity{}, false
 	}
+	if id.Dev != "" {
+		if !s.devices.Has(id.User, id.Dev) {
+			return gateid.Identity{}, false
+		}
+		s.devices.Touch(id.Dev, clientIP(r))
+	}
 	return id, true
 }
 
@@ -159,6 +187,12 @@ func (s *Server) startSession(w http.ResponseWriter, r *http.Request, user User)
 		Role: user.Role,
 		Caps: gateid.Caps(user.Role),
 		Exp:  s.now().Add(sessionTTL).Unix(),
+	}
+	device, err := s.devices.Add(user.Name, deviceName(r.UserAgent()), clientIP(r))
+	if err != nil {
+		s.log.Warn("gate device add", "error", err)
+	} else {
+		id.Dev = device.ID
 	}
 	http.SetCookie(w, &http.Cookie{
 		Name:     sessionCookie,
@@ -238,29 +272,44 @@ func (s *Server) proxy(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) blockedIP(r *http.Request) (time.Duration, bool) {
 	ip := clientIP(r)
+	now := s.now()
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	until, ok := s.blocked[ip]
 	if !ok {
 		return 0, false
 	}
-	if s.now().After(until) {
+	if !now.Before(until) {
 		delete(s.blocked, ip)
 		delete(s.failed, ip)
 		return 0, false
 	}
-	return time.Until(until), true
+	return until.Sub(now), true
 }
 
 func (s *Server) noteFailure(r *http.Request) {
 	ip := clientIP(r)
+	now := s.now()
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.failed[ip]++
-	if s.failed[ip] >= maxFailures {
-		s.blocked[ip] = s.now().Add(blockTime)
-		s.failed[ip] = 0
+	if s.failed[ip] < maxFailures {
+		return
 	}
+	if last, ok := s.last[ip]; !ok || now.Sub(last) > blockForget {
+		s.blocks[ip] = 0
+	}
+	wait := blockTime
+	for i := 0; i < s.blocks[ip] && wait < blockMax; i++ {
+		wait *= 2
+	}
+	if wait > blockMax {
+		wait = blockMax
+	}
+	s.blocks[ip]++
+	s.last[ip] = now
+	s.blocked[ip] = now.Add(wait)
+	s.failed[ip] = 0
 }
 
 func (s *Server) resetFailures(r *http.Request) {
@@ -268,6 +317,9 @@ func (s *Server) resetFailures(r *http.Request) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	delete(s.failed, ip)
+	delete(s.blocked, ip)
+	delete(s.blocks, ip)
+	delete(s.last, ip)
 }
 
 func clientIP(r *http.Request) string {

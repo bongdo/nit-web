@@ -314,17 +314,27 @@ export const Composer = memo(function Composer({
   }, [customAnswer, disabled, drawerOpen, formBusy, typingBlocked, workspace]);
 
   useEffect(() => {
+    let timer = 0;
+    const clear = () => {
+      clearTimeout(timer);
+      timer = 0;
+      setShift(false);
+    };
     const down = (event: KeyboardEvent) => {
-      if (event.key === "Shift") setShift(true);
+      if (event.key !== "Shift") {
+        if (timer) clear();
+        return;
+      }
+      if (!timer) timer = window.setTimeout(() => setShift(true), 1000);
     };
     const up = (event: KeyboardEvent) => {
-      if (event.key === "Shift") setShift(false);
+      if (event.key === "Shift") clear();
     };
-    const clear = () => setShift(false);
     window.addEventListener("keydown", down);
     window.addEventListener("keyup", up);
     window.addEventListener("blur", clear);
     return () => {
+      clearTimeout(timer);
       window.removeEventListener("keydown", down);
       window.removeEventListener("keyup", up);
       window.removeEventListener("blur", clear);
@@ -1244,7 +1254,7 @@ export const Composer = memo(function Composer({
                 : coarse
                   ? "Send with the button · Enter for a new line"
                   : running
-                    ? "Enter steers into the run · hold Shift and click Send to queue"
+                    ? "Enter steers into the run · hold Shift a second, then click Send to queue"
                     : "Enter to send · Shift+Enter for a new line · / commands"}
             </span>
             <div className="ml-auto flex items-center gap-1">
@@ -1309,7 +1319,7 @@ export const Composer = memo(function Composer({
                     queue
                       ? "Send after this run finishes"
                       : running
-                        ? "Steer into the running turn · hold Shift to queue"
+                        ? "Steer into the running turn · hold Shift a second to queue"
                         : undefined
                   }
                   aria-label={queue ? "Queue after this run" : running ? "Steer message" : "Send"}

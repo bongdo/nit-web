@@ -23,13 +23,14 @@ const (
 )
 
 var (
-	ErrUserExists   = errors.New("gate: user exists")
-	ErrUnknownUser  = errors.New("gate: unknown user")
-	ErrBadName      = errors.New("gate: invalid name")
-	ErrBadPassword  = errors.New("gate: password must be at least 8 characters")
-	ErrNotInvited   = errors.New("gate: no open invitation")
-	ErrLastAdmin    = errors.New("gate: the last admin cannot be removed")
-	minPasswordSize = 8
+	ErrUserExists    = errors.New("gate: user exists")
+	ErrUnknownUser   = errors.New("gate: unknown user")
+	ErrBadName       = errors.New("gate: invalid name")
+	ErrBadPassword   = errors.New("gate: password must be at least 8 characters")
+	ErrNotInvited    = errors.New("gate: no open invitation")
+	ErrLastAdmin     = errors.New("gate: the last admin cannot be removed")
+	ErrActiveAccount = errors.New("нельзя удалить активный аккаунт")
+	minPasswordSize  = 8
 )
 
 type User struct {
@@ -185,6 +186,9 @@ func (s *Store) Reject(name string) error {
 	}
 	if user.Status == StatusActive && user.Role == "admin" && s.adminCountLocked() <= 1 {
 		return ErrLastAdmin
+	}
+	if user.Status == StatusActive {
+		return ErrActiveAccount
 	}
 	delete(s.users, name)
 	return s.save()

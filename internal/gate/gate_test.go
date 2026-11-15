@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/cookiejar"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -66,6 +67,12 @@ func testStore(t *testing.T) *Store {
 
 func testServer(t *testing.T, seen *http.Header) (*httptest.Server, *Store) {
 	t.Helper()
+	server, store, _ := testServerDevices(t, seen)
+	return server, store
+}
+
+func testServerDevices(t *testing.T, seen *http.Header) (*httptest.Server, *Store, *Devices) {
+	t.Helper()
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if seen != nil {
 			*seen = r.Header.Clone()
@@ -79,9 +86,13 @@ func testServer(t *testing.T, seen *http.Header) (*httptest.Server, *Store) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	server := httptest.NewServer(New(testRoutes(t, upstream.URL), store, agents, []byte(testKey), nil).Handler())
+	devices, err := OpenDevices(filepath.Join(t.TempDir(), "devices.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	server := httptest.NewServer(New(testRoutes(t, upstream.URL), store, agents, []byte(testKey), nil, devices).Handler())
 	t.Cleanup(server.Close)
-	return server, store
+	return server, store, devices
 }
 
 func noRedirect(t *testing.T) *http.Client {
@@ -385,5 +396,63 @@ func TestServiceIdentityIgnoredOffLoopback(t *testing.T) {
 	handler.ServeHTTP(recorder, request)
 	if recorder.Code != http.StatusUnauthorized {
 		t.Fatalf("status = %d, want 401", recorder.Code)
+	}
+}
+
+func TestCorrectPasswordBreaksTheBlock(t *testing.T) {
+	server, _ := testServer(t, nil)
+	client := noRedirect(t)
+
+	attempt := func(name, password string) int {
+		form := url.Values{"name": {name}, "password": {password}}
+		response, err := client.PostForm(server.URL+"/login", form)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer response.Body.Close()
+		_, _ = io.Copy(io.Discard, response.Body)
+		return response.StatusCode
+	}
+
+	for i := 0; i < 4; i++ {
+		if code := attempt("bongdo", "wrong"); code != http.StatusUnauthorized {
+			t.Fatalf("attempt %d = %d, want 401", i+1, code)
+		}
+	}
+	if code := attempt("bongdo", "wrong"); code != http.StatusTooManyRequests {
+		t.Fatalf("fifth wrong attempt = %d, want 429", code)
+	}
+	if code := attempt("bongdo", "secret-pass"); code != http.StatusSeeOther {
+		t.Fatalf("correct password during a block = %d, want 303", code)
+	}
+	response, err := client.Get(server.URL + "/nit/")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer response.Body.Close()
+	if response.StatusCode != http.StatusOK {
+		t.Fatalf("after login status = %d, want 200", response.StatusCode)
+	}
+}
+
+func TestWrongAttemptDuringBlockStaysBlocked(t *testing.T) {
+	client := noRedirect(t)
+	attempt := func(password string) int {
+		form := url.Values{"name": {"bongdo"}, "password": {password}}
+		response, err := client.PostForm(server.URL+"/login", form)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer response.Body.Close()
+		_, _ = io.Copy(io.Discard, response.Body)
+		return response.StatusCode
+	}
+	for i := 0; i < 5; i++ {
+		attempt("wrong")
+	}
+	for i := 0; i < 3; i++ {
+		if code := attempt("wrong-again"); code != http.StatusTooManyRequests {
+			t.Fatalf("wrong attempt %d during block = %d, want 429", i+1, code)
+		}
 	}
 }

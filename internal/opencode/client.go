@@ -12,6 +12,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"nitgui/internal/gateid"
 )
 
 const maxUpstreamBody = 64 << 20
@@ -71,6 +73,13 @@ func defaultTransport() *http.Transport {
 	return t
 }
 
+func (c *Client) attach(req *http.Request) {
+	req.SetBasicAuth("opencode", c.password())
+	if header := gateHeader(); header != "" {
+		req.Header.Set(gateid.Header, header)
+	}
+}
+
 func (c *Client) password() string {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
@@ -104,7 +113,7 @@ func (c *Client) newRequest(ctx context.Context, method, path string, body any) 
 	if err != nil {
 		return nil, err
 	}
-	req.SetBasicAuth("opencode", c.password())
+	c.attach(req)
 	if body != nil {
 		req.Header.Set("Content-Type", "application/json")
 	}
@@ -178,7 +187,7 @@ func (c *Client) WriteFile(ctx context.Context, dir, path string, data []byte) (
 		if err != nil {
 			return nil, err
 		}
-		req.SetBasicAuth("opencode", c.password())
+		c.attach(req)
 		req.Header.Set("Content-Type", "application/octet-stream")
 		req.Header.Set("Accept", "application/json")
 		return c.HTTP.Do(req)
@@ -228,7 +237,7 @@ func (c *Client) ReadFile(ctx context.Context, path string) (*http.Response, err
 		if err != nil {
 			return nil, err
 		}
-		req.SetBasicAuth("opencode", c.password())
+		c.attach(req)
 		return c.HTTP.Do(req)
 	}
 

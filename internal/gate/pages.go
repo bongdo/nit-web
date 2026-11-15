@@ -3,6 +3,7 @@ package gate
 import (
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -16,19 +17,35 @@ type routeView struct {
 	Reason string
 }
 
-type view struct {
-	Title   string
-	Narrow  bool
-	User    gateid.Identity
-	Routes  []routeView
-	Users   []User
-	Pending []User
-	Invited []User
-	Message string
-	Error   string
-	Next    string
+type deviceView struct {
+	ID      string
 	Name    string
-	Token   string
+	IP      string
+	Created string
+	Seen    string
+	Current bool
+}
+
+type deviceGroup struct {
+	User    string
+	Devices []deviceView
+}
+
+type view struct {
+	Title        string
+	Narrow       bool
+	User         gateid.Identity
+	Routes       []routeView
+	Users        []User
+	Pending      []User
+	Invited      []User
+	Devices      []deviceView
+	DeviceGroups []deviceGroup
+	Message      string
+	Error        string
+	Next         string
+	Name         string
+	Token        string
 }
 
 func (s *Server) newView(r *http.Request, title string) view {
@@ -65,28 +82,30 @@ func (s *Server) loginPage(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) loginSubmit(w http.ResponseWriter, r *http.Request) {
-	if wait, blocked := s.blockedIP(r); blocked {
-		data := s.newNarrow(r, "вход")
-		data.Error = "слишком много попыток, попробуй через " + wait.Round(time.Minute).String()
-		s.renderStatus(w, "login", data, http.StatusTooManyRequests)
-		return
-	}
 	name := r.PostFormValue("name")
 	password := r.PostFormValue("password")
 	next := safeNext(r.PostFormValue("next"))
 	user, ok := s.users.Authenticate(name, password)
-	if !ok {
-		s.noteFailure(r)
-		data := s.newNarrow(r, "вход")
-		data.Error = "неверное имя или пароль"
-		data.Next = next
-		data.Name = name
-		s.renderStatus(w, "login", data, http.StatusUnauthorized)
+	if ok {
+		s.resetFailures(r)
+		s.startSession(w, r, user)
+		http.Redirect(w, r, next, http.StatusSeeOther)
 		return
 	}
-	s.resetFailures(r)
-	s.startSession(w, r, user)
-	http.Redirect(w, r, next, http.StatusSeeOther)
+	s.noteFailure(r)
+	if wait, blocked := s.blockedIP(r); blocked {
+		data := s.newNarrow(r, "вход")
+		data.Error = "слишком много попыток, верный пароль пустят сразу, иначе через " + wait.Round(time.Second).String()
+		data.Next = next
+		data.Name = name
+		s.renderStatus(w, "login", data, http.StatusTooManyRequests)
+		return
+	}
+	data := s.newNarrow(r, "вход")
+	data.Error = "неверное имя или пароль"
+	data.Next = next
+	data.Name = name
+	s.renderStatus(w, "login", data, http.StatusUnauthorized)
 }
 
 func (s *Server) logout(w http.ResponseWriter, r *http.Request) {
@@ -124,12 +143,17 @@ func signupError(err error) string {
 }
 
 func (s *Server) accountPage(w http.ResponseWriter, r *http.Request) {
-	data := s.newNarrow(r, "аккаунт")
-	if data.User.Anonymous() {
+	if identity(r).Anonymous() {
 		http.Redirect(w, r, "/login?next=%2Faccount", http.StatusSeeOther)
 		return
 	}
-	s.render(w, "account", data)
+	s.render(w, "account", s.accountView(r))
+}
+
+func (s *Server) accountView(r *http.Request) view {
+	data := s.newNarrow(r, "аккаунт")
+	data.Devices = deviceViews(s.devices.ListFor(data.User.User), data.User.Dev, s.now())
+	return data
 }
 
 func (s *Server) accountPassword(w http.ResponseWriter, r *http.Request) {
@@ -138,7 +162,7 @@ func (s *Server) accountPassword(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/login?next=%2Faccount", http.StatusSeeOther)
 		return
 	}
-	data := s.newNarrow(r, "аккаунт")
+	data := s.accountView(r)
 	password := r.PostFormValue("password")
 	current := r.PostFormValue("current")
 	if _, ok := s.users.Authenticate(id.User, current); !ok {
@@ -153,6 +177,86 @@ func (s *Server) accountPassword(w http.ResponseWriter, r *http.Request) {
 	}
 	data.Message = "пароль обновлён"
 	s.render(w, "account", data)
+}
+
+func (s *Server) accountDeviceRemove(w http.ResponseWriter, r *http.Request) {
+	id := identity(r)
+	if id.Anonymous() {
+		http.Redirect(w, r, "/login?next=%2Faccount", http.StatusSeeOther)
+		return
+	}
+	device := r.PostFormValue("id")
+	if !s.devices.Has(id.User, device) {
+		data := s.accountView(r)
+		data.Error = "устройство не найдено"
+		s.renderStatus(w, "account", data, http.StatusForbidden)
+		return
+	}
+	if err := s.devices.Remove(device); err != nil {
+		s.log.Warn("gate device remove", "error", err)
+	}
+	http.Redirect(w, r, "/account", http.StatusSeeOther)
+}
+
+func deviceViews(devices []Device, current string, now time.Time) []deviceView {
+	views := make([]deviceView, 0, len(devices))
+	for _, device := range devices {
+		views = append(views, deviceViewOf(device, current, now))
+	}
+	return views
+}
+
+func deviceViewOf(device Device, current string, now time.Time) deviceView {
+	return deviceView{
+		ID:      device.ID,
+		Name:    device.Name,
+		IP:      device.IP,
+		Created: time.Unix(device.Created, 0).Format("02.01.2006 15:04"),
+		Seen:    ago(time.Unix(device.Seen, 0), now),
+		Current: device.ID == current,
+	}
+}
+
+func deviceGroups(devices []Device, now time.Time) []deviceGroup {
+	groups := make([]deviceGroup, 0, len(devices))
+	position := map[string]int{}
+	for _, device := range devices {
+		index, ok := position[device.User]
+		if !ok {
+			index = len(groups)
+			position[device.User] = index
+			groups = append(groups, deviceGroup{User: device.User})
+		}
+		groups[index].Devices = append(groups[index].Devices, deviceViewOf(device, "", now))
+	}
+	return groups
+}
+
+func ago(then, now time.Time) string {
+	elapsed := now.Sub(then)
+	switch {
+	case elapsed < time.Minute:
+		return "только что"
+	case elapsed < time.Hour:
+		return plural(int(elapsed/time.Minute), "минуту", "минуты", "минут") + " назад"
+	case elapsed < 24*time.Hour:
+		return plural(int(elapsed/time.Hour), "час", "часа", "часов") + " назад"
+	default:
+		return plural(int(elapsed/(24*time.Hour)), "день", "дня", "дней") + " назад"
+	}
+}
+
+func plural(n int, one, few, many string) string {
+	switch {
+	case n%100 >= 11 && n%100 <= 14:
+		return strconv.Itoa(n) + " " + many
+	case n%10 == 1:
+		return strconv.Itoa(n) + " " + one
+	case n%10 >= 2 && n%10 <= 4:
+		return strconv.Itoa(n) + " " + few
+	default:
+		return strconv.Itoa(n) + " " + many
+	}
 }
 
 func passwordError(err error) string {
@@ -182,6 +286,7 @@ func (s *Server) adminPage(w http.ResponseWriter, r *http.Request) {
 	case "approved":
 		data.Message = "приглашение готово: передай ссылку человеку"
 	}
+	data.DeviceGroups = deviceGroups(s.devices.List(), s.now())
 	s.render(w, "admin", data)
 }
 
@@ -206,6 +311,21 @@ func (s *Server) adminReject(w http.ResponseWriter, r *http.Request) {
 	if err := s.users.Reject(r.PostFormValue("name")); err != nil {
 		data := s.newView(r, "админка")
 		data.Error = err.Error()
+		s.renderStatus(w, "admin", data, http.StatusBadRequest)
+		return
+	}
+	http.Redirect(w, r, "/admin", http.StatusSeeOther)
+}
+
+func (s *Server) adminDeviceRemove(w http.ResponseWriter, r *http.Request) {
+	if !identity(r).Has(gateid.AdminUsers) {
+		s.forbidden(w, r, Route{Prefix: "/admin"})
+		return
+	}
+	device := r.PostFormValue("id")
+	if err := s.devices.Remove(device); err != nil {
+		data := s.newView(r, "админка")
+		data.Error = "устройство не найдено"
 		s.renderStatus(w, "admin", data, http.StatusBadRequest)
 		return
 	}
@@ -381,6 +501,27 @@ const pageSource = `
     <button>сохранить</button>
   </form>
 </section>
+<section>
+  <h2>устройства</h2>
+  {{if .Devices}}
+  <table>
+    <thead><tr><th>устройство</th><th>ip</th><th>вход</th><th>активность</th><th></th></tr></thead>
+    <tbody>
+    {{range .Devices}}
+      <tr>
+        <td>{{.Name}}{{if .Current}} <span class="muted">· это устройство</span>{{end}}</td>
+        <td class="mono">{{.IP}}</td>
+        <td class="muted">{{.Created}}</td>
+        <td class="muted">{{.Seen}}</td>
+        <td class="row-actions">
+          {{if not .Current}}<form method="post" action="/account/devices/remove"><input type="hidden" name="id" value="{{.ID}}"><button class="bad">отключить</button></form>{{end}}
+        </td>
+      </tr>
+    {{end}}
+    </tbody>
+  </table>
+  {{else}}<p class="muted">нет устройств</p>{{end}}
+</section>
 {{template "foot" .}}{{end}}
 
 {{define "admin"}}{{template "head" .}}
@@ -423,19 +564,40 @@ const pageSource = `
 <section>
   <h2>активные</h2>
   <table>
-    <thead><tr><th>имя</th><th>роль</th><th></th></tr></thead>
+    <thead><tr><th>имя</th><th>роль</th></tr></thead>
     <tbody>
     {{range .Users}}
       <tr>
         <td class="mono">{{.Name}}</td>
         <td class="muted">{{.Role}}</td>
+      </tr>
+    {{end}}
+    </tbody>
+  </table>
+</section>
+<section>
+  <h2>устройства</h2>
+  {{if .DeviceGroups}}
+  {{range .DeviceGroups}}
+  <p class="mono">{{.User}}</p>
+  <table>
+    <thead><tr><th>устройство</th><th>ip</th><th>вход</th><th>активность</th><th></th></tr></thead>
+    <tbody>
+    {{range .Devices}}
+      <tr>
+        <td>{{.Name}}</td>
+        <td class="mono">{{.IP}}</td>
+        <td class="muted">{{.Created}}</td>
+        <td class="muted">{{.Seen}}</td>
         <td class="row-actions">
-          <form method="post" action="/admin/reject"><input type="hidden" name="name" value="{{.Name}}"><button class="bad">удалить</button></form>
+          <form method="post" action="/admin/devices/remove"><input type="hidden" name="id" value="{{.ID}}"><button class="bad">отключить</button></form>
         </td>
       </tr>
     {{end}}
     </tbody>
   </table>
+  {{end}}
+  {{else}}<p class="muted">нет устройств</p>{{end}}
 </section>
 {{template "foot" .}}{{end}}
 

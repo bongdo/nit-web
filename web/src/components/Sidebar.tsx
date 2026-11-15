@@ -754,19 +754,21 @@ export const Sidebar = memo(function Sidebar({
                 <div className="relative space-y-0.5">
                   {poolGroups.map((group) => (
                     <Fragment key={group.directory}>
-                      <button
-                        type="button"
-                        onClick={() => onNew(group.directory)}
-                        title={`New chat in ${group.directory}`}
-                        aria-label={`New chat in ${group.directory}`}
-                        className="text-muted-foreground hover:bg-accent/60 hover:text-foreground flex w-full items-center gap-2 rounded-md px-3 pt-2.5 pb-0.5 text-left text-[10px] font-medium"
-                      >
-                        <span className="truncate">
-                          {basename(group.directory) || group.directory || "unknown"}
-                        </span>
+                      <div className="text-muted-foreground flex items-center gap-2 px-3 pt-2.5 pb-0.5 text-[10px] font-medium">
+                        <button
+                          type="button"
+                          onClick={() => onNew(group.directory)}
+                          title={`New chat in ${group.directory}`}
+                          aria-label={`New chat in ${group.directory}`}
+                          className="hover:text-foreground min-w-0 rounded-md text-left hover:underline"
+                        >
+                          <span className="block truncate">
+                            {basename(group.directory) || group.directory || "unknown"}
+                          </span>
+                        </button>
                         <span className="tabular-nums opacity-60">{group.rows.length}</span>
                         <span className="bg-border h-px flex-1 opacity-50" />
-                      </button>
+                      </div>
                       {group.rows.map((row) => renderRow(row, true))}
                     </Fragment>
                   ))}

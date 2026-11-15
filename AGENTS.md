@@ -7,6 +7,10 @@
 - `bin/auth` prints the password once and stores only its hash. If you rotate it,
   print the new password in the reply.
 - `bin/run` is the local development server on `127.0.0.1:7788`.
+- `bin/previews` screenshots `/nit`, `/pero`, `/term` and `/share` into
+  `~/.local/state/nit-gui/gate/previews` for the root page thumbnails. It needs a
+  local chromium; the Playwright cache is found automatically. Run it after
+  `bin/gate` when an app's look changes. Without it the cards show a placeholder.
 - `bin/gate` builds and restarts the auth gate on `127.0.0.1:8090`; Caddy
   proxies the domain there, the gate routes `/nit`, `/pero`, `/term`, `/share`.
 - If `bin/` gains or loses a command, update this list in the same change.

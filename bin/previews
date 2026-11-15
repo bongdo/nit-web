@@ -2,30 +2,8 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-addr="${NIT_GATE_ADDR:-127.0.0.1:8090}"
-dir="${NIT_GATE_PREVIEWS:-$HOME/.local/state/nit-gui/gate/previews}"
-
-browser="${NIT_PREVIEW_BROWSER:-}"
-if [ -z "$browser" ]; then
-  for candidate in chromium chromium-browser google-chrome google-chrome-stable; do
-    if command -v "$candidate" >/dev/null 2>&1; then
-      browser="$(command -v "$candidate")"
-      break
-    fi
-  done
-fi
-if [ -z "$browser" ]; then
-  browser="$(ls -d "$HOME"/.cache/ms-playwright/chromium-*/chrome-linux*/chrome 2>/dev/null | tail -1 || true)"
-fi
-if [ -z "$browser" ] || [ ! -x "$browser" ]; then
-  echo "previews: no chromium found; set NIT_PREVIEW_BROWSER" >&2
-  exit 1
+if [ ! -d tools/previews/node_modules ]; then
+  npm --prefix tools/previews install --offline --no-audit --no-fund
 fi
 
-mkdir -p "$dir"
-for prefix in nit pero term share; do
-  "$browser" --headless --disable-gpu --no-sandbox --hide-scrollbars \
-    --window-size=800,500 --virtual-time-budget=4000 \
-    --screenshot="$dir/$prefix.png" "http://$addr/preview/$prefix" >/dev/null 2>&1 || true
-done
-ls -1 "$dir"/*.png
+exec node tools/previews/shot.mjs

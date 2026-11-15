@@ -24,7 +24,7 @@ func DefaultPreviewDir() string {
 }
 
 func (s *Server) previewProxy(w http.ResponseWriter, r *http.Request) {
-	if !isLoopback(r.RemoteAddr) {
+	if !isLoopback(clientIP(r)) {
 		s.notFound(w, r)
 		return
 	}
@@ -58,7 +58,7 @@ func (s *Server) previewProxy(w http.ResponseWriter, r *http.Request) {
 			SameSite: http.SameSiteLaxMode,
 		})
 	}
-	http.Redirect(w, r, route.Prefix+"/", http.StatusSeeOther)
+	http.Redirect(w, r, strings.TrimSuffix(route.Upstream, "/")+route.Prefix+"/", http.StatusSeeOther)
 }
 
 func previewHash() string {
@@ -82,7 +82,7 @@ func nitGateToken(hash string, expires time.Time) string {
 }
 
 func (s *Server) previewImage(w http.ResponseWriter, r *http.Request) {
-	if identity(r).Anonymous() {
+	if !identity(r).Has(gateid.AdminHost) {
 		http.NotFound(w, r)
 		return
 	}

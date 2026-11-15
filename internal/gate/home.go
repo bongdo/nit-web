@@ -3,6 +3,8 @@ package gate
 import (
 	"net/http"
 	"net/url"
+
+	"nitgui/internal/gateid"
 )
 
 func (s *Server) home(w http.ResponseWriter, r *http.Request) {
@@ -17,7 +19,7 @@ func (s *Server) home(w http.ResponseWriter, r *http.Request) {
 	}
 	for i, route := range routes {
 		entry := routeView{Prefix: route.Prefix, Note: route.Note, Key: i + 1}
-		if !data.User.Anonymous() {
+		if !data.User.Anonymous() && data.User.Has(gateid.AdminHost) {
 			entry.Preview = previewURL(route.Prefix)
 		}
 		switch {

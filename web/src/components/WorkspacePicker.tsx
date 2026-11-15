@@ -145,6 +145,9 @@ export function WorkspacePicker({
     listingRef.current = null;
     setListing(null);
     setPath("");
+    setStatus("idle");
+    setResolved(null);
+    setBrowseError(null);
     setShowNew(false);
     setNewName("");
     setNewError(null);

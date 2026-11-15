@@ -198,13 +198,18 @@ func (s *Server) deleteInstance(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	removePasswordFile(s.multi.ConfigPath(), removed.PasswordFile)
+	removePasswordFile(s.multi.ConfigPath(), removed.PasswordFile, specs)
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 }
 
-func removePasswordFile(configPath, passwordFile string) {
+func removePasswordFile(configPath, passwordFile string, remaining []opencode.InstanceSpec) {
 	if configPath == "" || passwordFile == "" {
 		return
+	}
+	for _, spec := range remaining {
+		if spec.PasswordFile == passwordFile {
+			return
+		}
 	}
 	base, err := filepath.Abs(filepath.Dir(configPath))
 	if err != nil {

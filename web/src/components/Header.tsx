@@ -94,7 +94,7 @@ function SessionMeta({
       </span>
       {instance && (
         <span
-          className="border-border shrink-0 rounded border px-1 font-mono text-[9px] opacity-70"
+          className="border-border max-w-24 shrink-0 truncate rounded border px-1 font-mono text-[9px] opacity-70"
           title={`OpenCode instance: ${instance}`}
         >
           {instance}

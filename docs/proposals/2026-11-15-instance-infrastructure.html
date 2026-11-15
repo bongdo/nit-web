@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Инфраструктура nit-gui и пять вариантов федерации</title>
+<title>Инфраструктура: карта, приоритеты и пять вариантов</title>
 <style>
   :root {
     color-scheme: dark;
@@ -18,7 +18,8 @@
     --accent: #c4794f;
     --accent-dim: #c4794f33;
     --green: #6f9c7f;
-    --green-dim: #6f9c7f33;
+    --green-dim: #6f9c7f22;
+    --red: #b26a63;
     --ssh: #8a6a4a;
     --sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
     --mono: ui-monospace, SFMono-Regular, Menlo, "Cascadia Mono", monospace;
@@ -39,7 +40,7 @@
     color: var(--accent);
   }
   h1 { margin: 12px 0 10px; font-size: 30px; line-height: 1.2; letter-spacing: -.02em; }
-  header p { margin: 0; color: var(--muted); max-width: 70ch; }
+  header p { margin: 0; color: var(--muted); max-width: 72ch; }
   header .meta {
     margin-top: 18px;
     display: flex;
@@ -58,7 +59,7 @@
     text-transform: uppercase;
     color: var(--muted);
   }
-  section > p.lead { margin: 0 0 22px; color: var(--muted); max-width: 78ch; }
+  section > p.lead { margin: 0 0 22px; color: var(--muted); max-width: 80ch; }
   h3 { margin: 0 0 8px; font-size: 15px; }
 
   .map { margin: 0; }
@@ -70,43 +71,25 @@
   }
   .node .title { font: 600 13px/1.4 var(--mono); }
   .node .sub { color: var(--muted); font-size: 13px; margin-top: 4px; }
-  .node.browser { border-color: var(--line-strong); }
   .node.funnel { border-color: var(--accent); background: #1a1512; }
   .node.funnel .title { color: var(--accent); }
+  .node.plan { border-style: dashed; border-color: var(--line-strong); background: #101215; }
+  .node.plan .title { color: var(--muted); }
   .link {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 10px;
-    padding: 10px 0;
-    color: var(--muted);
-    font: 11px/1 var(--mono);
+    display: flex; align-items: center; justify-content: center; gap: 10px;
+    padding: 10px 0; color: var(--muted); font: 11px/1 var(--mono);
   }
-  .link::before, .link::after {
-    content: "";
-    height: 1px;
-    flex: 1;
-    background: var(--line);
-  }
+  .link::before, .link::after { content: ""; height: 1px; flex: 1; background: var(--line); }
   .hosts { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 16px; }
   .host {
-    border: 1px solid var(--line);
-    border-radius: 12px;
-    background: var(--panel-2);
-    padding: 14px;
+    border: 1px solid var(--line); border-radius: 12px;
+    background: var(--panel-2); padding: 14px;
   }
   .host > .name {
-    font: 600 10px/1 var(--mono);
-    letter-spacing: .14em;
-    text-transform: uppercase;
-    color: var(--muted);
-    margin-bottom: 12px;
+    font: 600 10px/1 var(--mono); letter-spacing: .14em; text-transform: uppercase;
+    color: var(--muted); margin-bottom: 12px;
   }
-  .svc {
-    border-left: 2px solid var(--line-strong);
-    padding: 0 0 0 10px;
-    margin: 0 0 12px;
-  }
+  .svc { border-left: 2px solid var(--line-strong); padding: 0 0 0 10px; margin: 0 0 12px; }
   .svc:last-child { margin-bottom: 0; }
   .svc.accent { border-left-color: var(--accent); }
   .svc.green { border-left-color: var(--green); }
@@ -114,42 +97,55 @@
   .svc b { font-weight: 600; }
   .svc .addr { color: var(--accent); font-family: var(--mono); font-size: 12.5px; }
   .svc .note { color: var(--dim); font-size: 12.5px; }
-  figcaption {
-    margin-top: 14px;
-    color: var(--dim);
-    font: 11px/1.6 var(--mono);
-  }
+  figcaption { margin-top: 14px; color: var(--dim); font: 11px/1.6 var(--mono); }
 
   table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
   .table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 12px; }
   th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
-  th { font: 600 10.5px/1.4 var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--muted); background: var(--panel-2); }
+  th {
+    font: 600 10.5px/1.4 var(--mono); letter-spacing: .1em; text-transform: uppercase;
+    color: var(--muted); background: var(--panel-2);
+  }
   tr:last-child td { border-bottom: 0; }
   td.mono, td code { font-family: var(--mono); font-size: 12.5px; }
   code { background: #1d2024; border: 1px solid var(--line); border-radius: 5px; padding: 1px 5px; font-family: var(--mono); font-size: 12.5px; }
+  .yes { color: var(--green); font-weight: 600; }
+  .no { color: var(--red); }
+  .mid { color: var(--accent); }
+
+  .prio { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+  .prio-card {
+    border: 1px solid var(--line); border-top: 2px solid var(--accent);
+    border-radius: 10px; background: var(--panel); padding: 14px 16px;
+  }
+  .prio-card .label {
+    font: 600 10px/1 var(--mono); letter-spacing: .12em; text-transform: uppercase;
+    color: var(--accent); margin-bottom: 8px;
+  }
+  .prio-card p { margin: 0 0 8px; font-size: 14px; }
+  .prio-card p:last-child { margin-bottom: 0; color: var(--muted); font-size: 13.5px; }
 
   .notes { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
   .note-card {
-    border: 1px solid var(--line);
-    border-left: 2px solid var(--accent);
-    border-radius: 10px;
-    background: var(--panel);
-    padding: 14px 16px;
-    color: var(--muted);
-    font-size: 14px;
+    border: 1px solid var(--line); border-left: 2px solid var(--accent);
+    border-radius: 10px; background: var(--panel); padding: 14px 16px;
+    color: var(--muted); font-size: 14px;
   }
-  .note-card b { display: block; color: var(--text); margin-bottom: 6px; font-size: 14px; }
+  .note-card b { display: block; color: var(--text); margin-bottom: 6px; }
+  .note-card.green { border-left-color: var(--green); }
+
+  .glossary {
+    border: 1px solid var(--line-strong); border-radius: 12px;
+    background: var(--panel-2); padding: 18px 20px;
+  }
+  .glossary .term { font: 600 13px/1.4 var(--mono); color: var(--accent); margin-bottom: 6px; }
+  .glossary p { margin: 0 0 10px; color: var(--muted); }
+  .glossary p:last-child { margin-bottom: 0; }
 
   .badge {
-    display: inline-block;
-    border: 1px solid var(--line-strong);
-    border-radius: 999px;
-    padding: 2px 9px;
-    font: 600 10.5px/1.7 var(--mono);
-    letter-spacing: .06em;
-    text-transform: uppercase;
-    color: var(--muted);
-    white-space: nowrap;
+    display: inline-block; border: 1px solid var(--line-strong); border-radius: 999px;
+    padding: 2px 9px; font: 600 10.5px/1.7 var(--mono); letter-spacing: .06em;
+    text-transform: uppercase; color: var(--muted); white-space: nowrap;
   }
   .badge.s { border-color: #4a6b57; color: #8fbfa2; }
   .badge.m { border-color: #6b5a4a; color: #d3a87c; }
@@ -157,13 +153,9 @@
   .badge.xl { border-color: #5a4a6b; color: #ab9bd3; }
 
   .opts { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 20px; }
-  .opt {
-    border: 1px solid var(--line);
-    border-radius: 12px;
-    background: var(--panel);
-    padding: 16px;
-  }
+  .opt { border: 1px solid var(--line); border-radius: 12px; background: var(--panel); padding: 16px; }
   .opt.pick { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent-dim) inset; }
+  .opt.out { opacity: .62; }
   .opt .head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 8px; }
   .opt .head .id { font: 600 12px/1 var(--mono); color: var(--accent); }
   .opt p { margin: 0 0 10px; color: var(--muted); font-size: 14px; }
@@ -172,25 +164,20 @@
   .opt li b { color: var(--text); font-weight: 600; }
 
   .pick-box {
-    border: 1px solid var(--accent);
-    border-radius: 12px;
-    background: linear-gradient(180deg, #1a1512, #121417 60%);
-    padding: 20px 22px;
+    border: 1px solid var(--accent); border-radius: 12px;
+    background: linear-gradient(180deg, #1a1512, #121417 60%); padding: 20px 22px;
   }
   .pick-box p { margin: 0 0 12px; color: var(--text); }
   .pick-box p:last-child { margin-bottom: 0; }
   .pick-box .q {
-    margin-top: 16px;
-    padding-top: 14px;
-    border-top: 1px solid var(--line);
-    color: var(--muted);
-    font-size: 14px;
+    margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--line);
+    color: var(--muted); font-size: 14px;
   }
 
   footer { margin-top: 56px; padding-top: 18px; border-top: 1px solid var(--line); color: var(--dim); font: 11px/1.7 var(--mono); }
 
-  @media (max-width: 820px) {
-    .hosts, .opts, .notes { grid-template-columns: 1fr; }
+  @media (max-width: 860px) {
+    .hosts, .opts, .notes, .prio { grid-template-columns: 1fr; }
     h1 { font-size: 24px; }
   }
 </style>
@@ -199,78 +186,134 @@
 <div class="wrap">
 
 <header>
-  <div class="kicker">nit-gui · инфраструктура</div>
-  <h1>Что где запущено и как это можно соединить</h1>
-  <p>Карта сервисов на двух машинах, зависимости и отказы, затем пять вариантов
-  того, как сделать работу с несколькими OpenCode-инстансами без трения.</p>
+  <div class="kicker">nit-gui · инфраструктура · 2026-11-15</div>
+  <h1>Карта, приоритеты и пять вариантов</h1>
+  <p>Что реально запущено на двух машинах, что появилось с доменом
+  <code>bongdo.space</code>, и какие варианты федерации остаются при трёх
+  приоритетах: сеть не страшна, на NixOS минимум зависимостей, все фичи на месте.</p>
   <div class="meta">
     <span>снято 2026-11-15</span>
-    <span>frankfurt → nixos по ssh</span>
-    <span>один публичный вход</span>
+    <span>bongdo.space + старый funnel</span>
+    <span>на NixOS один процесс</span>
   </div>
 </header>
 
 <section>
-  <h2>1 · Карта</h2>
-  <p class="lead">Браузер знает только один адрес. Всё остальное — внутренние
-  переходы Frankfurt: caddy, nit-gui, туннели и sidecar-сервисы.</p>
+  <h2>1 · Приоритеты и что они отсекают</h2>
+  <p class="lead">Три твоих условия сильнее любых архитектурных вкусов, поэтому
+  сначала они, а уже потом варианты.</p>
+
+  <div class="prio">
+    <div class="prio-card">
+      <div class="label">Приоритет 1</div>
+      <p>Зависимость от сети — не страшно: агент и так в вебе.</p>
+      <p>Отсекает: возню с офлайн-режимом, локальные модели, кэш на клиенте как
+      обязательное условие. Позволяет: один хаб, один origin, один гейт.</p>
+    </div>
+    <div class="prio-card">
+      <div class="label">Приоритет 2</div>
+      <p>На NixOS минимум зависимостей.</p>
+      <p>Отсекает: push-агент на ноуте (вариант C), полный стек nit-gui на ноуте
+      (вариант E), второй редактор и второй терминал как обязательные сервисы.
+      Оставляет на машине только <code>opencode</code>.</p>
+    </div>
+    <div class="prio-card">
+      <div class="label">Приоритет 3</div>
+      <p>Все фичи: уведомления о завершении, быстрый переход, редактор и
+      терминал той машины, где лежит файл.</p>
+      <p>Отсекает: «просто переключатель инстансов». Требует событий со всех
+      машин и прокси под тем же origin.</p>
+    </div>
+  </div>
+
+  <p class="lead" style="margin-top:22px">Хорошая новость: 1 и 2 не конфликтуют —
+  вся сложность переезжает на Frankfurt, а NixOS остаётся тупым исполнителем с
+  одним OpenCode. Конфликт только в третьем пункте, и только про терминал.</p>
+</section>
+
+<section>
+  <h2>2 · Карта на сегодня</h2>
+  <p class="lead">Домена два: новый <code>bongdo.space</code> с собственным Caddy на
+  <code>10.0.0.88:443</code> и старый tailscale funnel, который оставлен рабочим.</p>
 
   <figure class="map">
-    <div class="node browser">
+    <div class="node">
       <div class="title">Браузер — тонкий клиент</div>
-      <div class="sub">UI · звук · nspell · кука <code>nit_gate</code> · localStorage:
-      тема, скоуп, кэш черновиков. Никаких моделей, словарей и GPU локально.</div>
+      <div class="sub">UI · звук · nspell · кука <code>nit_gate</code> · localStorage.
+      Никаких моделей, словарей и GPU локально.</div>
     </div>
 
-    <div class="link">https · единственный вход</div>
+    <div class="link">https</div>
 
     <div class="node funnel">
-      <div class="title">tailscale funnel · frankfurt.tailf358cb.ts.net</div>
+      <div class="title">bongdo.space · Caddy 10.0.0.88:443 · LE-сертификаты</div>
       <div class="sub">
-        <code>/nit</code> → 127.0.0.1:7792 caddy → 127.0.0.1:7791 nit-gui<br>
-        <code>/pero</code> → 127.0.0.1:7789 pero-gui (ещё экземпляры на 7790 и 7810)<br>
-        <code>:8443</code> → term-gui 7795 (+7796 audit) ·
-        <code>:10000</code> → hermes 8643
+        <code>/nit</code> → 127.0.0.1:7791 nit-gui ·
+        <code>/pero</code> → 127.0.0.1:7789 ·
+        <code>/term</code> → 127.0.0.1:7795<br>
+        <code>/share/&lt;slug&gt;/</code> → drop, плоские ссылки без <code>d/</code>;
+        старые <code>/nit/d/…</code> и <code>/nit/drop/</code> живы как алиасы<br>
+        остальное → nit-gui (catch-all); http→https 308
       </div>
+    </div>
+
+    <div class="node plan">
+      <div class="title">план: отдельный гейт <code>cmd/gate</code></div>
+      <div class="sub">Caddy сводится к TLS/ACME и проксирует в
+      <code>127.0.0.1:8090</code>; гейт держит сессии и роли, отдаёт сервисам
+      <code>X-Auth-User</code> / <code>X-Auth-Role</code>. Через него пойдёт и
+      будущее приложение (например, карточки китайского), а не только nit-gui.</div>
+    </div>
+
+    <div class="link">старый вход оставлен · tailscale funnel 100.67.77.76</div>
+
+    <div class="node">
+      <div class="title">frankfurt.tailf358cb.ts.net</div>
+      <div class="sub"><code>/nit</code> → 127.0.0.1:7792 caddy → 7791 ·
+      <code>/pero</code> → 7789 · <code>:8443</code> → term-gui 7795 ·
+      <code>:10000</code> → hermes 8643</div>
     </div>
 
     <div class="hosts">
       <div class="host">
-        <div class="name">Frankfurt · 100.67.77.76</div>
+        <div class="name">Frankfurt · 100.67.77.76 · публичный 92.5.143.242</div>
 
         <div class="svc accent">
           <b>nit-gui</b> <span class="addr">127.0.0.1:7791</span>
           <div class="note">auth-гейт · реестр инстансов · ssh-туннели · SSE-прокси ·
-          drop-хранилище · ui-state · прокси грамматики · хаб TTS</div>
+          drop · ui-state · прокси грамматики · хаб TTS</div>
         </div>
 
         <div class="svc">
-          caddy <span class="addr">127.0.0.1:7792</span>
-          <div class="note">заголовки, путь <code>/nit</code>, loopback</div>
+          caddy (наш) <span class="addr">10.0.0.88:443</span> ·
+          caddy (системный) <span class="addr">:4096 :8086 :8088 :8091 :7861</span>
+          <div class="note">домен и TLS; системный — basicauth к opencode-серверу,
+          ntfy, searxng, zellij</div>
         </div>
 
         <div class="svc">
-          LanguageTool <span class="addr">127.0.0.1:8180</span> · пипер / TTS-хаб
-          <span class="addr">:7787</span>
-          <div class="note">грамматика и голос хоста, браузерный голос — фолбэк</div>
+          pero-gui <span class="addr">127.0.0.1:7789</span> · term-gui
+          <span class="addr">127.0.0.1:7795</span> · LanguageTool
+          <span class="addr">127.0.0.1:8180</span> · TTS <span class="addr">:7787</span>
+          <div class="note">оба сервиса запущены вручную (ppid 1), без супервизора;
+          рестарт требует того же env</div>
         </div>
 
         <div class="svc green">
           <b>инстанс «frankfurt»</b> → opencode <span class="addr">:49374</span>
-          <div class="note">0.0.0.0; второй процесс opencode на :4097 держит эти сессии,
-          TUI — на :5199</div>
+          <div class="note">0.0.0.0; ещё один opencode на :4097 держит эти сессии</div>
         </div>
 
         <div class="svc ssh">
-          <b>инстанс «nixos»</b> → ssh -L 41825 → nixos:49374
+          <b>инстанс «nixos»</b> → ssh -L → nixos:49374
           <div class="note">туннель поднимает nit-gui, пароль читает из
           <code>service.json</code> по ssh</div>
         </div>
 
         <div class="svc">
-          drop <span class="addr">127.0.0.1:8791</span> · searxng
-          <span class="addr">:8888</span>
-          <div class="note">раздача файлов и веб-поиск для агентов</div>
+          xray <span class="addr">:2083</span> · x-ui панель <span class="addr">:2053</span>
+          <div class="note">443 освобождён под Caddy; frankfurt-нода не видна снаружи,
+          пока в Oracle не открыт ingress TCP 2083</div>
         </div>
       </div>
 
@@ -279,7 +322,7 @@
 
         <div class="svc green">
           <b>opencode</b> <span class="addr">0.0.0.0:49374</span>
-          <div class="note">то же API, что у Frankfurt; доступен по tailnet напрямую</div>
+          <div class="note">единственный обязательный сервис на машине</div>
         </div>
 
         <div class="svc">
@@ -290,7 +333,7 @@
         <div class="svc">
           websearch <span class="addr">127.0.0.1:8989</span> · hex-диктовка
           <span class="addr">:37293</span> · tts-client
-          <div class="note">локальные мелочи, которые нужны только этой машине</div>
+          <div class="note">локальные мелочи, нужные только этой машине</div>
         </div>
 
         <div class="svc ssh">
@@ -300,188 +343,114 @@
       </div>
     </div>
 
-    <figcaption>сплошная линия — HTTP/SSE · пунктир — SSH ·
-    оранжевый — единственная публичная точка</figcaption>
+    <figcaption>сплошная — HTTP/SSE · пунктир — SSH · рамка пунктиром — план, не код</figcaption>
   </figure>
 </section>
 
 <section>
-  <h2>2 · Сервисы</h2>
-  <p class="lead">Девять вещей, которые реально принимают соединения, и что будет,
-  если каждая из них упадёт.</p>
+  <h2>3 · Сервисы</h2>
+  <p class="lead">Что принимает соединения и что будет, если это упадёт.</p>
 
   <div class="table-wrap">
     <table>
       <thead>
-        <tr>
-          <th>Сервис</th>
-          <th>Где</th>
-          <th>Адрес</th>
-          <th>Что делает</th>
-          <th>Зависит от</th>
-          <th>Что ломается</th>
-        </tr>
+        <tr><th>Сервис</th><th>Где</th><th>Адрес</th><th>Что делает</th><th>Зависит от</th><th>Что ломается</th></tr>
       </thead>
       <tbody>
-        <tr>
-          <td>tailscale funnel</td>
-          <td>Frankfurt</td>
-          <td class="mono">:443 · :8443 · :10000</td>
-          <td>единственный публичный вход</td>
-          <td>caddy, pero-gui, term-gui, hermes</td>
-          <td>весь GUI недоступен</td>
-        </tr>
-        <tr>
-          <td>caddy</td>
-          <td>Frankfurt</td>
-          <td class="mono">127.0.0.1:7792</td>
-          <td>заголовки, путь /nit</td>
-          <td>nit-gui</td>
-          <td>502 на всё приложение</td>
-        </tr>
-        <tr>
-          <td>nit-gui</td>
-          <td>Frankfurt</td>
-          <td class="mono">127.0.0.1:7791</td>
-          <td>auth, реестр, туннели, SSE, drop, ui-state</td>
-          <td>opencode-инстансы, LanguageTool, piper</td>
-          <td>нет GUI, но opencode жив</td>
-        </tr>
-        <tr>
-          <td>opencode (frankfurt)</td>
-          <td>Frankfurt</td>
-          <td class="mono">0.0.0.0:49374</td>
-          <td>сессии, модели, агенты</td>
-          <td>провайдер модели, сеть</td>
-          <td>инстанс frankfurt offline</td>
-        </tr>
-        <tr>
-          <td>opencode (nixos)</td>
-          <td>NixOS</td>
-          <td class="mono">0.0.0.0:49374</td>
-          <td>то же</td>
-          <td>своя машина</td>
-          <td>инстанс nixos offline</td>
-        </tr>
-        <tr>
-          <td>pero-gui</td>
-          <td>Frankfurt</td>
-          <td class="mono">:7789 · :7790 · :7810</td>
-          <td>редактор по workspace</td>
-          <td>диск Frankfurt</td>
-          <td>чипы файлов мертвы</td>
-        </tr>
-        <tr>
-          <td>term-gui</td>
-          <td>Frankfurt</td>
-          <td class="mono">:7795 · :7796</td>
-          <td>веб-терминал</td>
-          <td>tmux на Frankfurt</td>
-          <td>ссылка терминала мертва</td>
-        </tr>
-        <tr>
-          <td>LanguageTool</td>
-          <td>Frankfurt</td>
-          <td class="mono">127.0.0.1:8180</td>
-          <td>грамматика</td>
-          <td>JVM</td>
-          <td>грамматика в состоянии off</td>
-        </tr>
-        <tr>
-          <td>TTS-хаб + piper</td>
-          <td>Frankfurt</td>
-          <td class="mono">:7787</td>
-          <td>озвучка ответов</td>
-          <td>opencode-плагин</td>
-          <td>голос хоста → браузерный</td>
-        </tr>
+        <tr><td>Caddy (домен)</td><td>Frankfurt</td><td class="mono">10.0.0.88:443</td><td>TLS, маршруты /nit /pero /term /share</td><td>сервисы на loopback</td><td>домен не открывается</td></tr>
+        <tr><td>tailscale funnel</td><td>Frankfurt</td><td class="mono">:443 · :8443 · :10000</td><td>старый публичный вход</td><td>caddy 7792, term-gui, hermes</td><td>старые ссылки мертвы</td></tr>
+        <tr><td>nit-gui</td><td>Frankfurt</td><td class="mono">127.0.0.1:7791</td><td>auth, реестр, туннели, SSE, drop, ui-state</td><td>инстансы, LanguageTool, piper</td><td>нет GUI, opencode жив</td></tr>
+        <tr><td>opencode (frankfurt)</td><td>Frankfurt</td><td class="mono">0.0.0.0:49374</td><td>сессии, модели, агенты</td><td>провайдер модели</td><td>инстанс frankfurt offline</td></tr>
+        <tr><td>opencode (nixos)</td><td>NixOS</td><td class="mono">0.0.0.0:49374</td><td>то же</td><td>своя машина</td><td>инстанс nixos offline</td></tr>
+        <tr><td>pero-gui</td><td>Frankfurt</td><td class="mono">127.0.0.1:7789</td><td>редактор по workspace Frankfurt</td><td>диск Frankfurt</td><td>чипы файлов мертвы</td></tr>
+        <tr><td>term-gui</td><td>Frankfurt</td><td class="mono">127.0.0.1:7795</td><td>веб-терминал Frankfurt</td><td>tmux на Frankfurt</td><td>ссылка терминала мертва</td></tr>
+        <tr><td>LanguageTool</td><td>Frankfurt</td><td class="mono">127.0.0.1:8180</td><td>грамматика</td><td>JVM</td><td>грамматика в состоянии off</td></tr>
+        <tr><td>TTS-хаб + piper</td><td>Frankfurt</td><td class="mono">:7787</td><td>озвучка</td><td>opencode-плагин</td><td>остаётся браузерный голос</td></tr>
+        <tr><td>xray / x-ui</td><td>Frankfurt</td><td class="mono">:2083 · :2053</td><td>VPN, панель</td><td>ingress Oracle</td><td>Frankfurt-нода VPN недоступна</td></tr>
       </tbody>
     </table>
   </div>
 </section>
 
 <section>
-  <h2>3 · Три вывода</h2>
-  <p class="lead">Из карты следуют три вещи, которые определяют любой дальнейший
-  выбор.</p>
-
-  <div class="notes">
-    <div class="note-card">
-      <b>Frankfurt — единая точка отказа</b>
-      Для браузера. NixOS при этом полностью работоспособен сам по себе, но
-      добраться до него можно только через Frankfurt.
-    </div>
-    <div class="note-card">
-      <b>SSH — единственный канал к NixOS</b>
-      Отсюда холодный старт в секунды и экран «переподключение» при переключении
-      на инстанс, туннель которого ещё не поднят.
-    </div>
-    <div class="note-card">
-      <b>pero и term живут на своём origin</b>
-      Кука <code>nit_gate</code> на другой хост не поедет, поэтому абсолютный
-      per-instance URL — тупик без прокси под тем же origin.
-    </div>
+  <h2>4 · Что такое SPOF</h2>
+  <div class="glossary">
+    <div class="term">SPOF = single point of failure, единая точка отказа</div>
+    <p>Компонент, без которого не работает всё остальное, хотя само «остальное»
+    исправно. В нашей схеме это Frankfurt: если он недоступен, браузер не откроет
+    ничего — ни frankfurt-инстанс, ни nixos, хотя NixOS жив и его OpenCode
+    отвечает.</p>
+    <p>Это не обязательно плохо. При приоритете «сеть и так нужна» один хаб — это
+    нормальная цена за одну авторизацию, один origin и одну точку, где живут
+    уведомления. SPOF становится проблемой только если появится требование
+    «открыть машину, когда Frankfurt лежит».</p>
+    <p>Важно: SPOF ≠ зависимость. Сейчас NixOS зависит ещё и от SSH к Frankfurt,
+    и это уже лишняя связность — её снимает вариант D.</p>
   </div>
 </section>
 
 <section>
-  <h2>4 · Пять вариантов</h2>
-  <p class="lead">Усилия — оценка по этому коду, не замер. «Не чинит» важнее
-  «чинит»: именно оно решает, придётся ли возвращаться.</p>
+  <h2>5 · Пять вариантов</h2>
+  <p class="lead">Колонка «сервисов на NixOS» — главная: это мера твоего второго
+  приоритета.</p>
 
   <div class="table-wrap">
     <table>
       <thead>
-        <tr>
-          <th>#</th>
-          <th>Вариант</th>
-          <th>Что меняется</th>
-          <th>Усилия</th>
-          <th>Чинит</th>
-          <th>Не чинит</th>
-        </tr>
+        <tr><th>#</th><th>Вариант</th><th>Что меняется</th><th>Усилия</th><th>Сервисов на NixOS</th><th>Чинит</th><th>Не чинит</th></tr>
       </thead>
       <tbody>
         <tr>
-          <td class="mono">A</td>
-          <td>Браузерный фан-аут</td>
-          <td>фронт держит по SSE на каждый инстанс</td>
-          <td><span class="badge s">S · 0.5 дня</span></td>
-          <td>уведомления о завершении, done/running чужих чатов</td>
-          <td>холодный старт, per-machine editor, SPOF</td>
+          <td class="mono">A</td><td>Браузерный фан-аут</td>
+          <td>по SSE на каждый инстанс, события сводит браузер</td>
+          <td><span class="badge s">S · 0.5 дня</span></td><td class="mono">+0</td>
+          <td>уведомления о завершении, running/done чужих чатов</td>
+          <td>редактор и терминал чужой машины, дублирование логики, N соединений</td>
         </tr>
         <tr>
-          <td class="mono">B</td>
-          <td>Серверный fan-in + прокси <code>/i/&lt;id&gt;/pero/</code></td>
-          <td>один <code>/api/events?all</code>, редактор и терминал под тем же origin</td>
-          <td><span class="badge m">M · 2–3 дня</span></td>
-          <td>уведомления из одного места, кука работает для чужих pero/term, presence в меню</td>
-          <td>SSH-холодный старт (лечится прогревом), SPOF</td>
+          <td class="mono">B</td><td>Серверный fan-in + прокси под гейтом</td>
+          <td>один <code>/api/events?all</code>, сервисы машины под тем же origin</td>
+          <td><span class="badge m">M · 2–3 дня</span></td><td class="mono">+0</td>
+          <td>всё, что A, плюс редактор и терминал чужой машины и presence</td>
+          <td>работа без Frankfurt</td>
         </tr>
         <tr>
-          <td class="mono">C</td>
-          <td>Push-агент на каждой машине</td>
-          <td>исходящий wss к Frankfurt, события и свой pero/term через него</td>
-          <td><span class="badge l">L · 5–7 дней</span></td>
-          <td>NAT и спящий ноут, мгновенные события, холодный старт, per-machine editor</td>
-          <td>SPOF Frankfurt, новый компонент и его авторизация</td>
+          <td class="mono">C</td><td>Push-агент на каждой машине</td>
+          <td>исходящий wss к Frankfurt, события и прокси через агента</td>
+          <td><span class="badge l">L · 5–7 дней</span></td><td class="mono">+1</td>
+          <td>мгновенные события при NAT и спящем ноуте</td>
+          <td>работа без Frankfurt; противоречит приоритету 2</td>
         </tr>
         <tr>
-          <td class="mono">D</td>
-          <td>Tailnet вместо SSH</td>
+          <td class="mono">D</td><td>Tailnet вместо SSH</td>
           <td>инстанс <code>url: http://100.92.60.30:49374</code> + passwordFile</td>
-          <td><span class="badge s">S · 0.5 дня</span></td>
-          <td>латентность, нет ssh-процессов, версия OpenCode не важна</td>
-          <td>куки и origin, уведомления, SPOF</td>
+          <td><span class="badge s">S · 0.5 дня</span></td><td class="mono">+0</td>
+          <td>лишнюю связность и секунду на холодном старте</td>
+          <td>сам по себе ничего из фич</td>
         </tr>
         <tr>
-          <td class="mono">E</td>
-          <td>Федерация узлов</td>
-          <td>полный nit-gui на каждой машине, узлы обмениваются сессиями и событиями</td>
-          <td><span class="badge xl">XL · 2+ недели</span></td>
-          <td>SPOF, per-machine origin, независимость машин</td>
-          <td>— (цена в другом: протокол, версии, две auth-модели)</td>
+          <td class="mono">E</td><td>Федерация узлов</td>
+          <td>полный nit-gui на каждой машине, узлы обмениваются сессиями</td>
+          <td><span class="badge xl">XL · 2+ недели</span></td><td class="mono">+3…4</td>
+          <td>работу без Frankfurt, per-machine origin</td>
+          <td>противоречит приоритету 2; цена — протокол и две модели входа</td>
         </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="table-wrap" style="margin-top:20px">
+    <table>
+      <thead>
+        <tr><th>Фича</th><th>A</th><th>B</th><th>C</th><th>D</th><th>E</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Уведомление «прогон закончился» с любой машины</td><td class="yes">да</td><td class="yes">да</td><td class="yes">да</td><td class="no">нет</td><td class="yes">да</td></tr>
+        <tr><td>Редактор файлов чужой машины</td><td class="no">нет</td><td class="yes">да, прокси</td><td class="yes">да, агент</td><td class="no">нет</td><td class="yes">да</td></tr>
+        <tr><td>Терминал чужой машины</td><td class="no">нет</td><td class="mid">если там есть term-gui</td><td class="yes">да</td><td class="no">нет</td><td class="yes">да</td></tr>
+        <tr><td>События, когда ноут спит</td><td class="no">нет</td><td class="no">нет</td><td class="yes">да</td><td class="no">нет</td><td class="no">нет</td></tr>
+        <tr><td>Открыть машину без Frankfurt</td><td class="no">нет</td><td class="no">нет</td><td class="no">нет</td><td class="no">нет</td><td class="yes">да</td></tr>
+        <tr><td>Лишние сущности на NixOS</td><td class="yes">0</td><td class="yes">0</td><td class="no">+1</td><td class="yes">0</td><td class="no">+3…4</td></tr>
       </tbody>
     </table>
   </div>
@@ -489,84 +458,94 @@
   <div class="opts">
     <div class="opt">
       <div class="head"><span class="id">A</span><span class="badge s">дешёвый шаг</span></div>
-      <p>Браузер открывает по EventSource на каждый connected-инстанс, ловит
-      <code>session.idle</code> и показывает уведомление с именем машины. В Go не
-      меняется ничего.</p>
+      <p>Браузер держит по EventSource на каждый connected-инстанс и ловит
+      <code>session.idle</code>. В Go не меняется ничего.</p>
       <ul>
-        <li><b>Плюс:</b> полдня, и уведомления уже работают.</li>
-        <li><b>Минус:</b> пять машин — пять соединений, логика ожидания ответа
-        дублируется между инстансами.</li>
+        <li><b>Плюс:</b> полдня, уведомления уже работают.</li>
+        <li><b>Минус:</b> пять машин — пять соединений; редактор и терминал чужой
+        машины по-прежнему тупик из-за origin и куки.</li>
       </ul>
     </div>
 
     <div class="opt pick">
       <div class="head"><span class="id">B</span><span class="badge m">выбор</span></div>
-      <p>То же, но на сервере: один поток, события с тегом инстанса, один reduce
-      в браузере. Заодно монтирует редактор и терминал чужой машины под
-      <code>/i/&lt;id&gt;/pero/</code>, и per-instance URL становится осмысленным.</p>
+      <p>То же на сервере: один поток, события с тегом инстанса, один reduce в
+      браузере. Новый гейт даёт естественное место для прокси
+      <code>/i/&lt;id&gt;/pero/</code> и <code>/i/&lt;id&gt;/term/</code> — один
+      origin, одна кука, никаких per-machine логинов.</p>
       <ul>
-        <li><b>Плюс:</b> чинит и уведомления, и куки, и presence.</li>
+        <li><b>Плюс:</b> на NixOS ноль новых сервисов, все фичи кроме работы без
+        Frankfurt.</li>
         <li><b>Минус:</b> Go-код на reconnect и backpressure одного потока.</li>
       </ul>
     </div>
 
-    <div class="opt">
-      <div class="head"><span class="id">C</span><span class="badge l">если машин много</span></div>
-      <p>На каждой машине маленький агент, который сам стучится наружу по wss:
-      Frankfurt не держит ssh и не ждёт десяти секунд таймаута, события приходят
-      в ту же секунду.</p>
+    <div class="opt out">
+      <div class="head"><span class="id">C</span><span class="badge l">не сейчас</span></div>
+      <p>Агент на машине сам стучится наружу. Единственный вариант, который любит
+      NAT и спящий ноут.</p>
       <ul>
-        <li><b>Плюс:</b> единственный вариант, который любит NAT и спящий ноут.</li>
-        <li><b>Минус:</b> новый бинарник, общий секрет на машину, деплой, health.</li>
+        <li><b>Плюс:</b> мгновенные события, устойчивость к NAT.</li>
+        <li><b>Минус:</b> прямое противоречие приоритету 2 — новый бинарник,
+        секрет и деплой на каждой машине. Брать, только если сон ноута станет
+        реальной болью.</li>
       </ul>
     </div>
 
-    <div class="opt">
+    <div class="opt pick">
       <div class="head"><span class="id">D</span><span class="badge s">полдня</span></div>
-      <p>Не архитектура, а замена транспорта: tailnet уже есть, opencode на NixOS
-      слушает 0.0.0.0, значит туннель не нужен — только адрес и файл с паролем.</p>
+      <p>Не архитектура, а замена транспорта: tailnet уже есть, OpenCode на NixOS
+      слушает 0.0.0.0, значит ssh-туннель не нужен — только адрес и файл с
+      паролем.</p>
       <ul>
-        <li><b>Плюс:</b> минус ssh-процессы и минус секунда на холодном старте.</li>
-        <li><b>Минус:</b> всё остальное на месте, включая SPOF.</li>
+        <li><b>Плюс:</b> минус ssh-процессы, минус секунда на старте, минус
+        зависимость ноута от ssh-доступа с Frankfurt.</li>
+        <li><b>Минус:</b> фич не добавляет, это только транспорт.</li>
       </ul>
     </div>
 
-    <div class="opt">
-      <div class="head"><span class="id">E</span><span class="badge xl">отдельный продукт</span></div>
-      <p>Честная федерация: каждый узел самодостаточен, браузер входит в любой,
-      узлы синхронизируют только список сессий и события.</p>
+    <div class="opt out">
+      <div class="head"><span class="id">E</span><span class="badge xl">против приоритета 2</span></div>
+      <p>Честная федерация: каждый узел самодостаточен, браузер входит в любой.</p>
       <ul>
         <li><b>Плюс:</b> переживает выключенный Frankfurt.</li>
-        <li><b>Минус:</b> протокол, консистентность, две модели входа и версии.</li>
+        <li><b>Минус:</b> на ноуте появляется свой Caddy, гейт, копия реестра и
+        протокол синхронизации. Ровно то, чего ты не хочешь.</li>
       </ul>
     </div>
   </div>
 </section>
 
 <section>
-  <h2>5 · Рекомендация</h2>
+  <h2>6 · Рекомендация</h2>
   <div class="pick-box">
-    <p><b>Сейчас — B, плюс два UI-фикса, которые от инфраструктуры не зависят:</b>
-    кэш бутстрапа на инстанс (health, модели, агенты, проекты, сессии) и прогрев
-    перед переключением.</p>
-    <p>Именно они убирают «гейт переподключения»: сегодня переключение — это
-    размонтирование всего App и повторный bootstrap с нуля. Поэтому виден экран
-    загрузки, а на холодном SSH-туннеле ещё и офлайн-экран с
-    <code>Reconnect</code>.</p>
-    <p>Потом <b>D</b> как дешёвое улучшение транспорта. <b>C</b> — только если
-    практика покажет, что машин больше двух-трёх или ноут регулярно спит.
-    <b>E</b> — если появится требование открывать машину без Frankfurt.</p>
-    <p class="q">Что решить, чтобы не гадать: <b>Frankfurt обязателен</b> (тогда B/D
-    и живём с единой точкой отказа) или хотя бы одна машина должна открываться
-    сама по себе (тогда это E, и всё остальное — временные костыли)?</p>
+    <p><b>B + D.</b> Серверный fan-in живёт в nit-gui на Frankfurt, транспорт к
+    NixOS — прямой tailnet вместо ssh. На ноуте остаётся один
+    <code>opencode</code>, все фичи приходят из Frankfurt, и гейт получает
+    заготовленное место для будущего приложения.</p>
+    <p><b>Плюс два UI-фикса, которые не зависят от варианта:</b> кэш бутстрапа на
+    инстанс (health, модели, агенты, проекты, сессии) и прогрев перед
+    переключением. Именно они убирают «гейт переподключения»: сейчас
+    переключение — это размонтирование всего App и повторный bootstrap с нуля.</p>
+    <p><b>Открытый вопрос — редактор и терминал чужой машины.</b> Три пути:
+    держать на NixOS <code>term-gui</code> и <code>pero-gui</code> (+2 сервиса,
+    против приоритета 2); смонтировать диск NixOS на Frankfurt по sshfs и держать
+    один редактор на Frankfurt (+0 сервисов на ноуте, но запись через sshfs);
+    или не обещать этих кнопок для чужих машин, а показывать только файлы
+    Frankfurt.</p>
+    <p class="q">Что решить: <b>терминал и редактор чужой машины</b> — нужен ли
+    вообще, и если да, готов ли ты на один бинарник <code>term-gui</code> на
+    NixOS ради него? От этого зависит, остаётся ли приоритет 2 целым.</p>
   </div>
 </section>
 
 <footer>
-  Снято с живых хостов 2026-11-15: <code>ss -tlnp</code>, <code>tailscale funnel status</code>,
-  <code>systemctl --user</code> на Frankfurt и NixOS.<br>
-  Порт 8443 и 10000 проверены отдельно. Оценки усилий — по объёму кода в
-  <code>internal/server</code> и <code>web/src</code>, не замеры.
+  Снято 2026-11-15: <code>ss -tlnp</code>, <code>ls /etc/caddy</code>,
+  <code>.cache/frankfurt.Caddyfile</code>, <code>tailscale funnel status</code>,
+  <code>systemctl --user</code> на NixOS. Адреса домена проверены запросом к
+  <code>https://bongdo.space/share/…</code>.<br>
+  Оценки усилий — по объёму кода в <code>internal/server</code> и
+  <code>web/src</code>, не замеры.
 </footer>
 
 </div>

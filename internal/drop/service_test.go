@@ -160,11 +160,11 @@ func TestServiceProxyPathAndHeaders(t *testing.T) {
 	services := NewServices(store)
 	services.remember(entry.ID, port, entry.Service.Revision)
 
-	handler := NewPublic(store, func(*http.Request) bool { return false }, nil, "/nit", services)
+	handler := NewPublic(store, func(*http.Request) bool { return false }, nil, "/share", services)
 	server := httptest.NewServer(handler)
 	defer server.Close()
 
-	req, _ := http.NewRequest(http.MethodPost, server.URL+"/d/my-app-1/deep/path?x=1", strings.NewReader("payload"))
+	req, _ := http.NewRequest(http.MethodPost, server.URL+"/my-app-1/deep/path?x=1", strings.NewReader("payload"))
 	req.Host = "public.example"
 	req.Header.Set("Cookie", "a=b; nit_gate=secret")
 	req.Header.Set("Authorization", "Bearer secret")
@@ -188,7 +188,7 @@ func TestServiceProxyPathAndHeaders(t *testing.T) {
 	if seen.Host != "127.0.0.1:"+portText {
 		t.Fatalf("upstream host = %q", seen.Host)
 	}
-	if seen.Header.Get("X-Forwarded-Prefix") != "/nit/d/my-app-1" {
+	if seen.Header.Get("X-Forwarded-Prefix") != "/share/my-app-1" {
 		t.Fatalf("forwarded prefix = %q", seen.Header.Get("X-Forwarded-Prefix"))
 	}
 	if seen.Header.Get("X-Forwarded-Host") != "public.example" || seen.Header.Get("X-Forwarded-Proto") != "https" {
@@ -201,7 +201,7 @@ func TestServiceProxyPathAndHeaders(t *testing.T) {
 		t.Fatalf("private headers leaked: %+v", seen.Header)
 	}
 	cookies := resp.Header.Values("Set-Cookie")
-	if len(cookies) != 1 || !strings.Contains(cookies[0], "Path=/nit/d/my-app-1/") || strings.Contains(cookies[0], "Domain=") {
+	if len(cookies) != 1 || !strings.Contains(cookies[0], "Path=/share/my-app-1/") || strings.Contains(cookies[0], "Domain=") {
 		t.Fatalf("response cookies = %v", cookies)
 	}
 }
@@ -226,7 +226,7 @@ func TestPrivateServiceDoesNotReveal(t *testing.T) {
 
 	anonymous := httptest.NewServer(NewPublic(store, func(*http.Request) bool { return false }, nil, "", services))
 	defer anonymous.Close()
-	resp, err := http.Get(anonymous.URL + "/d/" + entry.Slug + "/")
+	resp, err := http.Get(anonymous.URL + "/" + entry.Slug + "/")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -237,7 +237,7 @@ func TestPrivateServiceDoesNotReveal(t *testing.T) {
 
 	authenticated := httptest.NewServer(NewPublic(store, func(*http.Request) bool { return true }, nil, "", services))
 	defer authenticated.Close()
-	resp, err = http.Get(authenticated.URL + "/d/" + entry.Slug + "/")
+	resp, err = http.Get(authenticated.URL + "/" + entry.Slug + "/")
 	if err != nil {
 		t.Fatal(err)
 	}

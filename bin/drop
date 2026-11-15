@@ -8,5 +8,5 @@ if [ ! -x "$bin" ] ||
   (cd "$repo" && go build -trimpath -o "$bin" ./cmd/drop)
 fi
 
-export DROP_PUBLIC_BASE="${DROP_PUBLIC_BASE:-https://bongdo.space/share/d/}"
+export DROP_PUBLIC_BASE="${DROP_PUBLIC_BASE:-https://bongdo.space/share/}"
 exec "$bin" "$@"

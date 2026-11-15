@@ -1,7 +1,7 @@
 # Drop
 
 `/share/` is the private manager inside nit-gui. It uses the `nit_gate`
-cookie and is linked from the sidebar. Published content lives under `/share/d/`;
+cookie and is linked from the sidebar. Published content lives under `/share/`;
 the manager is not public.
 
 ## Agent commands
@@ -127,7 +127,7 @@ never trusts the port stored in `entry.json`; it asks podman for the live
 mapping. Containers survive a nit-gui restart and are reconnected or started on
 boot.
 
-`/share/d/<slug>/...` proxies every method, WebSocket upgrade, SSE stream and
+`/share/<slug>/...` proxies every method, WebSocket upgrade, SSE stream and
 API request to the container. The proxy sets `X-Forwarded-Prefix` and
 `X-Forwarded-Proto`, forces the upstream `Host` to loopback, and removes
 `nit_gate`, `Authorization` and `X-Nit-*` headers. Cookies set by a service are
@@ -163,23 +163,23 @@ to the same publication. Slugs and aliases are globally unique.
   Each row shows a mini preview: an image thumbnail, a scaled sandboxed frame
   for HTML pages, or the first lines of a text file. Service rows show the live
   container status.
-- `/share/d/<slug>/` — publication root. It serves `index.html`, a single file,
+- `/share/<slug>/` — publication root. It serves `index.html`, a single file,
   or a bare file list for a folder without an index.
-- `/share/d/<slug>/<path>` — a file or static asset.
+- `/share/<slug>/<path>` — a file or static asset.
 - `/share/api/upload` — immediate multipart upload.
 - `PATCH /share/api/entries/<id>` — change slug, public or forever.
 - `DELETE /share/api/entries/<id>` — delete.
 - `/share/e/<id>/`, `/share/files/<id>/...`,
-  `/share/download/<id>/...` — redirects to the canonical `/share/d/` URL.
+  `/share/download/<id>/...` — redirects to the canonical `/share/` URL.
 
 Markdown, text and code are not rendered by drop. The manager shows an "open in
-pero" link with the absolute store path; the raw file link points at `/share/d/`.
+pero" link with the absolute store path; the raw file link points at `/share/`.
 PDF and images are served inline and left to the browser.
 
 ## Security
 
 - The manager and writes require the same `nit_gate` cookie as nit, pero and
-  term. `/share/d/` is outside that gate: public entries are served anonymously,
+  term. `/share/` is outside that gate: public entries are served anonymously,
   while a private entry needs a valid session cookie and otherwise returns 404
   without revealing that it exists.
 - Uploads are limited to 128 MiB per request (`NIT_DROP_MAX_UPLOAD`).
@@ -228,7 +228,7 @@ Old URLs redirect to the new slug. `drop url <id>` still works.
 | `NIT_DROP_PODMAN` | `podman` | Podman binary or wrapper used for services and logs. |
 | `NIT_DROP_VOLUMES` | `~/.local/share/nit-gui/drop-volumes` | Host directory for service volumes, one `0700` folder per entry. |
 | `NIT_DROP_BASE_PATH` | empty | Prefix passed to service containers as `NIT_DROP_BASE_PATH`. |
-| `DROP_PUBLIC_BASE` | `https://bongdo.space/share/d/` | Base used by `bin/drop`. |
+| `DROP_PUBLIC_BASE` | `https://bongdo.space/share/` | Base used by `bin/drop`. |
 
 Rootless podman needs a working user session. If `podman info` reports a stale
 pause process, repair the user systemd session or point `NIT_DROP_PODMAN` at a

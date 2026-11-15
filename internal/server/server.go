@@ -247,28 +247,27 @@ func (s *Server) routes() {
 	unavailable := func(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusServiceUnavailable, "drop is unavailable")
 	}
-	if s.dropManager != nil {
-		s.mux.Handle(shareBase+"/", rewritePrefix(shareBase, "/drop", s.dropManager))
-		s.mux.Handle("/drop/", s.dropManager)
+	if s.dropManager != nil && s.dropPublic != nil {
+		s.mux.Handle(shareBase+"/", shareRouter(s.dropManager, s.dropPublic))
+		s.mux.Handle("/drop/", http.StripPrefix("/drop", s.dropManager))
+		s.mux.Handle("/d/", http.StripPrefix("/d", s.dropPublic))
 	} else {
 		s.mux.HandleFunc(shareBase+"/", unavailable)
 		s.mux.HandleFunc("/drop/", unavailable)
-	}
-	if s.dropPublic != nil {
-		s.mux.Handle(shareBase+"/d/", rewritePrefix(shareBase+"/d", "/d", s.dropPublic))
-		s.mux.Handle("/d/", s.dropPublic)
-	} else {
-		s.mux.HandleFunc(shareBase+"/d/", unavailable)
 		s.mux.HandleFunc("/d/", unavailable)
 	}
 	s.mux.HandleFunc("/", s.staticFile)
 }
 
-func rewritePrefix(prefix, internal string, next http.Handler) http.Handler {
+func shareRouter(manager, public http.Handler) http.Handler {
+	manager = http.StripPrefix(shareBase, manager)
+	public = http.StripPrefix(shareBase, public)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		r.URL.Path = internal + strings.TrimPrefix(r.URL.Path, prefix)
-		r.URL.RawPath = ""
-		next.ServeHTTP(w, r)
+		if drop.PublicPath(strings.TrimPrefix(r.URL.Path, shareBase+"/")) {
+			public.ServeHTTP(w, r)
+			return
+		}
+		manager.ServeHTTP(w, r)
 	})
 }
 
@@ -314,7 +313,7 @@ func (s *Server) middleware(next http.Handler) http.Handler {
 		case r.URL.Path == "/api/events", r.URL.Path == "/api/file",
 			r.URL.Path == "/api/tts/audio", r.URL.Path == "/api/tts/stream",
 			r.URL.Path == "/drop/api/upload", r.URL.Path == shareBase+"/api/upload",
-			strings.HasPrefix(r.URL.Path, "/d/"), strings.HasPrefix(r.URL.Path, shareBase+"/d/"):
+			strings.HasPrefix(r.URL.Path, "/d/"), strings.HasPrefix(r.URL.Path, shareBase+"/"):
 		default:
 			_ = http.NewResponseController(w).SetWriteDeadline(time.Now().Add(30 * time.Second))
 		}

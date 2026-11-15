@@ -212,6 +212,11 @@ func TestSlugAliasesAndUniqueness(t *testing.T) {
 	if _, err := store.SetSlug(second.ID, "Bad Slug"); !errors.Is(err, ErrInvalidSlug) {
 		t.Fatalf("invalid slug = %v", err)
 	}
+	for _, reserved := range []string{"api", "e", "files", "download", "static"} {
+		if _, err := store.SetSlug(second.ID, reserved); !errors.Is(err, ErrInvalidSlug) {
+			t.Fatalf("reserved slug %q = %v", reserved, err)
+		}
+	}
 
 	src := filepath.Join(t.TempDir(), "three.txt")
 	writeFile(t, src, "three")

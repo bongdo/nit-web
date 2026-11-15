@@ -23,7 +23,7 @@
 - `drop list`, `drop url <id|slug>`, `drop rm <id|slug>`,
   `drop slug <id|slug> <new>`, `drop access <id|slug> public|private`.
 - The manager `/share/` is behind the `nit_gate` cookie. Public content is
-  `/share/d/<slug>/`; private links return 404 when anonymous.
+  `/share/<slug>/`; private links return 404 when anonymous.
 - A folder with `index.html` is served directly as a page, with no iframe. A
   folder without one gets a bare file index. Markdown is not rendered by drop;
   the manager links to pero with `?open=<absolute path>`.

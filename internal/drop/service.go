@@ -456,7 +456,7 @@ func (s *Services) runArgs(entry Entry, name string, hostPort int) ([]string, er
 		args = append(args, "--env-file", filepath.Join(cfg.Dir, cfg.EnvFile))
 	}
 	if s.basePath != "" {
-		args = append(args, "--env", "NIT_DROP_BASE_PATH="+s.basePath+"/d/"+entry.Slug+"/")
+		args = append(args, "--env", "NIT_DROP_BASE_PATH="+s.basePath+"/"+entry.Slug+"/")
 	}
 	if serviceContainerfile(cfg.Dir) == "" {
 		args = append(args, "--volume", cfg.Dir+":/app:ro", "--workdir", "/app")

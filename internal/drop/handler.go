@@ -56,22 +56,21 @@ func NewManager(store *Store, services *Services, guard func(*http.Request) bool
 		log:        log,
 		maxUpload:  maxUploadBytes(),
 		peroURL:    peroURL,
-		publicBase: strings.TrimRight(basePath, "/") + "/d/",
+		publicBase: strings.TrimRight(basePath, "/") + "/",
 		now:        time.Now,
 	}
 	mux := http.NewServeMux()
-	mux.HandleFunc("GET /drop/{$}", h.index)
-	mux.HandleFunc("GET /drop", h.redirectIndex)
-	mux.HandleFunc("POST /drop/api/upload", h.upload)
-	mux.HandleFunc("PATCH /drop/api/entries/{id}", h.update)
-	mux.HandleFunc("DELETE /drop/api/entries/{id}", h.delete)
-	mux.HandleFunc("GET /drop/e/{id}", h.redirectEntry)
-	mux.HandleFunc("GET /drop/e/{id}/{$}", h.redirectEntry)
-	mux.HandleFunc("GET /drop/files/{id}", h.redirectFiles)
-	mux.HandleFunc("GET /drop/files/{id}/{path...}", h.redirectFiles)
-	mux.HandleFunc("GET /drop/download/{id}", h.redirectFiles)
-	mux.HandleFunc("GET /drop/download/{id}/{path...}", h.redirectFiles)
-	mux.HandleFunc("GET /drop/static/{name}", h.static)
+	mux.HandleFunc("GET /{$}", h.index)
+	mux.HandleFunc("POST /api/upload", h.upload)
+	mux.HandleFunc("PATCH /api/entries/{id}", h.update)
+	mux.HandleFunc("DELETE /api/entries/{id}", h.delete)
+	mux.HandleFunc("GET /e/{id}", h.redirectEntry)
+	mux.HandleFunc("GET /e/{id}/{$}", h.redirectEntry)
+	mux.HandleFunc("GET /files/{id}", h.redirectFiles)
+	mux.HandleFunc("GET /files/{id}/{path...}", h.redirectFiles)
+	mux.HandleFunc("GET /download/{id}", h.redirectFiles)
+	mux.HandleFunc("GET /download/{id}/{path...}", h.redirectFiles)
+	mux.HandleFunc("GET /static/{name}", h.static)
 	return h.headers(mux)
 }
 
@@ -103,10 +102,6 @@ type entryRow struct {
 	PreviewKind string
 	PreviewURL  string
 	PreviewText string
-}
-
-func (h *Manager) redirectIndex(w http.ResponseWriter, r *http.Request) {
-	http.Redirect(w, r, strings.TrimSuffix(r.URL.Path, "/")+"/", http.StatusTemporaryRedirect)
 }
 
 func (h *Manager) index(w http.ResponseWriter, r *http.Request) {
@@ -479,12 +474,12 @@ func NewPublic(store *Store, authenticated func(*http.Request) bool, log *slog.L
 		services:      services,
 		authenticated: authenticated,
 		log:           log,
-		publicBase:    strings.TrimRight(basePath, "/") + "/d/",
+		publicBase:    strings.TrimRight(basePath, "/") + "/",
 	}
 	mux := http.NewServeMux()
-	mux.HandleFunc("/d/{slug}", h.redirectSlash)
-	mux.HandleFunc("/d/{slug}/{$}", h.serve)
-	mux.HandleFunc("/d/{slug}/{path...}", h.serve)
+	mux.HandleFunc("/{slug}", h.redirectSlash)
+	mux.HandleFunc("/{slug}/{$}", h.serve)
+	mux.HandleFunc("/{slug}/{path...}", h.serve)
 	return h.headers(mux)
 }
 
@@ -591,7 +586,7 @@ func (h *Public) service(w http.ResponseWriter, r *http.Request, entry Entry) {
 	}
 	slug := r.PathValue("slug")
 	prefix := strings.TrimSuffix(h.publicBase, "/") + "/" + url.PathEscape(slug)
-	rest := strings.TrimPrefix(r.URL.Path, "/d/"+slug)
+	rest := strings.TrimPrefix(r.URL.Path, "/"+slug)
 	if rest == "" {
 		rest = "/"
 	}

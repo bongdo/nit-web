@@ -26,7 +26,7 @@ them.
 | Instance list, SSH tunnels | nit-gui host, `~/.config/nit-gui/instances.json` | implemented |
 | TTS | nit-gui keeps a warm host `piper` worker and streams its audio; browser voice is the fallback | implemented |
 | Spelling | browser nspell worker today; target nit-gui `/api/spell` | migration gap |
-| Drop | nit-gui host, `/share/` | files, static pages and folders; public links under `/share/d/` |
+| Drop | nit-gui host, `/share/` | files, static pages and folders; public links under `/share/` |
 | Grammar | nit-gui host LanguageTool sidecar through `/api/grammar` | optional |
 | Attachments | the active instance, OpenCode `/api/experimental/fs/write` and `/tmp` | implemented |
 | UI state (hidden, done, failed, drafts, model/agent) | nit-gui host, `~/.local/state/nit-gui/ui-state.json`, scoped by instance | shared across devices |
@@ -218,7 +218,7 @@ Vite proxies `/api` to the backend.
 ## Drop
 
 `/share/` is the private manager inside the nit-gui process. It uses the
-same `nit_gate` login. Published content lives under `/share/d/`; the manager is
+same `nit_gate` login. Published content lives under `/share/`; the manager is
 linked from the sidebar.
 
 The agent publishes with the `drop` command, which is on `PATH` through
@@ -239,7 +239,7 @@ drop logs app -f
 ```
 
 Every publication gets an id, a slug and a URL such as
-`https://bongdo.space/share/d/<slug>/`. The URL is private by
+`https://bongdo.space/share/<slug>/`. The URL is private by
 default and lives forever. `--public` allows anonymous reads; `--expire 2w`
 deletes it after two weeks. `drop slug` adds the old slug to aliases, so old
 links keep working. Several selected files become one publication.
@@ -248,7 +248,7 @@ links keep working. Several selected files become one publication.
 container. The directory needs a `Containerfile`/`Dockerfile` or a `drop.json`
 with `{"image": "...", "port": 3000, "health": "/healthz", "cmd": [...]}`. The
 manager builds and runs it, waits for the health check and prints
-`/share/d/<slug>/`. Containers publish only on `127.0.0.1` at a random port, are
+`/share/<slug>/`. Containers publish only on `127.0.0.1` at a random port, are
 named `drop-<slug>`, carry `nit.drop.id` labels and survive a nit-gui restart.
 The proxy supports WebSocket, SSE and all HTTP methods, forwards
 `X-Forwarded-Prefix`/`X-Forwarded-Proto`, and strips `nit_gate`, `Authorization`
@@ -267,7 +267,7 @@ use `drop` whenever the user should see a page, a full app or a file.
 
 Old `/share/e/<id>/`, `/share/files/<id>/...`,
 `/share/download/<id>/...` and `?file=` URLs redirect to the canonical
-`/share/d/` path.
+`/share/` path.
 
 Storage is `$NIT_DROP_ROOT` or `~/.local/share/nit-gui/drop`, one private
 directory per entry with `entry.json`. Entries with the old seven-day default
@@ -278,7 +278,7 @@ are removed when the list or a public path is read.
 in bytes. `NIT_DROP_PODMAN` selects the podman binary (default `podman`).
 `NIT_DROP_BASE_PATH` is passed to containers as a convenience; the proxy always
 sends the authoritative `X-Forwarded-Prefix`. `DROP_PUBLIC_BASE` is used by the CLI only; `bin/drop` defaults it to
-the public `/share/d/` URL.
+the public `/share/` URL.
 
 ## Workspaces
 
@@ -433,7 +433,7 @@ rewritten to loopback. Credentials in a server URL are discarded.
 | `NIT_GUI_STATE` | Path to `ui-state.json`, default `$XDG_STATE_HOME/nit-gui/ui-state.json` or `~/.local/state/nit-gui/ui-state.json`. |
 | `NIT_DROP_ROOT` | Drop store, default `~/.local/share/nit-gui/drop`. |
 | `NIT_DROP_MAX_UPLOAD` | Browser upload limit in bytes, default `134217728` (128 MiB). |
-| `DROP_PUBLIC_BASE` | Public base printed by `bin/drop`, default `https://bongdo.space/share/d/`. |
+| `DROP_PUBLIC_BASE` | Public base printed by `bin/drop`, default `https://bongdo.space/share/`. |
 | `NIT_GUI_LANGUAGETOOL` | Path to `languagetool-http-server`; the app starts it lazily. |
 | `NIT_GUI_LANGUAGETOOL_URL` | Use an already running LanguageTool server instead of spawning one. |
 | `NIT_GUI_LANGUAGETOOL_PORT` | Spawned server port, default `8179`. |
@@ -556,7 +556,7 @@ nspell worker. It is not implemented yet.
   unauthenticated pages to `/nit/auth?next=<absolute URL>`. The absolute return
   target is accepted only for http/https URLs on the same hostname with a path
   under `/nit/`, `/pero/` or `/term/`.
-- Drop's manager and all writes are behind the same cookie. `/share/d/` is the
+- Drop's manager and all writes are behind the same cookie. `/share/` is the
   only unauthenticated path: it serves an entry only when that entry was
   explicitly made public; a private entry returns 404. Uploads are written only
   below `NIT_DROP_ROOT`; ids, slugs and relative paths are validated,

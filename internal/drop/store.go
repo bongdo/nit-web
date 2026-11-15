@@ -703,8 +703,25 @@ func NormalizeSlug(value string) string {
 	return strings.ToLower(strings.TrimSpace(value))
 }
 
+var reservedSlugs = map[string]struct{}{
+	"api": {}, "e": {}, "files": {}, "download": {}, "static": {},
+}
+
+func ReservedSlug(name string) bool {
+	_, ok := reservedSlugs[strings.ToLower(name)]
+	return ok
+}
+
+func PublicPath(rest string) bool {
+	first := rest
+	if i := strings.IndexByte(rest, '/'); i >= 0 {
+		first = rest[:i]
+	}
+	return first != "" && !ReservedSlug(first)
+}
+
 func validSlug(value string) bool {
-	if value == "" || len(value) > 64 {
+	if value == "" || len(value) > 64 || ReservedSlug(value) {
 		return false
 	}
 	for _, r := range value {

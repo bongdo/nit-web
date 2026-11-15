@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"nitgui/internal/auth"
+	"nitgui/internal/drop"
 )
 
 const (
@@ -173,13 +174,16 @@ func outsideBase(path string) bool {
 
 func publicDropPath(requestPath string) bool {
 	clean := path.Clean(requestPath)
-	for _, prefix := range []string{"/d", shareBase + "/d"} {
-		if requestPath == prefix ||
-			(strings.HasPrefix(requestPath, prefix+"/") && (clean == prefix || strings.HasPrefix(clean, prefix+"/"))) {
-			return true
-		}
+	if requestPath == "/d" ||
+		(strings.HasPrefix(requestPath, "/d/") && (clean == "/d" || strings.HasPrefix(clean, "/d/"))) {
+		return true
 	}
-	return false
+	rest, ok := strings.CutPrefix(requestPath, shareBase+"/")
+	if !ok {
+		return false
+	}
+	cleanRest, ok := strings.CutPrefix(clean, shareBase+"/")
+	return ok && drop.PublicPath(rest) && drop.PublicPath(cleanRest)
 }
 
 func (a *authGate) handleLogin(w http.ResponseWriter, r *http.Request) {

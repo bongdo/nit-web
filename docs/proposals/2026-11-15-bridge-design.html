@@ -1,0 +1,352 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Вариант C: мост вместо ssh — конкретная реализация</title>
+<style>
+  :root {
+    color-scheme: dark;
+    --bg: #0c0d0f; --panel: #131518; --panel-2: #171a1e;
+    --line: #292d32; --line-strong: #3a3f45;
+    --text: #e8e6e3; --muted: #9a968f; --dim: #6f6b65;
+    --accent: #c4794f; --accent-dim: #c4794f33;
+    --green: #6f9c7f; --red: #b26a63;
+    --sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    --mono: ui-monospace, SFMono-Regular, Menlo, "Cascadia Mono", monospace;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.6 var(--sans); -webkit-font-smoothing: antialiased; }
+  .wrap { max-width: 1040px; margin: 0 auto; padding: 44px 24px 96px; }
+  header .kicker { font: 600 11px/1 var(--mono); letter-spacing: .16em; text-transform: uppercase; color: var(--accent); }
+  h1 { margin: 12px 0 10px; font-size: 30px; line-height: 1.2; letter-spacing: -.02em; }
+  header p { margin: 0; color: var(--muted); max-width: 74ch; }
+  header .meta { margin-top: 18px; display: flex; flex-wrap: wrap; gap: 8px; font: 11px/1.4 var(--mono); color: var(--dim); }
+  header .meta span { border: 1px solid var(--line); border-radius: 999px; padding: 4px 10px; }
+
+  section { margin-top: 58px; }
+  h2 { margin: 0 0 6px; font: 600 12px/1 var(--mono); letter-spacing: .14em; text-transform: uppercase; color: var(--muted); }
+  section > p.lead { margin: 0 0 20px; color: var(--muted); max-width: 80ch; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+  .table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 12px; }
+  th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { font: 600 10.5px/1.4 var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--muted); background: var(--panel-2); }
+  tr:last-child td { border-bottom: 0; }
+  td.mono, td code { font-family: var(--mono); font-size: 12.5px; }
+  code { background: #1d2024; border: 1px solid var(--line); border-radius: 5px; padding: 1px 5px; font-family: var(--mono); font-size: 12.5px; }
+  .yes { color: var(--green); font-weight: 600; }
+  .no { color: var(--red); }
+  .mid { color: var(--accent); }
+
+  .flow { border: 1px solid var(--line); border-radius: 12px; background: var(--panel-2); padding: 18px; }
+  .lane { display: grid; grid-template-columns: 132px 1fr; gap: 14px; align-items: start; margin-bottom: 14px; }
+  .lane:last-child { margin-bottom: 0; }
+  .lane .who { font: 600 10.5px/1.5 var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--muted); padding-top: 3px; }
+  .lane .what { border-left: 2px solid var(--line-strong); padding-left: 12px; }
+  .lane.hot .what { border-left-color: var(--accent); }
+  .lane.ok .what { border-left-color: var(--green); }
+  .lane .what b { font-weight: 600; }
+  .lane .what .sub { color: var(--dim); font-size: 12.5px; }
+  .arrow { text-align: center; color: var(--dim); font: 11px/1 var(--mono); padding: 2px 0 10px; }
+
+  .cards { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .card { border: 1px solid var(--line); border-radius: 12px; background: var(--panel); padding: 16px; }
+  .card .t { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 8px; }
+  .card .t .n { font: 600 12px/1 var(--mono); color: var(--accent); }
+  .card p { margin: 0 0 8px; color: var(--muted); font-size: 14px; }
+  .card p:last-child { margin: 0; }
+  .card ul { margin: 0; padding-left: 18px; color: var(--muted); font-size: 13.5px; }
+  .card li { margin-bottom: 4px; }
+
+  .badge { display: inline-block; border: 1px solid var(--line-strong); border-radius: 999px; padding: 2px 9px; font: 600 10.5px/1.7 var(--mono); letter-spacing: .06em; text-transform: uppercase; color: var(--muted); white-space: nowrap; }
+  .badge.ok { border-color: #4a6b57; color: #8fbfa2; }
+  .badge.warn { border-color: #6b5a4a; color: #d3a87c; }
+
+  .steps { counter-reset: step; display: grid; gap: 12px; }
+  .step { border: 1px solid var(--line); border-radius: 10px; background: var(--panel); padding: 14px 16px; display: grid; grid-template-columns: 34px 1fr; gap: 12px; }
+  .step::before { counter-increment: step; content: counter(step); font: 600 15px/1.5 var(--mono); color: var(--accent); }
+  .step b { display: block; margin-bottom: 4px; }
+  .step span { color: var(--muted); font-size: 13.5px; }
+
+  .qbox { border: 1px solid var(--accent); border-radius: 12px; background: linear-gradient(180deg, #1a1512, #121417 60%); padding: 20px 22px; }
+  .qbox ol { margin: 0; padding-left: 22px; color: var(--text); }
+  .qbox li { margin-bottom: 12px; }
+  .qbox li:last-child { margin-bottom: 0; }
+  .qbox li span { display: block; color: var(--muted); font-size: 13.5px; margin-top: 3px; }
+
+  footer { margin-top: 56px; padding-top: 18px; border-top: 1px solid var(--line); color: var(--dim); font: 11px/1.7 var(--mono); }
+  @media (max-width: 820px) { .cards { grid-template-columns: 1fr; } .lane { grid-template-columns: 1fr; } h1 { font-size: 24px; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <div class="kicker">nit-gui · вариант C · реализация</div>
+  <h1>Мост вместо ssh-туннеля</h1>
+  <p>Один маленький бинарник на машине держит исходящее соединение с домом. Frankfurt
+  больше не ходит на машину сам: он говорит по уже открытому сокету. Отсюда —
+  мгновенные события, отсутствие холодного старта и редактор с терминалом чужой
+  машины под тем же адресом.</p>
+  <div class="meta">
+    <span>один адрес: bongdo.space</span>
+    <span>на NixOS: +1 бинарник, −ssh</span>
+    <span>opencode можно вернуть на loopback</span>
+  </div>
+</header>
+
+<section>
+  <h2>1 · Что именно ускоряется</h2>
+  <p class="lead">Честный ответ на «она же крайне быстрая»: быстрее не сам запрос, а
+  его начало. Сейчас самое дорогое — не передача, а ожидание, пока машина
+  подтвердит, что она жива.</p>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>Что чувствуется</th><th>Сейчас (ssh-туннель)</th><th>С мостом</th><th>Почему</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Первый запрос к машине после простоя</td><td class="no">0.5–10 с</td><td class="yes">0 мс</td><td>сокет открыт постоянно, ssh-хендшейка и туннеля нет</td></tr>
+        <tr><td>Обычный запрос (сессии, модели)</td><td>+1 RTT до машины</td><td>+1 RTT до машины</td><td>путь тот же; выигрыша в передаче нет и не обещаем</td></tr>
+        <tr><td>Проверка «жив ли инстанс»</td><td class="no">до 10 с таймаута ssh</td><td class="yes">heartbeat 20 с, offline за 45</td><td>состояние известно из сокета, а не из попытки запроса</td></tr>
+        <tr><td>Уведомление «прогон закончился»</td><td class="no">только для активного инстанса</td><td class="yes">с любой машины, пушем</td><td>агент сам отдаёт события, опроса нет</td></tr>
+        <tr><td>Переключение на машину</td><td class="no">экран загрузки / офлайн-гейт</td><td class="yes">мгновенно</td><td>нет бутстрапа с нуля: инстанс уже тёплый</td></tr>
+        <tr><td>Публичная поверхность</td><td class="mid">opencode на 0.0.0.0 + пароль</td><td class="yes">только исходящий wss</td><td>opencode слушает 127.0.0.1, наружу смотрит один агент</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p class="lead" style="margin-top:18px">Что действительно станет быстрее: не
+  «страница», а реакции — уведомления приходят в момент события, а не после
+  переключения на инстанс, и исчезает класс состояний «неизвестно, жив ли».</p>
+</section>
+
+<section>
+  <h2>2 · Схема</h2>
+  <p class="lead">Один входящий адрес, один исходящий сокет с каждой машины.</p>
+
+  <div class="flow">
+    <div class="lane">
+      <div class="who">Браузер</div>
+      <div class="what"><b>https://bongdo.space</b> — единственный адрес. UI, звук, кука
+      <code>nit_gate</code>, никаких прямых обращений к машинам.</div>
+    </div>
+    <div class="arrow">↓</div>
+
+    <div class="lane hot">
+      <div class="who">дом</div>
+      <div class="what"><b>Caddy + гейт</b> — TLS, сессии, роли, маршруты
+      <code>/nit</code> <code>/pero</code> <code>/term</code> <code>/share</code>
+      и отдельный <code>/agent</code> для машин.
+      <div class="sub">пользовательская кука и машинный токен — разные вещи, разные маршруты</div></div>
+    </div>
+    <div class="arrow">↓</div>
+
+    <div class="lane">
+      <div class="who">nit-gui</div>
+      <div class="what"><b>реестр инстансов + события</b> — инстанс с полем
+      <code>agent: "nixos"</code> резолвится не в ssh-туннель, а в сокет моста.
+      Один <code>/api/events?all</code> отдаёт браузеру события всех машин с тегом
+      инстанса.</div>
+    </div>
+    <div class="arrow">↓ wss, сокет держит машина</div>
+
+    <div class="lane ok">
+      <div class="who">NixOS</div>
+      <div class="what"><b>nit-bridge</b> — одно соединение наружу на
+      <code>:443</code>. Внутри машины: opencode на <code>127.0.0.1:49374</code>,
+      при желании pero-gui и term-gui на loopback.
+      <div class="sub">никаких входящих портов, никакого публичного адреса машины</div></div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <h2>3 · Что делает мост</h2>
+  <div class="cards">
+    <div class="card">
+      <div class="t"><span>1</span><span class="badge">транспорт</span></div>
+      <p>Принимает от дома HTTP-запросы кадрами и отдаёт их локальному opencode,
+      возвращая ответ тем же сокетом. Заменяет ssh-туннель один к одному.</p>
+      <ul>
+        <li>метод, путь, заголовки, тело</li>
+        <li>ответ: статус, заголовки, тело</li>
+        <li>SSE и большие тела — чанками, не в память целиком</li>
+      </ul>
+    </div>
+    <div class="card">
+      <div class="t"><span>2</span><span class="badge">события</span></div>
+      <p>Сам подписывается на локальный <code>/api/event</code> и пушит события
+      дому. Дом раздаёт их браузерам. Никакого опроса и никакого «а жив ли».</p>
+      <ul>
+        <li><code>session.idle</code>, <code>execution.*</code>, формы, разрешения</li>
+        <li>события можно терять: после реконнекта сессии перечитываются</li>
+      </ul>
+    </div>
+    <div class="card">
+      <div class="t"><span>3</span><span class="badge">доп. цели</span></div>
+      <p>Тот же сокет проксирует не только opencode: <code>pero</code> и
+      <code>term</code> этой машины объявляются как цели, дом монтирует их под
+      <code>/i/&lt;name&gt;/pero/</code> и <code>/i/&lt;name&gt;/term/</code>.</p>
+      <ul>
+        <li>один origin — кука и относительные пути работают</li>
+        <li>порты машины не публикуются</li>
+      </ul>
+    </div>
+    <div class="card">
+      <div class="t"><span>4</span><span class="badge">состояние</span></div>
+      <p>Сообщает версию протокола, версию opencode, рабочие каталоги и
+      heartbeat. Из этого меню рисует «подключено / спит / нет моста» без
+      попыток достучаться.</p>
+      <ul>
+        <li>heartbeat 20 с, offline после двух пропусков</li>
+        <li>реконнект с backoff и джиттером, без шторма</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<section>
+  <h2>4 · Протокол</h2>
+  <p class="lead">Один WebSocket, JSON-кадры, версия протокола в первом кадре.
+  Ничего экзотического: это reverse-туннель, а не новая сеть.</p>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>Кадр</th><th>Кто → кому</th><th>Содержимое</th><th>Зачем</th></tr>
+      </thead>
+      <tbody>
+        <tr><td class="mono">hello</td><td>мост → дом</td><td>name, protocol, version, token</td><td>аутентификация машины и версия</td></tr>
+        <tr><td class="mono">welcome</td><td>дом → мост</td><td>session id, время сервера</td><td>подтверждение, начало heartbeat</td></tr>
+        <tr><td class="mono">req</td><td>дом → мост</td><td>id, method, path, headers, body</td><td>один HTTP-запрос внутрь машины</td></tr>
+        <tr><td class="mono">res / chunk / end</td><td>мост → дом</td><td>id, status, headers, часть тела</td><td>ответ, в том числе потоковый</td></tr>
+        <tr><td class="mono">evt</td><td>мост → дом</td><td>type, data</td><td>событие opencode для раздачи браузерам</td></tr>
+        <tr><td class="mono">state</td><td>мост → дом</td><td>opencode version, dirs, targets</td><td>меню и capabilities без запросов</td></tr>
+        <tr><td class="mono">ping / pong</td><td>оба</td><td>—</td><td>живость, таймаут 45 с</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="cards" style="margin-top:18px">
+    <div class="card">
+      <div class="t"><span>пределы</span><span class="badge warn">намеренно жёсткие</span></div>
+      <ul>
+        <li>кадр до 1 МиБ, выше — чанки</li>
+        <li>до 64 параллельных запросов на машину</li>
+        <li>таймаут запроса 120 с, ошибка — сразу, без 10-секундного ssh</li>
+        <li>события при переполнении буфера <b>отбрасываются</b>, запросы — никогда</li>
+      </ul>
+    </div>
+    <div class="card">
+      <div class="t"><span>аутентификация</span><span class="badge ok">раздельная</span></div>
+      <ul>
+        <li>пользователь: кука <code>nit_gate</code>, один пароль</li>
+        <li>машина: свой токен, файл <code>0600</code>, показан один раз</li>
+        <li>токен не даёт прав пользователя, а пользовательская кука не пускает в <code>/agent</code></li>
+        <li>отзыв — удалить файл и закрыть сокет</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<section>
+  <h2>5 · Как получается каждая фича</h2>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>Фича</th><th>Механизм</th><th>Готово, когда</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Уведомление о завершении с любой машины</td><td>агент пушит <code>session.idle</code> → дом раздаёт по <code>/api/events?all</code> → браузер уведомляет с именем машины</td><td>ноут запускает прогон, вкладка в фоне — приходит уведомление</td></tr>
+        <tr><td>Быстрый переход без гейта</td><td>сокет тёплый + кэш бутстрапа на инстанс, прогрев перед переключением</td><td>переключение на nixos не показывает ни загрузки, ни «Reconnect»</td></tr>
+        <tr><td>Редактор чужой машины</td><td>цель <code>pero</code> в том же сокете, дом монтирует <code>/i/&lt;id&gt;/pero/</code></td><td>чип файла из nixos-чата открывает редактор на nixos</td></tr>
+        <tr><td>Терминал чужой машины</td><td>цель <code>term</code> так же, но нужен term-gui на машине</td><td>то же, при наличии term-gui</td></tr>
+        <tr><td>Один адрес</td><td>браузер не знает ни одного адреса машины</td><td>в devtools нет запросов мимо bongdo.space</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section>
+  <h2>6 · Отказы и пределы</h2>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>Что случилось</th><th>Видно в UI</th><th>Что делает система</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Машина уснула</td><td>строка инстанса <span class="no">offline</span>, причина «нет моста»</td><td>реконнект с backoff, запросы падают за миллисекунды, а не за 10 с</td></tr>
+        <tr><td>Сокет «полуживой»</td><td>короткий всплеск offline</td><td>heartbeat закрывает соединение, мост переподключается</td></tr>
+        <tr><td>Frankfurt лёг</td><td>ничего не открывается</td><td>мост продолжает переподключаться; машина сама работает как обычно</td></tr>
+        <tr><td>Версия протокола разошлась</td><td>инстанс offline, причина «protocol»</td><td>дом не пускает незнакомую major-версию, вместо тихой поломки</td></tr>
+        <tr><td>Большой файл или поток SSE</td><td>—</td><td>чанки, лимит одновременных запросов, память ограничена</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section>
+  <h2>7 · Что меняется в коде</h2>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>Где</th><th>Что</th><th>Объём</th></tr>
+      </thead>
+      <tbody>
+        <tr><td class="mono">cmd/bridge</td><td>новый бинарник: конфиг, сокет, локальный SSE, прокси целей, heartbeat</td><td class="mono">~500–700 строк</td></tr>
+        <tr><td class="mono">internal/agent</td><td>реестр соединений, reverse-транспорт <code>http.RoundTripper</code>, раздача событий</td><td class="mono">~400 строк + тесты</td></tr>
+        <tr><td class="mono">internal/opencode/registry.go</td><td>поле <code>agent</code> в инстансе, резолв в сокет вместо ssh</td><td class="mono">~80 строк</td></tr>
+        <tr><td class="mono">internal/server</td><td><code>/agent</code> (wss), <code>/api/events?all</code>, монтирование <code>/i/&lt;id&gt;/{pero,term}</code></td><td class="mono">~250 строк</td></tr>
+        <tr><td class="mono">web/src</td><td>один поток событий на все инстансы, кэш бутстрапа, бейдж машины на уровне директории</td><td class="mono">~300 строк</td></tr>
+        <tr><td class="mono">deploy</td><td>установка моста на машину, systemd-юнит, токен</td><td class="mono">~60 строк</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section>
+  <h2>8 · Порядок внедрения</h2>
+  <p class="lead">Каждый шаг заканчивается тем, что можно проверить глазами, и не
+  требует следующего.</p>
+
+  <div class="steps">
+    <div class="step"><div><b>Мост и транспорт</b><span>Бинарник, сокет, reverse-транспорт, поле <code>agent</code> в инстансе. Инстанс nixos переключается на мост, ssh остаётся как фолбэк. Проверка: сессии nixos открываются, в меню транспорт «agent».</span></div></div>
+    <div class="step"><div><b>События всех машин</b><span>Агент пушит события, дом отдаёт <code>/api/events?all</code>, браузер уведомляет с именем машины. Проверка: прогон на ноуте, вкладка в фоне, уведомление приходит.</span></div></div>
+    <div class="step"><div><b>Тёплое переключение</b><span>Кэш бутстрапа и прогрев. Проверка: переключение туда-обратно без экрана загрузки и без «Reconnect».</span></div></div>
+    <div class="step"><div><b>Редактор и терминал чужой машины</b><span>Цели в сокете и маршруты <code>/i/&lt;id&gt;/…</code>. Проверка: чип файла из nixos-чата открывает редактор на nixos.</span></div></div>
+    <div class="step"><div><b>Ужесточение</b><span>opencode на машине возвращается на <code>127.0.0.1</code>, ssh-туннель для инстансов с мостом отключается совсем. Проверка: <code>ss -tlnp</code> на ноуте не показывает 49374 наружу.</span></div></div>
+  </div>
+</section>
+
+<section>
+  <h2>9 · Что нужно решить до кода</h2>
+  <div class="qbox">
+    <ol>
+      <li>Терминал чужой машины — нужен?<span>Если да, на NixOS появляется второй бинарник
+      (<code>term-gui</code>) плюс мост. Если нет — маршрут <code>/i/&lt;id&gt;/term/</code>
+      просто не объявляется, и приоритет «минимум зависимостей» держится лучше.</span></li>
+      <li>Редактор чужой машины: pero-gui на самой машине или один на Frankfurt через sshfs?<span>Первый вариант даёт правильные права и скорость, второй — ноль сервисов
+      на ноуте и запись через sshfs. По умолчанию предлагаю первый, если мост уже стоит,
+      и второй — если нет.</span></li>
+      <li>Имя и место: <code>cmd/bridge</code> в этом же репозитории, бинарник
+      <code>nit-bridge</code>?<span>Тогда одна версия, один <code>go build</code>, один
+      релиз. Альтернатива — отдельный репозиторий, но это лишняя синхронизация
+      версий протокола.</span></li>
+    </ol>
+  </div>
+</section>
+
+<footer>
+  Дизайн, не код: в репозитории на момент публикации нет <code>cmd/bridge</code> и
+  <code>internal/agent</code>. Цифры латентности — порядок величин, не замеры:
+  ssh-туннель даёт 0.5–10 с на установку, обычный запрос упирается в RTT до
+  машины в обоих вариантах.<br>
+  Сравнение вариантов: <a href="../infra-2026-11-15/" style="color:var(--accent)">карта инфраструктуры</a>.
+</footer>
+
+</div>
+</body>
+</html>

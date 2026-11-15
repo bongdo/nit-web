@@ -294,10 +294,9 @@ only that chat's subagents. In the `This dir` scope the tab shows the workspace
 name and the card omits the directory. The selected chat's `N subagents` menu
 opens the same transcripts, and the parent header has `Back to parent`.
 
-Chats with no activity for more than 12 hours fold behind the existing
-`Load older chats` button; a scope with ten or fewer chats shows all of them.
-The selected, running and waiting chats always stay visible, and search ignores
-the age cutoff.
+Every chat in the scope is listed; scrolling the list to the end loads the next
+100 upstream sessions. Search goes upstream instead of filtering the loaded
+window.
 
 `New chat` does not create a session. The session is created in the current
 workspace on the first Send, so an empty draft never appears in the list.
@@ -702,9 +701,9 @@ own startup warmup.
 
 ## Known limits
 
-- Sessions start with OpenCode's newest 100 per scope. `Load older chats` pages
-  upstream, and a search query goes upstream instead of filtering that window
-  client-side.
+- Sessions start with OpenCode's newest 100 per scope. Scrolling the list to the
+  end pages upstream, and a search query goes upstream instead of filtering that
+  window client-side.
 - The UI opens the full visible transcript; tool and reasoning payloads load
   when a steps block is opened. The full endpoint is assembled from at most 100
   upstream pages (100 messages each); longer sessions are truncated at 10,000

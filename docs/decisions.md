@@ -954,3 +954,23 @@ Why: the hidden scope has no DOM, so it cannot animate; the fair fix is to hand 
 Rejected: keeping both lists mounted (double DOM for a tab switch); delaying the tab until its fetch finishes (visible lag on every press); animating rows between scopes (the motion the user rejects).
 
 Cost: while the directory scope is open, each refresh also fetches the top page of all sessions; the restored pool lacks subagents until its own fetch returns.
+
+## 2026-11-15 — No `Load older chats`; the list pages on scroll
+
+Context: the 12-hour window hid most of the sidebar (88 of 100 loaded chats were
+older than 12 hours) behind a button the user called bad. The same button was
+also the only way past OpenCode's first 100 sessions.
+
+Decision: the recency window and its button are gone, and every chat in the
+scope is listed. Reaching the end of the list scrolls in the next 100 upstream
+sessions automatically; if the list is shorter than the sidebar, the next page
+is requested as soon as the page renders.
+
+Why: hiding chats and asking the user to reveal them was a step that only lost
+information; paging belongs to scrolling.
+
+Rejected: keeping the window with infinite scroll (still hides chats); loading
+all pages up front (unbounded requests on a heavy instance).
+
+Cost: a large instance makes one extra request each time the list reaches the
+bottom, and search still goes upstream instead of filtering the loaded window.

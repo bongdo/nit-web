@@ -60,7 +60,6 @@ import {
   pollSessionIds,
   SCOPES,
   scopeSessions,
-  splitByRecency,
   type Scope,
 } from "./lib/sessions";
 import { shortcutKeys } from "./lib/keys";
@@ -252,8 +251,6 @@ export default function App({
   const [uiReady, setUiReady] = useState(false);
   const [hiddenIds, setHiddenIds] = useState<Set<string>>(() => new Set());
   const [showHidden, setShowHidden] = useState(false);
-  const [showOlder, setShowOlder] = useState(false);
-  const [ageNow, setAgeNow] = useState(() => Date.now());
   const [sessions, setSessions] = useState<Session[]>([]);
   const [sessionsLoading, setSessionsLoading] = useState(true);
   const [selectedId, setSelectedIdState] = useState<string | null>(() =>
@@ -408,11 +405,6 @@ export default function App({
       document.removeEventListener("visibilitychange", refresh);
     };
   }, [loadUiState]);
-
-  useEffect(() => {
-    const timer = window.setInterval(() => setAgeNow(Date.now()), 60_000);
-    return () => window.clearInterval(timer);
-  }, []);
 
   const sessionsRef = useRef(sessions);
   sessionsRef.current = sessions;
@@ -2125,47 +2117,21 @@ export default function App({
     () => new Set(scopedSessions.map((session) => session.location?.directory ?? "")).size,
     [scopedSessions],
   );
-  const ageKeepIds = useMemo(() => {
-    const ids = new Set<string>();
-    for (const session of scopedSessions) {
-      if (session.id === selectedId || isRunning(session.id) || waitingIds.has(session.id)) {
-        ids.add(session.id);
-      }
-    }
-    const selected = sessions.find((session) => session.id === selectedId);
-    if (selected?.parentID) ids.add(selected.parentID);
-    for (const child of subagents) {
-      if (child.parentID && (isRunning(child.id) || waitingIds.has(child.id))) {
-        ids.add(child.parentID);
-      }
-    }
-    return ids;
-  }, [isRunning, scopedSessions, selectedId, sessions, subagents, waitingIds]);
-  const { recent: recentSessions, older: olderSessions } = useMemo(
-    () => splitByRecency(scopedSessions, ageKeepIds, ageNow),
-    [ageKeepIds, ageNow, scopedSessions],
-  );
-  const visibleSessions = useMemo(
-    () =>
-      showOlder || search.trim() || scope !== "directory" ? scopedSessions : recentSessions,
-    [recentSessions, scopedSessions, search, showOlder, scope],
-  );
-  const olderCount = search.trim() || scope !== "directory" ? 0 : olderSessions.length;
   const hiddenCount = useMemo(
     () => sessions.filter((session) => hiddenIds.has(session.id)).length,
     [hiddenIds, sessions],
   );
   const cycleSessions = useMemo(
     () =>
-      groupSessions(filterSessions(visibleSessions, search), waitingIds).map(
+      groupSessions(filterSessions(scopedSessions, search), waitingIds).map(
         (row) => row.session,
       ),
-    [search, visibleSessions, waitingIds],
+    [search, scopedSessions, waitingIds],
   );
   const visibleSubagents = useMemo(() => {
-    const parentIds = new Set(visibleSessions.map((session) => session.id));
+    const parentIds = new Set(scopedSessions.map((session) => session.id));
     return listedSubagents(sessions, parentIds, hiddenIds, showHidden);
-  }, [hiddenIds, sessions, showHidden, visibleSessions]);
+  }, [hiddenIds, sessions, showHidden, scopedSessions]);
 
   const quoteSelection = useCallback((text: string) => {
     const clean = text.trim();
@@ -2320,7 +2286,7 @@ export default function App({
           </div>
           <div className="min-h-0 flex-1">
             <Sidebar
-            sessions={visibleSessions}
+            sessions={scopedSessions}
             subagents={visibleSubagents}
             workspace={workspace}
             scope={scope}
@@ -2336,8 +2302,6 @@ export default function App({
             hasMore={Boolean(sessionCursor)}
             loadingMore={loadingMore}
             onLoadMore={() => void loadMoreSessions()}
-            olderCount={olderCount}
-            onShowOlder={() => setShowOlder(true)}
             hiddenIds={hiddenIds}
             hiddenCount={hiddenCount}
             showHidden={showHidden}

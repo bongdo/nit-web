@@ -29,25 +29,6 @@ export function listedSessions(
   );
 }
 
-export const RECENT_WINDOW_MS = 12 * 60 * 60 * 1000;
-
-export function splitByRecency(
-  sessions: Session[],
-  keepIds: ReadonlySet<string>,
-  now: number,
-  minimum = 10,
-): { recent: Session[]; older: Session[] } {
-  if (sessions.length <= minimum) return { recent: sessions, older: [] };
-  const cutoff = now - RECENT_WINDOW_MS;
-  const recent: Session[] = [];
-  const older: Session[] = [];
-  for (const session of sessions) {
-    if (session.time.updated >= cutoff || keepIds.has(session.id)) recent.push(session);
-    else older.push(session);
-  }
-  return { recent, older };
-}
-
 export function listedSubagents(
   sessions: Session[],
   parentIds: ReadonlySet<string>,

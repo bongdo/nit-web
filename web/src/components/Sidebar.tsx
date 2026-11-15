@@ -6,6 +6,7 @@ import {
   useRef,
   useState,
   type RefObject,
+  type UIEvent,
 } from "react";
 import {
   ChevronDown,
@@ -271,8 +272,6 @@ export const Sidebar = memo(function Sidebar({
   hasMore,
   loadingMore,
   onLoadMore,
-  olderCount,
-  onShowOlder,
 }: {
   sessions: Session[];
   subagents: Session[];
@@ -313,19 +312,9 @@ export const Sidebar = memo(function Sidebar({
   hasMore?: boolean;
   loadingMore?: boolean;
   onLoadMore?: () => void;
-  olderCount: number;
-  onShowOlder: () => void;
 }) {
   const [now, setNow] = useState(Date.now());
   const [fading, setFading] = useState(false);
-  const showLoad = Boolean(hasMore || olderCount > 0);
-  const [loadLeaving, setLoadLeaving] = useState(false);
-  const leaveLoad = () => {
-    setLoadLeaving(true);
-    window.setTimeout(() => setLoadLeaving(false), 220);
-    if (olderCount > 0) onShowOlder();
-    else onLoadMore?.();
-  };
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
   const autoExpanded = useRef<string | null>(null);
   const modKey =
@@ -507,6 +496,18 @@ export const Sidebar = memo(function Sidebar({
     observer.observe(container);
     return () => observer.disconnect();
   });
+
+  useEffect(() => {
+    const container = listRef.current;
+    if (!container || !hasMore || loadingMore) return;
+    if (container.scrollHeight <= container.clientHeight + 1) onLoadMore?.();
+  }, [hasMore, loadingMore, onLoadMore, visible.length]);
+
+  const loadMoreOnScroll = (event: UIEvent<HTMLDivElement>) => {
+    const box = event.currentTarget;
+    if (!hasMore || loadingMore) return;
+    if (box.scrollHeight - box.scrollTop - box.clientHeight < 320) onLoadMore?.();
+  };
 
   useEffect(() => {
     if (!selectedId || selectedRank === null) return;
@@ -714,6 +715,7 @@ export const Sidebar = memo(function Sidebar({
       <div className="flex min-h-0 flex-1 flex-col">
         <div
           ref={listRef}
+          onScroll={loadMoreOnScroll}
           className={cn(
             "scrollbar-thin relative min-h-0 touch-pan-y overflow-y-auto px-2 pb-2",
             fading &&
@@ -784,25 +786,9 @@ export const Sidebar = memo(function Sidebar({
             </>
           )}
         </div>
-        {(showLoad || loadLeaving) && (
-          <div
-            className={cn(
-              "px-2 transition-opacity duration-200",
-              !showLoad && "pointer-events-none opacity-0",
-            )}
-          >
-            <button
-              type="button"
-              onClick={leaveLoad}
-              disabled={olderCount === 0 && loadingMore}
-              className="text-muted-foreground hover:bg-accent/60 hover:text-foreground mx-1.5 flex w-[calc(100%-0.75rem)] items-center justify-center rounded-lg py-2 text-[11px] disabled:opacity-60"
-            >
-              {olderCount > 0
-                ? `Load older chats (${olderCount})`
-                : loadingMore
-                  ? "Loading older chats…"
-                  : "Load older chats"}
-            </button>
+        {loadingMore && (
+          <div className="text-muted-foreground px-3 py-2 text-center text-[11px]">
+            Loading older chats…
           </div>
         )}
         {runningStart < rest.length && (

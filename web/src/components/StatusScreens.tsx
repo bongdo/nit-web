@@ -2,29 +2,12 @@ import { ArrowLeftRight, Loader2, PlugZap, RefreshCw } from "lucide-react";
 import type { Health } from "../lib/types";
 import { Button } from "./ui/button";
 
-export function BootScreen({
-  instance,
-  onSwitch,
-}: {
-  instance?: string;
-  onSwitch?: () => void;
-}) {
+export function BootScreen() {
   return (
     <div className="bg-background flex h-full items-center justify-center">
-      <div className="flex flex-col items-center gap-3">
-        <div className="text-muted-foreground flex items-center gap-2 text-sm">
-          <Loader2 className="size-4 animate-spin" />
-          Connecting to OpenCode…
-        </div>
-        {instance && (
-          <div className="text-muted-foreground font-mono text-[11px]">{instance}</div>
-        )}
-        {onSwitch && (
-          <Button variant="outline" size="sm" onClick={onSwitch}>
-            <ArrowLeftRight />
-            Switch instance
-          </Button>
-        )}
+      <div className="text-muted-foreground flex items-center gap-2 text-sm">
+        <Loader2 className="size-4 animate-spin" />
+        Loading…
       </div>
     </div>
   );
@@ -68,7 +51,7 @@ export function OfflineScreen({
           {onSwitch && (
             <Button variant="outline" onClick={onSwitch}>
               <ArrowLeftRight />
-              Switch instance
+              Instances
             </Button>
           )}
         </div>

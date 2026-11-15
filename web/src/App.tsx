@@ -70,7 +70,7 @@ import {
 } from "./lib/sessions";
 import { shortcutKeys } from "./lib/keys";
 import { cn } from "./lib/utils";
-import { cachedSessions, needsBootScreen, readBoot, writeBoot } from "./lib/bootCache";
+import { cachedSessions, readBoot, writeBoot } from "./lib/bootCache";
 import { instanceScopedKey } from "./lib/instances";
 import { saveDraftFiles } from "./lib/draft-files";
 import { parseSnooze, pendingCount, snoozeItem, type SnoozeMap } from "./lib/review";
@@ -91,7 +91,7 @@ import { ThemePicker } from "./components/ThemePicker";
 import { BackgroundPicker } from "./components/BackgroundPicker";
 import { FormCard } from "./components/FormCard";
 import { PermissionCard } from "./components/PermissionCard";
-import { BootScreen, OfflineScreen } from "./components/StatusScreens";
+import { OfflineScreen } from "./components/StatusScreens";
 import { Button } from "./components/ui/button";
 
 const DOUBLE_ESCAPE_MS = 500;
@@ -305,7 +305,6 @@ export default function App({
   const [reviewSent, setReviewSent] = useState<string | null>(null);
   const [reviewSnooze, setReviewSnooze] = useState<SnoozeMap>({});
   const curatorIds = useRef(new Map<string, string>());
-  const [booting, setBooting] = useState(() => needsBootScreen(boot));
   const [search, setSearch] = useState("");
   const searchQueryRef = useRef(search);
   searchQueryRef.current = search;
@@ -1000,13 +999,13 @@ export default function App({
   }, [instance]);
 
   const retryConnection = useCallback(async () => {
-    setBooting(true);
     setBanner(null);
+    setHealth(null);
+    healthRef.current = null;
     const result = await loadHealth();
     if (result.ok) {
       await Promise.all([loadCatalog(), loadProjects(), loadSessions()]);
     }
-    setBooting(false);
   }, [loadCatalog, loadHealth, loadProjects, loadSessions]);
 
   useEffect(() => {
@@ -1021,7 +1020,6 @@ export default function App({
       } else {
         setSessionsLoading(false);
       }
-      setBooting(false);
     })();
   }, [boot, loadCatalog, loadHealth, loadProjects, loadSessions]);
 
@@ -2413,8 +2411,6 @@ export default function App({
     backgroundOpen,
     pickerOpen,
   ]);
-
-  if (booting) return <BootScreen instance={instance} onSwitch={onOpenInstances} />;
 
   if (health && !health.ok && !boot && sessions.length === 0) {
     return (

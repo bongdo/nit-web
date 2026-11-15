@@ -112,6 +112,8 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /i/{token}", s.inviteSubmit)
 	mux.HandleFunc("GET /agent", s.agentSocket)
 	mux.HandleFunc("GET /api/agents", s.machines)
+	mux.HandleFunc("GET /preview/{prefix}", s.previewProxy)
+	mux.HandleFunc("GET /previews/{name}", s.previewImage)
 	mux.HandleFunc("/i/{machine}/{target}", s.instanceProxy)
 	mux.HandleFunc("/i/{machine}/{target}/{rest...}", s.instanceProxy)
 	mux.HandleFunc("/", s.proxy)
@@ -123,7 +125,6 @@ func (s *Server) security(next http.Handler) http.Handler {
 		forwarded := r.Header.Get(gateid.Header)
 		r.Header.Del(gateid.Header)
 		w.Header().Set("X-Content-Type-Options", "nosniff")
-		w.Header().Set("X-Frame-Options", "DENY")
 		w.Header().Set("Referrer-Policy", "no-referrer")
 		if r.TLS != nil || strings.EqualFold(r.Header.Get("X-Forwarded-Proto"), "https") {
 			w.Header().Set("Strict-Transport-Security", "max-age=31536000; includeSubDomains")

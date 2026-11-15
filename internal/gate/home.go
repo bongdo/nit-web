@@ -17,6 +17,9 @@ func (s *Server) home(w http.ResponseWriter, r *http.Request) {
 	}
 	for i, route := range routes {
 		entry := routeView{Prefix: route.Prefix, Note: route.Note, Key: i + 1}
+		if !data.User.Anonymous() {
+			entry.Preview = previewURL(route.Prefix)
+		}
 		switch {
 		case route.Optional || data.User.Has(route.Cap):
 			entry.State = "open"
@@ -63,7 +66,7 @@ func (s *Server) dropLinks() []dropView {
 		if name == "" {
 			name = slug
 		}
-		links = append(links, dropView{Name: name, Href: "/share/" + slug + "/", Kind: kind, Public: entry.Public})
+		links = append(links, dropView{Name: name, Href: "/share/" + slug + "/", Kind: kind, Site: entry.Kind == "site", Public: entry.Public})
 		if len(links) == 6 {
 			break
 		}

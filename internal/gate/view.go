@@ -18,11 +18,12 @@ var pages = template.Must(template.ParseFS(viewFiles, "views/*.html"))
 const onlineWindow = 5 * time.Minute
 
 type routeView struct {
-	Prefix string
-	Note   string
-	State  string
-	Href   string
-	Key    int
+	Prefix  string
+	Note    string
+	State   string
+	Href    string
+	Preview string
+	Key     int
 }
 
 type deviceView struct {
@@ -56,6 +57,7 @@ type dropView struct {
 	Name   string
 	Href   string
 	Kind   string
+	Site   bool
 	Public bool
 }
 
@@ -102,6 +104,7 @@ func (s *Server) render(w http.ResponseWriter, name string, data view) {
 
 func (s *Server) renderStatus(w http.ResponseWriter, name string, data view, status int) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Header().Set("X-Frame-Options", "DENY")
 	w.WriteHeader(status)
 	if err := pages.ExecuteTemplate(w, name, data); err != nil {
 		s.log.Error("gate page failed", "page", name, "error", err)

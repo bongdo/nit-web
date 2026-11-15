@@ -5,7 +5,7 @@
   {{range .Routes}}
   {{if eq .State "denied"}}
   <div class="card locked">
-    <span class="glyph">{{.Prefix}}</span>
+    <span class="shot"><span class="shot-fallback">{{.Prefix}}</span></span>
     <span class="body">
       <span class="path">{{.Prefix}}</span>
       <span class="note">{{.Note}}</span>
@@ -14,7 +14,7 @@
   </div>
   {{else}}
   <a class="card" href="{{.Href}}" data-key="{{.Key}}">
-    <span class="glyph">{{.Prefix}}</span>
+    <span class="shot">{{if .Preview}}<img src="{{.Preview}}" alt="" loading="lazy" decoding="async">{{else}}<span class="shot-fallback">{{.Prefix}}</span>{{end}}</span>
     <span class="body">
       <span class="path">{{.Prefix}}<span class="key">{{.Key}}</span></span>
       <span class="note">{{.Note}}</span>
@@ -42,7 +42,7 @@
   <div class="cards">
     {{range .Drop}}
     <a class="card" href="{{.Href}}">
-      <span class="glyph">{{.Kind}}</span>
+      <span class="shot">{{if .Site}}<iframe src="{{.Href}}" title="превью" loading="lazy" tabindex="-1" scrolling="no" sandbox="allow-scripts" referrerpolicy="no-referrer"></iframe>{{else}}<span class="shot-fallback">{{.Kind}}</span>{{end}}</span>
       <span class="body">
         <span class="path">{{.Name}}</span>
         <span class="note">{{.Href}}</span>

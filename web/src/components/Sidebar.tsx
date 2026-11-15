@@ -136,47 +136,51 @@ function SessionRow({
               )}
             />
           ) : (
-            <>
-              <span className="flex size-4 shrink-0 items-center justify-center">
-                {hasSubagents && (
-                  <button
-                    type="button"
-                    onClick={onToggle}
-                    aria-expanded={expanded}
-                    aria-label={expanded ? "Hide subagents" : "Show subagents"}
-                    title={expanded ? "Hide subagents" : "Show subagents"}
-                    className="pointer-events-auto flex size-4 items-center justify-center rounded text-muted-foreground hover:text-foreground"
-                  >
-                    <ChevronRight
-                      className={cn(
-                        "size-3 transition-transform",
-                        expanded && "rotate-90",
-                      )}
-                    />
-                  </button>
-                )}
-              </span>
-              {running && (
-                <span
-                  className="bg-success size-1.5 shrink-0 animate-pulse rounded-full"
-                  title="Running"
-                />
+            <span className="flex size-4 shrink-0 items-center justify-center">
+              {hasSubagents && (
+                <button
+                  type="button"
+                  onClick={onToggle}
+                  aria-expanded={expanded}
+                  aria-label={expanded ? "Hide subagents" : "Show subagents"}
+                  title={expanded ? "Hide subagents" : "Show subagents"}
+                  className="pointer-events-auto flex size-4 items-center justify-center rounded text-muted-foreground hover:text-foreground"
+                >
+                  <ChevronRight
+                    className={cn(
+                      "size-3 transition-transform",
+                      expanded && "rotate-90",
+                    )}
+                  />
+                </button>
               )}
-            </>
+            </span>
           )}
           <span className="min-w-0 flex-1 truncate text-[13px] font-medium">{title}</span>
           <span
             className={cn(
               "shrink-0 text-[10px] transition-opacity group-hover:opacity-0",
-              waiting ? "text-foreground font-semibold" : "text-muted-foreground",
+              waiting
+                ? "text-foreground font-semibold"
+                : running
+                  ? "text-success"
+                  : "text-muted-foreground",
             )}
             title={
-              waiting ? "Waiting for your answer" : doneHere ? "Done" : undefined
+              waiting
+                ? "Waiting for your answer"
+                : running
+                  ? "Running"
+                  : doneHere
+                    ? "Done"
+                    : undefined
             }
           >
             {waiting
               ? "Waiting for your answer"
-              : formatRelative(session.time.updated, now)}
+              : running
+                ? "running"
+                : formatRelative(session.time.updated, now)}
           </span>
         </div>
         {depth === 0 && showDirectory && (

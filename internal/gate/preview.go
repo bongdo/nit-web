@@ -1,13 +1,9 @@
 package gate
 
 import (
-	"crypto/hmac"
-	"crypto/sha256"
-	"encoding/base64"
 	"net/http"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"time"
 
@@ -48,9 +44,9 @@ func (s *Server) previewProxy(w http.ResponseWriter, r *http.Request) {
 		HttpOnly: true,
 		SameSite: http.SameSiteLaxMode,
 	})
-	if token := nitGateToken(previewHash(), s.now().Add(previewTTL)); token != "" {
+	if token := appSessionToken(appPasswordHash(), s.now().Add(previewTTL)); token != "" {
 		http.SetCookie(w, &http.Cookie{
-			Name:     "nit_gate",
+			Name:     appSessionCookie,
 			Value:    token,
 			Path:     "/",
 			MaxAge:   int(previewTTL.Seconds()),
@@ -59,26 +55,6 @@ func (s *Server) previewProxy(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 	http.Redirect(w, r, strings.TrimSuffix(route.Upstream, "/")+route.Prefix+"/", http.StatusSeeOther)
-}
-
-func previewHash() string {
-	for _, name := range []string{"NIT_GATE_PASSWORD_HASH", "NIT_GUI_PASSWORD_HASH"} {
-		if value := strings.TrimSpace(os.Getenv(name)); value != "" {
-			return value
-		}
-	}
-	return ""
-}
-
-func nitGateToken(hash string, expires time.Time) string {
-	if hash == "" {
-		return ""
-	}
-	sum := sha256.Sum256([]byte("nit-gate-session-v1\x00" + hash))
-	payload := "v1." + strconv.FormatInt(expires.Unix(), 10)
-	mac := hmac.New(sha256.New, sum[:])
-	mac.Write([]byte(payload))
-	return payload + "." + base64.RawURLEncoding.EncodeToString(mac.Sum(nil))
 }
 
 func (s *Server) previewImage(w http.ResponseWriter, r *http.Request) {

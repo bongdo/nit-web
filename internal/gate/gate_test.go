@@ -932,3 +932,74 @@ func TestLoginWritesAudit(t *testing.T) {
 		t.Fatalf("audit order = %+v", events)
 	}
 }
+
+func TestAppSessionToken(t *testing.T) {
+	t.Setenv("NIT_GATE_PASSWORD_HASH", "hash-one")
+	now := time.Unix(1700000000, 0)
+	token := appSessionToken("hash-one", now.Add(time.Hour))
+	if !appSessionValid("hash-one", token, now) {
+		t.Fatal("fresh token is not valid")
+	}
+	if appSessionValid("hash-two", token, now) {
+		t.Fatal("token accepted for another hash")
+	}
+	if appSessionValid("hash-one", token, now.Add(2*time.Hour)) {
+		t.Fatal("expired token accepted")
+	}
+}
+
+func TestLoginSetsAppSession(t *testing.T) {
+	t.Setenv("NIT_GATE_PASSWORD_HASH", "hash-one")
+	server, _, _ := testServerDevices(t, nil)
+	client := noRedirect(t)
+	resp := login(t, client, server.URL, "bongdo", "secret-pass")
+	if resp.StatusCode != http.StatusSeeOther {
+		t.Fatalf("login = %d", resp.StatusCode)
+	}
+	var token string
+	for _, cookie := range resp.Cookies() {
+		if cookie.Name == appSessionCookie {
+			token = cookie.Value
+		}
+	}
+	if !appSessionValid("hash-one", token, time.Now()) {
+		t.Fatalf("app session cookie = %q", token)
+	}
+}
+
+func TestSessionRestoresAppSession(t *testing.T) {
+	t.Setenv("NIT_GATE_PASSWORD_HASH", "hash-one")
+	server, _, devices := testServerDevices(t, nil)
+	login(t, noRedirect(t), server.URL, "friend", "member-pass")
+	device := devices.ListFor("friend")[0]
+
+	id := gateid.Identity{
+		User: "friend",
+		Role: gateid.RoleMember,
+		Caps: gateid.Caps(gateid.RoleMember),
+		Dev:  device.ID,
+		Exp:  time.Now().Add(time.Hour).Unix(),
+	}
+	req, err := http.NewRequest(http.MethodGet, server.URL+"/account", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.AddCookie(&http.Cookie{Name: sessionCookie, Value: gateid.Sign([]byte(testKey), id)})
+	resp, err := noRedirect(t).Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("account = %d", resp.StatusCode)
+	}
+	var token string
+	for _, cookie := range resp.Cookies() {
+		if cookie.Name == appSessionCookie {
+			token = cookie.Value
+		}
+	}
+	if !appSessionValid("hash-one", token, time.Now()) {
+		t.Fatalf("app session cookie not restored: %q", token)
+	}
+}

@@ -193,6 +193,7 @@ func (s *Server) session(w http.ResponseWriter, r *http.Request) (gateid.Identit
 			return gateid.Identity{}, false
 		}
 		s.devices.Touch(id.Dev, clientIP(r))
+		s.ensureAppSession(w, r)
 		return id, true
 	}
 	if device, err := s.deviceFor(w, r, id.User); err == nil {
@@ -201,6 +202,7 @@ func (s *Server) session(w http.ResponseWriter, r *http.Request) (gateid.Identit
 	} else {
 		s.log.Warn("gate device add", "error", err)
 	}
+	s.ensureAppSession(w, r)
 	return id, true
 }
 
@@ -230,6 +232,7 @@ func (s *Server) startSession(w http.ResponseWriter, r *http.Request, user User)
 		id.Dev = device.ID
 	}
 	s.setSession(w, r, id)
+	s.ensureAppSession(w, r)
 }
 
 func (s *Server) setDeviceCookie(w http.ResponseWriter, r *http.Request, id string) {

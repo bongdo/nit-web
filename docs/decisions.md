@@ -1228,3 +1228,30 @@ row, so revoking one would revoke both).
 
 Cost: a browser that logs in again creates another row; the id column is the only
 way to tell them apart until devices get a stable cookie.
+
+## 2026-11-15 — the gate mints the app session cookie
+
+Context: `/pero` and `/term` are served by their own binaries behind the nit-gui
+auth gate. They do not accept the gate's signed `X-Gate-Identity`, so they answer
+an authenticated request with a redirect to `/nit/auth`. That page is served by
+nit-gui, which does accept the identity, so it redirects back to `/pero`. A
+browser with a gate session but no `nit_gate` cookie bounced between the two until
+Chromium gave up: `ERR_TOO_MANY_REDIRECTS`, which is exactly what a phone that
+never logged into nit-gui saw.
+
+Decision: on login, and on any authenticated request without a valid `nit_gate`
+cookie, the gate sets that cookie itself. The token is the nit-gui
+session format (HMAC-SHA256 over `v1.<expiry>` with a key derived from the shared
+password hash), so the apps accept it and the loop ends after one redirect.
+
+Why: the gate already holds the password hash and is the only front door; teaching
+pero and term to trust the forwarded identity would mean touching two other
+projects and their deploys.
+
+Rejected: letting the loop stand and asking people to log in twice (it breaks the
+phone); stripping `/nit/auth` from redirects at the gate (hides the real problem
+and still leaves pero unauthenticated).
+
+Cost: the gate now knows how to mint another app's cookie. Rotating the password
+invalidates the minted cookie, and the gate mints a new one on the next request. The
+cookie is issued to every authenticated user, not only admins.

@@ -300,6 +300,8 @@ export default function App({
   const lastEscapeAt = useRef(0);
   const skipLoadRef = useRef<string | null>(null);
   const lastQueryRef = useRef(`${scope}|${workspace}|`);
+  const poolCache = useRef<{ data: Session[]; cursor: string | null } | null>(null);
+  const poolCacheLoading = useRef(false);
   const streamQueue = useRef<StreamEvent[]>([]);
   const streamFrame = useRef<number | null>(null);
   const formsOwnerRef = useRef<string | null>(null);
@@ -577,6 +579,7 @@ export default function App({
       sessionCursorRef.current = cursor;
       setSessionCursor(cursor);
       setSessions(data);
+      if (scopeRef.current === "mine" && !query) poolCache.current = { data, cursor };
       setRunningIds((previous) =>
         mergeRunningStates(previous, data, runningEventsAt.current, requestedAt),
       );
@@ -613,12 +616,14 @@ export default function App({
         query || undefined,
         cursor,
       );
+      const next = nextSessionCursor(page);
       setSessions((previous) => {
         const known = new Set(previous.map((session) => session.id));
         const add = page.data.filter((session) => !known.has(session.id));
-        return add.length > 0 ? [...previous, ...add] : previous;
+        const merged = add.length > 0 ? [...previous, ...add] : previous;
+        if (scopeRef.current === "mine" && !query) poolCache.current = { data: merged, cursor: next };
+        return merged;
       });
-      const next = nextSessionCursor(page);
       sessionCursorRef.current = next;
       setSessionCursor(next);
     } catch (error) {
@@ -628,6 +633,29 @@ export default function App({
       setLoadingMore(false);
     }
   }, []);
+
+  const loadPoolCache = useCallback(async () => {
+    if (
+      scopeRef.current !== "directory" ||
+      searchQueryRef.current.trim() ||
+      poolCacheLoading.current
+    ) {
+      return;
+    }
+    poolCacheLoading.current = true;
+    try {
+      const list = await api.sessions(undefined, false);
+      poolCache.current = { data: list.data, cursor: nextSessionCursor(list) };
+    } catch {
+      return;
+    } finally {
+      poolCacheLoading.current = false;
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadPoolCache();
+  }, [loadPoolCache, scope]);
 
   const prefetchTranscripts = useCallback(
     async function run(list: Session[]) {
@@ -1224,6 +1252,23 @@ export default function App({
   }, [messageLoads]);
 
   const changeScope = useCallback((next: Scope) => {
+    if (next === scopeRef.current) return;
+    if (!searchQueryRef.current.trim()) {
+      if (next === "directory") {
+        const directory = workspaceRef.current;
+        const selected = selectedIdRef.current;
+        setSessions(
+          sessionsRef.current.filter(
+            (session) =>
+              session.location?.directory === directory || session.id === selected,
+          ),
+        );
+      } else if (poolCache.current) {
+        setSessions(poolCache.current.data);
+        sessionCursorRef.current = poolCache.current.cursor;
+        setSessionCursor(poolCache.current.cursor);
+      }
+    }
     setScopeState(next);
     localStorage.setItem("nit-gui.scope", next);
   }, []);
@@ -1344,10 +1389,11 @@ export default function App({
     refreshTimer.current = window.setTimeout(() => {
       refreshTimer.current = null;
       void loadSessions();
+      void loadPoolCache();
       void loadChildren();
       void loadForms();
     }, 500);
-  }, [loadChildren, loadForms, loadSessions]);
+  }, [loadChildren, loadForms, loadPoolCache, loadSessions]);
 
   const reloadSelected = useCallback(() => {
     if (!selectedIdRef.current) return;

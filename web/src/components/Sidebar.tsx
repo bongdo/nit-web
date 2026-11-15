@@ -383,6 +383,7 @@ export const Sidebar = memo(function Sidebar({
   const listRef = useRef<HTMLDivElement | null>(null);
   const positions = useRef(new Map<string, number>());
   const lastOrder = useRef("");
+  const lastScope = useRef(scope);
   const selectedSession = selectedId
     ? ([...sessions, ...subagents].find((session) => session.id === selectedId) ?? null)
     : null;
@@ -458,7 +459,9 @@ export const Sidebar = memo(function Sidebar({
   };
 
   useLayoutEffect(() => {
-    if (scope !== "directory") return;
+    const switched = lastScope.current !== scope;
+    lastScope.current = scope;
+    if (!switched && scope !== "directory") return;
     positions.current = new Map();
     lastOrder.current = "";
     if (listRef.current) listRef.current.scrollTop = 0;

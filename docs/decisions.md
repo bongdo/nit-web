@@ -942,3 +942,15 @@ Why: audio capture and STT models were the only client-hardware dependency left 
 Rejected: keeping Web Speech as an app feature (still client-side, but more code to own); keeping the host fallback behind a flag (models, ports and startup cost for a path the user does not want).
 
 Cost: Firefox and other browsers without system dictation lose the mic button; returning server STT needs a new optional capability and endpoint.
+
+## 2026-11-15 — Scope switch shows the target list immediately, without cross-list animation
+
+Context: switching between `This project` and `All chats` painted the new scope with the old scope's sessions until its own fetch returned, then the list reordered. The FLIP pass animated rows from their old scope positions into the new list, so the swap read as a twitch.
+
+Decision: a scope switch resets the FLIP baseline and scroll like a different list. When leaving `All chats` for the directory, the current pool is filtered to the workspace in memory; when leaving the directory for `All chats`, the last pool is restored from a cache that keeps refreshing in the background while the directory scope is active. The expected fetch still runs and corrects the list.
+
+Why: the hidden scope has no DOM, so it cannot animate; the fair fix is to hand over data that is already current and treat the list as replaced.
+
+Rejected: keeping both lists mounted (double DOM for a tab switch); delaying the tab until its fetch finishes (visible lag on every press); animating rows between scopes (the motion the user rejects).
+
+Cost: while the directory scope is open, each refresh also fetches the top page of all sessions; the restored pool lacks subagents until its own fetch returns.

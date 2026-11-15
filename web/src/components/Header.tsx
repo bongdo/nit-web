@@ -3,9 +3,11 @@ import {
   ArrowLeft,
   FileCode2,
   Folder,
+  Layers,
   MoreHorizontal,
   PanelLeftClose,
   PanelLeftOpen,
+  Plus,
   Terminal,
 } from "lucide-react";
 import type { Model, ModelRef, Session } from "../lib/types";
@@ -88,7 +90,25 @@ function ModelChip({ label }: { label: string }) {
   );
 }
 
-export function SessionPill({
+type SessionInfoProps = {
+  session: Session | null;
+  directory?: string | null;
+  models: Model[];
+  model: ModelRef | null;
+  agent: string | null;
+  contextPercent?: number | null;
+  cost?: number;
+  estimatedCost?: boolean;
+};
+
+function SessionTitle({ session, className }: { session: Session | null; className?: string }) {
+  const title = session?.title?.trim() || (session ? "New chat" : "nit-gui");
+  return (
+    <h1 className={cn("truncate text-[13px] font-semibold leading-tight", className)}>{title}</h1>
+  );
+}
+
+function SessionMeta({
   session,
   directory: fallbackDirectory,
   models,
@@ -98,45 +118,45 @@ export function SessionPill({
   cost,
   estimatedCost,
   className,
-}: {
-  session: Session | null;
-  directory?: string | null;
-  models: Model[];
-  model: ModelRef | null;
-  agent: string | null;
-  contextPercent?: number | null;
-  cost?: number;
-  estimatedCost?: boolean;
-  className?: string;
-}) {
+}: SessionInfoProps & { className?: string }) {
   const directory = session?.location?.directory ?? fallbackDirectory;
-  const title = session?.title?.trim() || (session ? "New chat" : "nit-gui");
   return (
-    <div className={cn("min-w-0 overflow-hidden px-1 py-1", className)}>
-      <h1 className="truncate text-[13px] font-semibold leading-tight">{title}</h1>
-      <div className="text-muted-foreground flex min-w-0 items-center gap-1 text-[10px] leading-tight">
-        <Folder className="size-3 shrink-0" />
-        <span className="truncate" title={directory ?? undefined}>
-          {directory ? basename(directory) : "no directory"}
+    <div
+      className={cn(
+        "text-muted-foreground flex min-w-0 items-center gap-1 text-[10px] leading-tight",
+        className,
+      )}
+    >
+      <Folder className="size-3 shrink-0" />
+      <span className="truncate" title={directory ?? undefined}>
+        {directory ? basename(directory) : "no directory"}
+      </span>
+      {(agent || model) && (
+        <span className="max-md:hidden">
+          <ModelChip label={`${agent ?? "agent"} · ${modelLabel(model, models) || "model"}`} />
         </span>
-        {(agent || model) && (
-          <span className="max-md:hidden">
-            <ModelChip label={`${agent ?? "agent"} · ${modelLabel(model, models) || "model"}`} />
-          </span>
-        )}
-        {contextPercent != null && (
-          <span className="flex shrink-0 items-center gap-1" title="Context used">
-            <span>· ctx {contextPercent}%</span>
-            <ContextMeter value={contextPercent} session={session?.id} />
-          </span>
-        )}
-        {(cost ?? 0) > 0 && (
-          <span className="shrink-0" title={estimatedCost ? "Estimated cost" : "Session cost"}>
-            · {estimatedCost ? "~" : ""}
-            {formatCost(cost)}
-          </span>
-        )}
-      </div>
+      )}
+      {contextPercent != null && (
+        <span className="flex shrink-0 items-center gap-1" title="Context used">
+          <span>· ctx {contextPercent}%</span>
+          <ContextMeter value={contextPercent} session={session?.id} />
+        </span>
+      )}
+      {(cost ?? 0) > 0 && (
+        <span className="shrink-0" title={estimatedCost ? "Estimated cost" : "Session cost"}>
+          · {estimatedCost ? "~" : ""}
+          {formatCost(cost)}
+        </span>
+      )}
+    </div>
+  );
+}
+
+export function SessionPill(props: SessionInfoProps & { className?: string }) {
+  return (
+    <div className={cn("min-w-0 overflow-hidden px-1 py-1", props.className)}>
+      <SessionTitle session={props.session} />
+      <SessionMeta {...props} />
     </div>
   );
 }
@@ -148,6 +168,7 @@ function MobileMenu({
   transport,
   subagents,
   parent,
+  inlineLinks,
   onOpenSubagent,
   onBack,
 }: {
@@ -157,6 +178,7 @@ function MobileMenu({
   transport: string;
   subagents: Session[];
   parent?: Session | null;
+  inlineLinks: boolean;
   onOpenSubagent: (session: Session) => void;
   onBack: () => void;
 }) {
@@ -183,7 +205,8 @@ function MobileMenu({
     };
   }, [open]);
 
-  if (!parent && subagents.length === 0 && !(transport === "local" && directory)) return null;
+  const links = transport === "local" && Boolean(directory);
+  if (!parent && subagents.length === 0 && (inlineLinks || !links)) return null;
 
   return (
     <div ref={root} className="pointer-events-auto relative md:hidden">
@@ -262,7 +285,7 @@ function MobileMenu({
               ))}
             </>
           )}
-          {transport === "local" && directory && (
+          {!inlineLinks && transport === "local" && directory && (
             <>
               <div className="bg-border my-1 h-px" />
               <a
@@ -293,6 +316,20 @@ function MobileMenu({
   );
 }
 
+function useMedia(query: string): boolean {
+  const [matches, setMatches] = useState(
+    () => typeof window !== "undefined" && window.matchMedia(query).matches,
+  );
+  useEffect(() => {
+    const media = window.matchMedia(query);
+    const update = () => setMatches(media.matches);
+    update();
+    media.addEventListener("change", update);
+    return () => media.removeEventListener("change", update);
+  }, [query]);
+  return matches;
+}
+
 export const Header = memo(function Header({
   session,
   directory: fallbackDirectory,
@@ -311,6 +348,9 @@ export const Header = memo(function Header({
   onOpenSubagent,
   onBack,
   onToggleSidebar,
+  onOpenChats,
+  onNewChat,
+  canNew,
 }: {
   session: Session | null;
   directory?: string | null;
@@ -329,70 +369,118 @@ export const Header = memo(function Header({
   onOpenSubagent: (session: Session) => void;
   onBack: () => void;
   onToggleSidebar: () => void;
+  onOpenChats: () => void;
+  onNewChat: () => void;
+  canNew: boolean;
 }) {
   const directory = session?.location?.directory ?? fallbackDirectory;
+  const inlineLinks = useMedia("(min-width: 340px)");
   return (
     <header className="from-background via-background/80 pointer-events-none absolute inset-x-0 top-0 z-10 flex items-center gap-2 bg-gradient-to-b to-transparent px-2.5 pt-2 pb-5">
-      <Button
-        variant="ghost"
-        size="icon-sm"
-        className="pointer-events-auto hidden size-9 md:inline-flex"
-        onClick={onToggleSidebar}
-        title={collapsed ? "Show chats" : "Hide chats"}
-        aria-label={collapsed ? "Show chats" : "Hide chats"}
-      >
-        {collapsed ? <PanelLeftOpen /> : <PanelLeftClose />}
-      </Button>
+      <div className="hidden min-w-0 flex-1 items-center gap-2 md:flex">
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          className="pointer-events-auto hidden size-9 md:inline-flex"
+          onClick={onToggleSidebar}
+          title={collapsed ? "Show chats" : "Hide chats"}
+          aria-label={collapsed ? "Show chats" : "Hide chats"}
+        >
+          {collapsed ? <PanelLeftOpen /> : <PanelLeftClose />}
+        </Button>
 
-      <SessionPill
-        session={session}
-        directory={directory}
-        models={models}
-        model={model}
-        agent={agent}
-        contextPercent={contextPercent}
-        cost={cost}
-        estimatedCost={estimatedCost}
-        className="pointer-events-auto max-w-2xl max-md:max-w-none max-md:flex-1"
-      />
+        <SessionPill
+          session={session}
+          directory={directory}
+          models={models}
+          model={model}
+          agent={agent}
+          contextPercent={contextPercent}
+          cost={cost}
+          estimatedCost={estimatedCost}
+          className="pointer-events-auto max-w-2xl"
+        />
 
-      <div className="pointer-events-auto ml-auto flex shrink-0 items-center gap-2">
-        {transport === "local" && (
-          <WorkspaceLinks
+        <div className="pointer-events-auto ml-auto flex shrink-0 items-center gap-2">
+          {transport === "local" && (
+            <WorkspaceLinks directory={directory} termURL={termURL} peroURL={peroURL} />
+          )}
+          {parent && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-9"
+              onClick={onBack}
+              title="Back to parent"
+            >
+              <ArrowLeft />
+              Parent
+            </Button>
+          )}
+          {!parent && (
+            <SubagentMenu
+              sessions={subagents}
+              onOpen={onOpenSubagent}
+              className="hidden md:inline-flex"
+            />
+          )}
+        </div>
+      </div>
+
+      <div className="pointer-events-auto flex min-w-0 flex-1 flex-col md:hidden">
+        <div className="flex min-w-0 items-center gap-1">
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            className="size-9 shrink-0"
+            onClick={onOpenChats}
+            title="Chats"
+            aria-label="Open chats"
+          >
+            <Layers />
+          </Button>
+          <SessionTitle session={session} className="min-w-0 flex-1 px-0.5" />
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            className="size-9 shrink-0"
+            onClick={onNewChat}
+            disabled={!canNew}
+            title="New chat"
+            aria-label="New chat"
+          >
+            <Plus />
+          </Button>
+          {inlineLinks && transport === "local" && (
+            <WorkspaceLinks
+              directory={directory}
+              termURL={termURL}
+              peroURL={peroURL}
+              className="shrink-0"
+            />
+          )}
+          <MobileMenu
             directory={directory}
             termURL={termURL}
             peroURL={peroURL}
-            className="max-md:hidden"
+            transport={transport}
+            subagents={subagents}
+            parent={parent}
+            inlineLinks={inlineLinks}
+            onOpenSubagent={onOpenSubagent}
+            onBack={onBack}
           />
-        )}
-        {parent && (
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-9 max-md:hidden"
-            onClick={onBack}
-            title="Back to parent"
-          >
-            <ArrowLeft />
-            Parent
-          </Button>
-        )}
-        {!parent && (
-          <SubagentMenu
-            sessions={subagents}
-            onOpen={onOpenSubagent}
-            className="hidden md:inline-flex"
-          />
-        )}
-        <MobileMenu
+        </div>
+        <SessionMeta
+          session={session}
           directory={directory}
-          termURL={termURL}
-          peroURL={peroURL}
-          transport={transport}
-          subagents={subagents}
-          parent={parent}
-          onOpenSubagent={onOpenSubagent}
-          onBack={onBack}
+          models={models}
+          model={model}
+          agent={agent}
+          contextPercent={contextPercent}
+          cost={cost}
+          estimatedCost={estimatedCost}
+          className="mt-0.5 pl-10"
         />
       </div>
     </header>

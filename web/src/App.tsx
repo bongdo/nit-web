@@ -2351,6 +2351,9 @@ export default function App({
           onOpenSubagent={openSubagent}
           onBack={backToParent}
           onToggleSidebar={toggleSidebar}
+          onOpenChats={openSidebar}
+          onNewChat={() => newChat()}
+          canNew={Boolean(health?.ok)}
         />
 
         {activeError && (
@@ -2426,7 +2429,7 @@ export default function App({
             </div>
           )}
 
-          <div className="pointer-events-auto">
+          <div className="pointer-events-auto pb-[env(safe-area-inset-bottom)]">
             <Composer
               key={composerKey}
               session={selectedSession}

@@ -281,9 +281,15 @@ The sidebar has three scopes:
 
 | Scope | Shows |
 | --- | --- |
-| `This dir` | chats created in the current workspace. |
-| `Mine` | all top-level chats with a primary agent, across workspaces. |
-| `All` | every top-level chat, including scripted roles, across workspaces. |
+| `This project` | chats created in the current workspace. |
+| `All chats` | every top-level chat with a primary agent, across workspaces. |
+| `All machines` | the same chats from every connected instance, merged and still grouped by directory. |
+
+In `All machines` every row carries its instance name in a small pill, and the
+merged list is fetched when the scope opens and again on reconnect, then cached
+for the session. Opening a chat from another instance switches to that instance
+first. Group headers are not clickable there: switch instances before starting a
+chat in another machine's directory.
 
 In a cross-project scope, chats that finished or wait for an answer rise above
 the project groups as one unlabelled block; each row names its project. The rest
@@ -636,7 +642,8 @@ nspell worker. It is not implemented yet.
   follows `prefers-reduced-motion`; the choice is stored in `localStorage`.
 - Shortcuts: `mod+k` search, `alt+n` new chat, `tab`/`shift+tab` (or
   `alt+j`/`alt+k`) next/previous chat in the sidebar order, `alt+←`/`alt+→`
-  switches the scope This dir / Mine / All, `enter` send and `shift+enter`
+  switches the scope This project / All chats / All machines, `enter` send and
+  `shift+enter`
   newline (in the composer), double `esc` stop.
   In a text field `tab` belongs to the field: the composer completes the
   selected `/command` and accepts the first spelling or grammar suggestion.
@@ -723,6 +730,10 @@ own startup warmup.
 - Only the active instance keeps an event stream. Inactive instances do not
   accumulate unread counts or approvals in the background; switching to one
   reloads its list and transcript.
+- `All machines` fans out one request per connected instance when the scope opens
+  and on reconnect. There is no multi-instance event stream, so other machines'
+  lists are a snapshot and hidden/done/failed markers plus drafts come from the
+  active instance only; hide or delete a foreign chat after switching to it.
 - Drafts, hidden chats and done/failed markers are scoped by instance. The
   default instance keeps the old unscoped `localStorage` keys; other instances
   use a `:<instance>` suffix.

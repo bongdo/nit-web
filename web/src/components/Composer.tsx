@@ -132,6 +132,8 @@ export const Composer = memo(function Composer({
   onDraftApplied?: () => void;
   onInsertApplied?: () => void;
 }) {
+  const coarse = window.matchMedia("(pointer: coarse)").matches;
+  const customSpell = spellcheck && !coarse;
   const [value, setText] = useState(() => loadDraftState(draftKey).text);
   const valueRef = useRef(value);
   valueRef.current = value;
@@ -279,7 +281,7 @@ export const Composer = memo(function Composer({
 
   const { issues: detected } = useSpellcheck(
     question && !customAnswer ? "" : answerText,
-    spellcheck,
+    customSpell,
     ignored,
   );
   const issues = askRange
@@ -288,9 +290,9 @@ export const Composer = memo(function Composer({
 
   useEffect(() => {
     if (!focusKey) return;
-    if (window.matchMedia("(pointer: coarse)").matches) return;
+    if (coarse) return;
     ref.current?.focus();
-  }, [focusKey]);
+  }, [focusKey, coarse]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -470,10 +472,10 @@ export const Composer = memo(function Composer({
   };
 
   const autoFixWord = async (start: number, end: number, word: string) => {
-    if (!autofix || !spellcheck) return;
+    if (!autofix || !customSpell) return;
     const started = Date.now();
     const found = await checkSpelling(word, ignored);
-    if (Date.now() - started > 1500 || !autofix || !spellcheck) return;
+    if (Date.now() - started > 1500 || !autofix || !customSpell) return;
     const issue = found.find((item) => item.start === 0 && item.end === word.length);
     const fix = issue ? safeAutoFix(word, issue.suggestions) : null;
     if (!fix) return;
@@ -940,7 +942,7 @@ export const Composer = memo(function Composer({
                 value={answerText}
                 disabled={!workspace || formBusy}
                 aria-label={question ? "Answer" : "Message"}
-                spellCheck={false}
+                spellCheck={coarse && spellcheck}
                 placeholder={
                   question
                     ? (question.placeholder ??
@@ -965,7 +967,7 @@ export const Composer = memo(function Composer({
                   const caretNow = event.target.selectionStart;
                   setCaret(caretNow === event.target.selectionEnd ? caretNow : null);
                   setDismissed(null);
-                  if (!pending || !autofix || !spellcheck) return;
+                  if (!pending || !autofix || !customSpell) return;
                   if (caretNow !== next.length || !next.endsWith(" ")) return;
                   if (next.startsWith("/") && !next.includes("\n")) return;
                   const end = next.length - 1;

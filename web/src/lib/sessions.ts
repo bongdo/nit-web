@@ -1,11 +1,12 @@
 import { sessionRunning } from "./format";
 import type { Agent, FormInfo, Session } from "./types";
 
-export type Scope = "directory" | "mine";
+export type Scope = "directory" | "mine" | "everywhere";
 
 export const SCOPES: { id: Scope; label: string }[] = [
   { id: "directory", label: "This project" },
   { id: "mine", label: "All chats" },
+  { id: "everywhere", label: "All machines" },
 ];
 
 export function isTechnical(session: Session, agents: Agent[]): boolean {
@@ -15,8 +16,17 @@ export function isTechnical(session: Session, agents: Agent[]): boolean {
 }
 
 export function scopeSessions(sessions: Session[], scope: Scope, agents: Agent[]): Session[] {
-  if (scope !== "mine") return sessions;
+  if (scope === "directory") return sessions;
   return sessions.filter((session) => !isTechnical(session, agents));
+}
+
+export type InstanceSessions = { instance: string; sessions: Session[] };
+
+// shortcut: session ids are assumed unique across instances; revisit if two instances can share one.
+export function mergeInstanceSessions(pools: InstanceSessions[]): Session[] {
+  return pools.flatMap(({ instance, sessions }) =>
+    sessions.map((session) => ({ ...session, instance })),
+  );
 }
 
 export function listedSessions(

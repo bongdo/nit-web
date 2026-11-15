@@ -31,8 +31,27 @@ describe("allSessions", () => {
   });
 });
 
-describe("nextSessionCursor", () => {
-  it("drops the cursor when the page is not full", () => {
+describe("instance scoping", () => {
+  it("sends the instance header for every page", async () => {
+    const headers: (string | null)[] = [];
+    const original = globalThis.fetch;
+    globalThis.fetch = (async (_input: RequestInfo | URL, init?: RequestInit) => {
+      headers.push(new Headers(init?.headers).get("X-Nit-Instance"));
+      return new Response(JSON.stringify(page(1, null)), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      });
+    }) as typeof fetch;
+    try {
+      await api.allSessions(undefined, undefined, "riga");
+      expect(headers).toEqual(["riga"]);
+    } finally {
+      globalThis.fetch = original;
+    }
+  });
+});
+
+describe("nextSessionCursor", () => {  it("drops the cursor when the page is not full", () => {
     expect(nextSessionCursor(page(SESSIONS_PAGE_SIZE - 1))).toBeNull();
     expect(nextSessionCursor({ data: [] })).toBeNull();
   });

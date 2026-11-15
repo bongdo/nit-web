@@ -191,6 +191,7 @@ export type Session = {
     archived?: number;
   };
   location: { directory: string };
+  instance?: string;
 };
 
 export type SessionList = {

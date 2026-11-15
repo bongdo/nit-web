@@ -6,10 +6,12 @@ import {
   isTechnical,
   listedSessions,
   listedSubagents,
+  mergeInstanceSessions,
   mergeWaitingSessionIds,
   newlyRunning,
   nextSessionId,
   pollSessionIds,
+  SCOPES,
   scopeSessions,
   waitingSessionIds,
 } from "./sessions";
@@ -44,14 +46,44 @@ describe("sessions", () => {
     expect(isTechnical(session({ agent: "build" }), agents)).toBe(false);
   });
 
-  it("keeps only user chats in the mine scope", () => {
+  it("keeps only user chats in the pool scopes", () => {
     const list = [
       session({ id: "a", agent: "build" }),
       session({ id: "b", agent: "explore" }),
       session({ id: "c", parentID: "a" }),
     ];
     expect(scopeSessions(list, "mine", agents).map((item) => item.id)).toEqual(["a"]);
+    expect(scopeSessions(list, "everywhere", agents).map((item) => item.id)).toEqual(["a"]);
     expect(scopeSessions(list, "directory", agents)).toHaveLength(3);
+  });
+
+  it("labels the three scopes", () => {
+    expect(SCOPES.map((item) => item.label)).toEqual([
+      "This project",
+      "All chats",
+      "All machines",
+    ]);
+  });
+
+  it("merges instance pools, tags every chat and still groups by directory", () => {
+    const local = session({ id: "a" });
+    const remote = session({ id: "b" });
+    const merged = mergeInstanceSessions([
+      { instance: "frankfurt", sessions: [local] },
+      { instance: "riga", sessions: [remote] },
+    ]);
+    expect(merged.map((item) => [item.id, item.instance])).toEqual([
+      ["a", "frankfurt"],
+      ["b", "riga"],
+    ]);
+    expect(merged[0]).not.toBe(local);
+    expect(local.instance).toBeUndefined();
+    const groups = groupByDirectory(groupSessions(merged));
+    expect(groups).toHaveLength(1);
+    expect(groups[0].rows.map((row) => [row.session.id, row.session.instance])).toEqual([
+      ["a", "frankfurt"],
+      ["b", "riga"],
+    ]);
   });
 
   it("groups chats by directory, newest project first, and ignores the selected one", () => {

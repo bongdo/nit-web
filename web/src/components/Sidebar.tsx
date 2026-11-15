@@ -157,6 +157,11 @@ function SessionRow({
             </span>
           )}
           <span className="min-w-0 flex-1 truncate text-[13px] font-medium">{title}</span>
+          {session.instance && (
+            <span className="border-border text-muted-foreground shrink-0 rounded border px-1 font-mono text-[9px]">
+              {session.instance}
+            </span>
+          )}
           <span
             className={cn(
               "shrink-0 text-[10px] transition-opacity group-hover:opacity-0",
@@ -371,6 +376,11 @@ export const Sidebar = memo(function Sidebar({
     : null;
   const selectedRank = selectedSession ? rank(selectedSession) : null;
   const pool = scope !== "directory";
+  const scopeIndex = Math.max(
+    0,
+    SCOPES.findIndex((item) => item.id === scope),
+  );
+  const poolLabel = SCOPES.find((item) => item.id === scope)?.label ?? "All chats";
   const { top: finishedRows, rest } = hoistFinished(visible, (session) => rank(session) === 0);
   const firstRunning = rest.findIndex(
     (row) => row.depth === 0 && rank(row.session) === 2,
@@ -559,7 +569,7 @@ export const Sidebar = memo(function Sidebar({
               )}
             >
               <span className="block truncate text-[13px] leading-tight font-semibold">
-                All chats
+                {poolLabel}
               </span>
               <span className="text-muted-foreground block truncate text-[10px] leading-tight">
                 {poolDirectories} {poolDirectories === 1 ? "directory" : "directories"} ·{" "}
@@ -578,14 +588,20 @@ export const Sidebar = memo(function Sidebar({
       </div>
 
       <div className="px-3 pb-2" role="group" aria-label="Chat scope">
-        <div className="relative grid grid-cols-2 text-[11px] font-medium">
+        <div
+          className="relative grid text-[11px] font-medium"
+          style={{ gridTemplateColumns: `repeat(${SCOPES.length}, minmax(0, 1fr))` }}
+        >
           <span
             aria-hidden
             className={cn(
-              "bg-accent/70 absolute inset-y-0 left-0 w-1/2 rounded-md",
+              "bg-accent/70 absolute inset-y-0 left-0 rounded-md",
               animated && "transition-transform duration-300 ease-out",
             )}
-            style={{ transform: pool ? "translateX(100%)" : "translateX(0)" }}
+            style={{
+              width: `${100 / SCOPES.length}%`,
+              transform: `translateX(${scopeIndex * 100}%)`,
+            }}
           />
           {SCOPES.map((item) => (
             <button
@@ -602,7 +618,9 @@ export const Sidebar = memo(function Sidebar({
               title={
                 item.id === "directory"
                   ? (workspace ?? "Chats in this directory")
-                  : "Every chat, every directory"
+                  : item.id === "mine"
+                    ? "Every chat, every directory"
+                    : "Chats from every instance"
               }
             >
               {item.id === "directory" && workspace ? (
@@ -718,7 +736,9 @@ export const Sidebar = memo(function Sidebar({
                 ? "No chats match."
                 : scope === "directory"
                   ? "No chats in this workspace yet."
-                  : "No chats yet."}
+                  : scope === "everywhere"
+                    ? "No chats on any machine yet."
+                    : "No chats yet."}
             </div>
           ) : (
             <>
@@ -740,17 +760,23 @@ export const Sidebar = memo(function Sidebar({
                   {poolGroups.map((group) => (
                     <Fragment key={group.directory}>
                       <div className="text-muted-foreground flex items-center gap-2 px-3 pt-2.5 pb-0.5 text-[10px] font-medium">
-                        <button
-                          type="button"
-                          onClick={() => onNew(group.directory)}
-                          title={`New chat in ${group.directory}`}
-                          aria-label={`New chat in ${group.directory}`}
-                          className="hover:text-foreground min-w-0 rounded-md text-left hover:underline"
-                        >
-                          <span className="block truncate">
+                        {scope === "everywhere" ? (
+                          <span className="min-w-0 truncate" title={group.directory}>
                             {basename(group.directory) || group.directory || "unknown"}
                           </span>
-                        </button>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => onNew(group.directory)}
+                            title={`New chat in ${group.directory}`}
+                            aria-label={`New chat in ${group.directory}`}
+                            className="hover:text-foreground min-w-0 rounded-md text-left hover:underline"
+                          >
+                            <span className="block truncate">
+                              {basename(group.directory) || group.directory || "unknown"}
+                            </span>
+                          </button>
+                        )}
                         <span className="tabular-nums opacity-60">{group.rows.length}</span>
                         <span className="bg-border h-px flex-1 opacity-50" />
                       </div>

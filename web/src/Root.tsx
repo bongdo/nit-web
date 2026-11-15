@@ -110,6 +110,7 @@ export default function Root() {
         defaultInstance={data.default}
         defaultDirectory={info.defaultDirectory}
         onOpenInstances={openMenu}
+        onSwitchInstance={select}
       />
       {menuOpen && (
         <InstancesMenu

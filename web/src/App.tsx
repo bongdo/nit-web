@@ -54,6 +54,7 @@ import {
   groupSessions,
   listedSessions,
   listedSubagents,
+  mergeInstanceSessions,
   mergeWaitingSessionIds,
   newlyRunning,
   nextSessionId,
@@ -170,11 +171,13 @@ export default function App({
   defaultInstance,
   defaultDirectory,
   onOpenInstances,
+  onSwitchInstance,
 }: {
   instance: string;
   defaultInstance: string;
   defaultDirectory?: string;
   onOpenInstances: () => void;
+  onSwitchInstance: (id: string) => void;
 }) {
   const workspaceKey = instanceScopedKey("nit-gui.workspace", instance, defaultInstance);
   const sessionKey = instanceScopedKey("nit-gui.session", instance, defaultInstance);
@@ -203,6 +206,7 @@ export default function App({
   });
   const [scope, setScopeState] = useState<Scope>(() => {
     const value = localStorage.getItem("nit-gui.scope");
+    if (value === "everywhere") return "everywhere";
     return value === "mine" || value === "all" ? "mine" : "directory";
   });
   const scopeRef = useRef(scope);
@@ -294,6 +298,7 @@ export default function App({
   const lastQueryRef = useRef(`${scope}|${workspace}|`);
   const poolCache = useRef<Session[] | null>(null);
   const poolCacheLoading = useRef(false);
+  const everywhereCache = useRef<Session[] | null>(null);
   const streamQueue = useRef<StreamEvent[]>([]);
   const streamFrame = useRef<number | null>(null);
   const formsOwnerRef = useRef<string | null>(null);
@@ -533,24 +538,44 @@ export default function App({
     }
   }, []);
 
+  const loadEverywhere = useCallback(async (query: string) => {
+    const { instances } = await api.instances();
+    const connected = instances.filter((item) => item.state === "connected");
+    const results = await Promise.allSettled(
+      connected.map(async (item) => ({
+        instance: item.name,
+        sessions: await api.allSessions(undefined, query || undefined, item.id),
+      })),
+    );
+    return mergeInstanceSessions(
+      results.flatMap((result) => (result.status === "fulfilled" ? [result.value] : [])),
+    );
+  }, []);
+
   const loadSessions = useCallback(async () => {
     const requestedAt = Date.now();
-    const scopedDirectory = scopeRef.current === "directory" ? workspaceRef.current : null;
+    const currentScope = scopeRef.current;
+    const scopedDirectory = currentScope === "directory" ? workspaceRef.current : null;
     const query = searchQueryRef.current.trim();
     try {
-      // shortcut: children=true returns the newest 100 sessions, paginate when older subagents matter.
-      const [list, nested] = await Promise.all([
-        api.allSessions(scopedDirectory ?? undefined, query || undefined),
-        api
-          .sessions(scopedDirectory ?? undefined, true, query || undefined)
-          .catch(() => ({ data: [] as Session[], cursor: null })),
-      ]);
-      let data = [...list];
-      const known = new Set(data.map((session) => session.id));
-      for (const session of nested.data) {
-        if (session.parentID && !known.has(session.id)) {
-          data.push(session);
-          known.add(session.id);
+      let data: Session[];
+      if (currentScope === "everywhere") {
+        data = await loadEverywhere(query);
+      } else {
+        // shortcut: children=true returns the newest 100 sessions, paginate when older subagents matter.
+        const [list, nested] = await Promise.all([
+          api.allSessions(scopedDirectory ?? undefined, query || undefined),
+          api
+            .sessions(scopedDirectory ?? undefined, true, query || undefined)
+            .catch(() => ({ data: [] as Session[], cursor: null })),
+        ]);
+        data = [...list];
+        const known = new Set(data.map((session) => session.id));
+        for (const session of nested.data) {
+          if (session.parentID && !known.has(session.id)) {
+            data.push(session);
+            known.add(session.id);
+          }
         }
       }
       const selected = selectedIdRef.current;
@@ -563,7 +588,10 @@ export default function App({
         }
       }
       setSessions(data);
-      if (scopeRef.current === "mine" && !query) poolCache.current = data;
+      if (!query) {
+        if (currentScope === "mine") poolCache.current = data;
+        else if (currentScope === "everywhere") everywhereCache.current = data;
+      }
       setRunningIds((previous) =>
         mergeRunningStates(previous, data, runningEventsAt.current, requestedAt),
       );
@@ -572,7 +600,7 @@ export default function App({
     } finally {
       setSessionsLoading(false);
     }
-  }, []);
+  }, [loadEverywhere]);
 
   const loadPoolCache = useCallback(async () => {
     if (
@@ -604,7 +632,9 @@ export default function App({
       }
       prefetchRun.current.active = true;
       try {
-        const queue = [...list].sort((a, b) => b.time.updated - a.time.updated);
+        const queue = list
+          .filter((session) => !session.instance || session.instance === instance)
+          .sort((a, b) => b.time.updated - a.time.updated);
         let next = 0;
         const worker = async () => {
           while (next < queue.length) {
@@ -654,7 +684,7 @@ export default function App({
         }
       }
     },
-    [transcriptCache],
+    [instance, transcriptCache],
   );
 
   const loadProjects = useCallback(async () => {
@@ -747,7 +777,9 @@ export default function App({
     const poll = async () => {
       if (cancelled || polling || !healthRef.current?.ok) return;
       const ids = pollSessionIds(
-        sessionsRef.current,
+        sessionsRef.current.filter(
+          (session) => !session.instance || session.instance === instance,
+        ),
         selectedIdRef.current,
         runningIdsRef.current,
         new Set([...backgroundWaitingRef.current, ...backgroundPermissionRef.current]),
@@ -822,7 +854,7 @@ export default function App({
       window.clearInterval(timer);
       document.removeEventListener("visibilitychange", onVisibility);
     };
-  }, []);
+  }, [instance]);
 
   useEffect(() => {
     const key = `${scope}|${workspace}|${search.trim()}`;
@@ -1067,6 +1099,35 @@ export default function App({
     setSidebarOpen(false);
   }, [clearDone, saveCurrentTranscript]);
 
+  const foreignInstance = useCallback(
+    (id: string) => {
+      const owner = sessionsRef.current.find((session) => session.id === id)?.instance;
+      return owner && owner !== instance ? owner : null;
+    },
+    [instance],
+  );
+
+  const openSession = useCallback(
+    (id: string) => {
+      const owner = foreignInstance(id);
+      if (owner) {
+        const session = sessionsRef.current.find((item) => item.id === id);
+        localStorage.setItem(instanceScopedKey("nit-gui.session", owner, defaultInstance), id);
+        const directory = session?.location?.directory;
+        if (directory) {
+          localStorage.setItem(
+            instanceScopedKey("nit-gui.workspace", owner, defaultInstance),
+            directory,
+          );
+        }
+        onSwitchInstance(owner);
+        return;
+      }
+      selectSession(id);
+    },
+    [defaultInstance, foreignInstance, onSwitchInstance, selectSession],
+  );
+
   const notifications =
     notifyOn && typeof Notification !== "undefined" && Notification.permission === "granted";
 
@@ -1200,16 +1261,25 @@ export default function App({
         setSessions(
           sessionsRef.current.filter(
             (session) =>
-              session.location?.directory === directory || session.id === selected,
+              (!session.instance || session.instance === instance) &&
+              (session.location?.directory === directory || session.id === selected),
           ),
         );
-      } else if (poolCache.current) {
-        setSessions(poolCache.current);
+      } else if (next === "everywhere" && everywhereCache.current) {
+        setSessions(everywhereCache.current);
+        lastQueryRef.current = `${next}|${workspaceRef.current}|`;
+      } else if (next === "mine") {
+        setSessions(
+          poolCache.current ??
+            sessionsRef.current.filter(
+              (session) => !session.instance || session.instance === instance,
+            ),
+        );
       }
     }
     setScopeState(next);
     localStorage.setItem("nit-gui.scope", next);
-  }, []);
+  }, [instance]);
 
   const newChat = useCallback(
     (directory?: string) => {
@@ -1242,6 +1312,11 @@ export default function App({
 
   const hideSession = useCallback(
     (id: string) => {
+      const owner = foreignInstance(id);
+      if (owner) {
+        setBanner(`Switch to ${owner} to change this chat.`);
+        return;
+      }
       const ids = sessionAndChildren(id);
       setHiddenIds((current) => {
         const next = new Set(current);
@@ -1251,7 +1326,7 @@ export default function App({
       saveHidden(ids, true);
       if (selectedIdRef.current && ids.includes(selectedIdRef.current)) selectSession(null);
     },
-    [saveHidden, selectSession, sessionAndChildren],
+    [foreignInstance, saveHidden, selectSession, sessionAndChildren],
   );
 
   const unhideSession = useCallback(
@@ -1311,6 +1386,11 @@ export default function App({
 
   const deleteSession = useCallback(
     async (id: string) => {
+      const owner = foreignInstance(id);
+      if (owner) {
+        setBanner(`Switch to ${owner} to delete this chat.`);
+        return;
+      }
       if (!window.confirm("Delete this chat? This cannot be undone.")) return;
       setBanner(null);
       try {
@@ -1319,7 +1399,7 @@ export default function App({
         setBanner(messageOf(error));
       }
     },
-    [forgetSession],
+    [foreignInstance, forgetSession],
   );
 
   const scheduleSessionsRefresh = useCallback(() => {
@@ -2044,7 +2124,7 @@ export default function App({
           break;
         case "help":
           setBanner(
-            "Commands: /new /dir /instances /compact /revert /fork /retry /theme /backgrounds /clear /help · Shortcuts: Alt+N new chat, Alt+O switch workspace, Alt+J/K or Ctrl+Tab/Shift+Ctrl+Tab next/prev chat (Tab in a text field completes /commands, accepts the highlighted suggestion, otherwise indents two spaces; Shift+Tab or Esc leaves the field), Alt+←/→ this dir / mine / all, Ctrl/⌘K search",
+            "Commands: /new /dir /instances /compact /revert /fork /retry /theme /backgrounds /clear /help · Shortcuts: Alt+N new chat, Alt+O switch workspace, Alt+J/K or Ctrl+Tab/Shift+Ctrl+Tab next/prev chat (Tab in a text field completes /commands, accepts the highlighted suggestion, otherwise indents two spaces; Shift+Tab or Esc leaves the field), Alt+←/→ this project / all chats / all machines, Ctrl/⌘K search",
           );
           break;
       }
@@ -2109,7 +2189,7 @@ export default function App({
         event.preventDefault();
         const step = keys.includes("j") ? 1 : -1;
         const nextId = nextSessionId(cycleSessions, selectedIdRef.current, step);
-        if (nextId) selectSession(nextId);
+        if (nextId) openSession(nextId);
         return;
       }
       if (event.altKey && (event.code === "ArrowLeft" || event.code === "ArrowRight")) {
@@ -2128,7 +2208,7 @@ export default function App({
           selectedIdRef.current,
           event.shiftKey ? -1 : 1,
         );
-        if (nextId) selectSession(nextId);
+        if (nextId) openSession(nextId);
         return;
       }
       if (event.key === "Escape") {
@@ -2168,7 +2248,7 @@ export default function App({
     cycleSessions,
     isRunning,
     newChat,
-    selectSession,
+    openSession,
     settingsOpen,
     stop,
     themeOpen,
@@ -2251,7 +2331,7 @@ export default function App({
             onSearch={setSearch}
             onScope={changeScope}
             onWorkspace={openPicker}
-            onSelect={selectSession}
+            onSelect={openSession}
             onNew={newChat}
             onHide={hideSession}
             onUnhide={unhideSession}

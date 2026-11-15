@@ -142,23 +142,29 @@ export const api = {
       path ? `/api/fs?path=${encodeURIComponent(path)}` : "/api/fs",
       { signal },
     ),
-  sessions: (dir?: string, children = false, search?: string, cursor?: string) => {
+  sessions: (
+    dir?: string,
+    children = false,
+    search?: string,
+    cursor?: string,
+    instance?: string,
+  ) => {
     const query = new URLSearchParams();
     if (dir) query.set("dir", dir);
     if (children) query.set("children", "true");
     if (search) query.set("search", search);
     if (cursor) query.set("cursor", cursor);
     const suffix = query.toString();
-    return request<SessionList>(`/api/sessions${suffix ? `?${suffix}` : ""}`);
+    return request<SessionList>(`/api/sessions${suffix ? `?${suffix}` : ""}`, { instance });
   },
   session: async (id: string) =>
     (await request<{ data: Session }>(`/api/sessions/${encodeURIComponent(id)}`)).data,
-  allSessions: async (dir?: string, search?: string) => {
-    const first = await api.sessions(dir, false, search);
+  allSessions: async (dir?: string, search?: string, instance?: string) => {
+    const first = await api.sessions(dir, false, search, undefined, instance);
     const data = [...first.data];
     let cursor = nextSessionCursor(first);
     for (let page = 1; cursor && page < MAX_SESSION_PAGES; page += 1) {
-      const next = await api.sessions(dir, false, search, cursor);
+      const next = await api.sessions(dir, false, search, cursor, instance);
       if (next.data.length === 0) break;
       data.push(...next.data);
       cursor = nextSessionCursor(next);

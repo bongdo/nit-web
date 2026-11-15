@@ -193,7 +193,11 @@ export const api = {
     });
     return result.data;
   },
-  messages: (id: string, options: { light?: boolean; limit?: number; before?: string } = {}) => {
+  messages: (
+    id: string,
+    options: { light?: boolean; limit?: number; before?: string } = {},
+    instance?: string,
+  ) => {
     const query = new URLSearchParams();
     if (options.light) query.set("light", "1");
     if (options.limit) query.set("limit", String(options.limit));
@@ -201,6 +205,7 @@ export const api = {
     const suffix = query.toString();
     return request<MessagesResponse>(
       `/api/sessions/${encodeURIComponent(id)}/messages${suffix ? `?${suffix}` : ""}`,
+      { instance },
     );
   },
   message: async (id: string, messageID: string) =>
@@ -217,6 +222,7 @@ export const api = {
     files?: { uri: string; name?: string }[],
     delivery?: "queue" | "steer",
     messageID?: string,
+    instance?: string,
   ) =>
     request<unknown>(`/api/sessions/${encodeURIComponent(id)}/prompt`, {
       method: "POST",
@@ -226,6 +232,7 @@ export const api = {
         ...(delivery ? { delivery } : {}),
         ...(messageID ? { id: messageID } : {}),
       },
+      instance,
     }),
   interrupt: (id: string) =>
     request<{ interrupted?: boolean }>(`/api/sessions/${encodeURIComponent(id)}/interrupt`, {
@@ -247,8 +254,12 @@ export const api = {
     request<{ ok: boolean }>(`/api/sessions/${encodeURIComponent(id)}/compact`, {
       method: "POST",
     }),
-  forms: async (id: string) =>
-    (await request<{ data: FormInfo[] }>(`/api/sessions/${encodeURIComponent(id)}/form`)).data,
+  forms: async (id: string, instance?: string) =>
+    (
+      await request<{ data: FormInfo[] }>(`/api/sessions/${encodeURIComponent(id)}/form`, {
+        instance,
+      })
+    ).data,
   replyForm: (id: string, formID: string, answer: Record<string, unknown>) =>
     request<{ ok: boolean }>(
       `/api/sessions/${encodeURIComponent(id)}/form/${encodeURIComponent(formID)}/reply`,
@@ -261,10 +272,11 @@ export const api = {
       }`,
       { method: "DELETE" },
     ),
-  permissions: async (id: string) =>
+  permissions: async (id: string, instance?: string) =>
     (
       await request<{ data: PermissionRequest[] }>(
         `/api/sessions/${encodeURIComponent(id)}/permissions`,
+        { instance },
       )
     ).data,
   replyPermission: (
@@ -332,10 +344,11 @@ export const api = {
       body: { showHidden },
       instance,
     }),
-  setSessionStatus: (id: string, status: "" | "done" | "failed") =>
+  setSessionStatus: (id: string, status: "" | "done" | "failed", instance?: string) =>
     request<{ ok: boolean }>(`/api/ui/sessions/${encodeURIComponent(id)}/status`, {
       method: "POST",
       body: { status },
+      instance,
     }),
   removeSessionState: (id: string, instance?: string) =>
     request<{ ok: boolean }>(`/api/ui/sessions/${encodeURIComponent(id)}`, {

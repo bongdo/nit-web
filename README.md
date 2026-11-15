@@ -70,10 +70,10 @@ browser and then deleted; that shim can go after one more release.
 ## Instances
 
 An instance is one OpenCode server behind this nit-gui. The nit-gui host stays
-the same; switching an instance changes the OpenCode namespace: sessions,
-workspaces, models, agents and the event stream. The menu header shows
-`This app: nit-gui 2 — <host>` separately, so the app and the instance are not
-confused. The same label is the browser tab title.
+the same; opening a chat or directory on another machine changes the focused
+namespace: sessions, workspaces, models, agents and the event stream follow it.
+The menu header shows the gate host separately, so the app and the instance are
+not confused. The browser tab title ends with the focused instance.
 
 Open the menu from the network icon in the sidebar footer, `/instances`, or
 Settings → Instances. The icon already carries the live/offline state; clicking
@@ -153,19 +153,18 @@ read on `Reconnect` or the next app start.
 
 ### Switching
 
-Switching instances remounts the chat view: sessions, transcript cache, event
-stream, models, agents and drafts are reloaded for the selected OpenCode server.
-The previous instance keeps its own UI state, drafts and selected workspace.
-There is one event stream for the active instance; inactive instances do not
-keep background SSE connections.
+Opening a chat or directory on another machine still focuses that machine: the
+chat view is keyed by instance. The clicked session is seeded into that
+instance's boot cache and its transcript is cached by `instance|id` before the
+focus changes, so the chat paints while models, agents and the rest load. The
+previous instance keeps its own UI state, drafts, workspace and transcript cache.
+There is no fixed prefetch wait: the boot cache is filled in the background.
 
-Before a switch to a connected instance the browser preloads that instance's
-health, models, agents, projects and chat list into a per-instance boot cache and
-then remounts. The wait is capped at 1.5 s, so a cold SSH instance cannot hold
-the menu: the switch happens anyway and the view refreshes in the background. A
-cached instance paints its chat list at once and shows no boot or offline screen;
-those appear only on a first visit whose health still fails one retry 400 ms
-later. The cache is browser memory only and is safe to lose.
+The browser preloads that instance's health, models, agents, projects and chat
+list into a per-instance boot cache in the background. The app paints the shell
+immediately: the only full-screen states left are the first instance-list load
+and the offline screen when there is no workspace yet. The cache is browser
+memory only and is safe to lose.
 
 ## Run
 
@@ -574,7 +573,7 @@ All `/api` endpoints except `/api/instances*` accept `X-Nit-Instance: <id>` or
 | `POST /api/ui/agent` | `{agent}`; save the preferred agent. |
 | `POST /api/ui/sessions/{id}/status` | `{status}`: `done`, `failed` or empty (seen). |
 | `DELETE /api/ui/sessions/{id}` | Remove hidden/status/draft state for a deleted chat. |
-| `GET /api/events?instance=` | Server-sent events proxied from the active OpenCode `/api/event`. |
+| `GET /api/events?instance=` | Server-sent events proxied from the requested OpenCode `/api/event`. |
 
 All `/api` endpoints require the session cookie. `/auth` is the only
 unauthenticated page; `/auth/logout` is a POST that clears the session.
@@ -792,18 +791,17 @@ own startup warmup.
   External edits to the file are read on `Reconnect` or the next app start. SSH
   tunnels are not reconnected automatically: use `Reconnect` or switch to the
   instance again.
-- Only the active instance keeps an event stream. Inactive instances do not
-  accumulate unread counts or approvals in the background; switching to one
-  reloads its list and transcript.
-- `Everywhere` fans out one request per connected instance on first open and on
-  reconnect. There is no multi-instance event stream, so other machines' lists
-  are a snapshot and hidden/done/failed markers plus drafts come from the active
-  instance only; hide or delete a foreign chat after switching to it. The boot
-  cache keeps one list per instance, so a switch shows that instance's chats even
-  while a cold SSH tunnel is still coming up.
+- Every machine with a chat in the current `Everywhere` list keeps one event
+  stream; `This dir` and `All chats` keep only the focused machine. Foreign
+  running, waiting (forms/permissions), done and failed markers arrive live.
+  Transcripts are cached by `instance|id`, so reopening a foreign chat paints
+  from the previous visit while the rest reloads.
+- `Everywhere` fetches all machines on first open, scope change and search; focus
+  events refresh only the focused machine and reuse cached foreign lists. A
+  foreign structural event refetches that machine only.
 - Drafts, hidden chats and done/failed markers are scoped by instance. The
   default instance keeps the old unscoped `localStorage` keys; other instances
-  use a `:<instance>` suffix.
+  use a `:<instance>` suffix. `showHidden` is one value for the whole network.
 - Dictation belongs to the client. The composer has no mic button: use the
   system keyboard's dictation or a browser extension. A future server-side STT
   can come back as an optional capability without changing the composer.

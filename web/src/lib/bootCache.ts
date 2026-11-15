@@ -31,6 +31,13 @@ export function writeBoot(instance: string, patch: Partial<Omit<Boot, "at">>): v
   });
 }
 
+export function seedBootSession(instance: string, session: Session): void {
+  const boot = cache.get(instance);
+  const sessions = boot?.sessions ?? [];
+  if (sessions.some((item) => item.id === session.id)) return;
+  writeBoot(instance, { sessions: [{ ...session, instance }, ...sessions] });
+}
+
 export function prefetchBoot(instance: string): Promise<void> {
   if (cache.has(instance)) return Promise.resolve();
   const running = inflight.get(instance);

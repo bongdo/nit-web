@@ -3,6 +3,7 @@ import {
   cachedSessions,
   prefetchBoot,
   readBoot,
+  seedBootSession,
   writeBoot,
 } from "./bootCache";
 import type { Model, Session } from "./types";
@@ -57,6 +58,14 @@ describe("boot cache", () => {
     expect(boot?.health).toEqual({ ok: true });
     expect(boot?.models).toHaveLength(1);
     expect(boot?.sessions).toEqual([]);
+  });
+
+  it("seeds a session once", () => {
+    seedBootSession("boot-seed", session("x", "/work/nit"));
+    seedBootSession("boot-seed", session("x", "/work/nit"));
+    const boot = readBoot("boot-seed");
+    expect(boot?.sessions).toHaveLength(1);
+    expect(boot?.sessions[0]?.instance).toBe("boot-seed");
   });
 
   it("seeds chats per scope", () => {

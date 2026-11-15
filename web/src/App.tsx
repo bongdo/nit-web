@@ -41,7 +41,8 @@ import {
   mergeSnapshot,
   mergeTail,
   prependMessages,
-  TranscriptCache,
+  ScopedTranscriptCache,
+  sharedTranscripts,
 } from "./lib/transcripts";
 import {
   contextPercent,
@@ -70,7 +71,7 @@ import {
 } from "./lib/sessions";
 import { shortcutKeys } from "./lib/keys";
 import { cn } from "./lib/utils";
-import { cachedSessions, readBoot, writeBoot } from "./lib/bootCache";
+import { cachedSessions, readBoot, seedBootSession, writeBoot } from "./lib/bootCache";
 import { instanceScopedKey } from "./lib/instances";
 import { saveDraftFiles } from "./lib/draft-files";
 import { parseSnooze, pendingCount, snoozeItem, type SnoozeMap } from "./lib/review";
@@ -260,9 +261,25 @@ export default function App({
   const [permissions, setPermissions] = useState<PermissionRequest[]>([]);
   const [backgroundWaitingIds, setBackgroundWaitingIds] = useState<Set<string>>(new Set());
   const [backgroundPermissionIds, setBackgroundPermissionIds] = useState<Set<string>>(new Set());
-  const [failedIds, setFailedIds] = useState<Set<string>>(() => new Set());
-  const [doneIds, setDoneIds] = useState<Set<string>>(() => new Set());
-  const failedRef = useRef<Set<string>>(new Set());
+  const [statusByInstance, setStatusByInstance] = useState<
+    Record<string, { done: Set<string>; failed: Set<string> }>
+  >({});
+  const doneIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const status of Object.values(statusByInstance)) {
+      for (const id of status.done) ids.add(id);
+    }
+    return ids;
+  }, [statusByInstance]);
+  const failedIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const status of Object.values(statusByInstance)) {
+      for (const id of status.failed) ids.add(id);
+    }
+    return ids;
+  }, [statusByInstance]);
+  const failedIdsRef = useRef(failedIds);
+  failedIdsRef.current = failedIds;
   const [notifyOn, setNotifyOn] = useState(() => localStorage.getItem("nit-gui.notify") === "on");
   const [uiReady, setUiReady] = useState(false);
   const [hiddenByInstance, setHiddenByInstance] = useState<HiddenIndex>({});
@@ -314,6 +331,7 @@ export default function App({
   const searchRef = useRef<HTMLInputElement>(null);
   const refreshTimer = useRef<number | null>(null);
   const firstStreamOpen = useRef(true);
+  const openedStreams = useRef(new Set<string>());
   const runningEventsAt = useRef<Record<string, number>>({});
   const lastEscapeAt = useRef(0);
   const skipLoadRef = useRef<string | null>(null);
@@ -321,6 +339,8 @@ export default function App({
   const poolCache = useRef<Session[] | null>(null);
   const poolCacheLoading = useRef(false);
   const everywhereCache = useRef<Session[] | null>(null);
+  const everywherePools = useRef(new Map<string, Session[]>());
+  const foreignRefreshTimers = useRef(new Map<string, number>());
   const streamQueue = useRef<StreamEvent[]>([]);
   const streamFrame = useRef<number | null>(null);
   const formsOwnerRef = useRef<string | null>(null);
@@ -333,7 +353,7 @@ export default function App({
       firstPrompt.current = null;
     }
   }, [messages]);
-  const [transcriptCache] = useState(() => new TranscriptCache());
+  const [transcriptCache] = useState(() => new ScopedTranscriptCache(instance, sharedTranscripts));
   const [messageLoads] = useState(() => new Set<string>());
   const questionIDs = useRef(new Set<string>());
   const retryTimers = useRef<Record<string, number>>({});
@@ -381,12 +401,10 @@ export default function App({
       if (status === "done") done.add(id);
       else if (status === "failed") failed.add(id);
     }
-    failedRef.current = failed;
-    setDoneIds(done);
-    setFailedIds(failed);
+    setStatusByInstance((previous) => ({ ...previous, [instance]: { done, failed } }));
     if (state.model) setPreferredModel(state.model);
     if (state.agent) setPreferredAgent(state.agent);
-  }, []);
+  }, [instance]);
 
   const loadUiState = useCallback(async () => {
     const hiddenBefore = hiddenSeq.current[instance] ?? 0;
@@ -498,9 +516,12 @@ export default function App({
     return ids;
   }, [activePermissions, backgroundPermissionIds, backgroundWaitingIds, forms, selectedId]);
   const reviewCount = pendingCount(reviewQueue?.items ?? [], reviewSnooze, Date.now());
-  const saveStatus = useCallback((id: string, status: "" | "done" | "failed") => {
-    void api.setSessionStatus(id, status).catch((error) => setBanner(messageOf(error)));
-  }, []);
+  const saveStatus = useCallback(
+    (id: string, status: "" | "done" | "failed", owner = instance) => {
+      void api.setSessionStatus(id, status, owner).catch((error) => setBanner(messageOf(error)));
+    },
+    [instance],
+  );
   const saveHidden = useCallback(
     async (ids: string[], hidden: boolean, owner: string) => {
       const before = hiddenByInstanceRef.current[owner] ?? NO_HIDDEN;
@@ -524,42 +545,56 @@ export default function App({
     },
     [applyHidden],
   );
-  const markDone = useCallback(
-    (id: string) => {
-      if (failedRef.current.has(id)) return;
-      setDoneIds((previous) => (previous.has(id) ? previous : new Set(previous).add(id)));
-      saveStatus(id, "done");
+  const updateStatus = useCallback(
+    (
+      owner: string,
+      change: (status: { done: Set<string>; failed: Set<string> }) => void,
+    ) => {
+      setStatusByInstance((previous) => {
+        const current = previous[owner] ?? {
+          done: new Set<string>(),
+          failed: new Set<string>(),
+        };
+        const next = { done: new Set(current.done), failed: new Set(current.failed) };
+        change(next);
+        return { ...previous, [owner]: next };
+      });
     },
-    [saveStatus],
+    [],
+  );
+
+  const markDone = useCallback(
+    (id: string, owner = instance) => {
+      if (failedIdsRef.current.has(id)) return;
+      updateStatus(owner, (status) => status.done.add(id));
+      saveStatus(id, "done", owner);
+    },
+    [instance, saveStatus, updateStatus],
   );
   const clearDone = useCallback(
-    (id: string) => {
-      setDoneIds((previous) => {
-        if (!previous.has(id)) return previous;
-        const next = new Set(previous);
-        next.delete(id);
-        return next;
-      });
-      if (!failedRef.current.has(id)) saveStatus(id, "");
+    (id: string, owner = instance) => {
+      updateStatus(owner, (status) => status.done.delete(id));
+      if (!failedIdsRef.current.has(id)) saveStatus(id, "", owner);
     },
-    [saveStatus],
+    [saveStatus, updateStatus],
   );
   const markFailed = useCallback(
-    (id: string) => {
-      failedRef.current.add(id);
-      setFailedIds(new Set(failedRef.current));
-      clearDone(id);
-      saveStatus(id, "failed");
+    (id: string, owner = instance) => {
+      updateStatus(owner, (status) => {
+        status.failed.add(id);
+        status.done.delete(id);
+      });
+      saveStatus(id, "failed", owner);
     },
-    [clearDone, saveStatus],
+    [instance, saveStatus, updateStatus],
   );
   const clearFailed = useCallback(
-    (id: string) => {
-      if (!failedRef.current.delete(id)) return;
-      setFailedIds(new Set(failedRef.current));
-      saveStatus(id, "");
+    (id: string, owner = instance) => {
+      if (!failedIdsRef.current.has(id)) return;
+      updateStatus(owner, (status) => status.failed.delete(id));
+      saveStatus(id, "", owner);
     },
-    [saveStatus],
+    [saveStatus, updateStatus],
   );
   const runningNow = selectedId ? isRunning(selectedId) : false;
   const modelInfo =
@@ -632,26 +667,95 @@ export default function App({
     [instance],
   );
 
-  const loadEverywhere = useCallback(async (query: string) => {
-    const { instances } = await api.instances("none");
-    const connected = instances.filter((item) => item.state !== "offline");
-    const results = await Promise.allSettled(
-      connected.map(async (item) => ({
-        instance: item.name,
-        sessions: await api.allSessions(undefined, query || undefined, item.id),
-        hidden: (await api.ui(item.id).catch(() => null))?.hidden ?? [],
-      })),
-    );
-    const pools = results.flatMap((result) =>
-      result.status === "fulfilled" ? [result.value] : [],
-    );
-    return {
-      sessions: mergeInstanceSessions(pools),
-      hidden: pools.map(({ instance: owner, hidden }) => ({ instance: owner, hidden })),
-    };
-  }, []);
+  const applyForeignStatus = useCallback(
+    (pools: { instance: string; status: Record<string, string> | null }[]) => {
+      setStatusByInstance((previous) => {
+        let changed = false;
+        const next = { ...previous };
+        for (const pool of pools) {
+          if (pool.instance === instance || pool.status === null) continue;
+          const done = new Set<string>();
+          const failed = new Set<string>();
+          for (const [id, status] of Object.entries(pool.status)) {
+            if (status === "done") done.add(id);
+            else if (status === "failed") failed.add(id);
+          }
+          const before = previous[pool.instance];
+          if (
+            before &&
+            before.done.size === done.size &&
+            before.failed.size === failed.size &&
+            [...done].every((id) => before.done.has(id)) &&
+            [...failed].every((id) => before.failed.has(id))
+          ) {
+            continue;
+          }
+          next[pool.instance] = { done, failed };
+          changed = true;
+        }
+        return changed ? next : previous;
+      });
+    },
+    [instance],
+  );
 
-  const loadSessions = useCallback(async () => {
+  const loadEverywhere = useCallback(
+    async (query: string, refreshAll = true) => {
+      const { instances } = await api.instances("none");
+      const candidates = instances.filter((item) => item.state !== "offline");
+      const results = await Promise.allSettled(
+        candidates.map(async (item) => {
+          const cached = everywherePools.current.get(item.id);
+          if (!query && !refreshAll && item.id !== instance && cached) {
+            return {
+              instance: item.name,
+              sessions: cached,
+              hidden: [...(hiddenByInstanceRef.current[item.id] ?? [])],
+              status: null,
+            };
+          }
+          const sessions = await api.allSessions(undefined, query || undefined, item.id);
+          everywherePools.current.set(item.id, sessions);
+          const state = await api.ui(item.id).catch(() => null);
+          return {
+            instance: item.name,
+            sessions,
+            hidden: state?.hidden ?? [],
+            status: state?.status ?? {},
+          };
+        }),
+      );
+      const pools = results.flatMap((result) =>
+        result.status === "fulfilled" ? [result.value] : [],
+      );
+      return {
+        sessions: mergeInstanceSessions(pools),
+        hidden: pools.map(({ instance: owner, hidden }) => ({ instance: owner, hidden })),
+        status: pools.map(({ instance: owner, status }) => ({ instance: owner, status })),
+      };
+    },
+    [instance],
+  );
+
+  const refreshInstance = useCallback(
+    async (owner: string) => {
+      if (scopeRef.current !== "everywhere" || searchQueryRef.current.trim()) return;
+      try {
+        const list = await api.allSessions(undefined, undefined, owner);
+        if (scopeRef.current !== "everywhere" || searchQueryRef.current.trim()) return;
+        everywherePools.current.set(owner, list);
+        setSessions((current) => {
+          const rest = current.filter((session) => (session.instance ?? instance) !== owner);
+          const next = [...list.map((session) => ({ ...session, instance: owner })), ...rest];
+          everywhereCache.current = next;
+          return next;
+        });
+      } catch {}
+    },
+    [instance],
+  );
+
+  const loadSessions = useCallback(async (refreshAll = true) => {
     const requestedAt = Date.now();
     const currentScope = scopeRef.current;
     const scopedDirectory = currentScope === "directory" ? workspaceRef.current : null;
@@ -659,9 +763,10 @@ export default function App({
     try {
       let data: Session[];
       if (currentScope === "everywhere") {
-        const merged = await loadEverywhere(query);
+        const merged = await loadEverywhere(query, refreshAll);
         data = merged.sessions;
         applyForeignHidden(merged.hidden);
+        applyForeignStatus(merged.status);
       } else {
         // shortcut: children=true returns the newest 100 sessions, paginate when older subagents matter.
         const [list, nested] = await Promise.all([
@@ -702,7 +807,7 @@ export default function App({
     } finally {
       setSessionsLoading(false);
     }
-  }, [applyForeignHidden, instance, loadEverywhere]);
+  }, [applyForeignHidden, applyForeignStatus, instance, loadEverywhere]);
 
   const loadPoolCache = useCallback(async () => {
     if (
@@ -1241,18 +1346,33 @@ export default function App({
         const session = sessionsRef.current.find((item) => item.id === id);
         localStorage.setItem(instanceScopedKey("nit-gui.session", owner, defaultInstance), id);
         const directory = session?.location?.directory;
-        if (directory) {
-          localStorage.setItem(
-            instanceScopedKey("nit-gui.workspace", owner, defaultInstance),
-            directory,
-          );
+        if (session) seedBootSession(owner, session);
+        if (directory) rememberWorkspaceFor(owner, directory);
+        if (!transcriptCache.getFor(owner, id)) {
+          void api
+            .messages(id, { light: true }, owner)
+            .then((page) => {
+              transcriptCache.setFor(owner, id, {
+                messages: lightMessages(normalizeMessages(page.data)),
+                previous: page.previous ?? null,
+                complete: page.previous === null,
+              });
+            })
+            .catch(() => {});
         }
         onSwitchInstance(owner);
         return;
       }
       selectSession(id);
     },
-    [defaultInstance, foreignInstance, onSwitchInstance, selectSession],
+    [
+      defaultInstance,
+      foreignInstance,
+      onSwitchInstance,
+      rememberWorkspaceFor,
+      selectSession,
+      transcriptCache,
+    ],
   );
 
   const notifications =
@@ -1292,7 +1412,7 @@ export default function App({
     sessions,
     doneIds,
     title,
-    onOpen: selectSession,
+    onOpen: openSession,
   });
 
   const selectWorkspace = useCallback((directory: string, owner?: string) => {
@@ -1505,17 +1625,13 @@ export default function App({
   const forgetSession = useCallback(
     async (id: string, owner = instance) => {
       await api.deleteSession(id, owner);
-      transcriptCache.delete(id);
+      transcriptCache.deleteFor(owner, id);
       setSessions((current) => current.filter((item) => item.id !== id));
       dropHidden(id);
-      setDoneIds((current) => {
-        if (!current.has(id)) return current;
-        const next = new Set(current);
-        next.delete(id);
-        return next;
+      updateStatus(owner, (status) => {
+        status.done.delete(id);
+        status.failed.delete(id);
       });
-      failedRef.current.delete(id);
-      setFailedIds(new Set(failedRef.current));
       void api.removeSessionState(id, owner).catch((error) => setBanner(messageOf(error)));
       void saveDraftFiles(draftKeyFor(id, owner), []).catch(() => {});
       if (selectedIdRef.current === id) {
@@ -1524,7 +1640,7 @@ export default function App({
       }
       void loadSessions();
     },
-    [draftKeyFor, dropHidden, instance, loadSessions, selectSession],
+    [draftKeyFor, dropHidden, instance, loadSessions, selectSession, updateStatus],
   );
 
   const deleteSession = useCallback(
@@ -1540,16 +1656,37 @@ export default function App({
     [foreignInstance, forgetSession, instance],
   );
 
-  const scheduleSessionsRefresh = useCallback(() => {
-    if (refreshTimer.current !== null) return;
-    refreshTimer.current = window.setTimeout(() => {
-      refreshTimer.current = null;
-      void loadSessions();
-      void loadPoolCache();
-      void loadChildren();
-      void loadForms();
-    }, 500);
-  }, [loadChildren, loadForms, loadPoolCache, loadSessions]);
+  const scheduleSessionsRefresh = useCallback(
+    (owner = instance) => {
+      if (owner !== instance) {
+        if (scopeRef.current !== "everywhere" || foreignRefreshTimers.current.has(owner)) {
+          return;
+        }
+        const timer = window.setTimeout(() => {
+          foreignRefreshTimers.current.delete(owner);
+          void refreshInstance(owner);
+        }, 500);
+        foreignRefreshTimers.current.set(owner, timer);
+        return;
+      }
+      if (refreshTimer.current !== null) return;
+      refreshTimer.current = window.setTimeout(() => {
+        refreshTimer.current = null;
+        void loadSessions(false);
+        void loadPoolCache();
+        void loadChildren();
+        void loadForms();
+      }, 500);
+    },
+    [instance, loadChildren, loadForms, loadPoolCache, loadSessions, refreshInstance],
+  );
+
+  useEffect(() => {
+    return () => {
+      for (const timer of foreignRefreshTimers.current.values()) window.clearTimeout(timer);
+      foreignRefreshTimers.current.clear();
+    };
+  }, []);
 
   const reloadSelected = useCallback(() => {
     if (!selectedIdRef.current) return;
@@ -1589,7 +1726,12 @@ export default function App({
   }, []);
 
   const scheduleRetry = useCallback(
-    (sessionID: string, plan: NonNullable<ReturnType<typeof planRetry>>, start = 1) => {
+    (
+      sessionID: string,
+      plan: NonNullable<ReturnType<typeof planRetry>>,
+      start = 1,
+      owner = instance,
+    ) => {
       clearRetry(sessionID);
       const run = (attempt: number) => {
         const delay = retryDelay(attempt, plan.retryAfterMs);
@@ -1600,7 +1742,7 @@ export default function App({
         retryTimers.current[sessionID] = window.setTimeout(async () => {
           delete retryTimers.current[sessionID];
           try {
-            await api.prompt(sessionID, plan.text, plan.files, undefined, plan.id);
+            await api.prompt(sessionID, plan.text, plan.files, undefined, plan.id, owner);
             delete retryAttempts.current[sessionID];
             setBanner(null);
           } catch {
@@ -1610,7 +1752,7 @@ export default function App({
       };
       run(start);
     },
-    [clearRetry],
+    [clearRetry, instance],
   );
 
   useEffect(() => {
@@ -1676,9 +1818,10 @@ export default function App({
     void loadPermissions();
   }, [loadPermissions]);
 
-  const onEvent = (event: StreamEvent) => {
+  const onEvent = (event: StreamEvent, owner: string = instance) => {
     const data = event.data ?? {};
     const sessionID = eventSessionID(event);
+    const mine = owner === instance;
     const toolID = typeof data.id === "string" ? data.id : "";
     if (toolID && data.name === "question") questionIDs.current.add(toolID);
 
@@ -1686,8 +1829,8 @@ export default function App({
       if (event.type === "session.execution.started") {
         runningEventsAt.current[sessionID] = Date.now();
         setRunningIds((previous) => ({ ...previous, [sessionID]: true }));
-        clearFailed(sessionID);
-        clearDone(sessionID);
+        clearFailed(sessionID, owner);
+        clearDone(sessionID, owner);
         clearRetry(sessionID);
         setBanner(null);
       }
@@ -1706,31 +1849,31 @@ export default function App({
       }
       if (event.type === "session.execution.failed") {
         const known =
-          sessionID === selectedIdRef.current
+          mine && sessionID === selectedIdRef.current
             ? messagesRef.current
-            : (transcriptCache.get(sessionID)?.messages ?? []);
+            : (transcriptCache.getFor(owner, sessionID)?.messages ?? []);
         const plan = planRetry(
           known,
           data.error as Message["error"] | undefined,
           (retryAttempts.current[sessionID] ?? 0) + 1,
         );
         if (plan) {
-          clearFailed(sessionID);
-          clearDone(sessionID);
-          scheduleRetry(sessionID, plan);
+          clearFailed(sessionID, owner);
+          clearDone(sessionID, owner);
+          scheduleRetry(sessionID, plan, 1, owner);
         } else {
-          markFailed(sessionID);
+          markFailed(sessionID, owner);
         }
       }
       if (event.type === "session.compaction.failed") {
-        markFailed(sessionID);
+        markFailed(sessionID, owner);
       }
       if (
         (event.type === "session.idle" || event.type === "session.execution.succeeded") &&
-        !failedRef.current.has(sessionID) &&
+        !failedIdsRef.current.has(sessionID) &&
         retryAttempts.current[sessionID] === undefined
       ) {
-        markDone(sessionID);
+        markDone(sessionID, owner);
       }
       if (event.type === "session.compaction.started") {
         markCompacting(sessionID);
@@ -1738,11 +1881,11 @@ export default function App({
       if (event.type === "session.compaction.ended") {
         clearCompacting(sessionID);
         setFreshCompaction(sessionID);
-        if (sessionID === selectedIdRef.current) reloadSelected();
+        if (mine && sessionID === selectedIdRef.current) reloadSelected();
       }
       if (event.type === "session.compaction.failed") {
         clearCompacting(sessionID);
-        if (sessionID === selectedIdRef.current) {
+        if (mine && sessionID === selectedIdRef.current) {
           const reason = typeof data.reason === "string" ? data.reason : "";
           const failure = data.error as { message?: unknown } | undefined;
           if (reason === "manual" && typeof failure?.message === "string") {
@@ -1754,7 +1897,7 @@ export default function App({
       if (event.type === "session.usage.updated") {
         setSessions((previous) =>
           previous.map((session) =>
-            session.id === sessionID
+            session.id === sessionID && (session.instance ?? instance) === owner
               ? {
                   ...session,
                   cost: typeof data.cost === "number" ? data.cost : session.cost,
@@ -1769,14 +1912,42 @@ export default function App({
       }
     }
 
-    if (sessionID === selectedIdRef.current && event.type.startsWith("form.")) {
-      void loadForms();
+    if (sessionID && event.type.startsWith("form.")) {
+      if (mine && sessionID === selectedIdRef.current) {
+        void loadForms();
+      } else {
+        void api
+          .forms(sessionID, owner)
+          .then((data) => {
+            setBackgroundWaitingIds((previous) => {
+              const next = new Set(previous);
+              if (data.length > 0) next.add(sessionID);
+              else next.delete(sessionID);
+              return next;
+            });
+          })
+          .catch(() => {});
+      }
     }
-    if (sessionID === selectedIdRef.current && event.type.startsWith("permission.")) {
-      void loadPermissions();
+    if (sessionID && event.type.startsWith("permission.")) {
+      if (mine && sessionID === selectedIdRef.current) {
+        void loadPermissions();
+      } else {
+        void api
+          .permissions(sessionID, owner)
+          .then((data) => {
+            setBackgroundPermissionIds((previous) => {
+              const next = new Set(previous);
+              if (data.length > 0) next.add(sessionID);
+              else next.delete(sessionID);
+              return next;
+            });
+          })
+          .catch(() => {});
+      }
     }
 
-    if (sessionID === selectedIdRef.current) {
+    if (mine && sessionID === selectedIdRef.current) {
       if (isMessageStreamEvent(event.type)) {
         streamQueue.current.push(event);
         if (streamFrame.current === null) {
@@ -1793,11 +1964,12 @@ export default function App({
         reloadSelected();
       }
     } else if (sessionID && isMessageStreamEvent(event.type)) {
-      const cached = transcriptCache.get(sessionID);
+      const cached = transcriptCache.getFor(owner, sessionID);
       if (cached) {
         const light = lightenEvent(event, cached.messages, questionIDs.current);
         if (light) {
-          transcriptCache.update(
+          transcriptCache.updateFor(
+            owner,
             sessionID,
             applyEvent(cached.messages, light),
             eventSize(light),
@@ -1807,21 +1979,29 @@ export default function App({
     }
 
     if (event.type === "session.deleted" && sessionID) {
-      transcriptCache.delete(sessionID);
+      transcriptCache.deleteFor(owner, sessionID);
       dropHidden(sessionID);
-      setDoneIds((current) => {
-        if (!current.has(sessionID)) return current;
-        const next = new Set(current);
+      updateStatus(owner, (status) => {
+        status.done.delete(sessionID);
+        status.failed.delete(sessionID);
+      });
+      setBackgroundWaitingIds((previous) => {
+        if (!previous.has(sessionID)) return previous;
+        const next = new Set(previous);
         next.delete(sessionID);
         return next;
       });
-      failedRef.current.delete(sessionID);
-      setFailedIds(new Set(failedRef.current));
-      void api.removeSessionState(sessionID).catch(() => {});
-      void saveDraftFiles(draftKeyFor(sessionID), []).catch(() => {});
+      setBackgroundPermissionIds((previous) => {
+        if (!previous.has(sessionID)) return previous;
+        const next = new Set(previous);
+        next.delete(sessionID);
+        return next;
+      });
+      void api.removeSessionState(sessionID, owner).catch(() => {});
+      void saveDraftFiles(draftKeyFor(sessionID, owner), []).catch(() => {});
     }
 
-    if (
+    const structural =
       event.type === "session.created" ||
       event.type === "session.renamed" ||
       event.type === "session.deleted" ||
@@ -1831,15 +2011,24 @@ export default function App({
       event.type === "session.forked" ||
       event.type === "session.metadata.updated" ||
       event.type === "session.model.selected" ||
-      event.type === "session.agent.selected" ||
-      event.type.startsWith("session.execution.") ||
-      event.type === "session.idle"
+      event.type === "session.agent.selected";
+    if (
+      structural ||
+      (mine && (event.type.startsWith("session.execution.") || event.type === "session.idle"))
     ) {
-      scheduleSessionsRefresh();
+      scheduleSessionsRefresh(owner);
     }
   };
 
-  const onStreamOpen = () => {
+  const onStreamOpen = (owner: string) => {
+    if (owner !== instance) {
+      if (!openedStreams.current.has(owner)) {
+        openedStreams.current.add(owner);
+        return;
+      }
+      if (scopeRef.current === "everywhere") void refreshInstance(owner);
+      return;
+    }
     if (firstStreamOpen.current) {
       firstStreamOpen.current = false;
       return;
@@ -1864,7 +2053,17 @@ export default function App({
     reloadSelected();
   };
 
-  const streamStatus = useEventStream(onEvent, onStreamOpen, instance);
+  const streamInstances = useMemo(() => {
+    const ids = new Set([instance]);
+    if (scope === "everywhere") {
+      for (const session of sessions) {
+        if (session.instance) ids.add(session.instance);
+      }
+    }
+    return [...ids].sort();
+  }, [instance, scope, sessions]);
+  const streamStatuses = useEventStream(onEvent, onStreamOpen, streamInstances);
+  const streamStatus = streamStatuses[instance] ?? "connecting";
 
   const send = useCallback(
     async (text: string, attachments: Attachment[] = [], delivery?: "queue" | "steer") => {
@@ -2540,7 +2739,7 @@ export default function App({
           onToggleSidebar={toggleSidebar}
           onOpenChats={openSidebar}
           onNewChat={() => newChat()}
-          canNew={Boolean(health?.ok)}
+          canNew={health?.ok !== false}
         />
 
         {activeError && (
@@ -2624,7 +2823,7 @@ export default function App({
               model={modelInfo}
               draftKey={composerDraftKey}
               instance={instance}
-              disabled={!health?.ok}
+              disabled={health?.ok === false}
               running={running}
               focusKey={selectedId}
               typingBlocked={settingsOpen || pickerOpen || themeOpen}

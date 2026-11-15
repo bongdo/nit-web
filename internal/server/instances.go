@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	"nitgui/internal/opencode"
@@ -55,9 +56,24 @@ func (s *Server) instances(w http.ResponseWriter, r *http.Request) {
 		shared = s.sharedCapabilities(r.Context())
 	}
 	specs := s.multi.Instances()
-	instances := make([]instanceOut, 0, len(specs))
-	for _, spec := range specs {
-		instances = append(instances, s.instanceInfo(r.Context(), spec, probeAll, probeNone, shared))
+	instances := make([]instanceOut, len(specs))
+	if probeNone {
+		for i, spec := range specs {
+			instances[i] = s.instanceInfo(r.Context(), spec, probeAll, probeNone, shared)
+		}
+	} else {
+		sem := make(chan struct{}, 4)
+		var wg sync.WaitGroup
+		for i, spec := range specs {
+			wg.Add(1)
+			go func(i int, spec opencode.InstanceSpec) {
+				defer wg.Done()
+				sem <- struct{}{}
+				defer func() { <-sem }()
+				instances[i] = s.instanceInfo(r.Context(), spec, probeAll, probeNone, shared)
+			}(i, spec)
+		}
+		wg.Wait()
 	}
 	host := s.publicHost
 	if host == "" {

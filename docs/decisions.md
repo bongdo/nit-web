@@ -12,6 +12,18 @@ Rejected: a global Switch button with per-instance UI state; hiding term/pero fo
 
 Cost: opening a chat on another machine still focuses that machine (the App is keyed by instance for now); removing that remount needs selection to become `(instance, id)` everywhere.
 
+## 2026-11-15 — One event stream per machine, not one per app
+
+Context: `Everywhere` showed chats from every machine but only the focused machine had live events, polling and UI status. A chat on another machine looked frozen until it was opened.
+
+Decision: open one SSE stream per machine that has a chat in the current list; tag every event with its machine; keep done/failed status per machine and merge the sets for the sidebar. Transcripts are cached by `instance|id`, and the opened chat is seeded into the boot cache before the focus changes. Foreign structural events refetch only that machine; focus events reuse cached foreign lists.
+
+Why: the bridge is per-request, so multiple streams cost nothing extra and the list stops being a snapshot.
+
+Rejected: polling all machines on a timer; one multiplexed SSE endpoint in Go (more server surface for the same result).
+
+Cost: one reconnect loop per machine with chats; foreign forms/permissions are fetched on their events rather than polled; status ids are still assumed unique across machines.
+
 ## 2026-11-04 — Keep untrusted HTML out of the app DOM
 
 Context: transcripts contain model-produced markdown and sometimes complete HTML documents. The GUI must render both without giving model output access to the app.

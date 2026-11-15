@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { mergeSnapshot, mergeTail, prependMessages, TranscriptCache } from "./transcripts";
+import { mergeSnapshot, mergeTail, prependMessages, ScopedTranscriptCache, TranscriptCache } from "./transcripts";
 import type { Message } from "./types";
 
 const messages = (id: string): Message[] => [
@@ -130,5 +130,22 @@ describe("transcript merging", () => {
   it("does not grow when every older message is already loaded", () => {
     const existing = [{ id: "m1" }, { id: "m2" }] as Message[];
     expect(prependMessages(existing, existing)).toHaveLength(existing.length);
+  });
+});
+
+describe("ScopedTranscriptCache", () => {
+  it("keeps instances apart and clears only one scope", () => {
+    const base = new TranscriptCache(1000);
+    const first = new ScopedTranscriptCache("alpha", base);
+    const second = new ScopedTranscriptCache("beta", base);
+    first.set("ses", transcript("msg_alpha"));
+    second.set("ses", transcript("msg_beta"));
+
+    expect(first.get("ses")?.messages[0]?.id).toBe("msg_alpha");
+    expect(second.get("ses")?.messages[0]?.id).toBe("msg_beta");
+
+    first.clear();
+    expect(first.get("ses")).toBeUndefined();
+    expect(second.get("ses")?.messages[0]?.id).toBe("msg_beta");
   });
 });

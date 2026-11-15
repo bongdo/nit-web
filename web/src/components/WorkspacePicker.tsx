@@ -950,7 +950,7 @@ export function WorkspaceMenu({
             className="border-border hover:bg-accent/60 mt-1 flex w-full items-center gap-2 rounded border-t px-2 py-2 text-left text-[12px]"
           >
             <FolderOpen className="text-muted-foreground size-3.5 shrink-0" />
-            Choose another folder…
+            Choose another folder or machine…
           </button>
         </div>
       )}

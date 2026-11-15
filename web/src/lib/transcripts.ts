@@ -66,9 +66,11 @@ export class TranscriptCache {
     this.entries.delete(id);
   }
 
-  clear() {
-    this.entries.clear();
-    this.total = 0;
+  clear(prefix = "") {
+    for (const key of [...this.entries.keys()]) {
+      if (prefix && !key.startsWith(prefix)) continue;
+      this.delete(key);
+    }
   }
 
   private trim() {
@@ -79,6 +81,59 @@ export class TranscriptCache {
     }
   }
 }
+
+export class ScopedTranscriptCache {
+  constructor(
+    private scope: string,
+    private base: TranscriptCache,
+  ) {}
+
+  private key(id: string): string {
+    return `${this.scope}\u0000${id}`;
+  }
+
+  get(id: string): CachedTranscript | undefined {
+    return this.base.get(this.key(id));
+  }
+
+  set(id: string, transcript: CachedTranscript, bytes?: number) {
+    this.base.set(this.key(id), transcript, bytes);
+  }
+
+  update(id: string, messages: Message[], deltaBytes: number) {
+    this.base.update(this.key(id), messages, deltaBytes);
+  }
+
+  delete(id: string) {
+    this.base.delete(this.key(id));
+  }
+
+  isComplete(id: string): boolean {
+    return this.base.isComplete(this.key(id));
+  }
+
+  clear() {
+    this.base.clear(`${this.scope}\u0000`);
+  }
+
+  getFor(instance: string, id: string): CachedTranscript | undefined {
+    return this.base.get(`${instance}\u0000${id}`);
+  }
+
+  setFor(instance: string, id: string, transcript: CachedTranscript) {
+    this.base.set(`${instance}\u0000${id}`, transcript);
+  }
+
+  updateFor(instance: string, id: string, messages: Message[], deltaBytes: number) {
+    this.base.update(`${instance}\u0000${id}`, messages, deltaBytes);
+  }
+
+  deleteFor(instance: string, id: string) {
+    this.base.delete(`${instance}\u0000${id}`);
+  }
+}
+
+export const sharedTranscripts = new TranscriptCache();
 
 export function estimateTranscriptSize(messages: Message[]): number {
   return JSON.stringify(messages).length;

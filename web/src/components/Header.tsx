@@ -152,11 +152,11 @@ function SessionMeta({
   );
 }
 
-export function SessionPill(props: SessionInfoProps & { className?: string }) {
+export function SessionPill({ className, ...info }: SessionInfoProps & { className?: string }) {
   return (
-    <div className={cn("min-w-0 overflow-hidden px-1 py-1", props.className)}>
-      <SessionTitle session={props.session} />
-      <SessionMeta {...props} />
+    <div className={cn("min-w-0 overflow-hidden px-1 py-1", className)}>
+      <SessionTitle session={info.session} />
+      <SessionMeta {...info} />
     </div>
   );
 }

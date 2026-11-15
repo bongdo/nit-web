@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   groupByDirectory,
+  groupKey,
   groupSessions,
   hoistFinished,
   isTechnical,
@@ -58,14 +59,14 @@ describe("sessions", () => {
   });
 
   it("labels the three scopes", () => {
-    expect(SCOPES.map((item) => item.label)).toEqual([
-      "This project",
-      "All chats",
-      "All machines",
+    expect(SCOPES.map((item) => [item.id, item.label])).toEqual([
+      ["directory", "This dir"],
+      ["mine", "All chats"],
+      ["everywhere", "Everywhere"],
     ]);
   });
 
-  it("merges instance pools, tags every chat and still groups by directory", () => {
+  it("merges instance pools, tags every chat and groups per machine", () => {
     const local = session({ id: "a" });
     const remote = session({ id: "b" });
     const merged = mergeInstanceSessions([
@@ -79,11 +80,65 @@ describe("sessions", () => {
     expect(merged[0]).not.toBe(local);
     expect(local.instance).toBeUndefined();
     const groups = groupByDirectory(groupSessions(merged));
-    expect(groups).toHaveLength(1);
-    expect(groups[0].rows.map((row) => [row.session.id, row.session.instance])).toEqual([
+    expect(groups.map((group) => [group.instance, group.rows.map((row) => row.session.id)])).toEqual([
+      ["frankfurt", ["a"]],
+      ["riga", ["b"]],
+    ]);
+  });
+
+  it("lists a chat once when two instances report the same id", () => {
+    const merged = mergeInstanceSessions([
+      { instance: "frankfurt", sessions: [session({ id: "a" })] },
+      { instance: "riga", sessions: [session({ id: "a" }), session({ id: "b" })] },
+    ]);
+    expect(merged.map((item) => [item.id, item.instance])).toEqual([
       ["a", "frankfurt"],
       ["b", "riga"],
     ]);
+  });
+
+  it("splits the same directory on two machines into two groups", () => {
+    const rows = [
+      {
+        session: session({
+          id: "a",
+          instance: "frankfurt",
+          location: { directory: "/work/nit" },
+          time: { created: 0, updated: 10 },
+        }),
+        depth: 0,
+      },
+      {
+        session: session({
+          id: "b",
+          instance: "riga",
+          location: { directory: "/work/nit" },
+          time: { created: 0, updated: 20 },
+        }),
+        depth: 0,
+      },
+      {
+        session: session({
+          id: "c",
+          instance: "frankfurt",
+          location: { directory: "/work/nit" },
+          time: { created: 0, updated: 5 },
+        }),
+        depth: 0,
+      },
+    ];
+    const groups = groupByDirectory(rows);
+    expect(
+      groups.map((group) => [
+        group.instance,
+        group.directory,
+        group.rows.map((row) => row.session.id),
+      ]),
+    ).toEqual([
+      ["riga", "/work/nit", ["b"]],
+      ["frankfurt", "/work/nit", ["a", "c"]],
+    ]);
+    expect(new Set(groups.map(groupKey)).size).toBe(2);
   });
 
   it("groups chats by directory, newest project first, and ignores the selected one", () => {

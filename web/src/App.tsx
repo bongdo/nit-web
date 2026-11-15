@@ -899,7 +899,11 @@ export default function App({
     }
     if (modelsResult.status === "fulfilled") setModels(modelsResult.value);
     if (agentsResult.status === "fulfilled") setAgents(agentsResult.value);
-  }, []);
+    writeBoot(instance, {
+      ...(modelsResult.status === "fulfilled" ? { models: modelsResult.value } : {}),
+      ...(agentsResult.status === "fulfilled" ? { agents: agentsResult.value } : {}),
+    });
+  }, [instance]);
 
   const retryConnection = useCallback(async () => {
     setBooting(true);
@@ -913,7 +917,11 @@ export default function App({
 
   useEffect(() => {
     void (async () => {
-      const result = await loadHealth();
+      let result = await loadHealth();
+      if (!result.ok && !boot) {
+        await new Promise((resolve) => window.setTimeout(resolve, 400));
+        result = await loadHealth();
+      }
       if (result.ok) {
         await Promise.all([loadCatalog(), loadProjects(), loadSessions()]);
       } else {
@@ -921,7 +929,7 @@ export default function App({
       }
       setBooting(false);
     })();
-  }, [loadCatalog, loadHealth, loadProjects, loadSessions]);
+  }, [boot, loadCatalog, loadHealth, loadProjects, loadSessions]);
 
   useEffect(() => {
     const timer = window.setInterval(() => {
@@ -2140,7 +2148,7 @@ export default function App({
           break;
         case "help":
           setBanner(
-            "Commands: /new /dir /instances /compact /revert /fork /fork-here /retry /theme /backgrounds /clear /help · Shortcuts: Alt+N new chat, Alt+O switch workspace, Alt+J/K or Ctrl+Tab/Shift+Ctrl+Tab next/prev chat (Tab in a text field completes /commands, accepts the highlighted suggestion, otherwise indents two spaces; Shift+Tab or Esc leaves the field), Alt+←/→ this project / all chats / all machines, Ctrl/⌘K search",
+            "Commands: /new /dir /instances /compact /revert /fork /fork-here /retry /theme /backgrounds /clear /help · Shortcuts: Alt+N new chat, Alt+O switch workspace, Alt+J/K or Ctrl+Tab/Shift+Ctrl+Tab next/prev chat (Tab in a text field completes /commands, accepts the highlighted suggestion, otherwise indents two spaces; Shift+Tab or Esc leaves the field), Alt+←/→ this dir / all chats / everywhere, Ctrl/⌘K search",
           );
           break;
       }
@@ -2274,7 +2282,7 @@ export default function App({
 
   if (booting) return <BootScreen instance={instance} onSwitch={onOpenInstances} />;
 
-  if (health && !health.ok && sessions.length === 0) {
+  if (health && !health.ok && !boot && sessions.length === 0) {
     return (
       <OfflineScreen
         health={health}

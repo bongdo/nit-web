@@ -36,6 +36,7 @@ import { BASE_PATH } from "../lib/base";
 import {
   SCOPES,
   groupByDirectory,
+  groupKey,
   groupSessions,
   hoistFinished,
   type Scope,
@@ -157,11 +158,6 @@ function SessionRow({
             </span>
           )}
           <span className="min-w-0 flex-1 truncate text-[13px] font-medium">{title}</span>
-          {session.instance && (
-            <span className="border-border text-muted-foreground shrink-0 rounded border px-1 font-mono text-[9px]">
-              {session.instance}
-            </span>
-          )}
           <span
             className={cn(
               "shrink-0 text-[10px] transition-opacity group-hover:opacity-0",
@@ -194,6 +190,11 @@ function SessionRow({
             <span className="truncate" title={session.location?.directory}>
               {basename(session.location?.directory) || "unknown"}
             </span>
+            {session.instance && (
+              <span className="shrink-0 font-mono opacity-70" title={session.instance}>
+                {session.instance}
+              </span>
+            )}
           </div>
         )}
       </div>
@@ -760,7 +761,7 @@ export const Sidebar = memo(function Sidebar({
               {pool ? (
                 <div className="relative space-y-0.5">
                   {poolGroups.map((group) => (
-                    <Fragment key={group.directory}>
+                    <Fragment key={groupKey(group)}>
                       <div className="text-muted-foreground flex items-center gap-2 px-3 pt-2.5 pb-0.5 text-[10px] font-medium">
                         {scope === "everywhere" ? (
                           <span className="min-w-0 truncate" title={group.directory}>
@@ -778,6 +779,14 @@ export const Sidebar = memo(function Sidebar({
                               {basename(group.directory) || group.directory || "unknown"}
                             </span>
                           </button>
+                        )}
+                        {group.instance && (
+                          <span
+                            className="border-border shrink-0 rounded border px-1 font-mono text-[9px]"
+                            title={`Calls from ${group.instance}`}
+                          >
+                            {group.instance}
+                          </span>
                         )}
                         <span className="tabular-nums opacity-60">{group.rows.length}</span>
                         <span className="bg-border h-px flex-1 opacity-50" />

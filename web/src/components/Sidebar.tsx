@@ -57,6 +57,7 @@ function SessionRow({
   session,
   depth,
   active,
+  running,
   waiting,
   failed,
   done,
@@ -75,6 +76,7 @@ function SessionRow({
   session: Session;
   depth: number;
   active: boolean;
+  running: boolean;
   waiting: boolean;
   failed: boolean;
   done: boolean;
@@ -134,25 +136,33 @@ function SessionRow({
               )}
             />
           ) : (
-            <span className="flex size-4 shrink-0 items-center justify-center">
-              {hasSubagents && (
-                <button
-                  type="button"
-                  onClick={onToggle}
-                  aria-expanded={expanded}
-                  aria-label={expanded ? "Hide subagents" : "Show subagents"}
-                  title={expanded ? "Hide subagents" : "Show subagents"}
-                  className="pointer-events-auto flex size-4 items-center justify-center rounded text-muted-foreground hover:text-foreground"
-                >
-                  <ChevronRight
-                    className={cn(
-                      "size-3 transition-transform",
-                      expanded && "rotate-90",
-                    )}
-                  />
-                </button>
+            <>
+              <span className="flex size-4 shrink-0 items-center justify-center">
+                {hasSubagents && (
+                  <button
+                    type="button"
+                    onClick={onToggle}
+                    aria-expanded={expanded}
+                    aria-label={expanded ? "Hide subagents" : "Show subagents"}
+                    title={expanded ? "Hide subagents" : "Show subagents"}
+                    className="pointer-events-auto flex size-4 items-center justify-center rounded text-muted-foreground hover:text-foreground"
+                  >
+                    <ChevronRight
+                      className={cn(
+                        "size-3 transition-transform",
+                        expanded && "rotate-90",
+                      )}
+                    />
+                  </button>
+                )}
+              </span>
+              {running && (
+                <span
+                  className="bg-success size-1.5 shrink-0 animate-pulse rounded-full"
+                  title="Running"
+                />
               )}
-            </span>
+            </>
           )}
           <span className="min-w-0 flex-1 truncate text-[13px] font-medium">{title}</span>
           <span
@@ -394,6 +404,7 @@ export const Sidebar = memo(function Sidebar({
           session={session}
           depth={depth}
           active={session.id === selectedId}
+          running={isRunning(session.id)}
           waiting={waitingIds.has(session.id)}
           failed={failedIds.has(session.id)}
           done={doneIds.has(session.id)}
@@ -424,6 +435,7 @@ export const Sidebar = memo(function Sidebar({
                 session={child}
                 depth={depth + 1}
                 active={child.id === selectedId}
+                running={isRunning(child.id)}
                 waiting={waitingIds.has(child.id)}
                 failed={failedIds.has(child.id)}
                 done={doneIds.has(child.id)}
@@ -722,7 +734,13 @@ export const Sidebar = memo(function Sidebar({
           ) : (
             <>
               {finishedRows.length > 0 && (
-                <div className="bg-card/95 border-border/60 scrollbar-thin sticky top-0 z-10 -mx-2 mb-1 max-h-[45vh] overflow-y-auto border-b px-2 pb-1 backdrop-blur-sm">
+                <div
+                  className="scrollbar-thin sticky top-0 z-10 -mx-2 mb-1 max-h-[45vh] overflow-y-auto px-2 pb-1"
+                  style={{
+                    backgroundColor:
+                      "color-mix(in srgb, var(--card) 40%, var(--background))",
+                  }}
+                >
                   <div className="space-y-0.5">
                     {finishedRows.map((row) => renderRow(row))}
                   </div>
@@ -781,6 +799,7 @@ export const Sidebar = memo(function Sidebar({
         {runningStart < rest.length && (
           <div className="max-h-[70%] shrink-0 overflow-y-auto px-2">
             <div className="text-muted-foreground flex items-center gap-2 px-2 pt-3 pb-1 font-mono text-[9px] tracking-[0.12em] uppercase">
+              <span className="bg-success size-1.5 rounded-full" />
               <span>Running</span>
               <span className="text-muted-foreground/70 tabular-nums">
                 {runningGroupCount}

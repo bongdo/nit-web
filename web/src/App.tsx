@@ -8,7 +8,7 @@ import {
   type ReactNode,
 } from "react";
 import { flushSync } from "react-dom";
-import { CircleAlert, Layers, Plus, RefreshCw, X } from "lucide-react";
+import { CircleAlert, RefreshCw, X } from "lucide-react";
 import { api, nextSessionCursor } from "./lib/api";
 import type {
   Agent,
@@ -2458,30 +2458,6 @@ export default function App({
             />
           </div>
 
-          <nav
-            aria-label="Mobile navigation"
-            className="pointer-events-auto flex items-center px-2.5 pb-[env(safe-area-inset-bottom)] md:hidden"
-          >
-            <button
-              type="button"
-              onClick={openSidebar}
-              className="text-muted-foreground hover:text-foreground flex h-[30px] items-center gap-1.5 text-[11px] font-medium"
-              aria-label="Open chats"
-            >
-              <Layers className="size-3.5" />
-              Chats
-            </button>
-            <button
-              type="button"
-              onClick={() => newChat()}
-              disabled={!health?.ok}
-              className="text-foreground ml-auto flex h-[30px] items-center gap-1.5 text-[11px] font-medium disabled:opacity-50"
-              aria-label="New chat"
-            >
-              <Plus className="size-3.5" />
-              New
-            </button>
-          </nav>
         </BottomDock>
       </main>
 

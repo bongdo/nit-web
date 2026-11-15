@@ -118,7 +118,10 @@ func (d *Devices) List() []Device {
 		if list[i].User != list[j].User {
 			return list[i].User < list[j].User
 		}
-		return list[i].Seen > list[j].Seen
+		if list[i].Seen != list[j].Seen {
+			return list[i].Seen > list[j].Seen
+		}
+		return list[i].ID < list[j].ID
 	})
 	return list
 }

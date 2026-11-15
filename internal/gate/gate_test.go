@@ -530,8 +530,11 @@ func TestDeviceStore(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if list := devices.ListFor("friend"); len(list) != 2 || list[0].ID != other.ID {
-		t.Fatalf("list order = %+v", list)
+	if list := devices.ListFor("friend"); len(list) != 2 {
+		t.Fatalf("list for user = %+v", list)
+	}
+	if !devices.Has("friend", other.ID) {
+		t.Fatal("second device is missing")
 	}
 	if len(devices.List()) != 2 {
 		t.Fatalf("all devices = %+v", devices.List())
@@ -634,24 +637,64 @@ func TestAdminSeesAllDevices(t *testing.T) {
 	}
 
 	body := getBody(t, adminClient, server.URL+"/admin")
+	adminSection := section(body, "устройства")
 	for _, device := range devices.List() {
-		if !strings.Contains(body, device.ID) {
+		if !strings.Contains(adminSection, device.ID) {
 			t.Fatalf("admin page misses device %s of %s", device.ID, device.User)
 		}
 	}
+	if got, want := strings.Count(adminSection, `name="id"`), len(devices.List()); got != want {
+		t.Fatalf("admin page has %d disconnect buttons, want %d", got, want)
+	}
+
 	mine := devices.ListFor("friend")
 	if len(mine) != 1 {
 		t.Fatalf("member devices = %+v", mine)
 	}
-	memberBody := getBody(t, member, server.URL+"/account")
-	if !strings.Contains(memberBody, mine[0].ID) {
-		t.Fatal("account page misses the current device")
+	memberSection := section(getBody(t, member, server.URL+"/account"), "устройства")
+	if !strings.Contains(memberSection, "это устройство") {
+		t.Fatal("account page does not mark the current device")
+	}
+	if got := strings.Count(memberSection, `name="id"`); got != 0 {
+		t.Fatalf("account page offers %d disconnect buttons for a single device", got)
 	}
 	for _, device := range devices.ListFor("bongdo") {
-		if strings.Contains(memberBody, device.ID) {
+		if strings.Contains(memberSection, device.ID) {
 			t.Fatal("account page shows another user's device")
 		}
 	}
+
+	resp, err := adminClient.PostForm(server.URL+"/admin/devices/remove", url.Values{"id": {mine[0].ID}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusSeeOther {
+		t.Fatalf("admin removal = %d, want 303", resp.StatusCode)
+	}
+	if devices.Has("friend", mine[0].ID) {
+		t.Fatal("admin removal left the device in place")
+	}
+	resp, err = adminClient.PostForm(server.URL+"/admin/devices/remove", url.Values{"id": {"nope"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("removal of an unknown device = %d, want 400", resp.StatusCode)
+	}
+}
+
+func section(body, title string) string {
+	start := strings.Index(body, "<h2>"+title+"</h2>")
+	if start < 0 {
+		return ""
+	}
+	rest := body[start:]
+	if end := strings.Index(rest, "</section>"); end >= 0 {
+		return rest[:end]
+	}
+	return rest
 }
 
 func getBody(t *testing.T, client *http.Client, url string) string {

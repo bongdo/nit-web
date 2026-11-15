@@ -1,0 +1,62 @@
+{{define "head"}}<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{.Title}}</title>
+<style>
+  :root { color-scheme: dark; --bg:#0e1013; --panel:#15181c; --line:#272b30; --text:#e8e6e3; --muted:#94908a; --accent:#c4794f; --ok:#6f9c7f; --bad:#b26a63; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font:15px/1.6 ui-sans-serif,system-ui,sans-serif; }
+  .wrap { max-width:720px; margin:0 auto; padding:32px 20px 64px; }
+  .wrap.narrow { max-width:380px; padding-top:8vh; }
+  .wrap.narrow .stack { max-width:none; }
+  .wrap.narrow header { margin-bottom:28px; }
+  .wrap.narrow header .who { flex-wrap:wrap; justify-content:flex-end; }
+  header { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:24px; }
+  header a.brand { color:var(--text); text-decoration:none; font-weight:600; letter-spacing:-.01em; }
+  header .who { color:var(--muted); font-size:13px; display:flex; align-items:center; gap:10px; }
+  header .who form { margin:0; }
+  h1 { font-size:22px; margin:0 0 18px; letter-spacing:-.02em; }
+  a { color:var(--accent); }
+  .cards { display:grid; gap:10px; }
+  .card { border:1px solid var(--line); border-radius:12px; padding:14px 16px; background:var(--panel); display:flex; justify-content:space-between; gap:12px; align-items:baseline; }
+  .card .path { font-family:ui-monospace,monospace; font-size:13.5px; }
+  .card .note { color:var(--muted); font-size:12.5px; }
+  .card.locked .path { color:var(--muted); }
+  .card.locked .note { color:var(--bad); }
+  form.stack { display:grid; gap:12px; max-width:340px; }
+  label { display:grid; gap:6px; font-size:13px; color:var(--muted); }
+  input { background:#0f1215; border:1px solid var(--line); border-radius:9px; padding:10px 12px; color:var(--text); font:inherit; }
+  button { background:var(--accent); border:0; border-radius:9px; padding:10px 14px; color:#16120f; font:600 14px/1 inherit; cursor:pointer; }
+  button.ghost { background:transparent; border:1px solid var(--line); color:var(--text); }
+  button.bad { background:transparent; border:1px solid #5a3a36; color:var(--bad); }
+  .msg { border:1px solid #2f4a3a; background:#131a16; color:#9ec7ae; border-radius:10px; padding:10px 12px; margin-bottom:16px; font-size:14px; }
+  .err { border:1px solid #4a2f2c; background:#1a1312; color:#d59a92; border-radius:10px; padding:10px 12px; margin-bottom:16px; font-size:14px; }
+  table { width:100%; border-collapse:collapse; font-size:14px; }
+  th, td { text-align:left; padding:8px 10px; border-bottom:1px solid var(--line); }
+  th { color:var(--muted); font:600 11px/1.4 ui-monospace,monospace; letter-spacing:.08em; text-transform:uppercase; }
+  .row-actions { display:flex; gap:8px; }
+  .muted { color:var(--muted); }
+  .mono { font-family:ui-monospace,monospace; font-size:12.5px; word-break:break-all; }
+  section + section { margin-top:28px; }
+  h2 { font:600 11px/1 ui-monospace,monospace; letter-spacing:.1em; text-transform:uppercase; color:var(--muted); margin:0 0 12px; }
+</style>
+</head>
+<body>
+<div class="wrap{{if .Narrow}} narrow{{end}}">
+<header>
+  <a class="brand" href="/">bongdo.space</a>
+  <div class="who">
+    {{if .User.User}}<span>{{.User.User}} · {{.User.Role}}</span><a href="/account">аккаунт</a>{{if .User.Has "admin.users"}}<a href="/admin">админка</a>{{end}}<form method="post" action="/logout"><button class="ghost">выйти</button></form>{{else}}<a href="/login">войти</a><a href="/signup">запросить доступ</a>{{end}}
+  </div>
+</header>
+{{if .Message}}<div class="msg">{{.Message}}</div>{{end}}
+{{if .Error}}<div class="err">{{.Error}}</div>{{end}}
+{{end}}
+
+{{define "foot"}}
+</div>
+</body>
+</html>
+{{end}}

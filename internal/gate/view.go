@@ -1,0 +1,155 @@
+package gate
+
+import (
+	"embed"
+	"html/template"
+	"net/http"
+	"strconv"
+	"time"
+
+	"nitgui/internal/gateid"
+)
+
+//go:embed views/*.html
+var viewFiles embed.FS
+
+var pages = template.Must(template.ParseFS(viewFiles, "views/*.html"))
+
+type routeView struct {
+	Prefix string
+	Note   string
+	Open   bool
+	Reason string
+}
+
+type deviceView struct {
+	ID      string
+	Name    string
+	IP      string
+	Created string
+	Seen    string
+	Current bool
+}
+
+type deviceGroup struct {
+	User    string
+	Devices []deviceView
+}
+
+type view struct {
+	Title        string
+	Narrow       bool
+	User         gateid.Identity
+	Routes       []routeView
+	Users        []User
+	Pending      []User
+	Invited      []User
+	Devices      []deviceView
+	DeviceGroups []deviceGroup
+	Message      string
+	Error        string
+	Next         string
+	Name         string
+	Token        string
+}
+
+func (s *Server) newView(r *http.Request, title string) view {
+	return view{Title: title, User: identity(r)}
+}
+
+func (s *Server) newNarrow(r *http.Request, title string) view {
+	data := s.newView(r, title)
+	data.Narrow = true
+	return data
+}
+
+func (s *Server) render(w http.ResponseWriter, name string, data view) {
+	s.renderStatus(w, name, data, http.StatusOK)
+}
+
+func (s *Server) renderStatus(w http.ResponseWriter, name string, data view, status int) {
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.WriteHeader(status)
+	if err := pages.ExecuteTemplate(w, name, data); err != nil {
+		s.log.Error("gate page failed", "page", name, "error", err)
+	}
+}
+
+func deviceViews(devices []Device, current string, now time.Time) []deviceView {
+	views := make([]deviceView, 0, len(devices))
+	for _, device := range devices {
+		views = append(views, deviceViewOf(device, current, now))
+	}
+	return views
+}
+
+func deviceViewOf(device Device, current string, now time.Time) deviceView {
+	return deviceView{
+		ID:      device.ID,
+		Name:    device.Name,
+		IP:      device.IP,
+		Created: time.Unix(device.Created, 0).Format("02.01.2006 15:04"),
+		Seen:    ago(time.Unix(device.Seen, 0), now),
+		Current: device.ID == current,
+	}
+}
+
+func deviceGroups(devices []Device, now time.Time) []deviceGroup {
+	groups := make([]deviceGroup, 0, len(devices))
+	position := map[string]int{}
+	for _, device := range devices {
+		index, ok := position[device.User]
+		if !ok {
+			index = len(groups)
+			position[device.User] = index
+			groups = append(groups, deviceGroup{User: device.User})
+		}
+		groups[index].Devices = append(groups[index].Devices, deviceViewOf(device, "", now))
+	}
+	return groups
+}
+
+func ago(then, now time.Time) string {
+	elapsed := now.Sub(then)
+	switch {
+	case elapsed < time.Minute:
+		return "только что"
+	case elapsed < time.Hour:
+		return plural(int(elapsed/time.Minute), "минуту", "минуты", "минут") + " назад"
+	case elapsed < 24*time.Hour:
+		return plural(int(elapsed/time.Hour), "час", "часа", "часов") + " назад"
+	default:
+		return plural(int(elapsed/(24*time.Hour)), "день", "дня", "дней") + " назад"
+	}
+}
+
+func plural(n int, one, few, many string) string {
+	switch {
+	case n%100 >= 11 && n%100 <= 14:
+		return strconv.Itoa(n) + " " + many
+	case n%10 == 1:
+		return strconv.Itoa(n) + " " + one
+	case n%10 >= 2 && n%10 <= 4:
+		return strconv.Itoa(n) + " " + few
+	default:
+		return strconv.Itoa(n) + " " + many
+	}
+}
+
+func passwordError(err error) string {
+	if err == ErrBadPassword {
+		return "пароль: минимум 8 символов"
+	}
+	return err.Error()
+}
+
+func (s *Server) notFound(w http.ResponseWriter, r *http.Request) {
+	s.renderStatus(w, "empty", s.newView(r, "404"), http.StatusNotFound)
+}
+
+func (s *Server) forbidden(w http.ResponseWriter, r *http.Request, route Route) {
+	data := s.newView(r, "нет доступа")
+	data.Message = route.Prefix
+	data.Error = "маршрут закрыт: нужна другая роль"
+	s.renderStatus(w, "empty", data, http.StatusForbidden)
+}

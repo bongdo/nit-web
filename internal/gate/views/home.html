@@ -1,0 +1,13 @@
+{{define "home"}}{{template "head" .}}
+<h1>сервисы</h1>
+<div class="cards">
+  {{range .Routes}}
+  <div class="card{{if not .Open}} locked{{end}}">
+    <div>
+      <div class="path">{{if .Open}}<a href="{{.Prefix}}/">{{.Prefix}}</a>{{else}}{{.Prefix}}{{end}}</div>
+      <div class="note">{{if .Open}}{{.Note}}{{else}}{{.Reason}}{{end}}</div>
+    </div>
+  </div>
+  {{end}}
+</div>
+{{template "foot" .}}{{end}}

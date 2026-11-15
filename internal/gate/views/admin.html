@@ -1,0 +1,76 @@
+{{define "admin"}}{{template "head" .}}
+<h1>админка</h1>
+<section>
+  <h2>заявки</h2>
+  {{if .Pending}}
+  <table>
+    <thead><tr><th>имя</th><th>что сделать</th></tr></thead>
+    <tbody>
+    {{range .Pending}}
+      <tr>
+        <td class="mono">{{.Name}}</td>
+        <td class="row-actions">
+          <form method="post" action="/admin/approve"><input type="hidden" name="name" value="{{.Name}}"><button>одобрить</button></form>
+          <form method="post" action="/admin/reject"><input type="hidden" name="name" value="{{.Name}}"><button class="bad">отклонить</button></form>
+        </td>
+      </tr>
+    {{end}}
+    </tbody>
+  </table>
+  {{else}}<p class="muted">заявок нет</p>{{end}}
+</section>
+<section>
+  <h2>приглашённые</h2>
+  {{if .Invited}}
+  <table>
+    <thead><tr><th>имя</th><th>ссылка</th></tr></thead>
+    <tbody>
+    {{range .Invited}}
+      <tr>
+        <td class="mono">{{.Name}}</td>
+        <td class="mono"><a href="/i/{{.Token}}">/i/{{.Token}}</a></td>
+      </tr>
+    {{end}}
+    </tbody>
+  </table>
+  {{else}}<p class="muted">никого</p>{{end}}
+</section>
+<section>
+  <h2>активные</h2>
+  <table>
+    <thead><tr><th>имя</th><th>роль</th></tr></thead>
+    <tbody>
+    {{range .Users}}
+      <tr>
+        <td class="mono">{{.Name}}</td>
+        <td class="muted">{{.Role}}</td>
+      </tr>
+    {{end}}
+    </tbody>
+  </table>
+</section>
+<section>
+  <h2>устройства</h2>
+  {{if .DeviceGroups}}
+  {{range .DeviceGroups}}
+  <p class="mono">{{.User}}</p>
+  <table>
+    <thead><tr><th>устройство</th><th>ip</th><th>вход</th><th>активность</th><th></th></tr></thead>
+    <tbody>
+    {{range .Devices}}
+      <tr>
+        <td>{{.Name}}</td>
+        <td class="mono">{{.IP}}</td>
+        <td class="muted">{{.Created}}</td>
+        <td class="muted">{{.Seen}}</td>
+        <td class="row-actions">
+          <form method="post" action="/admin/devices/remove"><input type="hidden" name="id" value="{{.ID}}"><button class="bad">отключить</button></form>
+        </td>
+      </tr>
+    {{end}}
+    </tbody>
+  </table>
+  {{end}}
+  {{else}}<p class="muted">нет устройств</p>{{end}}
+</section>
+{{template "foot" .}}{{end}}

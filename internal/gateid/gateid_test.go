@@ -1,23 +1,38 @@
 package gateid
 
 import (
+	"encoding/base64"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strconv"
 	"testing"
 	"time"
 )
 
 func TestSignVerify(t *testing.T) {
 	secret := []byte("0123456789abcdef0123456789abcdef")
-	id := Identity{User: "bongdo", Role: RoleAdmin, Caps: Caps(RoleAdmin), Exp: time.Now().Add(time.Minute).Unix()}
+	id := Identity{User: "bongdo", Role: RoleAdmin, Caps: Caps(RoleAdmin), Exp: time.Now().Add(time.Minute).Unix(), Dev: "device-1"}
 	value := Sign(secret, id)
 	got, err := Verify(secret, value, time.Now())
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got.User != "bongdo" || !got.Has(AdminHost) {
+	if got.User != "bongdo" || !got.Has(AdminHost) || got.Dev != "device-1" {
 		t.Fatalf("identity = %+v", got)
+	}
+}
+
+func TestVerifyIdentityWithoutDevice(t *testing.T) {
+	secret := []byte("0123456789abcdef0123456789abcdef")
+	payload := `{"u":"old","r":"member","c":["read.public"],"exp":` + strconv.FormatInt(time.Now().Add(time.Minute).Unix(), 10) + `}`
+	body := base64.RawURLEncoding.EncodeToString([]byte(payload))
+	id, err := Verify(secret, body+"."+signature(secret, body), time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if id.User != "old" || id.Dev != "" {
+		t.Fatalf("identity = %+v", id)
 	}
 }
 

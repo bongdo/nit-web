@@ -6,7 +6,6 @@ import {
   useRef,
   useState,
   type RefObject,
-  type UIEvent,
 } from "react";
 import {
   ChevronDown,
@@ -269,9 +268,6 @@ export const Sidebar = memo(function Sidebar({
   motion,
   reviewCount,
   onReview,
-  hasMore,
-  loadingMore,
-  onLoadMore,
 }: {
   sessions: Session[];
   subagents: Session[];
@@ -309,9 +305,6 @@ export const Sidebar = memo(function Sidebar({
   motion: "animated" | "static";
   reviewCount: number;
   onReview: () => void;
-  hasMore?: boolean;
-  loadingMore?: boolean;
-  onLoadMore?: () => void;
 }) {
   const [now, setNow] = useState(Date.now());
   const [fading, setFading] = useState(false);
@@ -496,18 +489,6 @@ export const Sidebar = memo(function Sidebar({
     observer.observe(container);
     return () => observer.disconnect();
   });
-
-  useEffect(() => {
-    const container = listRef.current;
-    if (!container || !hasMore || loadingMore) return;
-    if (container.scrollHeight <= container.clientHeight + 1) onLoadMore?.();
-  }, [hasMore, loadingMore, onLoadMore, visible.length]);
-
-  const loadMoreOnScroll = (event: UIEvent<HTMLDivElement>) => {
-    const box = event.currentTarget;
-    if (!hasMore || loadingMore) return;
-    if (box.scrollHeight - box.scrollTop - box.clientHeight < 320) onLoadMore?.();
-  };
 
   useEffect(() => {
     if (!selectedId || selectedRank === null) return;
@@ -715,7 +696,6 @@ export const Sidebar = memo(function Sidebar({
       <div className="flex min-h-0 flex-1 flex-col">
         <div
           ref={listRef}
-          onScroll={loadMoreOnScroll}
           className={cn(
             "scrollbar-thin relative min-h-0 touch-pan-y overflow-y-auto px-2 pb-2",
             fading &&
@@ -786,11 +766,6 @@ export const Sidebar = memo(function Sidebar({
             </>
           )}
         </div>
-        {loadingMore && (
-          <div className="text-muted-foreground px-3 py-2 text-center text-[11px]">
-            Loading older chats…
-          </div>
-        )}
         {runningStart < rest.length && (
           <div className="max-h-[70%] shrink-0 overflow-y-auto px-2">
             <div className="text-muted-foreground flex items-center gap-2 px-2 pt-3 pb-1 font-mono text-[9px] tracking-[0.12em] uppercase">

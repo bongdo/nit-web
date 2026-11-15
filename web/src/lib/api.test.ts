@@ -1,10 +1,34 @@
 import { describe, expect, it } from "vitest";
-import { nextSessionCursor, SESSIONS_PAGE_SIZE } from "./api";
+import { api, nextSessionCursor, SESSIONS_PAGE_SIZE } from "./api";
 import type { Session, SessionList } from "./types";
 
 const page = (count: number, next: string | null = "c"): SessionList => ({
   data: Array.from({ length: count }, () => ({}) as Session),
   cursor: { next },
+});
+
+describe("allSessions", () => {
+  it("follows the cursor until a short page", async () => {
+    const calls: string[] = [];
+    const pages = [page(SESSIONS_PAGE_SIZE, "c1"), page(SESSIONS_PAGE_SIZE, "c2"), page(3, null)];
+    const original = globalThis.fetch;
+    globalThis.fetch = (async (input: RequestInfo | URL) => {
+      calls.push(String(input));
+      return new Response(JSON.stringify(pages.shift()), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      });
+    }) as typeof fetch;
+    try {
+      const data = await api.allSessions(undefined, "q");
+      expect(data).toHaveLength(SESSIONS_PAGE_SIZE * 2 + 3);
+      expect(calls[0]).not.toContain("cursor=");
+      expect(calls[1]).toContain("cursor=c1");
+      expect(calls[2]).toContain("cursor=c2");
+    } finally {
+      globalThis.fetch = original;
+    }
+  });
 });
 
 describe("nextSessionCursor", () => {

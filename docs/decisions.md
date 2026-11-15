@@ -974,3 +974,22 @@ all pages up front (unbounded requests on a heavy instance).
 
 Cost: a large instance makes one extra request each time the list reaches the
 bottom, and search still goes upstream instead of filtering the loaded window.
+
+## 2026-11-15 — All session pages load up front (replaces scrolling pager)
+
+Context: the scroll pager replaced the button, but a list that starts at 100 and
+grows on scroll still moves under the finger, and the first paint was one page
+short of the truth.
+
+Decision: `api.allSessions` walks the cursor until a short page, and both the
+scope load and the `All chats` pool cache use it. No cursor state, no pager, no
+scroll handler in the sidebar.
+
+Why: the list is a view of the instance, not of a page of it; a stable list at
+first paint beats requests saved.
+
+Rejected: scroll paging (moves rows while the user reads), a manual button (the
+step the user rejected).
+
+Cost: a reload costs one request per 100 sessions; the walk stops at 100 pages
+(10,000 sessions) as a guard against a runaway cursor.

@@ -102,6 +102,8 @@ export function nextSessionCursor(page: SessionList): string | null {
   return page.cursor?.next ?? null;
 }
 
+const MAX_SESSION_PAGES = 100;
+
 export const api = {
   setInstance,
   instances: (probe = false) =>
@@ -151,6 +153,18 @@ export const api = {
   },
   session: async (id: string) =>
     (await request<{ data: Session }>(`/api/sessions/${encodeURIComponent(id)}`)).data,
+  allSessions: async (dir?: string, search?: string) => {
+    const first = await api.sessions(dir, false, search);
+    const data = [...first.data];
+    let cursor = nextSessionCursor(first);
+    for (let page = 1; cursor && page < MAX_SESSION_PAGES; page += 1) {
+      const next = await api.sessions(dir, false, search, cursor);
+      if (next.data.length === 0) break;
+      data.push(...next.data);
+      cursor = nextSessionCursor(next);
+    }
+    return data;
+  },
   deleteSession: (id: string) =>
     request<void>(`/api/sessions/${encodeURIComponent(id)}`, { method: "DELETE" }),
   createSession: async (input: {

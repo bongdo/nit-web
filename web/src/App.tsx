@@ -9,7 +9,7 @@ import {
 } from "react";
 import { flushSync } from "react-dom";
 import { CircleAlert, RefreshCw, X } from "lucide-react";
-import { api, nextSessionCursor } from "./lib/api";
+import { api } from "./lib/api";
 import type {
   Agent,
   Config,
@@ -282,11 +282,6 @@ export default function App({
   const [search, setSearch] = useState("");
   const searchQueryRef = useRef(search);
   searchQueryRef.current = search;
-  const [sessionCursor, setSessionCursor] = useState<string | null>(null);
-  const sessionCursorRef = useRef<string | null>(null);
-  sessionCursorRef.current = sessionCursor;
-  const [loadingMore, setLoadingMore] = useState(false);
-  const loadingMoreRef = useRef(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [preferredModel, setPreferredModel] = useState<ModelRef | null>(null);
   const [preferredAgent, setPreferredAgent] = useState<string | null>(null);
@@ -297,7 +292,7 @@ export default function App({
   const lastEscapeAt = useRef(0);
   const skipLoadRef = useRef<string | null>(null);
   const lastQueryRef = useRef(`${scope}|${workspace}|`);
-  const poolCache = useRef<{ data: Session[]; cursor: string | null } | null>(null);
+  const poolCache = useRef<Session[] | null>(null);
   const poolCacheLoading = useRef(false);
   const streamQueue = useRef<StreamEvent[]>([]);
   const streamFrame = useRef<number | null>(null);
@@ -545,12 +540,12 @@ export default function App({
     try {
       // shortcut: children=true returns the newest 100 sessions, paginate when older subagents matter.
       const [list, nested] = await Promise.all([
-        api.sessions(scopedDirectory ?? undefined, false, query || undefined),
+        api.allSessions(scopedDirectory ?? undefined, query || undefined),
         api
           .sessions(scopedDirectory ?? undefined, true, query || undefined)
           .catch(() => ({ data: [] as Session[], cursor: null })),
       ]);
-      let data = list.data;
+      let data = [...list];
       const known = new Set(data.map((session) => session.id));
       for (const session of nested.data) {
         if (session.parentID && !known.has(session.id)) {
@@ -567,62 +562,15 @@ export default function App({
           if (keep) data = [keep, ...data];
         }
       }
-      const cursor = nextSessionCursor(list);
-      sessionCursorRef.current = cursor;
-      setSessionCursor(cursor);
       setSessions(data);
-      if (scopeRef.current === "mine" && !query) poolCache.current = { data, cursor };
+      if (scopeRef.current === "mine" && !query) poolCache.current = data;
       setRunningIds((previous) =>
         mergeRunningStates(previous, data, runningEventsAt.current, requestedAt),
       );
-      if (cursor) {
-        const probe = cursor;
-        void api
-          .sessions(scopedDirectory ?? undefined, false, query || undefined, probe)
-          .then((next) => {
-            if (next.data.length === 0 && sessionCursorRef.current === probe) {
-              sessionCursorRef.current = null;
-              setSessionCursor(null);
-            }
-          })
-          .catch(() => {});
-      }
     } catch (error) {
       setBanner(messageOf(error));
     } finally {
       setSessionsLoading(false);
-    }
-  }, []);
-
-  const loadMoreSessions = useCallback(async () => {
-    const cursor = sessionCursorRef.current;
-    if (!cursor || loadingMoreRef.current) return;
-    loadingMoreRef.current = true;
-    setLoadingMore(true);
-    const scopedDirectory = scopeRef.current === "directory" ? workspaceRef.current : null;
-    const query = searchQueryRef.current.trim();
-    try {
-      const page = await api.sessions(
-        scopedDirectory ?? undefined,
-        true,
-        query || undefined,
-        cursor,
-      );
-      const next = nextSessionCursor(page);
-      setSessions((previous) => {
-        const known = new Set(previous.map((session) => session.id));
-        const add = page.data.filter((session) => !known.has(session.id));
-        const merged = add.length > 0 ? [...previous, ...add] : previous;
-        if (scopeRef.current === "mine" && !query) poolCache.current = { data: merged, cursor: next };
-        return merged;
-      });
-      sessionCursorRef.current = next;
-      setSessionCursor(next);
-    } catch (error) {
-      setBanner(messageOf(error));
-    } finally {
-      loadingMoreRef.current = false;
-      setLoadingMore(false);
     }
   }, []);
 
@@ -636,8 +584,7 @@ export default function App({
     }
     poolCacheLoading.current = true;
     try {
-      const list = await api.sessions(undefined, false);
-      poolCache.current = { data: list.data, cursor: nextSessionCursor(list) };
+      poolCache.current = await api.allSessions();
     } catch {
       return;
     } finally {
@@ -1256,9 +1203,7 @@ export default function App({
           ),
         );
       } else if (poolCache.current) {
-        setSessions(poolCache.current.data);
-        sessionCursorRef.current = poolCache.current.cursor;
-        setSessionCursor(poolCache.current.cursor);
+        setSessions(poolCache.current);
       }
     }
     setScopeState(next);
@@ -2299,9 +2244,6 @@ export default function App({
             theme={theme}
             search={search}
             searchRef={searchRef}
-            hasMore={Boolean(sessionCursor)}
-            loadingMore={loadingMore}
-            onLoadMore={() => void loadMoreSessions()}
             hiddenIds={hiddenIds}
             hiddenCount={hiddenCount}
             showHidden={showHidden}

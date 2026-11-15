@@ -43,7 +43,7 @@ export default function Root() {
   const load = useCallback(async () => {
     setError(null);
     try {
-      const result = await api.instances();
+      const result = await api.instances("none");
       setData(result);
       const stored = localStorage.getItem("nit-gui.instance");
       const next =
@@ -62,7 +62,7 @@ export default function Root() {
   const refresh = useCallback(async () => {
     setError(null);
     try {
-      const result = await api.instances(true);
+      const result = await api.instances("all");
       setData(result);
       setActive((current) =>
         result.instances.some((item) => item.id === current) ? current : result.default,
@@ -76,7 +76,7 @@ export default function Root() {
     (id: string) => {
       setMenuOpen(false);
       const target = data?.instances.find((item) => item.id === id);
-      if (id !== active && target?.state === "connected") {
+      if (id !== active && target && target.state !== "offline") {
         void prefetchBoot(id);
       }
       setActive(id);
@@ -87,8 +87,8 @@ export default function Root() {
 
   const openMenu = useCallback(() => {
     setMenuOpen(true);
-    void load();
-  }, [load]);
+    void refresh();
+  }, [refresh]);
 
   if (!data) {
     if (error) return <LoadError message={error} onRetry={() => void load()} />;

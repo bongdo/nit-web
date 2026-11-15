@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
   cachedSessions,
-  needsBootScreen,
   prefetchBoot,
   readBoot,
   writeBoot,
@@ -50,7 +49,6 @@ function mockFetch(instances: string[], calls: string[], offline = false) {
 describe("boot cache", () => {
   it("starts empty and keeps earlier fields across writes", () => {
     expect(readBoot("boot-write")).toBeNull();
-    expect(needsBootScreen(null)).toBe(true);
 
     writeBoot("boot-write", { health: { ok: true } });
     writeBoot("boot-write", { models: [{ id: "m1" }] as unknown as Model[] });
@@ -59,7 +57,6 @@ describe("boot cache", () => {
     expect(boot?.health).toEqual({ ok: true });
     expect(boot?.models).toHaveLength(1);
     expect(boot?.sessions).toEqual([]);
-    expect(needsBootScreen(boot)).toBe(false);
   });
 
   it("seeds chats per scope", () => {

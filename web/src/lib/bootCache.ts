@@ -61,10 +61,6 @@ export function prefetchBoot(instance: string): Promise<void> {
   return task;
 }
 
-export function needsBootScreen(boot: Boot | null): boolean {
-  return boot === null;
-}
-
 export function cachedSessions(
   boot: Boot | null,
   scope: Scope,

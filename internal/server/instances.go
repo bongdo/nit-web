@@ -44,12 +44,20 @@ type instanceOut struct {
 }
 
 func (s *Server) instances(w http.ResponseWriter, r *http.Request) {
-	probeAll := r.URL.Query().Get("probe") == "all"
-	shared := s.sharedCapabilities(r.Context())
+	probe := r.URL.Query().Get("probe")
+	probeAll := probe == "all"
+	probeNone := probe == "none"
+	shared := sharedCapabilities{
+		grammar: capabilityOut{ID: "grammar", Label: "Grammar", Owner: "nit-gui", State: "unknown", Detail: "not probed"},
+		speech:  capabilityOut{ID: "speech", Label: "Speech", Owner: "opencode", State: "unknown", Detail: "not probed"},
+	}
+	if !probeNone {
+		shared = s.sharedCapabilities(r.Context())
+	}
 	specs := s.multi.Instances()
 	instances := make([]instanceOut, 0, len(specs))
 	for _, spec := range specs {
-		instances = append(instances, s.instanceInfo(r.Context(), spec, probeAll, shared))
+		instances = append(instances, s.instanceInfo(r.Context(), spec, probeAll, probeNone, shared))
 	}
 	host := s.publicHost
 	if host == "" {
@@ -78,7 +86,7 @@ func (s *Server) sharedCapabilities(ctx context.Context) sharedCapabilities {
 	}
 }
 
-func (s *Server) instanceInfo(ctx context.Context, spec opencode.InstanceSpec, probeAll bool, shared sharedCapabilities) instanceOut {
+func (s *Server) instanceInfo(ctx context.Context, spec opencode.InstanceSpec, probeAll, probeNone bool, shared sharedCapabilities) instanceOut {
 	out := instanceOut{
 		ID:               spec.Name,
 		Name:             spec.Name,
@@ -90,6 +98,17 @@ func (s *Server) instanceInfo(ctx context.Context, spec opencode.InstanceSpec, p
 		PeroURL:          spec.PeroURL,
 		TermURL:          spec.TermURL,
 		DefaultDirectory: spec.Dir,
+	}
+	if probeNone {
+		if s.multi.Connected(spec.Name) {
+			out.State = "connected"
+		}
+		if last := s.multi.LastError(spec.Name); last != "" {
+			out.State = "offline"
+			out.Error = last
+		}
+		out.Capabilities = s.capabilities("", "unknown", "not probed", shared)
+		return out
 	}
 	if spec.SSH != "" && !probeAll && !s.multi.Connected(spec.Name) {
 		out.Error = s.multi.LastError(spec.Name)

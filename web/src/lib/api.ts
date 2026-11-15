@@ -106,8 +106,10 @@ const MAX_SESSION_PAGES = 100;
 
 export const api = {
   setInstance,
-  instances: (probe = false) =>
-    request<InstancesResponse>(probe ? "/api/instances?probe=all" : "/api/instances"),
+  instances: (probe: "none" | "all" = "none") =>
+    request<InstancesResponse>(
+      probe === "all" ? "/api/instances?probe=all" : "/api/instances?probe=none",
+    ),
   saveInstance: (input: InstanceInput) =>
     request<{ ok: boolean }>("/api/instances", { method: "POST", body: input }),
   deleteInstance: (id: string) =>

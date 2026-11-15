@@ -535,7 +535,7 @@ All `/api` endpoints except `/api/instances*` accept `X-Nit-Instance: <id>` or
 | Endpoint | Purpose |
 | --- | --- |
 | `GET /api/health` | `{ok, instance, server, version}` from OpenCode `/api/info`. |
-| `GET /api/instances` | App identity, default instance, config path/error and every instance with its capabilities, `url`, `ssh` and default directory. `?probe=all` also connects idle SSH instances. |
+| `GET /api/instances` | App identity, default instance, config path/error and every instance with its capabilities, `url`, `ssh` and default directory. `?probe=none` skips live probes (fast first paint); `?probe=all` probes every instance, including idle SSH ones. |
 | `POST /api/instances` | Create or edit `{original?, name, transport, url?, ssh?, dir?, password?, passwordFile?}`. Writes the config on the host and reloads the registry. |
 | `DELETE /api/instances/{id}` | Remove an instance; the last one cannot be removed. |
 | `POST /api/tts` | `{text}`; publish to the host TTS hub. `503` when the hub is down or has no audio client. |

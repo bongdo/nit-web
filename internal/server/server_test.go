@@ -1425,6 +1425,43 @@ func newMultiHandler(t *testing.T, provider *multiProvider) http.Handler {
 	}, log)
 }
 
+func TestInstancesFastModeSkipsProbe(t *testing.T) {
+	provider := &multiProvider{
+		clients: map[string]*opencode.Client{},
+		specs:   []opencode.InstanceSpec{{Name: "alpha", URL: "auto"}},
+		def:     "alpha",
+	}
+	handler := newMultiHandler(t, provider)
+
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "http://127.0.0.1:7788/api/instances?probe=none", nil))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d: %s", rec.Code, rec.Body)
+	}
+	var body struct {
+		Instances []struct {
+			ID           string `json:"id"`
+			State        string `json:"state"`
+			Error        string `json:"error"`
+			Capabilities []struct {
+				ID    string `json:"id"`
+				State string `json:"state"`
+			} `json:"capabilities"`
+		} `json:"instances"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if len(body.Instances) != 1 || body.Instances[0].State != "connected" || body.Instances[0].Error != "" {
+		t.Fatalf("unexpected fast list: %s", rec.Body)
+	}
+	for _, cap := range body.Instances[0].Capabilities {
+		if cap.ID == "chat" && cap.State != "unknown" {
+			t.Fatalf("chat state = %q", cap.State)
+		}
+	}
+}
+
 func TestInstancesAndRouting(t *testing.T) {
 	upstreamA := httptest.NewServer(auth(func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprint(w, `{"version":"2.4.0"}`)

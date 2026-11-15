@@ -633,8 +633,8 @@ export default function App({
   );
 
   const loadEverywhere = useCallback(async (query: string) => {
-    const { instances } = await api.instances();
-    const connected = instances.filter((item) => item.state === "connected");
+    const { instances } = await api.instances("none");
+    const connected = instances.filter((item) => item.state !== "offline");
     const results = await Promise.allSettled(
       connected.map(async (item) => ({
         instance: item.name,
@@ -2412,7 +2412,7 @@ export default function App({
     pickerOpen,
   ]);
 
-  if (health && !health.ok && !boot && sessions.length === 0) {
+  if (health && !health.ok && !boot && sessions.length === 0 && !workspace) {
     return (
       <OfflineScreen
         health={health}

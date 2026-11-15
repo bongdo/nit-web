@@ -75,7 +75,7 @@
       <tbody>
       {{range .Devices}}
         <tr>
-          <td{{if .Unknown}} class="unknown"{{end}}>{{.Name}}{{if .Current}}<span class="tag you">это устройство</span>{{end}}</td>
+          <td{{if .Unknown}} class="unknown"{{end}}><span class="dot{{if .Online}} online{{end}}" title="{{if .Online}}онлайн{{else}}офлайн{{end}}"></span>{{.Name}}{{if .Current}}<span class="tag you">это устройство</span>{{end}}</td>
           <td class="mono hide-sm">{{.Short}}</td>
           <td class="mono hide-sm">{{.IP}}</td>
           <td class="muted nowrap">{{.Created}}</td>

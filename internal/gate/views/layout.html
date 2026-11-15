@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="light dark">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='6' fill='%236f9c7f'/%3E%3C/svg%3E">
 <title>{{.Title}}</title>
 <script>
 try{var saved=localStorage.getItem("bongdo.theme");var dark=saved?saved==="dark":window.matchMedia("(prefers-color-scheme: dark)").matches;if(dark)document.documentElement.classList.add("dark")}catch(e){}
@@ -150,6 +151,8 @@ try{var saved=localStorage.getItem("bongdo.theme");var dark=saved?saved==="dark"
   td.actions > * + * { margin-left: 6px; }
   .mono { font-family: ui-monospace, "SFMono-Regular", monospace; font-size: 12px; color: var(--muted-fg); }
   .nowrap { white-space: nowrap; }
+  .dot { display: inline-block; width: 6px; height: 6px; margin-right: 7px; border-radius: 999px; background: var(--border); vertical-align: 1px; }
+  .dot.online { background: var(--success); box-shadow: 0 0 0 3px color-mix(in oklab, var(--success) 16%, transparent); }
   .mono a { color: var(--fg); text-decoration: none; border-bottom: 1px solid var(--border); }
   .mono a:hover { border-color: var(--fg); }
   .muted { color: var(--muted-fg); }

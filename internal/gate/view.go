@@ -15,6 +15,8 @@ var viewFiles embed.FS
 
 var pages = template.Must(template.ParseFS(viewFiles, "views/*.html"))
 
+const onlineWindow = 5 * time.Minute
+
 type routeView struct {
 	Prefix string
 	Note   string
@@ -32,6 +34,7 @@ type deviceView struct {
 	Seen    string
 	Current bool
 	Unknown bool
+	Online  bool
 }
 
 type deviceGroup struct {
@@ -108,6 +111,7 @@ func deviceViewOf(device Device, current string, now time.Time) deviceView {
 		Seen:    ago(time.Unix(device.Seen, 0), now),
 		Current: device.ID == current,
 		Unknown: unknown,
+		Online:  now.Sub(time.Unix(device.Seen, 0)) < onlineWindow,
 	}
 }
 

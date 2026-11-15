@@ -143,10 +143,7 @@ export function ImageCrop({
           </div>
         </div>
 
-        <p className="text-muted-foreground px-4 pb-2 text-[11px]">
-          {error ??
-            "Drag on the photo to choose the part to keep. Arrow keys move the selection, Shift+arrows resize it."}
-        </p>
+        {error && <p className="text-destructive px-4 pb-2 text-[11px]">{error}</p>}
 
         <div className="border-border flex items-center gap-2 border-t px-4 py-3">
           <Button

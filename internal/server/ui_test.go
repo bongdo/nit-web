@@ -210,7 +210,7 @@ func TestUIHiddenWriteFailureLeavesStateUnchanged(t *testing.T) {
 	}
 }
 
-func TestUIShowHiddenPersistsPerInstance(t *testing.T) {
+func TestUIShowHiddenIsNetworkWide(t *testing.T) {
 	s := uiTestServer(t)
 
 	write := func(instance string, show bool) string {
@@ -241,10 +241,10 @@ func TestUIShowHiddenPersistsPerInstance(t *testing.T) {
 	if body := list("alpha"); !strings.Contains(body, `"showHidden":true`) {
 		t.Fatalf("alpha = %s", body)
 	}
-	if body := list("beta"); !strings.Contains(body, `"showHidden":false`) {
+	if body := list("beta"); !strings.Contains(body, `"showHidden":true`) {
 		t.Fatalf("beta = %s", body)
 	}
-	write("alpha", false)
+	write("beta", false)
 	if body := list("alpha"); !strings.Contains(body, `"showHidden":false`) {
 		t.Fatalf("alpha after reset = %s", body)
 	}

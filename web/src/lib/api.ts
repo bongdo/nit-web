@@ -137,11 +137,17 @@ export const api = {
   health: (instance?: string) => request<Health>("/api/health", { instance }),
   config: () => request<Config>("/api/config"),
   projects: (instance?: string) => request<Project[]>("/api/projects", { instance }),
-  folders: (path?: string, signal?: AbortSignal) =>
+  folders: (path?: string, signal?: AbortSignal, instance?: string) =>
     request<FolderListing>(
       path ? `/api/fs?path=${encodeURIComponent(path)}` : "/api/fs",
-      { signal },
+      { signal, instance },
     ),
+  newFolder: (dir: string, name: string, instance?: string) =>
+    request<{ path: string }>("/api/fs", {
+      method: "POST",
+      body: { dir, name },
+      instance,
+    }),
   sessions: (
     dir?: string,
     children = false,
@@ -171,8 +177,8 @@ export const api = {
     }
     return data;
   },
-  deleteSession: (id: string) =>
-    request<void>(`/api/sessions/${encodeURIComponent(id)}`, { method: "DELETE" }),
+  deleteSession: (id: string, instance?: string) =>
+    request<void>(`/api/sessions/${encodeURIComponent(id)}`, { method: "DELETE", instance }),
   createSession: async (input: {
     directory?: string;
     title?: string;
@@ -329,9 +335,10 @@ export const api = {
       method: "POST",
       body: { status },
     }),
-  removeSessionState: (id: string) =>
+  removeSessionState: (id: string, instance?: string) =>
     request<{ ok: boolean }>(`/api/ui/sessions/${encodeURIComponent(id)}`, {
       method: "DELETE",
+      instance,
     }),
   draft: (key: string, instance?: string) =>
     request<{ text: string; updatedAt: number }>(

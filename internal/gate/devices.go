@@ -12,6 +12,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 )
 
 var ErrNoDevice = errors.New("gate: unknown device")
@@ -107,6 +108,34 @@ func (d *Devices) Touch(id, ip string) {
 	_ = d.save()
 }
 
+func (d *Devices) Refresh(id, name, ip string) (Device, error) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	device, ok := d.items[id]
+	if !ok {
+		return Device{}, ErrNoDevice
+	}
+	device.Seen = d.now().Unix()
+	device.IP = ip
+	if name != "" && (device.Name == "" || device.Name == unknownDevice) {
+		device.Name = name
+	}
+	d.items[id] = device
+	return device, d.save()
+}
+
+func (d *Devices) Rename(id, name string) error {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	device, ok := d.items[id]
+	if !ok {
+		return ErrNoDevice
+	}
+	device.Name = name
+	d.items[id] = device
+	return d.save()
+}
+
 func (d *Devices) List() []Device {
 	d.mu.Lock()
 	defer d.mu.Unlock()
@@ -191,6 +220,14 @@ func (d *Devices) save() error {
 		return err
 	}
 	return os.Rename(tmp.Name(), d.path)
+}
+
+func cleanDeviceName(raw string) (string, error) {
+	name := strings.Join(strings.Fields(raw), " ")
+	if name == "" || utf8.RuneCountInString(name) > 40 {
+		return "", errors.New("имя: 1–40 символов")
+	}
+	return name, nil
 }
 
 func newDeviceID() (string, error) {

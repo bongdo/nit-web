@@ -628,10 +628,16 @@ func TestSessionWithoutDeviceAdoptsOne(t *testing.T) {
 		t.Fatalf("devices = %+v", own)
 	}
 	cookies := resp.Cookies()
-	if len(cookies) == 0 || cookies[0].Name != sessionCookie || cookies[0].Value == "" {
+	var renewedCookie *http.Cookie
+	for _, cookie := range cookies {
+		if cookie.Name == sessionCookie {
+			renewedCookie = cookie
+		}
+	}
+	if renewedCookie == nil || renewedCookie.Value == "" {
 		t.Fatalf("session cookie not reissued: %+v", cookies)
 	}
-	renewed, err := gateid.Verify([]byte(testKey), cookies[0].Value, time.Now())
+	renewed, err := gateid.Verify([]byte(testKey), renewedCookie.Value, time.Now())
 	if err != nil || renewed.Dev != own[0].ID {
 		t.Fatalf("renewed identity = %+v, err %v", renewed, err)
 	}
@@ -683,7 +689,7 @@ func TestAdminSeesAllDevices(t *testing.T) {
 			t.Fatalf("admin page misses device %s of %s", device.ID, device.User)
 		}
 	}
-	if got, want := strings.Count(adminSection, `name="id"`), len(devices.List()); got != want {
+	if got, want := strings.Count(adminSection, `action="/admin/devices/remove"`), len(devices.List()); got != want {
 		t.Fatalf("admin page has %d disconnect buttons, want %d", got, want)
 	}
 
@@ -695,7 +701,7 @@ func TestAdminSeesAllDevices(t *testing.T) {
 	if !strings.Contains(memberSection, "это устройство") {
 		t.Fatal("account page does not mark the current device")
 	}
-	if got := strings.Count(memberSection, `name="id"`); got != 0 {
+	if got := strings.Count(memberSection, `action="/account/devices/remove"`); got != 0 {
 		t.Fatalf("account page offers %d disconnect buttons for a single device", got)
 	}
 	for _, device := range devices.ListFor("bongdo") {
@@ -808,5 +814,138 @@ func TestAdminCannotSeeDeleteActionForActiveUsers(t *testing.T) {
 	}
 	if strings.Contains(active, "/admin/reject") {
 		t.Fatal("active users still expose a delete action")
+	}
+}
+
+func TestDeviceCookieReusesRow(t *testing.T) {
+	server, _, devices := testServerDevices(t, nil)
+	client := noRedirect(t)
+	for i := 0; i < 2; i++ {
+		if resp := login(t, client, server.URL, "friend", "member-pass"); resp.StatusCode != http.StatusSeeOther {
+			t.Fatalf("login %d = %d", i, resp.StatusCode)
+		}
+	}
+	if got := len(devices.ListFor("friend")); got != 1 {
+		t.Fatalf("devices after two logins = %d, want 1", got)
+	}
+}
+
+func TestDeviceRename(t *testing.T) {
+	server, _, devices := testServerDevices(t, nil)
+	member := noRedirect(t)
+	if resp := login(t, member, server.URL, "friend", "member-pass"); resp.StatusCode != http.StatusSeeOther {
+		t.Fatalf("member login = %d", resp.StatusCode)
+	}
+	own := devices.ListFor("friend")[0]
+	resp, err := member.PostForm(server.URL+"/account/devices/rename", url.Values{"id": {own.ID}, "name": {"  мой   ноутбук "}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusSeeOther {
+		t.Fatalf("rename = %d, want 303", resp.StatusCode)
+	}
+	if got := devices.ListFor("friend")[0].Name; got != "мой ноутбук" {
+		t.Fatalf("renamed device = %q", got)
+	}
+
+	admin := noRedirect(t)
+	if resp := login(t, admin, server.URL, "bongdo", "secret-pass"); resp.StatusCode != http.StatusSeeOther {
+		t.Fatalf("admin login = %d", resp.StatusCode)
+	}
+	adminDevice := devices.ListFor("bongdo")[0]
+	resp, err = member.PostForm(server.URL+"/account/devices/rename", url.Values{"id": {adminDevice.ID}, "name": {"чужой"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusForbidden {
+		t.Fatalf("foreign rename = %d, want 403", resp.StatusCode)
+	}
+	resp, err = admin.PostForm(server.URL+"/admin/devices/rename", url.Values{"id": {own.ID}, "name": {"ноутбук друга"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if got := devices.ListFor("friend")[0].Name; got != "ноутбук друга" {
+		t.Fatalf("admin rename = %q", got)
+	}
+
+	resp, err = admin.PostForm(server.URL+"/admin/devices/rename", url.Values{"id": {own.ID}, "name": {strings.Repeat("я", 41)}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if location := resp.Header.Get("Location"); !strings.Contains(location, "err=") {
+		t.Fatalf("invalid name redirect = %q", location)
+	}
+	if got := devices.ListFor("friend")[0].Name; got != "ноутбук друга" {
+		t.Fatalf("invalid rename changed the name to %q", got)
+	}
+}
+
+func TestAuditKeepsNewest(t *testing.T) {
+	audit := OpenAudit(filepath.Join(t.TempDir(), "audit.jsonl"))
+	base := time.Unix(1700000000, 0)
+	audit.now = func() time.Time { return base }
+	for i := 0; i < 3; i++ {
+		audit.Add(AuditEvent{User: "friend", Result: "ok"})
+		base = base.Add(time.Second)
+	}
+	events := audit.Last(2)
+	if len(events) != 2 {
+		t.Fatalf("events = %d, want 2", len(events))
+	}
+	if events[0].Time <= events[1].Time {
+		t.Fatalf("events are not newest first: %+v", events)
+	}
+}
+
+func TestLoginWritesAudit(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer upstream.Close()
+	agents, err := OpenAgents(filepath.Join(t.TempDir(), "agents.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	devices, err := OpenDevices(filepath.Join(t.TempDir(), "devices.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	gateServer := New(testRoutes(t, upstream.URL), testStore(t), agents, []byte(testKey), nil, devices)
+	audit := OpenAudit(filepath.Join(t.TempDir(), "audit.jsonl"))
+	gateServer.SetAudit(audit)
+	server := httptest.NewServer(gateServer.Handler())
+	defer server.Close()
+
+	client := noRedirect(t)
+	login(t, client, server.URL, "bongdo", "wrong-pass")
+	login(t, client, server.URL, "bongdo", "secret-pass")
+
+	events := audit.Last(2)
+	if len(events) != 2 {
+		t.Fatalf("audit events = %d, want 2", len(events))
+	}
+	if events[0].Result != "ok" || events[1].Result != "fail" {
+		t.Fatalf("audit order = %+v", events)
+	}
+}
+
+func TestProbeService(t *testing.T) {
+	up := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer up.Close()
+	if status := probeService(up.Client(), up.URL); !status.Up {
+		t.Fatalf("upstream reported down: %+v", status)
+	}
+	broken := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusBadGateway)
+	}))
+	defer broken.Close()
+	if status := probeService(broken.Client(), broken.URL); status.Up {
+		t.Fatalf("502 reported up: %+v", status)
 	}
 }

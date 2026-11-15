@@ -39,5 +39,6 @@ func (s *Server) inviteSubmit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.startSession(w, r, user)
+	s.audit.Add(AuditEvent{User: user.Name, IP: clientIP(r), Agent: deviceName(r.UserAgent()), Result: "invite"})
 	http.Redirect(w, r, "/?ok="+url.QueryEscape("добро пожаловать, "+user.Name), http.StatusSeeOther)
 }

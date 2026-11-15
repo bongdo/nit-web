@@ -107,6 +107,36 @@ func TestFoldersMissingAndRelative(t *testing.T) {
 	}
 }
 
+func TestFoldersCreate(t *testing.T) {
+	upstream := httptest.NewServer(auth(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/experimental/fs/write" {
+			t.Errorf("unexpected path %s", r.URL.Path)
+			return
+		}
+		if got := r.URL.Query().Get("path"); got != "/home/ubuntu/new/.keep" {
+			t.Errorf("path = %q", got)
+		}
+		if got := r.URL.Query().Get("location[directory]"); got != "/home/ubuntu" {
+			t.Errorf("location = %q", got)
+		}
+		fmt.Fprint(w, `{"data":{"path":"/home/ubuntu/new/.keep"}}`)
+	}))
+	defer upstream.Close()
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "http://127.0.0.1:7788/api/fs",
+		strings.NewReader(`{"dir":"/home/ubuntu","name":"new"}`))
+	req.Header.Set("Content-Type", "application/json")
+	newHandler(t, upstream.URL).ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d: %s", rec.Code, rec.Body)
+	}
+	if got := rec.Body.String(); !strings.Contains(got, `"path":"/home/ubuntu/new"`) {
+		t.Fatalf("body = %s", got)
+	}
+}
+
 func TestFoldersUnsupportedEndpoint(t *testing.T) {
 	upstream := httptest.NewServer(auth(func(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)

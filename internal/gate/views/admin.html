@@ -71,12 +71,20 @@
   </div>
   <div class="table-wrap">
     <table>
-      <thead><tr><th>устройство</th><th class="hide-sm">id</th><th class="hide-sm">ip</th><th>вход</th><th class="hide-sm">активность</th><th></th></tr></thead>
+      <thead><tr><th>устройство</th><th class="hide-sm">ip</th><th>вход</th><th class="hide-sm">активность</th><th></th></tr></thead>
       <tbody>
       {{range .Devices}}
         <tr>
-          <td{{if .Unknown}} class="unknown"{{end}}><span class="dot{{if .Online}} online{{end}}" title="{{if .Online}}онлайн{{else}}офлайн{{end}}"></span>{{.Name}}{{if .Current}}<span class="tag you">это устройство</span>{{end}}</td>
-          <td class="mono hide-sm">{{.Short}}</td>
+          <td{{if .Unknown}} class="unknown"{{end}}>
+            <details class="rename">
+              <summary title="id {{.Short}}"><span class="dot{{if .Online}} online{{end}}" title="{{if .Online}}онлайн{{else}}офлайн{{end}}"></span>{{.Name}}<span class="edit" aria-hidden="true">✎</span>{{if .Current}}<span class="tag you">это устройство</span>{{end}}</summary>
+              <form class="rename-form" method="post" action="/admin/devices/rename">
+                <input type="hidden" name="id" value="{{.ID}}">
+                <input name="name" value="{{.Name}}" maxlength="40" aria-label="имя устройства">
+                <button class="ghost">сохранить</button>
+              </form>
+            </details>
+          </td>
           <td class="mono hide-sm">{{.IP}}</td>
           <td class="muted nowrap">{{.Created}}</td>
           <td class="muted nowrap hide-sm">{{.Seen}}</td>
@@ -90,5 +98,26 @@
   </div>
   {{end}}
   {{else}}<div class="empty">нет устройств</div>{{end}}
+</section>
+<section>
+  <h2>журнал входов</h2>
+  {{if .Log}}
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>когда</th><th>кто</th><th>итог</th><th class="hide-sm">ip</th><th class="hide-sm">устройство</th></tr></thead>
+      <tbody>
+      {{range .Log}}
+        <tr>
+          <td class="mono nowrap">{{.When}}</td>
+          <td class="mono">{{.User}}</td>
+          <td><span class="tag{{if .Failed}} bad{{end}}">{{.Result}}</span></td>
+          <td class="mono hide-sm">{{.IP}}</td>
+          <td class="muted hide-sm">{{.Agent}}</td>
+        </tr>
+      {{end}}
+      </tbody>
+    </table>
+  </div>
+  {{else}}<div class="empty">записей нет</div>{{end}}
 </section>
 {{template "foot" .}}{{end}}

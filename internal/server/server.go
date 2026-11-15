@@ -199,6 +199,7 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("GET /api/config", s.config)
 	s.mux.HandleFunc("GET /api/projects", s.projects)
 	s.mux.HandleFunc("GET /api/fs", s.folders)
+	s.mux.HandleFunc("POST /api/fs", s.makeFolder)
 	s.mux.HandleFunc("GET /api/sessions", s.sessions)
 	s.mux.HandleFunc("GET /api/sessions/{id}", s.session)
 	s.mux.HandleFunc("POST /api/sessions", s.createSession)
@@ -1607,6 +1608,15 @@ func (s *Server) appLinks(name string) (string, string) {
 		}
 		if spec.TermURL != "" {
 			term = spec.TermURL
+		}
+		if spec.SSH != "" || (spec.URL != "" && spec.URL != "auto") {
+			bridge := "/i/" + url.PathEscape(name) + "/"
+			if spec.PeroURL == "" {
+				pero = bridge + "pero/"
+			}
+			if spec.TermURL == "" {
+				term = bridge + "term/"
+			}
 		}
 		break
 	}

@@ -22,6 +22,8 @@ type routeView struct {
 	Note   string
 	State  string
 	Href   string
+	Status string
+	Down   bool
 	Key    int
 }
 
@@ -43,6 +45,22 @@ type deviceGroup struct {
 	Devices []deviceView
 }
 
+type auditView struct {
+	When   string
+	User   string
+	IP     string
+	Agent  string
+	Result string
+	Failed bool
+}
+
+type dropView struct {
+	Name   string
+	Href   string
+	Kind   string
+	Public bool
+}
+
 type view struct {
 	Title        string
 	Narrow       bool
@@ -54,6 +72,10 @@ type view struct {
 	Invited      []User
 	Devices      []deviceView
 	DeviceGroups []deviceGroup
+	Log          []auditView
+	Drop         []dropView
+	Health       serverHealth
+	HasHealth    bool
 	Message      string
 	Error        string
 	Next         string
@@ -107,7 +129,7 @@ func deviceViewOf(device Device, current string, now time.Time) deviceView {
 		Short:   shortID(device.ID),
 		Name:    name,
 		IP:      device.IP,
-		Created: time.Unix(device.Created, 0).Format("02.01.2006 15:04"),
+		Created: time.Unix(device.Created, 0).Format("02.01.06 15:04"),
 		Seen:    ago(time.Unix(device.Seen, 0), now),
 		Current: device.ID == current,
 		Unknown: unknown,

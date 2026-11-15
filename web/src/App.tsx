@@ -16,6 +16,7 @@ import type {
   FormInfo,
   PermissionRequest,
   Health,
+  Instance,
   Message,
   Model,
   ModelRef,
@@ -176,6 +177,7 @@ export default function App({
   instance,
   defaultInstance,
   defaultDirectory,
+  instances,
   title,
   onOpenInstances,
   onSwitchInstance,
@@ -183,6 +185,7 @@ export default function App({
   instance: string;
   defaultInstance: string;
   defaultDirectory?: string;
+  instances: Instance[];
   title: string;
   onOpenInstances: () => void;
   onSwitchInstance: (id: string) => void;
@@ -463,7 +466,8 @@ export default function App({
   const permissionsOwnerRef = useRef<string | null>(null);
   const selectedSession = sessions.find((session) => session.id === selectedId) ?? null;
   const draftKeyFor = useCallback(
-    (key: string) => (instance === defaultInstance ? key : `${instance}:${key}`),
+    (key: string, owner = instance) =>
+      owner === defaultInstance ? key : `${owner}:${key}`,
     [defaultInstance, instance],
   );
   const composerKey = selectedId ?? `new:${workspace ?? ""}`;
@@ -1168,16 +1172,30 @@ export default function App({
     });
   }, [transcriptCache]);
 
-  const rememberWorkspace = useCallback((directory: string) => {
+  const rememberWorkspaceFor = useCallback((owner: string, directory: string) => {
     const value = directory.trim().replace(/\/+$/, "") || "/";
+    localStorage.setItem(instanceScopedKey("nit-gui.workspace", owner, defaultInstance), value);
+    try {
+      const key = instanceScopedKey("nit-gui.recent", owner, defaultInstance);
+      const parsed = JSON.parse(localStorage.getItem(key) ?? "[]");
+      const previous = Array.isArray(parsed)
+        ? parsed.filter((item): item is string => typeof item === "string")
+        : [];
+      localStorage.setItem(
+        key,
+        JSON.stringify([value, ...previous.filter((item) => item !== value)].slice(0, 8)),
+      );
+    } catch {}
+    return value;
+  }, [defaultInstance]);
+
+  const rememberWorkspace = useCallback((directory: string) => {
+    const value = rememberWorkspaceFor(instance, directory);
     setWorkspaceState(value);
-    localStorage.setItem(workspaceKey, value);
-    setRecent((previous) => {
-      const next = [value, ...previous.filter((item) => item !== value)].slice(0, 8);
-      localStorage.setItem(recentKey, JSON.stringify(next));
-      return next;
-    });
-  }, []);
+    setRecent((previous) =>
+      [value, ...previous.filter((item) => item !== value)].slice(0, 8),
+    );
+  }, [instance, rememberWorkspaceFor]);
 
   const selectedDirectory = selectedSession?.location?.directory ?? null;
 
@@ -1279,7 +1297,14 @@ export default function App({
     onOpen: selectSession,
   });
 
-  const selectWorkspace = useCallback((directory: string) => {
+  const selectWorkspace = useCallback((directory: string, owner?: string) => {
+    if (owner && owner !== instance) {
+      rememberWorkspaceFor(owner, directory);
+      localStorage.removeItem(instanceScopedKey("nit-gui.session", owner, defaultInstance));
+      setPickerOpen(false);
+      onSwitchInstance(owner);
+      return;
+    }
     const restore = restoreDraft.current;
     saveCurrentTranscript();
     rememberWorkspace(directory);
@@ -1302,7 +1327,15 @@ export default function App({
       restoreDraft.current = null;
       setComposerDraft({ text: restore, id: Date.now() });
     }
-  }, [rememberWorkspace, saveCurrentTranscript]);
+  }, [
+    defaultInstance,
+    instance,
+    onSwitchInstance,
+    rememberWorkspace,
+    rememberWorkspaceFor,
+    saveCurrentTranscript,
+    sessionKey,
+  ]);
 
   const loadEarlier = useCallback(async () => {
     const id = selectedIdRef.current;
@@ -1394,14 +1427,29 @@ export default function App({
   }, [instance]);
 
   const newChat = useCallback(
-    (directory?: string) => {
+    (directory?: string, owner?: string) => {
+      if (owner && owner !== instance) {
+        if (directory) rememberWorkspaceFor(owner, directory);
+        localStorage.removeItem(instanceScopedKey("nit-gui.session", owner, defaultInstance));
+        setPickerOpen(false);
+        setSidebarOpen(false);
+        onSwitchInstance(owner);
+        return;
+      }
       if (directory) rememberWorkspace(directory);
       selectSession(null);
       setSceneEpoch((epoch) => epoch + 1);
       setSidebarOpen(false);
       if (!directory && !workspaceRef.current) setPickerOpen(true);
     },
-    [rememberWorkspace, selectSession],
+    [
+      defaultInstance,
+      instance,
+      onSwitchInstance,
+      rememberWorkspace,
+      rememberWorkspaceFor,
+      selectSession,
+    ],
   );
 
   const toggleSidebar = useCallback(() => {
@@ -1412,25 +1460,23 @@ export default function App({
     });
   }, []);
 
-  const sessionAndChildren = useCallback((id: string) => {
+  const sessionAndChildren = useCallback((id: string, owner = instance) => {
     const ids = [id];
     for (let index = 0; index < ids.length; index += 1) {
       for (const session of sessionsRef.current) {
-        if (session.parentID === ids[index]) ids.push(session.id);
+        if (session.parentID !== ids[index]) continue;
+        if ((session.instance ?? owner) !== owner) continue;
+        ids.push(session.id);
       }
     }
     return ids;
-  }, []);
+  }, [instance]);
 
   const hideSession = useCallback(
     (id: string) => {
-      const owner = foreignInstance(id);
-      if (owner) {
-        setBanner(`Switch to ${owner} to change this chat.`);
-        return;
-      }
-      const ids = sessionAndChildren(id);
-      void saveHidden(ids, true, instance);
+      const owner = foreignInstance(id) ?? instance;
+      const ids = sessionAndChildren(id, owner);
+      void saveHidden(ids, true, owner);
       if (selectedIdRef.current && ids.includes(selectedIdRef.current)) selectSession(null);
     },
     [foreignInstance, instance, saveHidden, selectSession, sessionAndChildren],
@@ -1438,8 +1484,9 @@ export default function App({
 
   const unhideSession = useCallback(
     (id: string) => {
-      const ids = sessionAndChildren(id);
-      void saveHidden(ids, false, foreignInstance(id) ?? instance);
+      const owner = foreignInstance(id) ?? instance;
+      const ids = sessionAndChildren(id, owner);
+      void saveHidden(ids, false, owner);
     },
     [foreignInstance, instance, saveHidden, sessionAndChildren],
   );
@@ -1457,8 +1504,8 @@ export default function App({
   }, [doneIds, hiddenIds, unhideSession]);
 
   const forgetSession = useCallback(
-    async (id: string) => {
-      await api.deleteSession(id);
+    async (id: string, owner = instance) => {
+      await api.deleteSession(id, owner);
       transcriptCache.delete(id);
       setSessions((current) => current.filter((item) => item.id !== id));
       dropHidden(id);
@@ -1470,33 +1517,28 @@ export default function App({
       });
       failedRef.current.delete(id);
       setFailedIds(new Set(failedRef.current));
-      void api.removeSessionState(id).catch((error) => setBanner(messageOf(error)));
-      void saveDraftFiles(draftKeyFor(id), []).catch(() => {});
+      void api.removeSessionState(id, owner).catch((error) => setBanner(messageOf(error)));
+      void saveDraftFiles(draftKeyFor(id, owner), []).catch(() => {});
       if (selectedIdRef.current === id) {
         loadedIdRef.current = null;
         selectSession(null);
       }
       void loadSessions();
     },
-    [draftKeyFor, dropHidden, loadSessions, selectSession],
+    [draftKeyFor, dropHidden, instance, loadSessions, selectSession],
   );
 
   const deleteSession = useCallback(
     async (id: string) => {
-      const owner = foreignInstance(id);
-      if (owner) {
-        setBanner(`Switch to ${owner} to delete this chat.`);
-        return;
-      }
       if (!window.confirm("Delete this chat? This cannot be undone.")) return;
       setBanner(null);
       try {
-        await forgetSession(id);
+        await forgetSession(id, foreignInstance(id) ?? instance);
       } catch (error) {
         setBanner(messageOf(error));
       }
     },
-    [foreignInstance, forgetSession],
+    [foreignInstance, forgetSession, instance],
   );
 
   const scheduleSessionsRefresh = useCallback(() => {
@@ -2249,8 +2291,14 @@ export default function App({
     [agents, isHidden, scope, sessions, showHidden],
   );
   const scopedDirectories = useMemo(
-    () => new Set(scopedSessions.map((session) => session.location?.directory ?? "")).size,
-    [scopedSessions],
+    () =>
+      new Set(
+        scopedSessions.map(
+          (session) =>
+            `${session.instance ?? instance}\u0000${session.location?.directory ?? ""}`,
+        ),
+      ).size,
+    [instance, scopedSessions],
   );
   const hiddenCount = useMemo(
     () => sessions.filter(isHidden).length,
@@ -2387,6 +2435,9 @@ export default function App({
         startDirectory={defaultDirectory}
         onPick={selectWorkspace}
         instance={instance}
+        defaultInstance={defaultInstance}
+        instances={instances}
+        recent={recent}
         onInstances={onOpenInstances}
       />
     );
@@ -2478,12 +2529,12 @@ export default function App({
         <Header
           session={selectedSession}
           directory={workspace}
+          instance={instance}
           contextPercent={shownContext}
           cost={shownCost}
           estimatedCost={sessionCost === 0 && estimated > 0}
           termURL={config?.termURL ?? "/term/"}
           peroURL={config?.peroURL ?? "/pero/"}
-          transport={config?.transport ?? ""}
           collapsed={collapsed}
           subagents={subagents}
           parent={parentSession}
@@ -2610,6 +2661,9 @@ export default function App({
           onPick={selectWorkspace}
           onClose={closePicker}
           instance={instance}
+          defaultInstance={defaultInstance}
+          instances={instances}
+          recent={recent}
           onInstances={onOpenInstances}
         />
       )}

@@ -33,12 +33,13 @@ type InstanceState struct {
 }
 
 type State struct {
-	Instances map[string]InstanceState `json:"instances,omitempty"`
-	Hidden    []string                 `json:"hidden,omitempty"`
-	Status    map[string]string        `json:"status,omitempty"`
-	Drafts    map[string]Draft         `json:"drafts,omitempty"`
-	Model     *ModelRef                `json:"model,omitempty"`
-	Agent     string                   `json:"agent,omitempty"`
+	Instances  map[string]InstanceState `json:"instances,omitempty"`
+	ShowHidden bool                     `json:"showHidden,omitempty"`
+	Hidden     []string                 `json:"hidden,omitempty"`
+	Status     map[string]string        `json:"status,omitempty"`
+	Drafts     map[string]Draft         `json:"drafts,omitempty"`
+	Model      *ModelRef                `json:"model,omitempty"`
+	Agent      string                   `json:"agent,omitempty"`
 }
 
 type Store struct {
@@ -88,6 +89,15 @@ func Open(path, defaultInstance string) (*Store, error) {
 		store.state.Instances = map[string]InstanceState{}
 	}
 	migrated := false
+	for name, state := range store.state.Instances {
+		if !state.ShowHidden {
+			continue
+		}
+		store.state.ShowHidden = true
+		state.ShowHidden = false
+		store.state.Instances[name] = state
+		migrated = true
+	}
 	if len(store.state.Instances) == 0 && hasLegacy(store.state) {
 		store.state.Instances[defaultInstance] = normalizeInstance(InstanceState{
 			Hidden: store.state.Hidden,
@@ -152,7 +162,7 @@ func (s *Store) Snapshot(instance string) InstanceState {
 		clone := *current.Model
 		model = &clone
 	}
-	return InstanceState{Hidden: hidden, Status: status, Drafts: drafts, Model: model, Agent: current.Agent, ShowHidden: current.ShowHidden}
+	return InstanceState{Hidden: hidden, Status: status, Drafts: drafts, Model: model, Agent: current.Agent, ShowHidden: s.state.ShowHidden}
 }
 
 func (s *Store) instanceLocked(instance string) InstanceState {
@@ -197,16 +207,13 @@ func (s *Store) SetHidden(instance string, ids []string, hidden bool) error {
 	return nil
 }
 
-func (s *Store) SetShowHidden(instance string, show bool) error {
+func (s *Store) SetShowHidden(_ string, show bool) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	state := s.instanceLocked(instance)
-	previous := state.ShowHidden
-	state.ShowHidden = show
-	s.state.Instances[instance] = state
+	previous := s.state.ShowHidden
+	s.state.ShowHidden = show
 	if err := s.saveLocked(); err != nil {
-		state.ShowHidden = previous
-		s.state.Instances[instance] = state
+		s.state.ShowHidden = previous
 		return err
 	}
 	return nil

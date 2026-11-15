@@ -123,6 +123,7 @@ type Store struct {
 	mu       sync.Mutex
 	now      func() time.Time
 	onDelete func(Entry)
+	readOnly bool
 }
 
 func DefaultRoot() string {
@@ -148,6 +149,20 @@ func Open(root string) (*Store, error) {
 		return nil, err
 	}
 	return store, nil
+}
+
+func OpenReadOnly(root string) (*Store, error) {
+	if strings.TrimSpace(root) == "" {
+		root = DefaultRoot()
+	}
+	info, err := os.Stat(root)
+	if err != nil {
+		return nil, fmt.Errorf("open drop root: %w", err)
+	}
+	if !info.IsDir() {
+		return nil, fmt.Errorf("open drop root: %s is not a directory", root)
+	}
+	return &Store{root: root, now: time.Now, readOnly: true}, nil
 }
 
 func (s *Store) Root() string {
@@ -186,10 +201,15 @@ func (s *Store) listLocked() ([]Entry, error) {
 		}
 		entry, err := s.read(item.Name())
 		if err != nil {
-			s.cleanOrphan(item.Name(), now)
+			if !s.readOnly {
+				s.cleanOrphan(item.Name(), now)
+			}
 			continue
 		}
 		if entry.Expired(now) {
+			if s.readOnly {
+				continue
+			}
 			_ = s.deleteLocked(entry)
 			continue
 		}

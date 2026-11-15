@@ -10,6 +10,7 @@
       <span class="path">{{.Prefix}}</span>
       <span class="note">{{.Note}}</span>
     </span>
+    {{if .Status}}<span class="svc{{if .Down}} down{{end}}"><span class="dot{{if not .Down}} online{{end}}"></span>{{.Status}}</span>{{end}}
     <span class="state denied">нет прав</span>
   </div>
   {{else}}
@@ -19,10 +20,40 @@
       <span class="path">{{.Prefix}}<span class="key">{{.Key}}</span></span>
       <span class="note">{{.Note}}</span>
     </span>
-    <span class="state {{.State}}">{{if eq .State "open"}}открыт{{else}}нужен вход{{end}}</span>
+    {{if eq .State "login"}}<span class="state locked">нужен вход</span>{{end}}
+    {{if .Status}}<span class="svc{{if .Down}} down{{end}}"><span class="dot{{if not .Down}} online{{end}}"></span>{{.Status}}</span>{{end}}
     <span class="arrow" aria-hidden="true">→</span>
   </a>
   {{end}}
   {{end}}
 </div>
+{{if .HasHealth}}
+<section>
+  <h2>сервер</h2>
+  <div class="health">
+    <div class="metric"><span>нагрузка</span><span class="bar{{if ge .Health.LoadPct 90}} hot{{end}}"><span style="width:{{.Health.LoadPct}}%"></span></span><span class="value">{{.Health.Load}}</span></div>
+    <div class="metric"><span>память</span><span class="bar{{if ge .Health.MemoryPct 90}} hot{{end}}"><span style="width:{{.Health.MemoryPct}}%"></span></span><span class="value">{{.Health.Memory}}</span></div>
+    <div class="metric"><span>диск</span><span class="bar{{if ge .Health.DiskPct 90}} hot{{end}}"><span style="width:{{.Health.DiskPct}}%"></span></span><span class="value">{{.Health.Disk}}</span></div>
+  </div>
+  <p class="hint">аптайм {{.Health.Uptime}} · {{.Health.CoresText}}</p>
+</section>
+{{end}}
+{{if .Drop}}
+<section>
+  <h2>быстрый доступ</h2>
+  <div class="cards">
+    {{range .Drop}}
+    <a class="card" href="{{.Href}}">
+      <span class="glyph">{{.Kind}}</span>
+      <span class="body">
+        <span class="path">{{.Name}}</span>
+        <span class="note">{{.Href}}</span>
+      </span>
+      {{if .Public}}<span class="state">публичная</span>{{end}}
+      <span class="arrow" aria-hidden="true">→</span>
+    </a>
+    {{end}}
+  </div>
+</section>
+{{end}}
 {{template "foot" .}}{{end}}

@@ -13,6 +13,7 @@ import (
 	"syscall"
 	"time"
 
+	"nitgui/internal/drop"
 	"nitgui/internal/gate"
 	"nitgui/internal/gateid"
 )
@@ -69,6 +70,12 @@ func main() {
 	}
 
 	server := gate.New(routes, users, agents, secret, log)
+	server.SetAudit(gate.OpenAudit(gate.DefaultAuditPath()))
+	if store, err := drop.OpenReadOnly(envOr("NIT_GATE_DROP", drop.DefaultRoot())); err != nil {
+		log.Warn("gate drop links unavailable", "error", err)
+	} else {
+		server.SetDrops(store)
+	}
 	httpServer := &http.Server{
 		Addr:              *addr,
 		Handler:           server.Handler(),

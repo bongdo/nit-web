@@ -191,13 +191,30 @@ func (s *Server) deleteInstance(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "cannot delete the last instance")
 		return
 	}
+	removed := specs[index]
 	specs = append(specs[:index], specs[index+1:]...)
 	if err := s.multi.Replace(specs); err != nil {
 		s.log.Error("instance config delete failed", "error", err)
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+	removePasswordFile(s.multi.ConfigPath(), removed.PasswordFile)
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
+}
+
+func removePasswordFile(configPath, passwordFile string) {
+	if configPath == "" || passwordFile == "" {
+		return
+	}
+	base, err := filepath.Abs(filepath.Dir(configPath))
+	if err != nil {
+		return
+	}
+	target, err := filepath.Abs(passwordFile)
+	if err != nil || target == base || !strings.HasPrefix(target, base+string(os.PathSeparator)) {
+		return
+	}
+	_ = os.Remove(target)
 }
 
 func (s *Server) defaultPasswordPath(name string) (string, error) {

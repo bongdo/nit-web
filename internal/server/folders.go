@@ -98,3 +98,35 @@ func (s *Server) folders(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, http.StatusOK, out)
 }
+
+func (s *Server) makeFolder(w http.ResponseWriter, r *http.Request) {
+	in, err := decodeJSON[struct {
+		Dir  string `json:"dir"`
+		Name string `json:"name"`
+	}](w, r)
+	if err != nil {
+		writeDecodeError(w, err)
+		return
+	}
+	dir := strings.TrimSpace(in.Dir)
+	name := strings.TrimSpace(in.Name)
+	if dir == "" || !filepath.IsAbs(dir) {
+		writeError(w, http.StatusBadRequest, "dir must be absolute")
+		return
+	}
+	if name == "" || name == "." || name == ".." || strings.ContainsAny(name, `/\`) {
+		writeError(w, http.StatusBadRequest, "invalid folder name")
+		return
+	}
+	c, ok := s.withClient(w, r)
+	if !ok {
+		return
+	}
+	path := filepath.Join(filepath.Clean(dir), name)
+	// shortcut: OpenCode has no mkdir endpoint; write .keep to create the folder, revisit when it gets one.
+	if _, err := c.WriteFile(r.Context(), dir, filepath.Join(path, ".keep"), []byte{'\n'}); err != nil {
+		s.upstreamError(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"path": path})
+}

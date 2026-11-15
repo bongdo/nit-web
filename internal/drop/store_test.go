@@ -1,6 +1,7 @@
 package drop
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -307,5 +308,36 @@ func writeLegacy(t *testing.T, root, id, name string, created, expires time.Time
 }`, id, name, created.Format(time.RFC3339Nano), expires.Format(time.RFC3339Nano), file)
 	if err := os.WriteFile(filepath.Join(dir, MetaName), []byte(body), 0o600); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestReadOnlyStoreKeepsExpiredEntries(t *testing.T) {
+	root := t.TempDir()
+	id := "d-0123456789abcdef"
+	dir := filepath.Join(root, id)
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	past := time.Now().Add(-time.Hour)
+	body, err := json.Marshal(Entry{ID: id, Slug: "old", Name: "old", Kind: "site", Expires: &past})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, MetaName), body, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	store, err := OpenReadOnly(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	items, err := store.List()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(items) != 0 {
+		t.Fatalf("expired entries listed = %d, want 0", len(items))
+	}
+	if _, err := os.Stat(dir); err != nil {
+		t.Fatalf("read-only list deleted the entry: %v", err)
 	}
 }

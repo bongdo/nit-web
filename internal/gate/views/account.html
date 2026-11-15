@@ -14,12 +14,20 @@
   {{if .Devices}}
   <div class="table-wrap">
     <table>
-      <thead><tr><th>устройство</th><th class="hide-sm">ip</th><th>вход</th><th class="hide-sm">активность</th><th></th></tr></thead>
+      <thead><tr><th>устройство</th><th>вход</th><th class="hide-sm">активность</th><th></th></tr></thead>
       <tbody>
       {{range .Devices}}
         <tr>
-          <td{{if .Unknown}} class="unknown"{{end}}><span class="dot{{if .Online}} online{{end}}" title="{{if .Online}}онлайн{{else}}офлайн{{end}}"></span>{{.Name}}{{if .Current}}<span class="tag you">это устройство</span>{{end}}</td>
-          <td class="mono hide-sm">{{.IP}}</td>
+          <td{{if .Unknown}} class="unknown"{{end}}>
+            <details class="rename">
+              <summary title="id {{.Short}}"><span class="dot{{if .Online}} online{{end}}" title="{{if .Online}}онлайн{{else}}офлайн{{end}}"></span>{{.Name}}<span class="edit" aria-hidden="true">✎</span>{{if .Current}}<span class="tag you">это устройство</span>{{end}}</summary>
+              <form class="rename-form" method="post" action="/account/devices/rename">
+                <input type="hidden" name="id" value="{{.ID}}">
+                <input name="name" value="{{.Name}}" maxlength="40" aria-label="имя устройства">
+                <button class="ghost">сохранить</button>
+              </form>
+            </details>
+          </td>
           <td class="muted nowrap">{{.Created}}</td>
           <td class="muted nowrap hide-sm">{{.Seen}}</td>
           <td class="actions">

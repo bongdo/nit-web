@@ -2,6 +2,7 @@ package gate
 
 import (
 	"net/http"
+	"strings"
 	"time"
 )
 
@@ -19,9 +20,11 @@ func (s *Server) loginSubmit(w http.ResponseWriter, r *http.Request) {
 	if ok {
 		s.resetFailures(r)
 		s.startSession(w, r, user)
+		s.audit.Add(AuditEvent{User: user.Name, IP: clientIP(r), Agent: deviceName(r.UserAgent()), Result: "ok"})
 		http.Redirect(w, r, next, http.StatusSeeOther)
 		return
 	}
+	s.audit.Add(AuditEvent{User: strings.TrimSpace(name), IP: clientIP(r), Agent: deviceName(r.UserAgent()), Result: "fail"})
 	s.noteFailure(r)
 	if wait, blocked := s.blockedIP(r); blocked {
 		data := s.newNarrow(r, "вход")

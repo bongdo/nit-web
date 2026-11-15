@@ -12,12 +12,15 @@ import (
 	"sync"
 	"time"
 
+	"nitgui/internal/drop"
 	"nitgui/internal/gateid"
 )
 
 const (
 	sessionCookie = "gate_session"
+	deviceCookie  = "gate_device"
 	sessionTTL    = 7 * 24 * time.Hour
+	deviceTTL     = 365 * 24 * time.Hour
 	forwardTTL    = 60 * time.Second
 	maxFailures   = 5
 	blockTime     = time.Minute
@@ -34,7 +37,10 @@ type Server struct {
 	users   *Store
 	agents  *Agents
 	devices *Devices
+	audit   *Audit
+	drops   *drop.Store
 	hub     *agentHub
+	health  healthCache
 	secret  []byte
 	log     *slog.Logger
 	now     func() time.Time
@@ -77,6 +83,14 @@ func New(routes *Routes, users *Store, agents *Agents, secret []byte, log *slog.
 	}
 }
 
+func (s *Server) SetAudit(audit *Audit) {
+	s.audit = audit
+}
+
+func (s *Server) SetDrops(store *drop.Store) {
+	s.drops = store
+}
+
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /{$}", s.home)
@@ -92,6 +106,8 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /admin/approve", s.adminApprove)
 	mux.HandleFunc("POST /admin/reject", s.adminReject)
 	mux.HandleFunc("POST /admin/devices/remove", s.adminDeviceRemove)
+	mux.HandleFunc("POST /admin/devices/rename", s.adminDeviceRename)
+	mux.HandleFunc("POST /account/devices/rename", s.accountDeviceRename)
 	mux.HandleFunc("GET /i/{token}", s.invitePage)
 	mux.HandleFunc("POST /i/{token}", s.inviteSubmit)
 	mux.HandleFunc("GET /agent", s.agentSocket)
@@ -178,13 +194,25 @@ func (s *Server) session(w http.ResponseWriter, r *http.Request) (gateid.Identit
 		s.devices.Touch(id.Dev, clientIP(r))
 		return id, true
 	}
-	if device, err := s.devices.Add(id.User, deviceName(r.UserAgent()), clientIP(r)); err == nil {
+	if device, err := s.deviceFor(w, r, id.User); err == nil {
 		id.Dev = device.ID
 		s.setSession(w, r, id)
 	} else {
 		s.log.Warn("gate device add", "error", err)
 	}
 	return id, true
+}
+
+func (s *Server) deviceFor(w http.ResponseWriter, r *http.Request, user string) (Device, error) {
+	if cookie, err := r.Cookie(deviceCookie); err == nil && cookie.Value != "" && s.devices.Has(user, cookie.Value) {
+		return s.devices.Refresh(cookie.Value, deviceName(r.UserAgent()), clientIP(r))
+	}
+	device, err := s.devices.Add(user, deviceName(r.UserAgent()), clientIP(r))
+	if err != nil {
+		return Device{}, err
+	}
+	s.setDeviceCookie(w, r, device.ID)
+	return device, nil
 }
 
 func (s *Server) startSession(w http.ResponseWriter, r *http.Request, user User) {
@@ -194,13 +222,25 @@ func (s *Server) startSession(w http.ResponseWriter, r *http.Request, user User)
 		Caps: gateid.Caps(user.Role),
 		Exp:  s.now().Add(sessionTTL).Unix(),
 	}
-	device, err := s.devices.Add(user.Name, deviceName(r.UserAgent()), clientIP(r))
+	device, err := s.deviceFor(w, r, user.Name)
 	if err != nil {
 		s.log.Warn("gate device add", "error", err)
 	} else {
 		id.Dev = device.ID
 	}
 	s.setSession(w, r, id)
+}
+
+func (s *Server) setDeviceCookie(w http.ResponseWriter, r *http.Request, id string) {
+	http.SetCookie(w, &http.Cookie{
+		Name:     deviceCookie,
+		Value:    id,
+		Path:     "/",
+		MaxAge:   int(deviceTTL.Seconds()),
+		HttpOnly: true,
+		Secure:   s.secure(r),
+		SameSite: http.SameSiteLaxMode,
+	})
 }
 
 func (s *Server) setSession(w http.ResponseWriter, r *http.Request, id gateid.Identity) {

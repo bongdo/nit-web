@@ -38,6 +38,11 @@ type target struct {
 	URL  string `json:"url"`
 }
 
+var defaultTargets = []target{
+	{Name: "pero", URL: "http://127.0.0.1:7789"},
+	{Name: "term", URL: "http://127.0.0.1:7795"},
+}
+
 type config struct {
 	Server   string   `json:"server"`
 	Name     string   `json:"name"`
@@ -149,13 +154,26 @@ func (c config) target(name string) (string, bool) {
 	if name == "opencode" && c.OpenCode != "" {
 		return c.OpenCode, true
 	}
+	for _, item := range defaultTargets {
+		if item.Name == name {
+			return item.URL, true
+		}
+	}
 	return "", false
 }
 
 func (c config) state(openCodeVersion string) gate.AgentFrame {
-	targets := make([]gate.AgentTarget, 0, len(c.Targets)+1)
+	targets := make([]gate.AgentTarget, 0, len(c.Targets)+3)
 	targets = append(targets, gate.AgentTarget{Name: "opencode", Kind: "http", Detail: c.OpenCode})
+	seen := map[string]bool{"opencode": true}
 	for _, item := range c.Targets {
+		targets = append(targets, gate.AgentTarget{Name: item.Name, Kind: "http", Detail: item.URL})
+		seen[item.Name] = true
+	}
+	for _, item := range defaultTargets {
+		if seen[item.Name] {
+			continue
+		}
 		targets = append(targets, gate.AgentTarget{Name: item.Name, Kind: "http", Detail: item.URL})
 	}
 	return gate.AgentFrame{

@@ -213,14 +213,14 @@ func TestStoreShowHiddenPersists(t *testing.T) {
 	if !reopened.Snapshot("frankfurt").ShowHidden {
 		t.Fatal("showHidden did not persist")
 	}
-	if reopened.Snapshot("riga").ShowHidden {
-		t.Fatal("showHidden leaked to another instance")
+	if !reopened.Snapshot("riga").ShowHidden {
+		t.Fatal("showHidden is not network-wide")
 	}
-	if err := reopened.SetShowHidden("frankfurt", false); err != nil {
+	if err := reopened.SetShowHidden("riga", false); err != nil {
 		t.Fatal(err)
 	}
 	if reopened.Snapshot("frankfurt").ShowHidden {
-		t.Fatal("showHidden did not reset")
+		t.Fatal("showHidden did not reset for the network")
 	}
 }
 

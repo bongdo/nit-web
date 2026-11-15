@@ -1046,6 +1046,7 @@ export default function App({
 
   const selectSession = useCallback((id: string | null) => {
     const current = selectedIdRef.current;
+    if (id !== null && id === current) clearDone(id);
     if (id !== current) {
       saveCurrentTranscript();
       const cached = id ? transcriptCache.get(id) : undefined;
@@ -1064,7 +1065,7 @@ export default function App({
     if (id) localStorage.setItem(sessionKey, id);
     else localStorage.removeItem(sessionKey);
     setSidebarOpen(false);
-  }, [saveCurrentTranscript]);
+  }, [clearDone, saveCurrentTranscript]);
 
   const notifications =
     notifyOn && typeof Notification !== "undefined" && Notification.permission === "granted";

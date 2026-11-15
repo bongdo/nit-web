@@ -90,7 +90,7 @@ deploy_frankfurt() {
   local port="${NIT_GUI_DEPLOY_PORT:-7791}"
   local public_port="${NIT_GUI_PUBLIC_PORT:-7792}"
   local public_host="${NIT_GUI_PUBLIC_HOST:-frankfurt.tailf358cb.ts.net}"
-  local domain="${NIT_GUI_DOMAIN:-}"
+  local domain="${NIT_GUI_DOMAIN-bongdo.space}"
   local base_path="${NIT_GUI_BASE:-/nit/}"
   base_path="${base_path%/}"
   local run_dir="$PWD/.cache"
@@ -161,7 +161,10 @@ deploy_frankfurt() {
   local domain_site=""
   if [ -n "$domain" ]; then
     options="admin off"
+    local listen_addr
+    listen_addr="$(ip -4 -o addr show scope global 2>/dev/null | awk '$2 != "tailscale0" {print $4}' | cut -d/ -f1 | head -1)"
     domain_site="$domain, www.$domain {
+	bind ${listen_addr:-0.0.0.0}
 	encode zstd gzip
 	header {
 		X-Content-Type-Options nosniff
@@ -230,6 +233,9 @@ EOF
     echo "deploy: tailnet http://$tailnet_ip:$public_port$base_path/"
   fi
   echo "deploy: public https://$public_host$base_path/"
+  if [ -n "$domain" ]; then
+    echo "deploy: domain https://$domain$base_path/"
+  fi
   if ! tailscale funnel status 2>/dev/null | grep -q "$public_port"; then
     echo "deploy: enable public access with: bin/funnel"
   fi

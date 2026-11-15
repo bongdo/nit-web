@@ -1,7 +1,16 @@
 import { memo, useEffect, useRef, useState } from "react";
-import { ArrowLeft, Folder, PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import {
+  ArrowLeft,
+  FileCode2,
+  Folder,
+  MoreHorizontal,
+  PanelLeftClose,
+  PanelLeftOpen,
+  Terminal,
+} from "lucide-react";
 import type { Model, ModelRef, Session } from "../lib/types";
-import { basename, formatCost, modelLabel } from "../lib/format";
+import { basename, formatCost, formatRelative, modelLabel, sessionRunning } from "../lib/format";
+import { peroHref, termHref } from "../lib/diff";
 import { cn } from "../lib/utils";
 import { Button } from "./ui/button";
 import { SubagentMenu } from "./SubagentMenu";
@@ -111,7 +120,9 @@ export function SessionPill({
           {directory ? basename(directory) : "no directory"}
         </span>
         {(agent || model) && (
-          <ModelChip label={`${agent ?? "agent"} · ${modelLabel(model, models) || "model"}`} />
+          <span className="max-md:hidden">
+            <ModelChip label={`${agent ?? "agent"} · ${modelLabel(model, models) || "model"}`} />
+          </span>
         )}
         {contextPercent != null && (
           <span className="flex shrink-0 items-center gap-1" title="Context used">
@@ -126,6 +137,151 @@ export function SessionPill({
           </span>
         )}
       </div>
+    </div>
+  );
+}
+
+function MobileMenu({
+  directory,
+  termURL,
+  peroURL,
+  transport,
+  subagents,
+  parent,
+  onOpenSubagent,
+  onBack,
+}: {
+  directory?: string | null;
+  termURL: string;
+  peroURL: string;
+  transport: string;
+  subagents: Session[];
+  parent?: Session | null;
+  onOpenSubagent: (session: Session) => void;
+  onBack: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const root = useRef<HTMLDivElement>(null);
+  const sorted = [...subagents].sort((a, b) => {
+    const running = Number(sessionRunning(b)) - Number(sessionRunning(a));
+    return running || b.time.updated - a.time.updated;
+  });
+
+  useEffect(() => {
+    if (!open) return;
+    const onPointerDown = (event: PointerEvent) => {
+      if (!root.current?.contains(event.target as Node)) setOpen(false);
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("pointerdown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [open]);
+
+  if (!parent && subagents.length === 0 && !(transport === "local" && directory)) return null;
+
+  return (
+    <div ref={root} className="pointer-events-auto relative md:hidden">
+      <Button
+        variant="ghost"
+        size="icon-sm"
+        className="size-9"
+        onClick={() => setOpen((value) => !value)}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-label="Session menu"
+        title="Session menu"
+      >
+        <MoreHorizontal />
+      </Button>
+      {open && (
+        <div
+          role="menu"
+          className="overlay-popover border-border bg-popover absolute top-full right-0 z-40 mt-1 max-h-[70dvh] w-72 max-w-[calc(100vw-1rem)] overflow-y-auto rounded-lg border p-1 shadow-lg"
+        >
+          {parent && (
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                setOpen(false);
+                onBack();
+              }}
+              className="hover:bg-accent/60 flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-[12px]"
+            >
+              <ArrowLeft className="text-muted-foreground size-3.5 shrink-0" />
+              Back to parent
+            </button>
+          )}
+          {sorted.length > 0 && (
+            <>
+              <div className="text-muted-foreground px-2 pt-1.5 pb-1 font-mono text-[9px] tracking-[0.12em] uppercase">
+                Subagents
+              </div>
+              {sorted.map((session) => (
+                <button
+                  key={session.id}
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    setOpen(false);
+                    onOpenSubagent(session);
+                  }}
+                  className="hover:bg-accent/60 flex w-full items-center gap-2 rounded px-2 py-1.5 text-left"
+                >
+                  <span
+                    className={cn(
+                      "size-1.5 shrink-0 rounded-full",
+                      sessionRunning(session) ? "animate-pulse bg-success" : "bg-border",
+                    )}
+                  />
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-[12px]">
+                      {session.title?.trim() || session.agent || "Subagent"}
+                    </span>
+                    <span className="text-muted-foreground block truncate text-[10px]">
+                      {session.agent ?? "subagent"}
+                    </span>
+                  </span>
+                  <span className="text-muted-foreground shrink-0 text-[10px]">
+                    {formatRelative(session.time.updated)}
+                  </span>
+                </button>
+              ))}
+            </>
+          )}
+          {transport === "local" && directory && (
+            <>
+              <div className="bg-border my-1 h-px" />
+              <a
+                href={termHref(termURL, directory)}
+                target="_blank"
+                rel="noreferrer"
+                role="menuitem"
+                className="hover:bg-accent/60 flex items-center gap-2 rounded px-2 py-1.5 text-[12px]"
+              >
+                <Terminal className="text-muted-foreground size-3.5 shrink-0" />
+                Terminal
+              </a>
+              <a
+                href={peroHref(peroURL, directory)}
+                target="_blank"
+                rel="noreferrer"
+                role="menuitem"
+                className="hover:bg-accent/60 flex items-center gap-2 rounded px-2 py-1.5 text-[12px]"
+              >
+                <FileCode2 className="text-muted-foreground size-3.5 shrink-0" />
+                Pero
+              </a>
+            </>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -190,15 +346,26 @@ export const Header = memo(function Header({
         contextPercent={contextPercent}
         cost={cost}
         estimatedCost={estimatedCost}
-        className="pointer-events-auto max-w-2xl max-md:hidden"
+        className="pointer-events-auto max-w-2xl max-md:max-w-none max-md:flex-1"
       />
 
       <div className="pointer-events-auto ml-auto flex shrink-0 items-center gap-2">
         {transport === "local" && (
-          <WorkspaceLinks directory={directory} termURL={termURL} peroURL={peroURL} />
+          <WorkspaceLinks
+            directory={directory}
+            termURL={termURL}
+            peroURL={peroURL}
+            className="max-md:hidden"
+          />
         )}
         {parent && (
-          <Button variant="ghost" size="sm" className="h-9" onClick={onBack} title="Back to parent">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-9 max-md:hidden"
+            onClick={onBack}
+            title="Back to parent"
+          >
             <ArrowLeft />
             Parent
           </Button>
@@ -210,6 +377,16 @@ export const Header = memo(function Header({
             className="hidden md:inline-flex"
           />
         )}
+        <MobileMenu
+          directory={directory}
+          termURL={termURL}
+          peroURL={peroURL}
+          transport={transport}
+          subagents={subagents}
+          parent={parent}
+          onOpenSubagent={onOpenSubagent}
+          onBack={onBack}
+        />
       </div>
     </header>
   );

@@ -8,7 +8,7 @@ import {
   type ReactNode,
 } from "react";
 import { flushSync } from "react-dom";
-import { CircleAlert, Plus, RefreshCw, X } from "lucide-react";
+import { CircleAlert, Layers, Plus, RefreshCw, X } from "lucide-react";
 import { api, nextSessionCursor } from "./lib/api";
 import type {
   Agent,
@@ -76,8 +76,7 @@ import { useSidebarSwipe } from "./hooks/useSidebarSwipe";
 import { ChatView } from "./components/ChatView";
 import { VARIANTS, type SceneSetting } from "./components/Scene";
 import { Composer, type Attachment, type ComposerCommand } from "./components/Composer";
-import { Header, SessionPill } from "./components/Header";
-import { SubagentMenu } from "./components/SubagentMenu";
+import { Header } from "./components/Header";
 import { Sidebar } from "./components/Sidebar";
 import { WorkspacePicker } from "./components/WorkspacePicker";
 import { SettingsPanel } from "./components/SettingsPanel";
@@ -292,7 +291,6 @@ export default function App({
   const [loadingMore, setLoadingMore] = useState(false);
   const loadingMoreRef = useRef(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const sheetPull = useRef<number | null>(null);
   const [preferredModel, setPreferredModel] = useState<ModelRef | null>(null);
   const [preferredAgent, setPreferredAgent] = useState<string | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
@@ -2453,55 +2451,27 @@ export default function App({
 
           <nav
             aria-label="Mobile navigation"
-            className="border-border bg-background/95 pointer-events-auto flex items-center gap-1.5 border-t px-2 pt-1 pb-[env(safe-area-inset-bottom)] md:hidden"
+            className="pointer-events-auto flex items-center px-2.5 pb-[env(safe-area-inset-bottom)] md:hidden"
           >
             <button
               type="button"
               onClick={openSidebar}
-              onPointerDown={(event) => {
-                sheetPull.current = event.clientY;
-                event.currentTarget.setPointerCapture(event.pointerId);
-              }}
-              onPointerUp={(event) => {
-                const start = sheetPull.current;
-                sheetPull.current = null;
-                if (start !== null && start - event.clientY > 28) openSidebar();
-              }}
-              onPointerCancel={() => {
-                sheetPull.current = null;
-              }}
-              className="min-w-0 flex-1 touch-none text-left"
+              className="text-muted-foreground hover:text-foreground flex h-[30px] items-center gap-1.5 text-[11px] font-medium"
               aria-label="Open chats"
             >
-              <SessionPill
-                session={selectedSession}
-                directory={workspace}
-                models={models}
-                model={currentModel}
-                agent={currentAgent}
-                contextPercent={shownContext}
-                cost={shownCost}
-                estimatedCost={sessionCost === 0 && estimated > 0}
-                className="w-full"
-              />
+              <Layers className="size-3.5" />
+              Chats
             </button>
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              className="size-11 shrink-0"
+            <button
+              type="button"
               onClick={() => newChat()}
               disabled={!health?.ok}
+              className="text-foreground ml-auto flex h-[30px] items-center gap-1.5 text-[11px] font-medium disabled:opacity-50"
               aria-label="New chat"
-              title="New chat"
             >
-              <Plus />
-            </Button>
-            <SubagentMenu
-              sessions={subagents}
-              onOpen={openSubagent}
-              placement="up"
-              className="size-11 shrink-0"
-            />
+              <Plus className="size-3.5" />
+              New
+            </button>
           </nav>
         </BottomDock>
       </main>

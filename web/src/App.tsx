@@ -1301,6 +1301,7 @@ export default function App({
     if (owner && owner !== instance) {
       rememberWorkspaceFor(owner, directory);
       localStorage.removeItem(instanceScopedKey("nit-gui.session", owner, defaultInstance));
+      localStorage.setItem("nit-gui.scope", "directory");
       setPickerOpen(false);
       onSwitchInstance(owner);
       return;

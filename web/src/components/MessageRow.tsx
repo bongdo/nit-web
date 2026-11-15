@@ -79,7 +79,21 @@ export const MessageRow = memo(function MessageRow({
     return (
       <div className="group flex justify-end px-1 py-2">
         <div className="max-w-[85%]">
-          <div className="bg-secondary rounded-2xl rounded-br-sm px-4 py-2.5">
+          {message.delivery && (
+            <div className="text-muted-foreground mb-1 flex items-center justify-end gap-1 text-[10px]">
+              <span aria-hidden>↳</span>
+              <span>
+                {message.delivery === "steer"
+                  ? "steered into the run above"
+                  : "queued · answered after this run"}
+              </span>
+            </div>
+          )}
+          <div
+            className={`bg-secondary rounded-2xl rounded-br-sm px-4 py-2.5${
+              message.delivery ? " border-border border border-dashed" : ""
+            }`}
+          >
             {message.files && message.files.length > 0 && (
               <div className="mb-2 grid grid-cols-2 gap-1.5">
                 {message.files.map((file, index) => (

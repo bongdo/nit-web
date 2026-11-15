@@ -141,6 +141,7 @@ export const Composer = memo(function Composer({
   const hydratedRef = useRef(false);
   const editedRef = useRef(false);
   const [submitting, setSubmitting] = useState(false);
+  const [shift, setShift] = useState(false);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const attachmentsRef = useRef<Attachment[]>([]);
   attachmentsRef.current = attachments;
@@ -311,6 +312,24 @@ export const Composer = memo(function Composer({
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [customAnswer, disabled, drawerOpen, formBusy, typingBlocked, workspace]);
+
+  useEffect(() => {
+    const down = (event: KeyboardEvent) => {
+      if (event.key === "Shift") setShift(true);
+    };
+    const up = (event: KeyboardEvent) => {
+      if (event.key === "Shift") setShift(false);
+    };
+    const clear = () => setShift(false);
+    window.addEventListener("keydown", down);
+    window.addEventListener("keyup", up);
+    window.addEventListener("blur", clear);
+    return () => {
+      window.removeEventListener("keydown", down);
+      window.removeEventListener("keyup", up);
+      window.removeEventListener("blur", clear);
+    };
+  }, []);
 
   useEffect(() => {
     if (form && questions.length > 0) {
@@ -620,6 +639,7 @@ export const Composer = memo(function Composer({
   const visibleAttachments = attachments.filter((item) => !removing.includes(item.id));
   const cropItem = attachments.find((item) => item.id === cropId);
   const readyFiles = visibleAttachments.filter((item) => !item.error);
+  const queue = Boolean(running) && shift;
 
   const submit = async () => {
     const text = value.trim();
@@ -646,7 +666,7 @@ export const Composer = memo(function Composer({
         }
       }
       setAttachments(uploaded);
-      await onSend(text, uploaded, running ? "steer" : undefined);
+      await onSend(text, uploaded, running ? (queue ? "queue" : "steer") : undefined);
       const misspelled = issues
         .filter((issue) => issue.source !== "grammar")
         .map((issue) => issue.word.toLowerCase());
@@ -1223,7 +1243,9 @@ export const Composer = memo(function Composer({
                   : "Pick an option above"
                 : coarse
                   ? "Send with the button · Enter for a new line"
-                  : "Enter to send · Shift+Enter for a new line · / commands"}
+                  : running
+                    ? "Enter steers into the run · hold Shift and click Send to queue"
+                    : "Enter to send · Shift+Enter for a new line · / commands"}
             </span>
             <div className="ml-auto flex items-center gap-1">
               {running && !question && (
@@ -1275,6 +1297,7 @@ export const Composer = memo(function Composer({
               ) : (
                 <Button
                   size="sm"
+                  variant={queue ? "secondary" : "default"}
                   onClick={() => void submit()}
                   disabled={
                     !workspace ||
@@ -1282,10 +1305,17 @@ export const Composer = memo(function Composer({
                     (!value.trim() && readyFiles.length === 0) ||
                     submitting
                   }
-                  aria-label={running ? "Steer message" : "Send"}
+                  title={
+                    queue
+                      ? "Send after this run finishes"
+                      : running
+                        ? "Steer into the running turn · hold Shift to queue"
+                        : undefined
+                  }
+                  aria-label={queue ? "Queue after this run" : running ? "Steer message" : "Send"}
                 >
                   {submitting ? <Loader2 className="animate-spin" /> : <ArrowUp />}
-                  {running ? "Steer" : "Send"}
+                  {queue ? "Queue" : running ? "Steer" : "Send"}
                 </Button>
               )}
             </div>

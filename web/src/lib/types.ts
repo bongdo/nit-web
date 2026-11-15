@@ -135,6 +135,7 @@ export type Message = {
   type: string;
   time: { created: number; streamed?: number; completed?: number };
   text?: string;
+  delivery?: "queue" | "steer";
   files?: UserFile[];
   content?: Part[];
   agent?: string;

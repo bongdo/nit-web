@@ -1765,6 +1765,7 @@ export default function App({
         type: "user",
         time: { created: Date.now() },
         text,
+        ...(delivery ? { delivery } : {}),
         ...(files.length > 0 ? { files } : {}),
       };
       setMessages((previous) => [...previous, optimistic]);

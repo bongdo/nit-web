@@ -150,8 +150,7 @@ func (a *authGate) wrap(next http.Handler) http.Handler {
 			a.handleLogout(w, r)
 			return
 		}
-		clean := path.Clean(requestPath)
-		if requestPath == "/d" || (strings.HasPrefix(requestPath, "/d/") && (clean == "/d" || strings.HasPrefix(clean, "/d/"))) {
+		if publicDropPath(requestPath) {
 			next.ServeHTTP(w, r)
 			return
 		}
@@ -166,6 +165,21 @@ func (a *authGate) wrap(next http.Handler) http.Handler {
 		nextPath := a.externalPath(r.URL.RequestURI())
 		http.Redirect(w, r, a.authPath()+"?next="+url.QueryEscape(nextPath), http.StatusSeeOther)
 	})
+}
+
+func outsideBase(path string) bool {
+	return path == shareBase || strings.HasPrefix(path, shareBase+"/")
+}
+
+func publicDropPath(requestPath string) bool {
+	clean := path.Clean(requestPath)
+	for _, prefix := range []string{"/d", shareBase + "/d"} {
+		if requestPath == prefix ||
+			(strings.HasPrefix(requestPath, prefix+"/") && (clean == prefix || strings.HasPrefix(clean, prefix+"/"))) {
+			return true
+		}
+	}
+	return false
 }
 
 func (a *authGate) handleLogin(w http.ResponseWriter, r *http.Request) {
@@ -337,7 +351,7 @@ func (a *authGate) externalPath(path string) string {
 	if path == "" {
 		path = "/"
 	}
-	if a.base == "" || path == a.base || strings.HasPrefix(path, a.base+"/") {
+	if a.base == "" || path == a.base || strings.HasPrefix(path, a.base+"/") || outsideBase(path) {
 		return path
 	}
 	return a.base + path
@@ -409,7 +423,7 @@ func safeAbsoluteNext(raw, requestHost, publicHost string) (string, bool) {
 }
 
 func gateReturnPath(path string) bool {
-	for _, prefix := range []string{"/nit", "/pero", "/term"} {
+	for _, prefix := range []string{"/nit", "/pero", "/term", shareBase} {
 		if path == prefix || strings.HasPrefix(path, prefix+"/") {
 			return true
 		}
@@ -426,7 +440,7 @@ func safeNext(raw, base string) string {
 			return base + "/"
 		}
 	}
-	if base != "" && raw != base && !strings.HasPrefix(raw, base+"/") {
+	if base != "" && raw != base && !strings.HasPrefix(raw, base+"/") && !outsideBase(raw) {
 		if raw == "/" {
 			return base + "/"
 		}

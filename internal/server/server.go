@@ -26,7 +26,10 @@ import (
 	"nitgui/internal/uistate"
 )
 
-const maxJSONBody = 1 << 20
+const (
+	maxJSONBody = 1 << 20
+	shareBase   = "/share"
+)
 
 type ClientProvider interface {
 	Client(context.Context) (*opencode.Client, error)
@@ -139,9 +142,9 @@ func New(provider ClientProvider, static fs.FS, log *slog.Logger) http.Handler {
 		log.Error("drop store unavailable", "error", err)
 	} else {
 		services := drop.NewServices(store)
-		services.SetBasePath(s.basePath)
-		s.dropManager = drop.NewManager(store, services, s.dropWriteAllowed, log, s.peroURL, s.basePath)
-		s.dropPublic = drop.NewPublic(store, s.dropReadAllowed, log, s.basePath, services)
+		services.SetBasePath(shareBase)
+		s.dropManager = drop.NewManager(store, services, s.dropWriteAllowed, log, s.peroURL, shareBase)
+		s.dropPublic = drop.NewPublic(store, s.dropReadAllowed, log, shareBase, services)
 		go services.Restore(context.Background())
 	}
 	s.routes()
@@ -241,24 +244,32 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("POST /auth/logout", func(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/", http.StatusSeeOther)
 	})
-	s.mux.HandleFunc("GET /drop", func(w http.ResponseWriter, r *http.Request) {
-		http.Redirect(w, r, s.basePath+"/drop/", http.StatusTemporaryRedirect)
-	})
+	unavailable := func(w http.ResponseWriter, r *http.Request) {
+		writeError(w, http.StatusServiceUnavailable, "drop is unavailable")
+	}
 	if s.dropManager != nil {
+		s.mux.Handle(shareBase+"/", rewritePrefix(shareBase, "/drop", s.dropManager))
 		s.mux.Handle("/drop/", s.dropManager)
 	} else {
-		s.mux.HandleFunc("/drop/", func(w http.ResponseWriter, r *http.Request) {
-			writeError(w, http.StatusServiceUnavailable, "drop is unavailable")
-		})
+		s.mux.HandleFunc(shareBase+"/", unavailable)
+		s.mux.HandleFunc("/drop/", unavailable)
 	}
 	if s.dropPublic != nil {
+		s.mux.Handle(shareBase+"/d/", rewritePrefix(shareBase+"/d", "/d", s.dropPublic))
 		s.mux.Handle("/d/", s.dropPublic)
 	} else {
-		s.mux.HandleFunc("/d/", func(w http.ResponseWriter, r *http.Request) {
-			writeError(w, http.StatusServiceUnavailable, "drop is unavailable")
-		})
+		s.mux.HandleFunc(shareBase+"/d/", unavailable)
+		s.mux.HandleFunc("/d/", unavailable)
 	}
 	s.mux.HandleFunc("/", s.staticFile)
+}
+
+func rewritePrefix(prefix, internal string, next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		r.URL.Path = internal + strings.TrimPrefix(r.URL.Path, prefix)
+		r.URL.RawPath = ""
+		next.ServeHTTP(w, r)
+	})
 }
 
 func (s *Server) dropWriteAllowed(r *http.Request) bool {
@@ -302,7 +313,8 @@ func (s *Server) middleware(next http.Handler) http.Handler {
 		switch {
 		case r.URL.Path == "/api/events", r.URL.Path == "/api/file",
 			r.URL.Path == "/api/tts/audio", r.URL.Path == "/api/tts/stream",
-			r.URL.Path == "/drop/api/upload", strings.HasPrefix(r.URL.Path, "/d/"):
+			r.URL.Path == "/drop/api/upload", r.URL.Path == shareBase+"/api/upload",
+			strings.HasPrefix(r.URL.Path, "/d/"), strings.HasPrefix(r.URL.Path, shareBase+"/d/"):
 		default:
 			_ = http.NewResponseController(w).SetWriteDeadline(time.Now().Add(30 * time.Second))
 		}

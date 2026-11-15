@@ -105,6 +105,41 @@ func TestAuthBypassesPublicDrop(t *testing.T) {
 	if location := manager.Header().Get("Location"); !strings.HasPrefix(location, "/auth?next=") {
 		t.Fatalf("manager redirect = %q", location)
 	}
+
+	reached = false
+	share := httptest.NewRecorder()
+	handler.ServeHTTP(share, authRequest(http.MethodGet, "/share/d/report/", ""))
+	if share.Code != http.StatusOK || !reached {
+		t.Fatalf("share drop status = %d, reached = %v", share.Code, reached)
+	}
+
+	reached = false
+	shareManager := httptest.NewRecorder()
+	handler.ServeHTTP(shareManager, authRequest(http.MethodGet, "/share/", ""))
+	if shareManager.Code != http.StatusSeeOther || reached {
+		t.Fatalf("share manager status = %d, reached = %v", shareManager.Code, reached)
+	}
+}
+
+func TestRewritePrefix(t *testing.T) {
+	cases := map[string]string{
+		"/share/":                "/drop/",
+		"/share/api/upload":      "/drop/api/upload",
+		"/share/d/app/":          "/d/app/",
+		"/share/d/app/report.md": "/d/app/report.md",
+	}
+	for target, want := range cases {
+		seen := ""
+		prefix, internal := "/share", "/drop"
+		if strings.HasPrefix(target, "/share/d") {
+			prefix, internal = "/share/d", "/d"
+		}
+		next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { seen = r.URL.Path })
+		rewritePrefix(prefix, internal, next).ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, target, nil))
+		if seen != want {
+			t.Fatalf("%s rewritten to %q, want %q", target, seen, want)
+		}
+	}
 }
 
 func TestAuthLockout(t *testing.T) {

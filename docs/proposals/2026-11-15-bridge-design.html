@@ -186,13 +186,13 @@
       </ul>
     </div>
     <div class="card">
-      <div class="t"><span>3</span><span class="badge">доп. цели</span></div>
-      <p>Тот же сокет проксирует не только opencode: <code>pero</code> и
-      <code>term</code> этой машины объявляются как цели, дом монтирует их под
-      <code>/i/&lt;name&gt;/pero/</code> и <code>/i/&lt;name&gt;/term/</code>.</p>
+      <div class="t"><span>3</span><span class="badge">цели</span></div>
+      <p>Сокет проксирует не только opencode: цели объявляются списком —
+      <code>http</code> (pero, term, любой сервис) и <code>tcp</code> (в том числе
+      sshd машины). Маршрут <code>/i/&lt;machine&gt;/&lt;target&gt;/</code> решает гейт.</p>
       <ul>
-        <li>один origin — кука и относительные пути работают</li>
-        <li>порты машины не публикуются</li>
+        <li>мост ничего не знает про nit-gui и про наши приложения</li>
+        <li>новый сервис на машине = одна строка в списке целей</li>
       </ul>
     </div>
     <div class="card">
@@ -289,26 +289,107 @@
 </section>
 
 <section>
-  <h2>7 · Что меняется в коде</h2>
+  <h2>7 · Установка и автозапуск</h2>
+  <p class="lead">Четыре способа доставить один бинарник. Разница только в том,
+  кто нажимает кнопку и переживёт ли это переустановку системы.</p>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>Способ</th><th>Что делает пользователь</th><th>Что нужно</th><th>Плюс</th><th>Минус</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><b>по ssh из дома</b><br><code>bin/bridge add nixos</code></td><td class="yes">ничего</td><td>ssh-ключ (уже есть)</td><td>ноль действий, результат виден сразу в меню</td><td>не переживёт переустановку; нужен ssh-доступ</td></tr>
+        <tr><td><b>NixOS-модуль во flake</b></td><td class="mid">3 строки и rebuild</td><td>dotfiles</td><td>навсегда, декларативно, токен в sops, обновление вместе с системой</td><td>надо тронуть конфиг</td></tr>
+        <tr><td><b>одна команда на машине</b></td><td class="mid">вставить <code>curl … | sh</code></td><td>токен из UI</td><td>работает без ssh и без dotfiles</td><td>всё равно действие руками</td></tr>
+        <tr><td><b>вручную</b></td><td class="no">скачать бинарник, положить unit</td><td>—</td><td>фолбэк когда ничего не подходит</td><td>скучно и легко забыть про linger</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="cards" style="margin-top:18px">
+    <div class="card">
+      <div class="t"><span>автозапуск</span><span class="badge ok">systemd --user</span></div>
+      <ul>
+        <li><code>Restart=always</code>, <code>RestartSec=2</code>, <code>After=network-online.target</code></li>
+        <li><code>WantedBy=default.target</code></li>
+        <li><code>loginctl enable-linger</code> — без этого юнит умирает вместе с сессией, и «автозапуск» врёт</li>
+        <li>токен — файл <code>0600</code>, наружу только исходящий 443</li>
+      </ul>
+    </div>
+    <div class="card">
+      <div class="t"><span>добавление машины</span><span class="badge">5 шагов</span></div>
+      <ul>
+        <li>в UI «Новая машина»: имя, токен показан один раз</li>
+        <li><code>bin/bridge add nixos --token …</code> или готовая команда для машины</li>
+        <li>мост: <code>hello</code> → <code>welcome</code>, цели зарегистрированы</li>
+        <li>инстанс появляется зелёным, транспорт «agent», ssh не нужен</li>
+        <li>отзыв: удалить файл токена, сокет закрывается</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<section>
+  <h2>8 · Терминал: PTY без второго сервиса</h2>
+  <p class="lead">PTY обязан жить на машине — это не обсуждается. Вопрос в том,
+  какой уже существующий процесс его отдаёт. Способов три, второй сервис нужен
+  только в одном.</p>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>Вариант</th><th>На машине</th><th>На доме</th><th>Новый код</th><th>Чем плохо</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>term-gui на машине</td><td class="no">+1 бинарник</td><td>term-gui как есть</td><td class="mono">0</td><td>второй сервис, обновлять отдельно</td></tr>
+        <tr><td>терминал-сервер внутри моста</td><td class="yes">0 доп.</td><td>фронт term-gui</td><td class="mono">300–500</td><td>мост перестаёт быть роутером и обрастает PTY</td></tr>
+        <tr><td class="yes">sshd через мост → term-gui по ssh</td><td class="yes">0 (sshd уже есть)</td><td>term-gui + ssh-клиент</td><td class="mono">~60 + ~200</td><td>терминал зависит от sshd машины</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p class="lead" style="margin-top:18px"><b>Ответ на «в чём проблема
+  реиспользовать мост»:</b> проблемы нет, но PTY он всё равно не отменяет.
+  Мост может либо сам держать PTY (и тогда он уже не роутер, а терминальный
+  сервер), либо отдать <code>tcp</code>-цель к уже работающему <code>sshd</code>.
+  Второе и есть реиспользование: tmux и оболочка остаются на машине как сейчас,
+  term-gui на доме просто меняет «локальный exec» на «ssh через сокет». Сессии
+  tmux переживают перезапуск term-gui, как и сейчас.</p>
+
+  <p class="lead">Ещё проще на сегодня: term-gui на доме может ходить по ssh
+  напрямую по tailnet, вообще без моста. Тогда терминал не работает, только если
+  машина вне tailnet — а это ровно тот случай, ради которого мост и делается.</p>
+
+  <p class="lead"><b>Редактор.</b> Два варианта: <code>http</code>-цель
+  <code>pero</code> в мосте (ноль нового кода, но на машине нужен pero-gui) или
+  один pero-gui на доме поверх sshfs-монтирования машины (ноль сервисов на
+  машине, запись через sshfs). Если важнее минимум зависимостей — sshfs; если
+  правильные права и скорость — pero-gui на машине как ещё одна цель моста.</p>
+</section>
+
+<section>
+  <h2>9 · Что меняется в коде</h2>
   <div class="table-wrap">
     <table>
       <thead>
         <tr><th>Где</th><th>Что</th><th>Объём</th></tr>
       </thead>
       <tbody>
-        <tr><td class="mono">cmd/bridge</td><td>новый бинарник: конфиг, сокет, локальный SSE, прокси целей, heartbeat</td><td class="mono">~500–700 строк</td></tr>
-        <tr><td class="mono">internal/agent</td><td>реестр соединений, reverse-транспорт <code>http.RoundTripper</code>, раздача событий</td><td class="mono">~400 строк + тесты</td></tr>
+        <tr><td class="mono">cmd/bridge</td><td>новый бинарник: конфиг, сокет, локальный SSE, цели <code>http</code> и <code>tcp</code>, heartbeat</td><td class="mono">~600–750 строк</td></tr>
+        <tr><td class="mono">internal/agent</td><td>реестр соединений, reverse-транспорт <code>http.RoundTripper</code>, tcp-цели, раздача событий</td><td class="mono">~450 строк + тесты</td></tr>
         <tr><td class="mono">internal/opencode/registry.go</td><td>поле <code>agent</code> в инстансе, резолв в сокет вместо ssh</td><td class="mono">~80 строк</td></tr>
-        <tr><td class="mono">internal/server</td><td><code>/agent</code> (wss), <code>/api/events?all</code>, монтирование <code>/i/&lt;id&gt;/{pero,term}</code></td><td class="mono">~250 строк</td></tr>
+        <tr><td class="mono">internal/server</td><td><code>/agent</code> (wss), <code>/api/events?all</code>, маршрут <code>/i/&lt;machine&gt;/&lt;target&gt;/</code></td><td class="mono">~250 строк</td></tr>
+        <tr><td class="mono">term-gui</td><td>remote-режим: вместо локального <code>exec</code> — ssh через сокет моста, tmux остаётся на машине</td><td class="mono">~150–250 строк</td></tr>
         <tr><td class="mono">web/src</td><td>один поток событий на все инстансы, кэш бутстрапа, бейдж машины на уровне директории</td><td class="mono">~300 строк</td></tr>
-        <tr><td class="mono">deploy</td><td>установка моста на машину, systemd-юнит, токен</td><td class="mono">~60 строк</td></tr>
+        <tr><td class="mono">bin/bridge</td><td>установка по ssh, токен, systemd-юнит, linger, <code>bin/bridge add &lt;host&gt;</code></td><td class="mono">~90 строк</td></tr>
       </tbody>
     </table>
   </div>
 </section>
 
 <section>
-  <h2>8 · Порядок внедрения</h2>
+  <h2>10 · Порядок внедрения</h2>
   <p class="lead">Каждый шаг заканчивается тем, что можно проверить глазами, и не
   требует следующего.</p>
 
@@ -316,25 +397,23 @@
     <div class="step"><div><b>Мост и транспорт</b><span>Бинарник, сокет, reverse-транспорт, поле <code>agent</code> в инстансе. Инстанс nixos переключается на мост, ssh остаётся как фолбэк. Проверка: сессии nixos открываются, в меню транспорт «agent».</span></div></div>
     <div class="step"><div><b>События всех машин</b><span>Агент пушит события, дом отдаёт <code>/api/events?all</code>, браузер уведомляет с именем машины. Проверка: прогон на ноуте, вкладка в фоне, уведомление приходит.</span></div></div>
     <div class="step"><div><b>Тёплое переключение</b><span>Кэш бутстрапа и прогрев. Проверка: переключение туда-обратно без экрана загрузки и без «Reconnect».</span></div></div>
-    <div class="step"><div><b>Редактор и терминал чужой машины</b><span>Цели в сокете и маршруты <code>/i/&lt;id&gt;/…</code>. Проверка: чип файла из nixos-чата открывает редактор на nixos.</span></div></div>
+    <div class="step"><div><b>Терминал и редактор чужой машины</b><span><code>tcp</code>-цель к sshd, term-gui в remote-режиме, редактор — sshfs или <code>http</code>-цель <code>pero</code>. Проверка: чип файла из nixos-чата открывает редактор, терминал открывает tmux на машине, на машине по-прежнему один бинарник.</span></div></div>
     <div class="step"><div><b>Ужесточение</b><span>opencode на машине возвращается на <code>127.0.0.1</code>, ssh-туннель для инстансов с мостом отключается совсем. Проверка: <code>ss -tlnp</code> на ноуте не показывает 49374 наружу.</span></div></div>
   </div>
 </section>
 
 <section>
-  <h2>9 · Что нужно решить до кода</h2>
+  <h2>11 · Что нужно решить до кода</h2>
   <div class="qbox">
     <ol>
-      <li>Терминал чужой машины — нужен?<span>Если да, на NixOS появляется второй бинарник
-      (<code>term-gui</code>) плюс мост. Если нет — маршрут <code>/i/&lt;id&gt;/term/</code>
-      просто не объявляется, и приоритет «минимум зависимостей» держится лучше.</span></li>
-      <li>Редактор чужой машины: pero-gui на самой машине или один на Frankfurt через sshfs?<span>Первый вариант даёт правильные права и скорость, второй — ноль сервисов
-      на ноуте и запись через sshfs. По умолчанию предлагаю первый, если мост уже стоит,
-      и второй — если нет.</span></li>
-      <li>Имя и место: <code>cmd/bridge</code> в этом же репозитории, бинарник
-      <code>nit-bridge</code>?<span>Тогда одна версия, один <code>go build</code>, один
-      релиз. Альтернатива — отдельный репозиторий, но это лишняя синхронизация
-      версий протокола.</span></li>
+      <li>Терминал решён: <code>sshd</code> машины через <code>tcp</code>-цель моста, term-gui на доме в remote-режиме.
+      <span>Значит на машине ноль новых сервисов, кроме самого моста. Подтверди — или скажи, что проще поставить term-gui на машину и не трогать term-gui на доме.</span></li>
+      <li>Автозапуск: flake-модуль в твоих dotfiles, установка по ssh из дома, или оба?
+      <span>Мой дефолт — оба: <code>bin/bridge add</code> чтобы получить работающее сейчас, модуль во flake чтобы пережило переустановку. Токен в sops.</span></li>
+      <li>Редактор чужой машины: <code>http</code>-цель <code>pero</code> в мосте (нужен pero-gui на машине) или один pero-gui на доме поверх sshfs?
+      <span>Первый — правильные права и скорость, второй — ноль сервисов на машине. Мой дефолт: sshfs, пока не станет медленно.</span></li>
+      <li>Имя и место: <code>cmd/bridge</code> в этом же репозитории, бинарник <code>nit-bridge</code>, протокол версионируется вместе с гейтом?
+      <span>Тогда одна версия, один <code>go build</code>, один релиз. Отдельный репозиторий — только если мост понадобится чему-то ещё вне этой семьи.</span></li>
     </ol>
   </div>
 </section>

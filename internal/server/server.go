@@ -1609,7 +1609,7 @@ func (s *Server) appLinks(name string) (string, string) {
 		if spec.TermURL != "" {
 			term = spec.TermURL
 		}
-		if spec.SSH != "" || (spec.URL != "" && spec.URL != "auto") {
+		if spec.SSH != "" || strings.Contains(spec.URL, "/i/") {
 			bridge := "/i/" + url.PathEscape(name) + "/"
 			if spec.PeroURL == "" {
 				pero = bridge + "pero/"

@@ -300,7 +300,7 @@ export function InstancesMenu({
                       {item.transport}
                     </span>
                     {item.id === active && (
-                      <span className="text-muted-foreground shrink-0 text-[9px]">active</span>
+                      <span className="text-muted-foreground shrink-0 text-[9px]">current</span>
                     )}
                   </span>
                   <span className="text-muted-foreground block truncate text-[11px]">
@@ -503,11 +503,6 @@ export function InstancesMenu({
                   >
                     Delete
                   </Button>
-                  {info.id !== active && (
-                    <Button size="sm" onClick={() => onSelect(info.id)}>
-                      Switch
-                    </Button>
-                  )}
                   {(info.state === "offline" || info.state === "unknown") && (
                     <Button
                       variant="outline"
@@ -534,7 +529,7 @@ export function InstancesMenu({
           <span className="truncate">
             Config: {data.configPath || "~/.config/nit-gui/instances.json"}
           </span>
-          <span className="shrink-0">on {data.app.host}</span>
+          <span className="shrink-0">gate: {data.app.host}</span>
         </div>
       </div>
     </div>

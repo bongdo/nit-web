@@ -932,20 +932,3 @@ func TestLoginWritesAudit(t *testing.T) {
 		t.Fatalf("audit order = %+v", events)
 	}
 }
-
-func TestProbeService(t *testing.T) {
-	up := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusNoContent)
-	}))
-	defer up.Close()
-	if status := probeService(up.Client(), up.URL); !status.Up {
-		t.Fatalf("upstream reported down: %+v", status)
-	}
-	broken := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusBadGateway)
-	}))
-	defer broken.Close()
-	if status := probeService(broken.Client(), broken.URL); status.Up {
-		t.Fatalf("502 reported up: %+v", status)
-	}
-}

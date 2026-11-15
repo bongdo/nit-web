@@ -62,7 +62,7 @@ reconnect), so no reload is needed. `Everywhere` reads `/api/ui` from each
 connected instance and keeps the hidden ids tagged per instance, so a chat hidden
 on one machine is hidden there and nowhere else.
 
-The eye toggle (`showHidden`) is stored per instance too (`POST
+The eye toggle (`showHidden`) is one value for the whole network (`POST
 /api/ui/show-hidden`) and defaults to hiding hidden chats. A legacy
 `localStorage["nit-gui.hidden"]` list is still pushed to the server once per
 browser and then deleted; that shim can go after one more release.
@@ -135,10 +135,11 @@ Missing or empty means one auto-discovered local instance named `local`.
 - `dir` is the default workspace for a new instance. The workspace picker still
   lists the instance's own projects.
 - `peroURL` and `termURL` are that machine's own editor and terminal, opened by
-  the editor chips and the terminal link while the instance is active. Empty or
-  missing means the host-wide `NIT_GUI_PERO_URL` / `NIT_GUI_TERM_URL` default.
-  Each value is either an absolute `http(s)` URL without credentials or a path
-  starting with `/` on the nit-gui origin.
+  the editor chips and the terminal link. They are shown for every instance.
+  Empty or missing means `/i/<name>/pero/` and `/i/<name>/term/` for a bridge
+  instance, and the host-wide `NIT_GUI_PERO_URL` / `NIT_GUI_TERM_URL` default for
+  a local or direct-URL instance. Each value is either an absolute `http(s)` URL
+  without credentials or a path starting with `/` on the nit-gui origin.
 - Names must match `^[A-Za-z0-9._-]{1,64}$` and be unique. The first instance is
   the default.
 - Passwords stay on the nit-gui host. The browser never receives them. A config
@@ -544,6 +545,7 @@ All `/api` endpoints except `/api/instances*` accept `X-Nit-Instance: <id>` or
 | `GET /api/config` | Directory, default model and primary agent. |
 | `GET /api/projects` | Known projects from OpenCode `/api/project`, for the workspace picker. |
 | `GET /api/fs?path=` | Immediate subfolders of an absolute path (default: OpenCode's working directory), via OpenCode `/api/fs/list`. `404` when the folder does not exist. |
+| `POST /api/fs` | `{dir, name}`; create a folder through OpenCode `/api/experimental/fs/write` (a `.keep` marker creates it). |
 | `GET /api/sessions?dir=&children=true&search=&cursor=` | Newest sessions; `children=true` includes subagent sessions; `search` and `cursor` go upstream; the response keeps OpenCode's `cursor`. |
 | `POST /api/sessions` | Create `{directory, title?, agent?, model?}`. |
 | `DELETE /api/sessions/{id}` | Delete a session and its child sessions. |
@@ -565,7 +567,7 @@ All `/api` endpoints except `/api/instances*` accept `X-Nit-Instance: <id>` or
 | `GET /api/models`, `GET /api/agents` | Pickers. |
 | `GET /api/ui` | Shared `{hidden, status, model, agent, showHidden}` UI state for the active instance. |
 | `POST /api/ui/hidden` | `{ids, hidden}`; hide or unhide chats and return the resulting `{ok, hidden}` list. |
-| `POST /api/ui/show-hidden` | `{showHidden}`; whether the hidden chats are revealed, shared per instance. |
+| `POST /api/ui/show-hidden` | `{showHidden}`; whether the hidden chats are revealed, shared by the whole network. |
 | `GET /api/ui/drafts?key=` | Read one shared draft with its `updatedAt` and `cleared` flag. |
 | `POST /api/ui/drafts` | `{key, text}`; save or clear a shared draft. A clear keeps a tombstone so other devices drop their stale copy. |
 | `POST /api/ui/model` | `{model}`; save the preferred model. |

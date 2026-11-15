@@ -22,8 +22,6 @@ type routeView struct {
 	Note   string
 	State  string
 	Href   string
-	Status string
-	Down   bool
 	Key    int
 }
 

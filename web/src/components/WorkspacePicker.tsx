@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { KeyboardEvent as ReactKeyboardEvent } from "react";
 import {
+  ArrowLeft,
   ArrowUp,
   Check,
   ChevronDown,
@@ -9,10 +10,11 @@ import {
   FolderGit2,
   FolderOpen,
   Loader2,
+  Plus,
   Server,
   X,
 } from "lucide-react";
-import type { FolderListing, Project } from "../lib/types";
+import type { FolderListing, Instance, Project } from "../lib/types";
 import { basename, formatRelative } from "../lib/format";
 import {
   isAbsolutePath,
@@ -24,6 +26,7 @@ import {
   pathCrumbs,
   splitPathInput,
 } from "../lib/paths";
+import { instanceScopedKey } from "../lib/instances";
 import { ApiError, api } from "../lib/api";
 import { useModalFocus } from "../hooks/useModalFocus";
 import { cn } from "../lib/utils";
@@ -41,6 +44,27 @@ function messageOf(error: unknown): string {
   return error instanceof Error && error.message ? error.message : "Could not load folders";
 }
 
+function readRecent(instance: string, defaultInstance: string): string[] {
+  if (!instance) return [];
+  try {
+    const raw = localStorage.getItem(instanceScopedKey("nit-gui.recent", instance, defaultInstance));
+    const value = JSON.parse(raw ?? "[]");
+    return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
+  } catch {
+    return [];
+  }
+}
+
+function machineDot(state: Instance["state"]): string {
+  if (state === "connected") return "bg-success";
+  if (state === "offline") return "bg-destructive";
+  return "bg-muted-foreground";
+}
+
+function editable(directory: string): string {
+  return directory === "/" ? "/" : `${directory}/`;
+}
+
 export function WorkspacePicker({
   projects,
   current,
@@ -50,6 +74,9 @@ export function WorkspacePicker({
   onPick,
   onClose,
   instance,
+  defaultInstance = "",
+  instances = [],
+  recent = [],
   onInstances,
 }: {
   projects: Project[];
@@ -57,25 +84,33 @@ export function WorkspacePicker({
   startDirectory?: string;
   motion?: "animated" | "static";
   variant?: SceneSetting;
-  onPick: (directory: string) => void;
+  onPick: (directory: string, instance?: string) => void;
   onClose?: () => void;
   instance?: string;
+  defaultInstance?: string;
+  instances?: Instance[];
+  recent?: string[];
   onInstances?: () => void;
 }) {
-  const initial = [current, startDirectory].find((value) => value?.startsWith("/")) ?? null;
-  const editable = (directory: string) => (directory === "/" ? "/" : `${directory}/`);
-  const [browse, setBrowse] = useState<string | null>(initial);
+  const [machine, setMachine] = useState(instance ?? "");
+  const [mode, setMode] = useState<"recent" | "browse">("recent");
+  const [targetProjects, setTargetProjects] = useState<Project[]>(projects);
+  const [browse, setBrowse] = useState<string | null>(null);
   const [listing, setListing] = useState<FolderListing | null>(null);
   const [loading, setLoading] = useState(true);
   const [browseError, setBrowseError] = useState<string | null>(null);
   const [reload, setReload] = useState(0);
   const listingRef = useRef<FolderListing | null>(null);
 
-  const [path, setPath] = useState(initial ? editable(initial) : "");
+  const [path, setPath] = useState("");
   const [resolved, setResolved] = useState<string | null>(null);
   const [status, setStatus] = useState<PathStatus>("idle");
   const [active, setActive] = useState(-1);
   const [activeMoved, setActiveMoved] = useState(false);
+  const [showNew, setShowNew] = useState(false);
+  const [newName, setNewName] = useState("");
+  const [creating, setCreating] = useState(false);
+  const [newError, setNewError] = useState<string | null>(null);
   const panel = useModalFocus<HTMLDivElement>();
   const inputRef = useRef<HTMLInputElement>(null);
   const crumbsRef = useRef<HTMLDivElement>(null);
@@ -83,12 +118,57 @@ export function WorkspacePicker({
   const pressedBackdrop = useRef(false);
   const editing = useRef(false);
 
+  const selectedMachine = instances.find((item) => item.id === machine);
+  const machineName = selectedMachine?.name || machine || "this machine";
+
   useEffect(() => {
+    if (!targetsOtherMachine(machine, instance)) {
+      setTargetProjects(projects);
+      return;
+    }
+    let cancelled = false;
+    setTargetProjects([]);
+    api
+      .projects(machine)
+      .then((list) => {
+        if (!cancelled) setTargetProjects(list);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [machine, instance, projects]);
+
+  useEffect(() => {
+    setMode("recent");
+    setBrowse(null);
+    listingRef.current = null;
+    setListing(null);
+    setPath("");
+    setShowNew(false);
+    setNewName("");
+    setNewError(null);
+  }, [machine]);
+
+  const recentFor = useMemo(() => {
+    if (machine === instance && recent.length > 0) return recent;
+    return readRecent(machine, defaultInstance);
+  }, [machine, instance, recent, defaultInstance]);
+
+  const options = useMemo(() => {
+    const start =
+      machine === instance && startDirectory?.startsWith("/") ? [startDirectory] : [];
+    const here = machine === instance && current?.startsWith("/") ? [current] : [];
+    return workspaceOptions(targetProjects, [...here, ...start, ...recentFor]);
+  }, [targetProjects, recentFor, startDirectory, machine, instance, current]);
+
+  useEffect(() => {
+    if (mode !== "browse") return;
     const input = inputRef.current;
     if (!input) return;
     input.focus();
     input.setSelectionRange(input.value.length, input.value.length);
-  }, []);
+  }, [mode]);
 
   useEffect(() => {
     const crumbs = crumbsRef.current;
@@ -96,18 +176,19 @@ export function WorkspacePicker({
   }, [browse]);
 
   const known = useMemo(
-    () => new Map(projects.map((project) => [project.canonical, project])),
-    [projects],
+    () => new Map(targetProjects.map((project) => [project.canonical, project])),
+    [targetProjects],
   );
 
   useEffect(() => {
+    if (mode !== "browse") return;
     if (browse !== null && listingRef.current?.path === browse) return;
     const controller = new AbortController();
     setLoading(true);
     setListing(null);
     setBrowseError(null);
     api
-      .folders(browse ?? undefined, controller.signal)
+      .folders(browse ?? undefined, controller.signal, machine)
       .then((data) => {
         if (controller.signal.aborted) return;
         listingRef.current = data;
@@ -129,9 +210,10 @@ export function WorkspacePicker({
         if (!controller.signal.aborted) setLoading(false);
       });
     return () => controller.abort();
-  }, [browse, reload]);
+  }, [browse, machine, mode, reload]);
 
   useEffect(() => {
+    if (mode !== "browse") return;
     if (!isAbsolutePath(path)) {
       setStatus(path.trim() ? "relative" : "idle");
       setResolved(null);
@@ -142,11 +224,11 @@ export function WorkspacePicker({
     setStatus("checking");
     const timer = window.setTimeout(() => {
       api
-        .folders(dir, controller.signal)
+        .folders(dir, controller.signal, machine)
         .then((data) => {
           if (controller.signal.aborted) return;
           if (editing.current) {
-            setBrowse((current) => (current === data.path ? current : data.path));
+            setBrowse((value) => (value === data.path ? value : data.path));
           }
           const typed = normalizePath(path);
           const match = data.dirs.find((name) => isFolderName(name, prefix));
@@ -164,11 +246,12 @@ export function WorkspacePicker({
       window.clearTimeout(timer);
       controller.abort();
     };
-  }, [path]);
+  }, [machine, mode, path]);
 
   const goTo = (directory: string) => {
     const clean = normalizePath(directory);
     editing.current = false;
+    setMode("browse");
     setBrowse(clean);
     setPath(editable(clean));
     requestAnimationFrame(() => {
@@ -185,12 +268,12 @@ export function WorkspacePicker({
       return;
     }
     if (status === "exists") {
-      onPick(resolved ?? normalizePath(path));
+      onPick(resolved ?? normalizePath(path), machine);
       return;
     }
     api
-      .folders(normalizePath(path))
-      .then((data) => onPick(data.path))
+      .folders(normalizePath(path), undefined, machine)
+      .then((data) => onPick(data.path, machine))
       .catch((cause) => {
         if (!(cause instanceof ApiError) || cause.status !== 404) {
           setStatus("error");
@@ -225,6 +308,7 @@ export function WorkspacePicker({
   useEffect(() => {
     if (active >= 0) rowsRef.current[active]?.scrollIntoView({ block: "nearest" });
   }, [active]);
+
   const target =
     status === "exists" && resolved
       ? resolved
@@ -233,6 +317,7 @@ export function WorkspacePicker({
         : path.trim() === ""
           ? (listing?.path ?? null)
           : null;
+
   const statusText =
     status === "relative"
       ? "Use an absolute path, starting with /."
@@ -247,6 +332,93 @@ export function WorkspacePicker({
             : status === "error"
               ? "Cannot read this folder."
               : "";
+
+  const fallbackParent =
+    (machine === instance && current?.startsWith("/") ? current : "") ||
+    (selectedMachine?.defaultDirectory?.startsWith("/") ? selectedMachine.defaultDirectory : "") ||
+    options[0] ||
+    "";
+  const parent = mode === "browse" ? (listing?.path ?? browse ?? fallbackParent) : fallbackParent;
+
+  const createFolder = async () => {
+    const name = newName.trim();
+    if (!parent || !name) return;
+    setCreating(true);
+    setNewError(null);
+    try {
+      const created = await api.newFolder(parent, name, machine);
+      setShowNew(false);
+      setNewName("");
+      onPick(created.path, machine);
+    } catch (cause) {
+      setNewError(messageOf(cause));
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  const newFolderForm = showNew ? (
+    <div className="mt-2">
+      <div className="flex items-center gap-2">
+        <Input
+          autoFocus
+          value={newName}
+          onChange={(event) => setNewName(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") {
+              event.preventDefault();
+              void createFolder();
+            }
+          }}
+          placeholder="New folder name"
+          aria-label="New folder name"
+          className="h-8 font-mono text-xs"
+        />
+        <Button
+          size="sm"
+          onClick={() => void createFolder()}
+          disabled={creating || !newName.trim() || !parent}
+        >
+          {creating ? "Creating…" : "Create"}
+        </Button>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => {
+            setShowNew(false);
+            setNewName("");
+            setNewError(null);
+          }}
+        >
+          Cancel
+        </Button>
+      </div>
+      {newError && <p className="text-destructive mt-1 text-[10px]">{newError}</p>}
+      {!parent && (
+        <p className="text-muted-foreground mt-1 text-[10px]">
+          Browse to a folder on this machine first.
+        </p>
+      )}
+    </div>
+  ) : null;
+
+  const chips = instances.map((item) => (
+    <button
+      key={item.id}
+      type="button"
+      onClick={() => setMachine(item.id)}
+      title={item.error || item.detail || item.name}
+      className={cn(
+        "flex items-center gap-1.5 rounded-md border px-2 py-1 text-[11px] transition-colors",
+        machine === item.id
+          ? "border-foreground/30 bg-accent text-foreground"
+          : "border-border text-muted-foreground hover:bg-accent/60",
+      )}
+    >
+      <span className={cn("size-1.5 shrink-0 rounded-full", machineDot(item.state))} />
+      <span className="max-w-32 truncate">{item.name}</span>
+    </button>
+  ));
 
   const body = (
     <div
@@ -266,18 +438,6 @@ export function WorkspacePicker({
             Every chat is scoped to one directory for its lifetime.
           </div>
         </div>
-        {onInstances && (
-          <Button
-            variant="ghost"
-            size="sm"
-            className="max-w-36 shrink-0"
-            onClick={onInstances}
-            title="OpenCode instances"
-          >
-            <Server className="size-3.5 shrink-0" />
-            <span className="truncate">{instance || "Instances"}</span>
-          </Button>
-        )}
         {onClose && (
           <Button variant="ghost" size="icon-sm" onClick={onClose} aria-label="Close">
             <X />
@@ -285,192 +445,323 @@ export function WorkspacePicker({
         )}
       </div>
 
-      <div className="border-border flex items-center gap-1 border-b px-2 py-1.5">
-        <Button
-          variant="ghost"
-          size="icon-xs"
-          onClick={() => goTo(listing?.parent ?? parentPath(browse ?? "/"))}
-          disabled={!browse || browse === "/"}
-          title="Parent folder"
-          aria-label="Parent folder"
-        >
-          <ArrowUp />
-        </Button>
-        <div
-          ref={crumbsRef}
-          className="scrollbar-thin flex min-w-0 flex-1 items-center overflow-x-auto whitespace-nowrap"
-        >
-          {pathCrumbs(browse ?? "/").map((crumb, index, all) => (
-            <span key={crumb.path} className="flex shrink-0 items-center">
-              {index > 0 && (
-                <ChevronRight className="text-muted-foreground/50 size-3 shrink-0" aria-hidden />
-              )}
-              <button
-                type="button"
-                onClick={() => goTo(crumb.path)}
-                aria-current={index === all.length - 1 ? "location" : undefined}
-                className={cn(
-                  "rounded px-1 py-0.5 font-mono text-[11px] hover:bg-accent",
-                  index === all.length - 1
-                    ? "text-foreground font-medium"
-                    : "text-muted-foreground",
-                )}
-              >
-                {crumb.label}
-              </button>
-            </span>
-          ))}
-        </div>
-        {loading && <Loader2 className="text-muted-foreground size-3.5 shrink-0 animate-spin" />}
+      <div className="border-border flex flex-wrap items-center gap-1 border-b px-3 py-2">
+        <span className="text-muted-foreground mr-1 text-[10px] uppercase tracking-wide">
+          Machine
+        </span>
+        {chips.length > 0 ? (
+          chips
+        ) : (
+          <span className="font-mono text-[11px]">{machineName}</span>
+        )}
+        {onInstances && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="ml-auto shrink-0"
+            onClick={onInstances}
+            title="OpenCode instances"
+          >
+            <Server className="size-3.5 shrink-0" />
+            Manage
+          </Button>
+        )}
       </div>
 
-      <div className="scrollbar-thin h-64 min-h-0 overflow-y-auto p-2">
-        {browseError ? (
-          <div className="px-2 py-8 text-center">
-            <p className="text-[12px]">{browseError}</p>
-            <div className="mt-3 flex justify-center gap-2">
-              <Button size="sm" variant="secondary" onClick={() => setReload((value) => value + 1)}>
-                Retry
-              </Button>
-              {browse && browse !== "/" && (
-                <Button size="sm" onClick={() => goTo(parentPath(browse))}>
-                  Go up
-                </Button>
-              )}
-            </div>
+      {mode === "recent" ? (
+        <div className="scrollbar-thin h-72 min-h-0 overflow-y-auto p-2">
+          <div className="text-muted-foreground px-2 pt-1 pb-1 text-[10px] font-medium tracking-wide uppercase">
+            Recent on {machineName}
           </div>
-        ) : !listing ? (
-          <div className="text-muted-foreground flex h-full items-center justify-center gap-2 text-xs">
-            <Loader2 className="size-3.5 animate-spin" />
-            Loading folders…
-          </div>
-        ) : dirs.length === 0 ? (
-          <p className="text-muted-foreground px-2 py-6 text-center text-xs">
-            No subfolders. You can still use this folder.
-          </p>
-        ) : (
-          dirs.map((name, index) => {
-            const directory = joinPath(listing.path, name);
-            const project = known.get(directory);
-            return (
-              <button
-                key={directory}
-                ref={(element) => {
-                  rowsRef.current[index] = element;
-                }}
-                type="button"
-                onClick={() => goTo(directory)}
-                aria-current={index === active ? "true" : undefined}
-                className={cn(
-                  "group hover:bg-accent/60 flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left",
-                  index === active && "bg-accent",
-                )}
-              >
-                {project?.vcs ? (
-                  <FolderGit2 className="text-muted-foreground size-4 shrink-0" />
-                ) : (
-                  <Folder className="text-muted-foreground size-4 shrink-0" />
-                )}
-                <span className="min-w-0 flex-1">
-                  <span
+          {options.length === 0 ? (
+            <p className="text-muted-foreground px-2 py-6 text-center text-xs">
+              No recent folders on this machine. Browse for one.
+            </p>
+          ) : (
+            options.map((directory) => {
+              const project = known.get(directory);
+              return (
+                <button
+                  key={directory}
+                  type="button"
+                  onClick={() => onPick(directory, machine)}
+                  className="hover:bg-accent/60 flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left"
+                >
+                  {project?.vcs ? (
+                    <FolderGit2 className="text-muted-foreground size-4 shrink-0" />
+                  ) : (
+                    <Folder className="text-muted-foreground size-4 shrink-0" />
+                  )}
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-[13px] font-medium">
+                      {basename(directory) || directory}
+                    </span>
+                    <span className="text-muted-foreground block truncate font-mono text-[10px]">
+                      {directory}
+                    </span>
+                  </span>
+                  {project?.vcs && (
+                    <span className="text-muted-foreground shrink-0 text-[10px]">{project.vcs}</span>
+                  )}
+                  {project?.time.active ? (
+                    <span className="text-muted-foreground shrink-0 text-[10px]">
+                      {formatRelative(project.time.active)}
+                    </span>
+                  ) : null}
+                </button>
+              );
+            })
+          )}
+          <button
+            type="button"
+            onClick={() => setMode("browse")}
+            className="border-border hover:bg-accent/60 mt-1 flex w-full items-center gap-2 rounded-lg border-t px-2.5 py-2 text-left"
+          >
+            <FolderOpen className="text-muted-foreground size-4 shrink-0" />
+            <span className="text-[13px] font-medium">Browse folders…</span>
+            <ChevronRight className="text-muted-foreground ml-auto size-3.5 opacity-60" />
+          </button>
+        </div>
+      ) : (
+        <>
+          <div className="border-border flex items-center gap-1 border-b px-2 py-1.5">
+            <Button
+              variant="ghost"
+              size="icon-xs"
+              onClick={() => setMode("recent")}
+              title="Recent folders"
+              aria-label="Recent folders"
+            >
+              <ArrowLeft />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon-xs"
+              onClick={() => goTo(listing?.parent ?? parentPath(browse ?? "/"))}
+              disabled={!browse || browse === "/"}
+              title="Parent folder"
+              aria-label="Parent folder"
+            >
+              <ArrowUp />
+            </Button>
+            <div
+              ref={crumbsRef}
+              className="scrollbar-thin flex min-w-0 flex-1 items-center overflow-x-auto whitespace-nowrap"
+            >
+              {pathCrumbs(browse ?? "/").map((crumb, index, all) => (
+                <span key={crumb.path} className="flex shrink-0 items-center">
+                  {index > 0 && (
+                    <ChevronRight
+                      className="text-muted-foreground/50 size-3 shrink-0"
+                      aria-hidden
+                    />
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => goTo(crumb.path)}
+                    aria-current={index === all.length - 1 ? "location" : undefined}
                     className={cn(
-                      "block truncate text-[13px] font-medium",
-                      name.startsWith(".") && "text-muted-foreground",
+                      "rounded px-1 py-0.5 font-mono text-[11px] hover:bg-accent",
+                      index === all.length - 1
+                        ? "text-foreground font-medium"
+                        : "text-muted-foreground",
                     )}
                   >
-                    {name}
-                  </span>
+                    {crumb.label}
+                  </button>
                 </span>
-                {project?.vcs && (
-                  <span className="text-muted-foreground shrink-0 text-[10px]">{project.vcs}</span>
-                )}
-                {project?.time.active ? (
-                  <span className="text-muted-foreground shrink-0 text-[10px]">
-                    {formatRelative(project.time.active)}
-                  </span>
-                ) : null}
-                <ChevronRight className="text-muted-foreground size-3.5 shrink-0 opacity-40 group-hover:opacity-100" />
-              </button>
-            );
-          })
-        )}
-        {listing?.truncated && (
-          <p className="text-muted-foreground px-2 py-2 text-center text-[10px]">
-            Showing the first 1000 folders.
-          </p>
-        )}
-      </div>
+              ))}
+            </div>
+            {loading && <Loader2 className="text-muted-foreground size-3.5 shrink-0 animate-spin" />}
+          </div>
+
+          <div className="scrollbar-thin h-72 min-h-0 overflow-y-auto p-2">
+            {browseError ? (
+              <div className="px-2 py-8 text-center">
+                <p className="text-[12px]">{browseError}</p>
+                <div className="mt-3 flex justify-center gap-2">
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    onClick={() => setReload((value) => value + 1)}
+                  >
+                    Retry
+                  </Button>
+                  {browse && browse !== "/" && (
+                    <Button size="sm" onClick={() => goTo(parentPath(browse))}>
+                      Go up
+                    </Button>
+                  )}
+                </div>
+              </div>
+            ) : !listing ? (
+              <div className="text-muted-foreground flex h-full items-center justify-center gap-2 text-xs">
+                <Loader2 className="size-3.5 animate-spin" />
+                Loading folders…
+              </div>
+            ) : dirs.length === 0 ? (
+              <p className="text-muted-foreground px-2 py-6 text-center text-xs">
+                No subfolders. You can still use this folder.
+              </p>
+            ) : (
+              dirs.map((name, index) => {
+                const directory = joinPath(listing.path, name);
+                const project = known.get(directory);
+                return (
+                  <button
+                    key={directory}
+                    ref={(element) => {
+                      rowsRef.current[index] = element;
+                    }}
+                    type="button"
+                    onClick={() => goTo(directory)}
+                    aria-current={index === active ? "true" : undefined}
+                    className={cn(
+                      "group hover:bg-accent/60 flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left",
+                      index === active && "bg-accent",
+                    )}
+                  >
+                    {project?.vcs ? (
+                      <FolderGit2 className="text-muted-foreground size-4 shrink-0" />
+                    ) : (
+                      <Folder className="text-muted-foreground size-4 shrink-0" />
+                    )}
+                    <span className="min-w-0 flex-1">
+                      <span
+                        className={cn(
+                          "block truncate text-[13px] font-medium",
+                          name.startsWith(".") && "text-muted-foreground",
+                        )}
+                      >
+                        {name}
+                      </span>
+                    </span>
+                    {project?.vcs && (
+                      <span className="text-muted-foreground shrink-0 text-[10px]">
+                        {project.vcs}
+                      </span>
+                    )}
+                    {project?.time.active ? (
+                      <span className="text-muted-foreground shrink-0 text-[10px]">
+                        {formatRelative(project.time.active)}
+                      </span>
+                    ) : null}
+                    <ChevronRight className="text-muted-foreground size-3.5 shrink-0 opacity-40 group-hover:opacity-100" />
+                  </button>
+                );
+              })
+            )}
+            {listing?.truncated && (
+              <p className="text-muted-foreground px-2 py-2 text-center text-[10px]">
+                Showing the first 1000 folders.
+              </p>
+            )}
+          </div>
+        </>
+      )}
 
       <div className="border-border border-t px-3 pt-2.5 pb-2">
-        <div className="flex items-center gap-2">
-          <div className="relative min-w-0 flex-1">
-            <Input
-              ref={inputRef}
-              value={path}
-              onChange={(event) => {
-                editing.current = true;
-                setPath(event.target.value);
-              }}
-              onKeyDown={(event) => {
-                if ((event.key === "ArrowDown" || event.key === "ArrowUp") && dirs.length > 0) {
-                  event.preventDefault();
-                  const step = event.key === "ArrowDown" ? 1 : -1;
-                  setActive((value) =>
-                    value < 0
-                      ? step > 0
-                        ? 0
-                        : dirs.length - 1
-                      : (value + step + dirs.length) % dirs.length,
-                  );
-                  setActiveMoved(true);
-                  return;
-                }
-                if (event.key === "Enter") {
-                  event.preventDefault();
-                  if (highlighted && (activeMoved || status !== "exists")) onPick(highlighted);
-                  else pickTyped();
-                }
-              }}
-              placeholder="Jump to a path, e.g. /home/ubuntu/Projects"
-              aria-label="Folder path"
-              aria-describedby="folder-status"
-              aria-invalid={invalid || undefined}
-              title={statusText || undefined}
-              className={cn(
-                "h-8 pr-8 font-mono text-xs",
-                invalid &&
-                  "border-destructive focus-visible:border-destructive focus-visible:ring-destructive/20",
-              )}
-            />
-            <span className="pointer-events-none absolute top-1/2 right-2 -translate-y-1/2">
-              {status === "checking" ? (
-                <Loader2 className="text-muted-foreground size-3.5 animate-spin" />
-              ) : status === "exists" ? (
-                <Check className="text-success size-3.5" />
-              ) : invalid ? (
-                <X className="text-destructive size-3.5" />
-              ) : null}
+        {mode === "recent" ? (
+          <div className="flex items-center gap-2">
+            <Button variant="secondary" size="sm" onClick={() => setMode("browse")}>
+              <FolderOpen />
+              Browse…
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowNew((value) => !value)}
+              disabled={!parent}
+              title={parent ? `New folder in ${parent}` : "Browse to a folder first"}
+            >
+              <Plus />
+              New folder
+            </Button>
+            <span className="text-muted-foreground ml-auto truncate font-mono text-[10px]">
+              on {machineName}
             </span>
           </div>
-          <Button
-            variant="secondary"
-            size="sm"
-            disabled={status !== "exists"}
-            onClick={browseTyped}
-            title="Show this folder in the list"
-          >
-            Browse
-          </Button>
-          <Button
-            size="sm"
-            className="max-w-44 shrink-0"
-            disabled={!target}
-            onClick={() => target && onPick(target)}
-            title={target ? `Use ${target}` : undefined}
-          >
-            <span className="truncate">{target ? `Use “${basename(target)}”` : "Use folder"}</span>
-          </Button>
-        </div>
+        ) : (
+          <div className="flex items-center gap-2">
+            <div className="relative min-w-0 flex-1">
+              <Input
+                ref={inputRef}
+                value={path}
+                onChange={(event) => {
+                  editing.current = true;
+                  setPath(event.target.value);
+                }}
+                onKeyDown={(event) => {
+                  if ((event.key === "ArrowDown" || event.key === "ArrowUp") && dirs.length > 0) {
+                    event.preventDefault();
+                    const step = event.key === "ArrowDown" ? 1 : -1;
+                    setActive((value) =>
+                      value < 0
+                        ? step > 0
+                          ? 0
+                          : dirs.length - 1
+                        : (value + step + dirs.length) % dirs.length,
+                    );
+                    setActiveMoved(true);
+                    return;
+                  }
+                  if (event.key === "Enter") {
+                    event.preventDefault();
+                    if (highlighted && (activeMoved || status !== "exists")) onPick(highlighted, machine);
+                    else pickTyped();
+                  }
+                }}
+                placeholder="Jump to a path, e.g. /home/ubuntu/Projects"
+                aria-label="Folder path"
+                aria-describedby="folder-status"
+                aria-invalid={invalid || undefined}
+                title={statusText || undefined}
+                className={cn(
+                  "h-8 pr-8 font-mono text-xs",
+                  invalid &&
+                    "border-destructive focus-visible:border-destructive focus-visible:ring-destructive/20",
+                )}
+              />
+              <span className="pointer-events-none absolute top-1/2 right-2 -translate-y-1/2">
+                {status === "checking" ? (
+                  <Loader2 className="text-muted-foreground size-3.5 animate-spin" />
+                ) : status === "exists" ? (
+                  <Check className="text-success size-3.5" />
+                ) : invalid ? (
+                  <X className="text-destructive size-3.5" />
+                ) : null}
+              </span>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowNew((value) => !value)}
+              disabled={!parent}
+              title={parent ? `New folder in ${parent}` : "Open a folder first"}
+            >
+              <Plus />
+            </Button>
+            <Button
+              variant="secondary"
+              size="sm"
+              disabled={status !== "exists"}
+              onClick={browseTyped}
+              title="Show this folder in the list"
+            >
+              Browse
+            </Button>
+            <Button
+              size="sm"
+              className="max-w-44 shrink-0"
+              disabled={!target}
+              onClick={() => target && onPick(target, machine)}
+              title={target ? `Use ${target}` : undefined}
+            >
+              <span className="truncate">{target ? `Use “${basename(target)}”` : "Use folder"}</span>
+            </Button>
+          </div>
+        )}
+        {newFolderForm}
         <p
           id="folder-status"
           role="status"
@@ -480,7 +771,9 @@ export function WorkspacePicker({
             invalid ? "text-destructive" : "text-muted-foreground",
           )}
         >
-          {statusText || "↑↓ pick a folder · Enter uses it · click opens it"}
+          {mode === "browse"
+            ? statusText || "↑↓ pick a folder · Enter uses it · click opens it"
+            : `Recent folders on ${machineName}. Use Browse for the file manager.`}
         </p>
       </div>
     </div>
@@ -508,6 +801,10 @@ export function WorkspacePicker({
       {body}
     </div>
   );
+}
+
+function targetsOtherMachine(machine: string, instance?: string): boolean {
+  return Boolean(machine && machine !== instance);
 }
 
 export function WorkspaceMenu({

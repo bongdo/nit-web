@@ -126,7 +126,8 @@ export default function Root() {
         instance={info.id}
         defaultInstance={data.default}
         defaultDirectory={info.defaultDirectory}
-        title={appLabel(data.app.host)}
+        instances={data.instances}
+        title={`${appLabel(data.app.host)} · ${info.id}`}
         onOpenInstances={openMenu}
         onSwitchInstance={select}
       />

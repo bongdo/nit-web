@@ -1284,10 +1284,11 @@ func TestConfigUsesInstanceAppLinks(t *testing.T) {
 
 	client := opencode.New(opencode.Endpoint{URL: upstream.URL, Password: testPassword})
 	provider := &multiProvider{
-		clients: map[string]*opencode.Client{"plain": client, "riga": client},
+		clients: map[string]*opencode.Client{"plain": client, "riga": client, "nixos": client},
 		specs: []opencode.InstanceSpec{
 			{Name: "plain", URL: upstream.URL, Password: testPassword},
 			{Name: "riga", URL: upstream.URL, Password: testPassword, PeroURL: "https://riga.example/pero/", TermURL: "/term/riga/"},
+			{Name: "nixos", URL: "http://127.0.0.1:8090/i/nixos/opencode", Password: testPassword},
 		},
 		def: "plain",
 	}
@@ -1301,6 +1302,7 @@ func TestConfigUsesInstanceAppLinks(t *testing.T) {
 	}{
 		{"inherit host defaults", "plain", "/pero/", "/term/"},
 		{"instance override", "riga", "https://riga.example/pero/", "/term/riga/"},
+		{"bridge instance", "nixos", "/i/nixos/pero/", "/i/nixos/term/"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

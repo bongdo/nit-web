@@ -295,7 +295,7 @@ export const Sidebar = memo(function Sidebar({
   onScope: (scope: Scope) => void;
   onWorkspace: () => void;
   onSelect: (id: string) => void;
-  onNew: (directory?: string) => void;
+  onNew: (directory?: string, instance?: string) => void;
   onHide: (id: string) => void;
   onUnhide: (id: string) => void;
   onDelete: (id: string) => void;
@@ -763,23 +763,17 @@ export const Sidebar = memo(function Sidebar({
                   {poolGroups.map((group) => (
                     <Fragment key={groupKey(group)}>
                       <div className="text-muted-foreground flex items-center gap-2 px-3 pt-2.5 pb-0.5 text-[10px] font-medium">
-                        {scope === "everywhere" ? (
-                          <span className="min-w-0 truncate" title={group.directory}>
+                        <button
+                          type="button"
+                          onClick={() => onNew(group.directory, group.instance)}
+                          title={`New chat in ${group.directory}${group.instance ? ` on ${group.instance}` : ""}`}
+                          aria-label={`New chat in ${group.directory}${group.instance ? ` on ${group.instance}` : ""}`}
+                          className="hover:text-foreground min-w-0 rounded-md text-left hover:underline"
+                        >
+                          <span className="block truncate">
                             {basename(group.directory) || group.directory || "unknown"}
                           </span>
-                        ) : (
-                          <button
-                            type="button"
-                            onClick={() => onNew(group.directory)}
-                            title={`New chat in ${group.directory}`}
-                            aria-label={`New chat in ${group.directory}`}
-                            className="hover:text-foreground min-w-0 rounded-md text-left hover:underline"
-                          >
-                            <span className="block truncate">
-                              {basename(group.directory) || group.directory || "unknown"}
-                            </span>
-                          </button>
-                        )}
+                        </button>
                         {group.instance && (
                           <span
                             className="border-border shrink-0 rounded border px-1 font-mono text-[9px]"

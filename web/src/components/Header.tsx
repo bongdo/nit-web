@@ -58,6 +58,7 @@ function ContextMeter({ value, session }: { value: number; session?: string }) {
 type SessionInfoProps = {
   session: Session | null;
   directory?: string | null;
+  instance?: string;
   contextPercent?: number | null;
   cost?: number;
   estimatedCost?: boolean;
@@ -73,6 +74,7 @@ function SessionTitle({ session, className }: { session: Session | null; classNa
 function SessionMeta({
   session,
   directory: fallbackDirectory,
+  instance,
   contextPercent,
   cost,
   estimatedCost,
@@ -90,6 +92,14 @@ function SessionMeta({
       <span className="truncate" title={directory ?? undefined}>
         {directory ? basename(directory) : "no directory"}
       </span>
+      {instance && (
+        <span
+          className="border-border shrink-0 rounded border px-1 font-mono text-[9px] opacity-70"
+          title={`OpenCode instance: ${instance}`}
+        >
+          {instance}
+        </span>
+      )}
       {contextPercent != null && (
         <span className="flex shrink-0 items-center gap-1" title="Context used">
           <span>· ctx {contextPercent}%</span>
@@ -119,7 +129,6 @@ function MobileMenu({
   directory,
   termURL,
   peroURL,
-  transport,
   subagents,
   parent,
   inlineLinks,
@@ -129,7 +138,6 @@ function MobileMenu({
   directory?: string | null;
   termURL: string;
   peroURL: string;
-  transport: string;
   subagents: Session[];
   parent?: Session | null;
   inlineLinks: boolean;
@@ -159,7 +167,7 @@ function MobileMenu({
     };
   }, [open]);
 
-  const links = transport === "local" && Boolean(directory);
+  const links = Boolean(directory);
   if (!parent && subagents.length === 0 && (inlineLinks || !links)) return null;
 
   return (
@@ -239,7 +247,7 @@ function MobileMenu({
               ))}
             </>
           )}
-          {!inlineLinks && transport === "local" && directory && (
+          {!inlineLinks && directory && (
             <>
               <div className="bg-border my-1 h-px" />
               <a
@@ -287,12 +295,12 @@ function useMedia(query: string): boolean {
 export const Header = memo(function Header({
   session,
   directory: fallbackDirectory,
+  instance,
   contextPercent,
   cost,
   estimatedCost,
   termURL,
   peroURL,
-  transport,
   collapsed,
   subagents,
   parent,
@@ -305,12 +313,12 @@ export const Header = memo(function Header({
 }: {
   session: Session | null;
   directory?: string | null;
+  instance?: string;
   contextPercent?: number | null;
   cost?: number;
   estimatedCost?: boolean;
   termURL: string;
   peroURL: string;
-  transport: string;
   collapsed: boolean;
   subagents: Session[];
   parent?: Session | null;
@@ -340,6 +348,7 @@ export const Header = memo(function Header({
         <SessionPill
           session={session}
           directory={directory}
+          instance={instance}
           contextPercent={contextPercent}
           cost={cost}
           estimatedCost={estimatedCost}
@@ -347,7 +356,7 @@ export const Header = memo(function Header({
         />
 
         <div className="pointer-events-auto ml-auto flex shrink-0 items-center gap-2">
-          {transport === "local" && (
+          {directory && (
             <WorkspaceLinks directory={directory} termURL={termURL} peroURL={peroURL} />
           )}
           {parent && (
@@ -396,7 +405,7 @@ export const Header = memo(function Header({
           >
             <Plus />
           </Button>
-          {inlineLinks && transport === "local" && (
+          {inlineLinks && directory && (
             <WorkspaceLinks
               directory={directory}
               termURL={termURL}
@@ -408,7 +417,6 @@ export const Header = memo(function Header({
             directory={directory}
             termURL={termURL}
             peroURL={peroURL}
-            transport={transport}
             subagents={subagents}
             parent={parent}
             inlineLinks={inlineLinks}
@@ -419,6 +427,7 @@ export const Header = memo(function Header({
         <SessionMeta
           session={session}
           directory={directory}
+          instance={instance}
           contextPercent={contextPercent}
           cost={cost}
           estimatedCost={estimatedCost}

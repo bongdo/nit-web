@@ -10,7 +10,7 @@ func (s *Server) home(w http.ResponseWriter, r *http.Request) {
 	data.Message = r.URL.Query().Get("ok")
 	routes := s.routes.sorted()
 	data.Services = plural(len(routes), "сервис", "сервиса", "сервисов")
-	snapshot := s.health.get(routes, s.now())
+	snapshot := s.health.get(s.now())
 	data.Health = snapshot.Server
 	if !data.User.Anonymous() {
 		data.HasHealth = snapshot.Server.ok
@@ -26,10 +26,6 @@ func (s *Server) home(w http.ResponseWriter, r *http.Request) {
 			entry.Href = "/login?next=" + url.QueryEscape(route.Prefix+"/")
 		default:
 			entry.State = "denied"
-		}
-		if health, ok := snapshot.Services[route.Prefix]; ok {
-			entry.Status = health.Latency
-			entry.Down = !health.Up
 		}
 		data.Routes = append(data.Routes, entry)
 	}

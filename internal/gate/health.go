@@ -2,7 +2,6 @@ package gate
 
 import (
 	"fmt"
-	"net/http"
 	"os"
 	"runtime"
 	"strconv"
@@ -12,10 +11,7 @@ import (
 	"time"
 )
 
-const (
-	healthTTL    = 20 * time.Second
-	probeTimeout = 1200 * time.Millisecond
-)
+const healthTTL = 20 * time.Second
 
 type serverHealth struct {
 	Load      string
@@ -30,14 +26,8 @@ type serverHealth struct {
 	ok        bool
 }
 
-type serviceHealth struct {
-	Up      bool
-	Latency string
-}
-
 type healthSnapshot struct {
-	Server   serverHealth
-	Services map[string]serviceHealth
+	Server serverHealth
 }
 
 type healthCache struct {
@@ -46,48 +36,15 @@ type healthCache struct {
 	snapshot healthSnapshot
 }
 
-func (h *healthCache) get(routes []Route, now time.Time) healthSnapshot {
+func (h *healthCache) get(now time.Time) healthSnapshot {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	if !h.at.IsZero() && now.Sub(h.at) < healthTTL {
 		return h.snapshot
 	}
-	h.snapshot = healthSnapshot{Server: readServerHealth(), Services: map[string]serviceHealth{}}
-	client := &http.Client{Timeout: probeTimeout}
-	var wg sync.WaitGroup
-	var mu sync.Mutex
-	for _, route := range routes {
-		wg.Add(1)
-		go func(route Route) {
-			defer wg.Done()
-			status := probeService(client, route.Upstream)
-			mu.Lock()
-			h.snapshot.Services[route.Prefix] = status
-			mu.Unlock()
-		}(route)
-	}
-	wg.Wait()
+	h.snapshot = healthSnapshot{Server: readServerHealth()}
 	h.at = now
 	return h.snapshot
-}
-
-func probeService(client *http.Client, upstream string) serviceHealth {
-	start := time.Now()
-	request, err := http.NewRequest(http.MethodGet, upstream, nil)
-	if err != nil {
-		return serviceHealth{Latency: "не отвечает"}
-	}
-	response, err := client.Do(request)
-	if err != nil {
-		return serviceHealth{Latency: "не отвечает"}
-	}
-	_, _ = response.Body.Read(make([]byte, 512))
-	response.Body.Close()
-	elapsed := time.Since(start).Milliseconds()
-	if response.StatusCode >= 500 {
-		return serviceHealth{Latency: "ошибка " + strconv.Itoa(response.StatusCode)}
-	}
-	return serviceHealth{Up: true, Latency: strconv.FormatInt(elapsed, 10) + " мс"}
 }
 
 func readServerHealth() serverHealth {

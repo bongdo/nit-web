@@ -172,10 +172,6 @@ try{var saved=localStorage.getItem("bongdo.theme");var dark=saved?saved==="dark"
   .bar span { display: block; height: 100%; border-radius: inherit; background: var(--fg); opacity: .5; transform-origin: left; animation: fill .5s cubic-bezier(.22,.7,.2,1) both; }
   .bar.hot span { background: var(--danger); opacity: .85; }
   .metric .value { font: 500 12px/1 ui-monospace, monospace; color: var(--fg); white-space: nowrap; }
-  .svc { flex: none; display: inline-flex; align-items: center; gap: 7px; font: 500 11.5px/1 ui-monospace, monospace; color: var(--muted-fg); white-space: nowrap; }
-  .svc .dot { margin: 0; }
-  .svc.down { color: var(--danger); }
-  .svc.down .dot { background: var(--danger); box-shadow: none; }
   @keyframes fill { from { transform: scaleX(0); } to { transform: scaleX(1); } }
   .copied { color: var(--success) !important; border-color: color-mix(in oklab, var(--success) 40%, var(--border)) !important; }
   .skip { position: absolute; left: -9999px; }

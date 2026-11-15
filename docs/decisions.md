@@ -1,5 +1,17 @@
 # Decisions
 
+## 2026-11-15 — Switchless instances: owner-aware actions, one network toggle
+
+Context: the bridge already routes every request to any machine (`/i/<name>/...`), but the GUI kept one active instance and either switched the whole app or refused cross-machine actions.
+
+Decision: hide/delete/unhide act on the chat's own instance without switching; `Everywhere` directory headers create chats in that directory on that machine; the workspace picker has machine chips, recent-first and a separate browse mode; `showHidden` is one value for the network; term/pero are always shown, using `/i/<name>/pero/` and `/i/<name>/term/` for bridge instances.
+
+Why: the switch was a client-side mode, not a connection. The server already takes the owner on every request, so refusing or remounting was unnecessary.
+
+Rejected: a global Switch button with per-instance UI state; hiding term/pero for non-local transports; per-instance `showHidden`.
+
+Cost: opening a chat on another machine still focuses that machine (the App is keyed by instance for now); removing that remount needs selection to become `(instance, id)` everywhere.
+
 ## 2026-11-04 — Keep untrusted HTML out of the app DOM
 
 Context: transcripts contain model-produced markdown and sometimes complete HTML documents. The GUI must render both without giving model output access to the app.

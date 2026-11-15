@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { CircleAlert, RefreshCw } from "lucide-react";
 import App from "./App";
 import { api } from "./lib/api";
@@ -8,8 +8,6 @@ import type { InstancesResponse } from "./lib/types";
 import { BootScreen } from "./components/StatusScreens";
 import { InstancesMenu } from "./components/InstancesMenu";
 import { Button } from "./components/ui/button";
-
-const PREFETCH_CAP_MS = 1500;
 
 function messageOf(error: unknown): string {
   if (error instanceof Error && error.message) return error.message;
@@ -41,7 +39,6 @@ export default function Root() {
   const [active, setActive] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
-  const switching = useRef(0);
 
   const load = useCallback(async () => {
     setError(null);
@@ -76,17 +73,11 @@ export default function Root() {
   }, []);
 
   const select = useCallback(
-    async (id: string) => {
-      const token = switching.current + 1;
-      switching.current = token;
+    (id: string) => {
       setMenuOpen(false);
       const target = data?.instances.find((item) => item.id === id);
       if (id !== active && target?.state === "connected") {
-        await Promise.race([
-          prefetchBoot(id),
-          new Promise<void>((resolve) => window.setTimeout(resolve, PREFETCH_CAP_MS)),
-        ]);
-        if (switching.current !== token) return;
+        void prefetchBoot(id);
       }
       setActive(id);
       localStorage.setItem("nit-gui.instance", id);

@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 )
@@ -298,6 +299,17 @@ func (s *Store) Rename(old, next string) error {
 		return errors.New("ui state already exists for the new instance name")
 	}
 	delete(s.state.Instances, old)
+	if prefix := old + ":"; len(state.Drafts) > 0 {
+		drafts := make(map[string]Draft, len(state.Drafts))
+		for key, draft := range state.Drafts {
+			if rest, ok := strings.CutPrefix(key, prefix); ok {
+				drafts[next+":"+rest] = draft
+				continue
+			}
+			drafts[key] = draft
+		}
+		state.Drafts = drafts
+	}
 	s.state.Instances[next] = state
 	return s.saveLocked()
 }
@@ -315,6 +327,7 @@ func (s *Store) Remove(instance, id string) error {
 	state.Hidden = next
 	delete(state.Status, id)
 	delete(state.Drafts, id)
+	delete(state.Drafts, instance+":"+id)
 	s.state.Instances[instance] = state
 	return s.saveLocked()
 }

@@ -316,6 +316,9 @@ func TestRenameMovesInstanceState(t *testing.T) {
 	if _, err := store.SetDraft("local", "key", "hello"); err != nil {
 		t.Fatal(err)
 	}
+	if _, err := store.SetDraft("local", "local:ses_a", "prefixed"); err != nil {
+		t.Fatal(err)
+	}
 	if !store.Has("local") || store.Has("office") {
 		t.Fatalf("unexpected Has before rename: %v %v", store.Has("local"), store.Has("office"))
 	}
@@ -327,6 +330,12 @@ func TestRenameMovesInstanceState(t *testing.T) {
 	}
 	if got := store.Draft("office", "key").Text; got != "hello" {
 		t.Fatalf("draft = %q", got)
+	}
+	if got := store.Draft("office", "office:ses_a").Text; got != "prefixed" {
+		t.Fatalf("prefixed draft = %q", got)
+	}
+	if got := store.Draft("office", "local:ses_a").Text; got != "" {
+		t.Fatalf("old prefixed draft still visible: %q", got)
 	}
 	reopened, err := Open(path, "local")
 	if err != nil {

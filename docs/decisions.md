@@ -1016,3 +1016,51 @@ Enter with a modifier (no modifier key reachable from the phone keyboard).
 
 Cost: auto-fix and the personal dictionary do not run on phones; a tablet with
 a hardware keyboard also needs the button to send.
+
+## 2026-11-15 — A third sidebar scope: All machines
+
+Context: with more than one OpenCode instance the sidebar showed only the active
+machine. Finding a chat again meant remembering which machine it lived on, then
+switching instances and losing the list.
+
+Decision: add `All machines` next to `This project` and `All chats`. It fans out
+one sessions request per connected instance, tags every row with its instance in
+a small pill, and keeps the existing grouping by directory. Opening a chat that
+belongs to another instance switches the instance first and then opens it.
+
+Why: the user reads chats by directory, not by machine, so the machine belongs
+as a label on the row, not as a second level of grouping. Fan-out in the browser
+keeps the server free of a cross-instance session model.
+
+Rejected: a server-side merged sessions endpoint (one more API shape to keep in
+sync with OpenCode), grouping by machine instead of directory (the user asked for
+directory separation), one event stream per instance (the SSE proxy is per
+active instance by design).
+
+Cost: live events, drafts and done/failed markers still belong to the active
+instance; the merged pool refreshes on scope entry and on reconnect, so a chat
+on another machine can show a stale status until then.
+
+## 2026-11-15 — Editor and terminal addresses belong to the instance
+
+Context: `NIT_GUI_PERO_URL` and `NIT_GUI_TERM_URL` described one host, so every
+instance opened Frankfurt's editor and terminal. A file chip from a nixos chat
+landed in a Frankfurt editor that cannot see that path.
+
+Decision: `peroURL` and `termURL` become optional instance fields in
+`instances.json`, accepted as an absolute `http(s)` URL without credentials or a
+path starting with `/`. Empty means the host-wide env default, so an existing
+file keeps its behavior. `GET /api/config` resolves the active instance's value,
+`GET /api/instances` also reports the defaults, and the admin API treats a
+missing field as "keep" and `""` as "clear".
+
+Why: the editor and the terminal are per machine by nature, and the browser
+already receives every instance-scoped URL through `/api/config`.
+
+Rejected: proxying another machine's editor through this nit-gui (a reverse
+proxy per instance, TLS and cookie questions for no gain), a single global pair
+with a host prefix (still one machine's editor).
+
+Cost: a value without a trailing slash is passed through as written; the Drop
+manager keeps using the host-wide editor because its store is host-wide.
+

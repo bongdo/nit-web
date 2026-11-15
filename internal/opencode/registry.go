@@ -40,7 +40,7 @@ func ValidAppURL(raw string) bool {
 		}
 	}
 	if strings.HasPrefix(raw, "/") {
-		return !strings.HasPrefix(raw, "//")
+		return !strings.HasPrefix(raw, "//") && !strings.Contains(raw, `\`)
 	}
 	u, err := url.Parse(raw)
 	if err != nil || u.Host == "" || u.User != nil {

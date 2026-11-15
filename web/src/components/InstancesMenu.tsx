@@ -39,6 +39,8 @@ type FormState = {
   dir: string;
   password: string;
   passwordFile: string;
+  peroURL: string;
+  termURL: string;
 };
 
 function newForm(): FormState {
@@ -50,6 +52,8 @@ function newForm(): FormState {
     dir: "",
     password: "",
     passwordFile: "",
+    peroURL: "",
+    termURL: "",
   };
 }
 
@@ -124,6 +128,7 @@ export function InstancesMenu({
   const caps = info
     ? mergeDeviceCapabilities(info.capabilities ?? [], supportsSpeech)
     : [];
+  const defaults = data.defaults ?? { peroURL: "/pero/", termURL: "/term/" };
 
   const refresh = async () => {
     setRefreshing(true);
@@ -150,6 +155,8 @@ export function InstancesMenu({
       dir: item.defaultDirectory ?? "",
       password: "",
       passwordFile: "",
+      peroURL: item.peroURL ?? "",
+      termURL: item.termURL ?? "",
     });
   };
 
@@ -176,6 +183,8 @@ export function InstancesMenu({
       original: form.original,
       name,
       transport: form.transport,
+      peroURL: form.peroURL.trim(),
+      termURL: form.termURL.trim(),
     };
     if (form.transport === "url") {
       input.url = url;
@@ -375,6 +384,27 @@ export function InstancesMenu({
                   />
                 </Field>
 
+                <Field label="Editor URL on this machine (optional)">
+                  <Input
+                    value={form.peroURL}
+                    onChange={(event) => setForm({ ...form, peroURL: event.target.value })}
+                    placeholder={defaults.peroURL}
+                  />
+                </Field>
+
+                <Field label="Terminal URL on this machine (optional)">
+                  <Input
+                    value={form.termURL}
+                    onChange={(event) => setForm({ ...form, termURL: event.target.value })}
+                    placeholder={defaults.termURL}
+                  />
+                </Field>
+
+                <div className="text-muted-foreground text-[11px] leading-5">
+                  Empty uses this app&apos;s default shown in the placeholder; saving an empty field
+                  removes a saved value. Accepts an http(s) URL or a path like /pero/.
+                </div>
+
                 {form.transport === "url" && (
                   <Field label="Password">
                     <Input
@@ -438,6 +468,18 @@ export function InstancesMenu({
                     <FlowNode label={appLabel(data.app.host)} />
                     <ArrowRight className="text-muted-foreground size-3 shrink-0" />
                     <FlowNode label={`OpenCode @ ${info.name}`} />
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <div className="text-muted-foreground text-[10px] uppercase tracking-wide">
+                    Editor and terminal for {info.name}
+                  </div>
+                  <div className="font-mono text-[11px]">
+                    pero {info.peroURL || defaults.peroURL}
+                  </div>
+                  <div className="font-mono text-[11px]">
+                    term {info.termURL || defaults.termURL}
                   </div>
                 </div>
 

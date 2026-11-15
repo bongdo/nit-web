@@ -56,8 +56,8 @@ describe the device you are sitting at.
 An instance is one OpenCode server behind this nit-gui. The nit-gui host stays
 the same; switching an instance changes the OpenCode namespace: sessions,
 workspaces, models, agents and the event stream. The menu header shows
-`This app: nit-gui @ <host>` separately, so the app and the instance are not
-confused.
+`This app: nit-gui 2 — <host>` separately, so the app and the instance are not
+confused. The same label is the browser tab title.
 
 Open the menu from the network icon in the sidebar footer, `/instances`, or
 Settings → Instances. The icon already carries the live/offline state; clicking
@@ -94,7 +94,13 @@ Missing or empty means one auto-discovered local instance named `local`.
 {
   "instances": [
     { "name": "frankfurt", "url": "auto" },
-    { "name": "riga", "ssh": "riga-dev", "dir": "/home/bongdo/Projects" },
+    {
+      "name": "riga",
+      "ssh": "riga-dev",
+      "dir": "/home/bongdo/Projects",
+      "peroURL": "https://riga.example/pero/",
+      "termURL": "/term/riga/"
+    },
     {
       "name": "office",
       "url": "http://10.0.0.5:49374",
@@ -112,6 +118,11 @@ Missing or empty means one auto-discovered local instance named `local`.
   forwards a local port. It uses the `ssh` binary, not a Go SSH dependency.
 - `dir` is the default workspace for a new instance. The workspace picker still
   lists the instance's own projects.
+- `peroURL` and `termURL` are that machine's own editor and terminal, opened by
+  the editor chips and the terminal link while the instance is active. Empty or
+  missing means the host-wide `NIT_GUI_PERO_URL` / `NIT_GUI_TERM_URL` default.
+  Each value is either an absolute `http(s)` URL without credentials or a path
+  starting with `/` on the nit-gui origin.
 - Names must match `^[A-Za-z0-9._-]{1,64}$` and be unique. The first instance is
   the default.
 - Passwords stay on the nit-gui host. The browser never receives them. A config

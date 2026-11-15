@@ -1,6 +1,7 @@
 package server_test
 
 import (
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -56,6 +57,77 @@ func TestSaveInstanceRejectsPasswordFileOutsideConfig(t *testing.T) {
 	}
 	if len(provider.Instances()) != 1 {
 		t.Fatalf("instance was saved: %+v", provider.Instances())
+	}
+}
+
+func TestSaveInstanceAppLinks(t *testing.T) {
+	provider, _ := testInstanceProvider(t)
+	handler := newMultiHandler(t, provider)
+
+	create := `{"name":"riga","transport":"ssh","ssh":"riga-dev","peroURL":"https://riga.example/pero/","termURL":"/term/riga/"}`
+	if rec := postInstance(t, handler, create); rec.Code != http.StatusOK {
+		t.Fatalf("create = %d: %s", rec.Code, rec.Body)
+	}
+	specs := provider.Instances()
+	if len(specs) != 2 || specs[1].PeroURL != "https://riga.example/pero/" || specs[1].TermURL != "/term/riga/" {
+		t.Fatalf("specs = %+v", specs)
+	}
+
+	edit := `{"original":"riga","name":"riga","transport":"ssh","ssh":"riga-dev","dir":"/srv"}`
+	if rec := postInstance(t, handler, edit); rec.Code != http.StatusOK {
+		t.Fatalf("edit = %d: %s", rec.Code, rec.Body)
+	}
+	specs = provider.Instances()
+	if specs[1].PeroURL != "https://riga.example/pero/" || specs[1].TermURL != "/term/riga/" {
+		t.Fatalf("app urls not preserved: %+v", specs[1])
+	}
+
+	clear := `{"original":"riga","name":"riga","transport":"ssh","ssh":"riga-dev","peroURL":""}`
+	if rec := postInstance(t, handler, clear); rec.Code != http.StatusOK {
+		t.Fatalf("clear = %d: %s", rec.Code, rec.Body)
+	}
+	specs = provider.Instances()
+	if specs[1].PeroURL != "" || specs[1].TermURL != "/term/riga/" {
+		t.Fatalf("clear rule = %+v", specs[1])
+	}
+
+	for _, body := range []string{
+		`{"original":"riga","name":"riga","transport":"ssh","ssh":"riga-dev","peroURL":"ftp://example.com/pero/"}`,
+		`{"original":"riga","name":"riga","transport":"ssh","ssh":"riga-dev","termURL":"https://user:pass@example.com/term/"}`,
+		`{"original":"riga","name":"riga","transport":"ssh","ssh":"riga-dev","termURL":"term/"}`,
+	} {
+		if rec := postInstance(t, handler, body); rec.Code != http.StatusBadRequest {
+			t.Fatalf("invalid app url %s = %d: %s", body, rec.Code, rec.Body)
+		}
+	}
+	if provider.Instances()[1].TermURL != "/term/riga/" {
+		t.Fatalf("rejected save changed the spec: %+v", provider.Instances()[1])
+	}
+
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "http://127.0.0.1:7788/api/instances", nil))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("instances = %d: %s", rec.Code, rec.Body)
+	}
+	var list struct {
+		Defaults struct {
+			PeroURL string `json:"peroURL"`
+			TermURL string `json:"termURL"`
+		} `json:"defaults"`
+		Instances []struct {
+			ID      string `json:"id"`
+			PeroURL string `json:"peroURL"`
+			TermURL string `json:"termURL"`
+		} `json:"instances"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &list); err != nil {
+		t.Fatal(err)
+	}
+	if list.Defaults.PeroURL != "/pero/" || list.Defaults.TermURL != "/term/" {
+		t.Fatalf("defaults = %+v", list.Defaults)
+	}
+	if len(list.Instances) != 2 || list.Instances[1].PeroURL != "" || list.Instances[1].TermURL != "/term/riga/" {
+		t.Fatalf("instances = %+v", list.Instances)
 	}
 }
 

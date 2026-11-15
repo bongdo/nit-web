@@ -263,6 +263,8 @@ export type InstanceInput = {
   dir?: string;
   password?: string;
   passwordFile?: string;
+  peroURL?: string;
+  termURL?: string;
 };
 
 export type InstanceCapability = {
@@ -284,6 +286,8 @@ export type Instance = {
   opencode?: { ok: boolean; version?: string; server?: string };
   url?: string;
   ssh?: string;
+  peroURL?: string;
+  termURL?: string;
   defaultDirectory?: string;
   capabilities: InstanceCapability[];
 };
@@ -291,6 +295,7 @@ export type Instance = {
 export type InstancesResponse = {
   app: { name: string; host: string; version: string };
   default: string;
+  defaults?: { peroURL: string; termURL: string };
   configPath?: string;
   configError?: string;
   instances: Instance[];

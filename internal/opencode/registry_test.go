@@ -358,6 +358,7 @@ func TestValidAppURL(t *testing.T) {
 		"ftp://example.com/pero/":             false,
 		"pero/":                               false,
 		"//evil.example/pero/":                false,
+		`/\evil.example/pero/`:                false,
 		"https://user:pass@example.com/pero/": false,
 		"https:///pero/":                      false,
 		"https://example.com/ a":              false,

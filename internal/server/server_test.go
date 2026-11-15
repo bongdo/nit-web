@@ -1267,6 +1267,64 @@ func TestConfigDefaults(t *testing.T) {
 	}
 }
 
+func TestConfigUsesInstanceAppLinks(t *testing.T) {
+	upstream := httptest.NewServer(auth(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/location":
+			fmt.Fprint(w, `{"directory":"/home/ubuntu"}`)
+		case "/api/model/default":
+			fmt.Fprint(w, `{"data":{}}`)
+		case "/api/agent":
+			fmt.Fprint(w, `{"data":[]}`)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer upstream.Close()
+
+	client := opencode.New(opencode.Endpoint{URL: upstream.URL, Password: testPassword})
+	provider := &multiProvider{
+		clients: map[string]*opencode.Client{"plain": client, "riga": client},
+		specs: []opencode.InstanceSpec{
+			{Name: "plain", URL: upstream.URL, Password: testPassword},
+			{Name: "riga", URL: upstream.URL, Password: testPassword, PeroURL: "https://riga.example/pero/", TermURL: "/term/riga/"},
+		},
+		def: "plain",
+	}
+	handler := newMultiHandler(t, provider)
+
+	cases := []struct {
+		name     string
+		instance string
+		pero     string
+		term     string
+	}{
+		{"inherit host defaults", "plain", "/pero/", "/term/"},
+		{"instance override", "riga", "https://riga.example/pero/", "/term/riga/"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			rec := httptest.NewRecorder()
+			req := httptest.NewRequest(http.MethodGet, "http://127.0.0.1:7788/api/config", nil)
+			req.Header.Set("X-Nit-Instance", tc.instance)
+			handler.ServeHTTP(rec, req)
+			if rec.Code != http.StatusOK {
+				t.Fatalf("status = %d: %s", rec.Code, rec.Body)
+			}
+			var body struct {
+				PeroURL string `json:"peroURL"`
+				TermURL string `json:"termURL"`
+			}
+			if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+				t.Fatal(err)
+			}
+			if body.PeroURL != tc.pero || body.TermURL != tc.term {
+				t.Fatalf("app links = %q %q, want %q %q", body.PeroURL, body.TermURL, tc.pero, tc.term)
+			}
+		})
+	}
+}
+
 func TestModelsExposeInputCapabilities(t *testing.T) {
 	upstream := httptest.NewServer(auth(func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprint(w, `{"data":[{"id":"m1","providerID":"p1","capabilities":{"input":["text","image","pdf"]}}]}`)

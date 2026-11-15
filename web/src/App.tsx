@@ -2372,9 +2372,6 @@ export default function App({
         <Header
           session={selectedSession}
           directory={workspace}
-          models={models}
-          model={currentModel}
-          agent={currentAgent}
           contextPercent={shownContext}
           cost={shownCost}
           estimatedCost={sessionCost === 0 && estimated > 0}

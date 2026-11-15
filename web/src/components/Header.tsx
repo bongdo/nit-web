@@ -10,8 +10,8 @@ import {
   Plus,
   Terminal,
 } from "lucide-react";
-import type { Model, ModelRef, Session } from "../lib/types";
-import { basename, formatCost, formatRelative, modelLabel, sessionRunning } from "../lib/format";
+import type { Session } from "../lib/types";
+import { basename, formatCost, formatRelative, sessionRunning } from "../lib/format";
 import { peroHref, termHref } from "../lib/diff";
 import { cn } from "../lib/utils";
 import { Button } from "./ui/button";
@@ -55,47 +55,9 @@ function ContextMeter({ value, session }: { value: number; session?: string }) {
   );
 }
 
-function ModelChip({ label }: { label: string }) {
-  const shownRef = useRef(label);
-  const [shown, setShown] = useState(label);
-  const [previous, setPrevious] = useState<string | null>(null);
-  const [tick, setTick] = useState(0);
-
-  useEffect(() => {
-    const current = shownRef.current;
-    if (label === current) return;
-    shownRef.current = label;
-    setShown(label);
-    setPrevious(current);
-    setTick((count) => count + 1);
-    const timer = window.setTimeout(() => setPrevious(null), 260);
-    return () => window.clearTimeout(timer);
-  }, [label]);
-
-  return (
-    <span className="chrome-sheen-chip inline-block max-w-full min-w-0 truncate align-bottom">
-      {previous !== null && (
-        <span
-          key={`out-${tick}`}
-          aria-hidden
-          className="chrome-sheen-chip-out absolute inset-0 truncate"
-        >
-          · {previous}
-        </span>
-      )}
-      <span key={`in-${tick}`} className="chrome-sheen-chip-in block truncate">
-        · {shown}
-      </span>
-    </span>
-  );
-}
-
 type SessionInfoProps = {
   session: Session | null;
   directory?: string | null;
-  models: Model[];
-  model: ModelRef | null;
-  agent: string | null;
   contextPercent?: number | null;
   cost?: number;
   estimatedCost?: boolean;
@@ -111,9 +73,6 @@ function SessionTitle({ session, className }: { session: Session | null; classNa
 function SessionMeta({
   session,
   directory: fallbackDirectory,
-  models,
-  model,
-  agent,
   contextPercent,
   cost,
   estimatedCost,
@@ -131,11 +90,6 @@ function SessionMeta({
       <span className="truncate" title={directory ?? undefined}>
         {directory ? basename(directory) : "no directory"}
       </span>
-      {(agent || model) && (
-        <span className="max-md:hidden">
-          <ModelChip label={`${agent ?? "agent"} · ${modelLabel(model, models) || "model"}`} />
-        </span>
-      )}
       {contextPercent != null && (
         <span className="flex shrink-0 items-center gap-1" title="Context used">
           <span>· ctx {contextPercent}%</span>
@@ -333,9 +287,6 @@ function useMedia(query: string): boolean {
 export const Header = memo(function Header({
   session,
   directory: fallbackDirectory,
-  models,
-  model,
-  agent,
   contextPercent,
   cost,
   estimatedCost,
@@ -354,9 +305,6 @@ export const Header = memo(function Header({
 }: {
   session: Session | null;
   directory?: string | null;
-  models: Model[];
-  model: ModelRef | null;
-  agent: string | null;
   contextPercent?: number | null;
   cost?: number;
   estimatedCost?: boolean;
@@ -392,9 +340,6 @@ export const Header = memo(function Header({
         <SessionPill
           session={session}
           directory={directory}
-          models={models}
-          model={model}
-          agent={agent}
           contextPercent={contextPercent}
           cost={cost}
           estimatedCost={estimatedCost}
@@ -474,9 +419,6 @@ export const Header = memo(function Header({
         <SessionMeta
           session={session}
           directory={directory}
-          models={models}
-          model={model}
-          agent={agent}
           contextPercent={contextPercent}
           cost={cost}
           estimatedCost={estimatedCost}

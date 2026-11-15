@@ -90,7 +90,7 @@ export const MessageRow = memo(function MessageRow({
             </div>
           )}
           <div
-            className={`bg-secondary rounded-2xl rounded-br-sm px-4 pt-3.5 pb-2.5${
+            className={`bg-secondary rounded-2xl rounded-br-sm px-4 pt-3 pb-2.5${
               message.delivery ? " border-border border border-dashed" : ""
             }`}
           >

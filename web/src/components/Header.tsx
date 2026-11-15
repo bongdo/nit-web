@@ -197,7 +197,14 @@ function MobileMenu({
         aria-label="Session menu"
         title="Session menu"
       >
-        <MoreHorizontal />
+        <span className="relative inline-flex">
+          <MoreHorizontal />
+          {subagents.length > 0 && (
+            <span className="bg-spark text-background absolute -top-1.5 -right-2 min-w-3.5 rounded-full px-0.5 text-center text-[8px] leading-3.5 tabular-nums">
+              {subagents.length}
+            </span>
+          )}
+        </span>
       </Button>
       {open && (
         <div

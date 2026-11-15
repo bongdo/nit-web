@@ -54,7 +54,13 @@ type config struct {
 func main() {
 	configPath := flag.String("config", "", "path to config.json")
 	once := flag.Bool("once", false, "connect, report state and exit")
+	showVersion := flag.Bool("version", false, "print the bridge version and exit")
 	flag.Parse()
+
+	if *showVersion {
+		fmt.Println(version)
+		return
+	}
 
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelInfo}))
 	path := *configPath
@@ -412,7 +418,7 @@ func jitter(d time.Duration) time.Duration {
 
 func init() {
 	flag.Usage = func() {
-		fmt.Fprintf(os.Stderr, "usage: nit-bridge [--config path] [--once]\n")
+		fmt.Fprintf(os.Stderr, "usage: nit-bridge [--config path] [--once] [--version]\n")
 		flag.PrintDefaults()
 	}
 }

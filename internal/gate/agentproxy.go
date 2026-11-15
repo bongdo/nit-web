@@ -17,6 +17,7 @@ type machineView struct {
 	Online    bool          `json:"online"`
 	Added     int64         `json:"added"`
 	Connected int64         `json:"connected,omitempty"`
+	Version   string        `json:"version,omitempty"`
 	Events    int64         `json:"events"`
 	OpenCode  AgentOpenCode `json:"opencode"`
 	Targets   []AgentTarget `json:"targets"`
@@ -39,9 +40,10 @@ func (s *Server) machines(w http.ResponseWriter, r *http.Request) {
 	for _, machine := range s.agents.List() {
 		view := machineView{Name: machine.Name, Added: machine.Added, Targets: []AgentTarget{}, Dirs: []string{}}
 		if conn := s.hub.get(machine.Name); conn != nil {
-			state, events := conn.snapshot()
+			state, version, events := conn.snapshot()
 			view.Online = true
 			view.Connected = conn.connected.Unix()
+			view.Version = version
 			view.Events = events
 			view.OpenCode = state.OpenCode
 			view.Targets = state.Targets

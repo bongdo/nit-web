@@ -277,6 +277,9 @@ func TestAgentStateAndEvents(t *testing.T) {
 	if machine.Name != "nixos" {
 		t.Fatalf("machine = %+v", machine)
 	}
+	if machine.Version != "test" {
+		t.Fatalf("bridge version = %q", machine.Version)
+	}
 	if machine.OpenCode.Version != "2.1.4" || machine.OpenCode.URL != "http://127.0.0.1:49374" {
 		t.Fatalf("opencode = %+v", machine.OpenCode)
 	}

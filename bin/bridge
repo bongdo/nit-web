@@ -15,7 +15,7 @@ bridge — install and inspect machine bridges
 
   bridge add <ssh-host>   copy the bridge, install the systemd user unit, wait for it
   bridge token <name>     mint a machine token and print the bridge config
-  bridge status           machines known to the gate and whether they are online
+  bridge status           machines known to the gate: online state and bridge version
   bridge rm <ssh-host>    disable and remove the bridge on the host and the token here
 EOF
 }
@@ -40,15 +40,14 @@ agents() {
 }
 
 status() {
-  agents | tr '{' '\n' | while read -r row; do
-    state=""
-    case "$row" in
-    *'"online":true'*) state="online" ;;
-    *'"online":false'*) state="offline" ;;
-    *) continue ;;
-    esac
-    name="$(printf '%s' "$row" | sed -n 's/^"name":"\([^"]*\)".*/\1/p')"
-    printf '%-16s %s\n' "$name" "$state"
+  local current
+  current="$(go run ./cmd/bridge --version)"
+  agents | jq -r --arg current "$current" '.machines[] |
+    [.name,
+     (if .online then "online" else "offline" end),
+     (if .online and .version != $current then "outdated (repo \($current))" else "" end)] |
+    @tsv' | while IFS=$'\t' read -r name state note; do
+    printf '%-16s %-8s %s\n' "$name" "$state" "$note"
   done
 }
 

@@ -82,6 +82,7 @@ type agentConn struct {
 	mu        sync.Mutex
 	pending   map[string]*agentPending
 	state     AgentState
+	version   string
 	events    int64
 	connected time.Time
 }
@@ -183,6 +184,9 @@ func (c *agentConn) serve() {
 		c.close(1002, "unsupported protocol version")
 		return
 	}
+	c.mu.Lock()
+	c.version = hello.Version
+	c.mu.Unlock()
 	if err := c.ws.WriteJSON(AgentFrame{Type: "welcome", Session: randomSession(), Time: time.Now().Unix()}); err != nil {
 		return
 	}
@@ -312,10 +316,10 @@ func (c *agentConn) target(name string) (AgentTarget, bool) {
 	return AgentTarget{}, false
 }
 
-func (c *agentConn) snapshot() (AgentState, int64) {
+func (c *agentConn) snapshot() (AgentState, string, int64) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	return c.state, atomic.LoadInt64(&c.events)
+	return c.state, c.version, atomic.LoadInt64(&c.events)
 }
 
 func randomSession() string {

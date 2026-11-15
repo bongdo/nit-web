@@ -27,7 +27,7 @@ func (s *Server) adminPage(w http.ResponseWriter, r *http.Request) {
 	case "approved":
 		data.Message = "приглашение готово: передай ссылку человеку"
 	}
-	data.DeviceGroups = deviceGroups(s.devices.List(), s.now())
+	data.DeviceGroups = deviceGroups(s.devices.List(), data.User.Dev, s.now())
 	s.render(w, "admin", data)
 }
 

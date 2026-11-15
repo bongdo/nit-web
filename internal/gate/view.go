@@ -18,21 +18,25 @@ var pages = template.Must(template.ParseFS(viewFiles, "views/*.html"))
 type routeView struct {
 	Prefix string
 	Note   string
-	Open   bool
-	Reason string
+	State  string
+	Href   string
+	Key    int
 }
 
 type deviceView struct {
 	ID      string
+	Short   string
 	Name    string
 	IP      string
 	Created string
 	Seen    string
 	Current bool
+	Unknown bool
 }
 
 type deviceGroup struct {
 	User    string
+	Count   string
 	Devices []deviceView
 }
 
@@ -41,6 +45,7 @@ type view struct {
 	Narrow       bool
 	User         gateid.Identity
 	Routes       []routeView
+	Services     string
 	Users        []User
 	Pending      []User
 	Invited      []User
@@ -51,10 +56,15 @@ type view struct {
 	Next         string
 	Name         string
 	Token        string
+	Origin       string
 }
 
 func (s *Server) newView(r *http.Request, title string) view {
-	return view{Title: title, User: identity(r)}
+	scheme := "http"
+	if s.secure(r) {
+		scheme = "https"
+	}
+	return view{Title: title, User: identity(r), Origin: scheme + "://" + r.Host}
 }
 
 func (s *Server) newNarrow(r *http.Request, title string) view {
@@ -84,17 +94,31 @@ func deviceViews(devices []Device, current string, now time.Time) []deviceView {
 }
 
 func deviceViewOf(device Device, current string, now time.Time) deviceView {
+	name := device.Name
+	unknown := name == "" || name == unknownDevice
+	if unknown {
+		name = "неизвестное устройство"
+	}
 	return deviceView{
 		ID:      device.ID,
-		Name:    device.Name,
+		Short:   shortID(device.ID),
+		Name:    name,
 		IP:      device.IP,
 		Created: time.Unix(device.Created, 0).Format("02.01.2006 15:04"),
 		Seen:    ago(time.Unix(device.Seen, 0), now),
 		Current: device.ID == current,
+		Unknown: unknown,
 	}
 }
 
-func deviceGroups(devices []Device, now time.Time) []deviceGroup {
+func shortID(id string) string {
+	if len(id) > 8 {
+		return id[:8]
+	}
+	return id
+}
+
+func deviceGroups(devices []Device, current string, now time.Time) []deviceGroup {
 	groups := make([]deviceGroup, 0, len(devices))
 	position := map[string]int{}
 	for _, device := range devices {
@@ -104,7 +128,10 @@ func deviceGroups(devices []Device, now time.Time) []deviceGroup {
 			position[device.User] = index
 			groups = append(groups, deviceGroup{User: device.User})
 		}
-		groups[index].Devices = append(groups[index].Devices, deviceViewOf(device, "", now))
+		groups[index].Devices = append(groups[index].Devices, deviceViewOf(device, current, now))
+	}
+	for i := range groups {
+		groups[i].Count = plural(len(groups[i].Devices), "устройство", "устройства", "устройств")
 	}
 	return groups
 }

@@ -1,76 +1,94 @@
 {{define "admin"}}{{template "head" .}}
 <h1>админка</h1>
+<p class="lede">заявки, приглашения и устройства</p>
 <section>
   <h2>заявки</h2>
   {{if .Pending}}
-  <table>
-    <thead><tr><th>имя</th><th>что сделать</th></tr></thead>
-    <tbody>
-    {{range .Pending}}
-      <tr>
-        <td class="mono">{{.Name}}</td>
-        <td class="row-actions">
-          <form method="post" action="/admin/approve"><input type="hidden" name="name" value="{{.Name}}"><button>одобрить</button></form>
-          <form method="post" action="/admin/reject"><input type="hidden" name="name" value="{{.Name}}"><button class="bad">отклонить</button></form>
-        </td>
-      </tr>
-    {{end}}
-    </tbody>
-  </table>
-  {{else}}<p class="muted">заявок нет</p>{{end}}
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>имя</th><th></th></tr></thead>
+      <tbody>
+      {{range .Pending}}
+        <tr>
+          <td class="mono">{{.Name}}</td>
+          <td class="actions">
+            <form method="post" action="/admin/approve"><input type="hidden" name="name" value="{{.Name}}"><button class="ghost">одобрить</button></form>
+            <form method="post" action="/admin/reject" data-confirm="Отклонить заявку {{.Name}}?"><input type="hidden" name="name" value="{{.Name}}"><button class="bad">отклонить</button></form>
+          </td>
+        </tr>
+      {{end}}
+      </tbody>
+    </table>
+  </div>
+  {{else}}<div class="empty">заявок нет</div>{{end}}
 </section>
 <section>
   <h2>приглашённые</h2>
   {{if .Invited}}
-  <table>
-    <thead><tr><th>имя</th><th>ссылка</th></tr></thead>
-    <tbody>
-    {{range .Invited}}
-      <tr>
-        <td class="mono">{{.Name}}</td>
-        <td class="mono"><a href="/i/{{.Token}}">/i/{{.Token}}</a></td>
-      </tr>
-    {{end}}
-    </tbody>
-  </table>
-  {{else}}<p class="muted">никого</p>{{end}}
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>имя</th><th>ссылка</th><th></th></tr></thead>
+      <tbody>
+      {{range .Invited}}
+        <tr>
+          <td class="mono">{{.Name}}</td>
+          <td class="mono"><a href="/i/{{.Token}}">{{$.Origin}}/i/{{.Token}}</a></td>
+          <td class="actions"><button class="ghost" type="button" data-copy="{{$.Origin}}/i/{{.Token}}">скопировать</button></td>
+        </tr>
+      {{end}}
+      </tbody>
+    </table>
+  </div>
+  {{else}}<div class="empty">никого</div>{{end}}
 </section>
 <section>
   <h2>активные</h2>
-  <table>
-    <thead><tr><th>имя</th><th>роль</th></tr></thead>
-    <tbody>
-    {{range .Users}}
-      <tr>
-        <td class="mono">{{.Name}}</td>
-        <td class="muted">{{.Role}}</td>
-      </tr>
-    {{end}}
-    </tbody>
-  </table>
+  {{if .Users}}
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>имя</th><th>роль</th></tr></thead>
+      <tbody>
+      {{range .Users}}
+        <tr>
+          <td class="mono">{{.Name}}{{if eq .Name $.User.User}}<span class="tag you">вы</span>{{end}}</td>
+          <td><span class="tag">{{.Role}}</span></td>
+        </tr>
+      {{end}}
+      </tbody>
+    </table>
+  </div>
+  {{else}}<div class="empty">никого</div>{{end}}
 </section>
 <section>
   <h2>устройства</h2>
   {{if .DeviceGroups}}
   {{range .DeviceGroups}}
-  <p class="mono">{{.User}}</p>
-  <table>
-    <thead><tr><th>устройство</th><th>ip</th><th>вход</th><th>активность</th><th></th></tr></thead>
-    <tbody>
-    {{range .Devices}}
-      <tr>
-        <td>{{.Name}}</td>
-        <td class="mono">{{.IP}}</td>
-        <td class="muted">{{.Created}}</td>
-        <td class="muted">{{.Seen}}</td>
-        <td class="row-actions">
-          <form method="post" action="/admin/devices/remove"><input type="hidden" name="id" value="{{.ID}}"><button class="bad">отключить</button></form>
-        </td>
-      </tr>
-    {{end}}
-    </tbody>
-  </table>
+  <div class="group-head">
+    <span class="avatar" aria-hidden="true">{{printf "%.1s" .User}}</span>
+    <span>{{.User}}</span>
+    {{if eq .User $.User.User}}<span class="tag you">вы</span>{{end}}
+    <span class="mono">{{.Count}}</span>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>устройство</th><th class="hide-sm">id</th><th class="hide-sm">ip</th><th>вход</th><th class="hide-sm">активность</th><th></th></tr></thead>
+      <tbody>
+      {{range .Devices}}
+        <tr>
+          <td{{if .Unknown}} class="unknown"{{end}}>{{.Name}}{{if .Current}}<span class="tag you">это устройство</span>{{end}}</td>
+          <td class="mono hide-sm">{{.Short}}</td>
+          <td class="mono hide-sm">{{.IP}}</td>
+          <td class="muted nowrap">{{.Created}}</td>
+          <td class="muted nowrap hide-sm">{{.Seen}}</td>
+          <td class="actions">
+            <form method="post" action="/admin/devices/remove" data-confirm="Отключить устройство и завершить его сессию?"><input type="hidden" name="id" value="{{.ID}}"><button class="bad">отключить</button></form>
+          </td>
+        </tr>
+      {{end}}
+      </tbody>
+    </table>
+  </div>
   {{end}}
-  {{else}}<p class="muted">нет устройств</p>{{end}}
+  {{else}}<div class="empty">нет устройств</div>{{end}}
 </section>
 {{template "foot" .}}{{end}}

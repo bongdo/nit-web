@@ -112,7 +112,7 @@ func (s *Server) security(next http.Handler) http.Handler {
 		if r.TLS != nil || strings.EqualFold(r.Header.Get("X-Forwarded-Proto"), "https") {
 			w.Header().Set("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
 		}
-		if id, ok := s.session(r); ok {
+		if id, ok := s.session(w, r); ok {
 			r = r.WithContext(context.WithValue(r.Context(), identityKey, id))
 		} else if id, ok := s.serviceIdentity(r, forwarded); ok {
 			r = r.WithContext(context.WithValue(r.Context(), identityKey, id))
@@ -162,7 +162,7 @@ func identity(r *http.Request) gateid.Identity {
 	return id
 }
 
-func (s *Server) session(r *http.Request) (gateid.Identity, bool) {
+func (s *Server) session(w http.ResponseWriter, r *http.Request) (gateid.Identity, bool) {
 	cookie, err := r.Cookie(sessionCookie)
 	if err != nil || cookie.Value == "" {
 		return gateid.Identity{}, false
@@ -176,6 +176,13 @@ func (s *Server) session(r *http.Request) (gateid.Identity, bool) {
 			return gateid.Identity{}, false
 		}
 		s.devices.Touch(id.Dev, clientIP(r))
+		return id, true
+	}
+	if device, err := s.devices.Add(id.User, deviceName(r.UserAgent()), clientIP(r)); err == nil {
+		id.Dev = device.ID
+		s.setSession(w, r, id)
+	} else {
+		s.log.Warn("gate device add", "error", err)
 	}
 	return id, true
 }
@@ -193,6 +200,10 @@ func (s *Server) startSession(w http.ResponseWriter, r *http.Request, user User)
 	} else {
 		id.Dev = device.ID
 	}
+	s.setSession(w, r, id)
+}
+
+func (s *Server) setSession(w http.ResponseWriter, r *http.Request, id gateid.Identity) {
 	http.SetCookie(w, &http.Cookie{
 		Name:     sessionCookie,
 		Value:    gateid.Sign(s.secret, id),

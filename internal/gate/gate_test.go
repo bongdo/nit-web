@@ -467,7 +467,11 @@ func TestDeviceName(t *testing.T) {
 		{"Mozilla/5.0 (X11; Linux x86_64; rv:121.0) Gecko/20100101 Firefox/121.0", "Firefox · Linux"},
 		{"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36", "Chrome · macOS"},
 		{"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:121.0) Gecko/20100101 Firefox/121.0", "Firefox · Windows"},
-		{"curl/8.4.0", "неизвестно"},
+		{"Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/120.0.6099.119 Mobile/15E148 Safari/604.1", "Chrome · iOS"},
+		{"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 YaBrowser/24.1.0 Safari/537.36", "Yandex · Windows"},
+		{"curl/8.4.0", "curl"},
+		{"Go-http-client/1.1", "Go-клиент"},
+		{"MyBot/2.0", "MyBot"},
 		{"", "неизвестно"},
 	}
 	for _, test := range cases {
@@ -594,6 +598,42 @@ func TestRemovedDeviceBecomesAnonymous(t *testing.T) {
 	resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("public route after removal = %d", resp.StatusCode)
+	}
+}
+
+func TestSessionWithoutDeviceAdoptsOne(t *testing.T) {
+	server, _, devices := testServerDevices(t, nil)
+	id := gateid.Identity{
+		User: "friend",
+		Role: gateid.RoleMember,
+		Caps: gateid.Caps(gateid.RoleMember),
+		Exp:  time.Now().Add(time.Hour).Unix(),
+	}
+	req, err := http.NewRequest(http.MethodGet, server.URL+"/account", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("User-Agent", "Mozilla/5.0 (X11; Linux x86_64; rv:121.0) Gecko/20100101 Firefox/121.0")
+	req.AddCookie(&http.Cookie{Name: sessionCookie, Value: gateid.Sign([]byte(testKey), id)})
+	resp, err := noRedirect(t).Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("account = %d, want 200", resp.StatusCode)
+	}
+	own := devices.ListFor("friend")
+	if len(own) != 1 || own[0].Name != "Firefox · Linux" {
+		t.Fatalf("devices = %+v", own)
+	}
+	cookies := resp.Cookies()
+	if len(cookies) == 0 || cookies[0].Name != sessionCookie || cookies[0].Value == "" {
+		t.Fatalf("session cookie not reissued: %+v", cookies)
+	}
+	renewed, err := gateid.Verify([]byte(testKey), cookies[0].Value, time.Now())
+	if err != nil || renewed.Dev != own[0].ID {
+		t.Fatalf("renewed identity = %+v, err %v", renewed, err)
 	}
 }
 

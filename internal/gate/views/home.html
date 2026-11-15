@@ -1,13 +1,28 @@
 {{define "home"}}{{template "head" .}}
 <h1>сервисы</h1>
-<div class="cards">
+<p class="lede">{{if .User.User}}привет, {{.User.User}} · {{else}}вход не выполнен · {{end}}{{.Services}} на этом хосте</p>
+<div class="cards" data-jump>
   {{range .Routes}}
-  <div class="card{{if not .Open}} locked{{end}}">
-    <div>
-      <div class="path">{{if .Open}}<a href="{{.Prefix}}/">{{.Prefix}}</a>{{else}}{{.Prefix}}{{end}}</div>
-      <div class="note">{{if .Open}}{{.Note}}{{else}}{{.Reason}}{{end}}</div>
-    </div>
+  {{if eq .State "denied"}}
+  <div class="card locked">
+    <span class="glyph">{{.Prefix}}</span>
+    <span class="body">
+      <span class="path">{{.Prefix}}</span>
+      <span class="note">{{.Note}}</span>
+    </span>
+    <span class="state denied">нет прав</span>
   </div>
+  {{else}}
+  <a class="card" href="{{.Href}}" data-key="{{.Key}}">
+    <span class="glyph">{{.Prefix}}</span>
+    <span class="body">
+      <span class="path">{{.Prefix}}<span class="key">{{.Key}}</span></span>
+      <span class="note">{{.Note}}</span>
+    </span>
+    <span class="state {{.State}}">{{if eq .State "open"}}открыт{{else}}нужен вход{{end}}</span>
+    <span class="arrow" aria-hidden="true">→</span>
+  </a>
+  {{end}}
   {{end}}
 </div>
 {{template "foot" .}}{{end}}

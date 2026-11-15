@@ -11,7 +11,7 @@ func (s *Server) accountPage(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) accountView(r *http.Request) view {
-	data := s.newNarrow(r, "аккаунт")
+	data := s.newView(r, "аккаунт")
 	data.Devices = deviceViews(s.devices.ListFor(data.User.User), data.User.Dev, s.now())
 	return data
 }

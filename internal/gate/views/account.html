@@ -1,33 +1,36 @@
 {{define "account"}}{{template "head" .}}
 <h1>аккаунт</h1>
-<p class="muted">{{.User.User}} · роль {{.User.Role}}</p>
+<p class="lede">{{.User.User}} · роль {{.User.Role}}</p>
 <section>
   <h2>сменить пароль</h2>
   <form class="stack" method="post" action="/account/password">
     <label>текущий пароль<input name="current" type="password" autocomplete="current-password"></label>
     <label>новый пароль<input name="password" type="password" autocomplete="new-password"></label>
-    <button>сохранить</button>
+    <button class="primary">сохранить</button>
   </form>
 </section>
 <section>
   <h2>устройства</h2>
   {{if .Devices}}
-  <table>
-    <thead><tr><th>устройство</th><th>ip</th><th>вход</th><th>активность</th><th></th></tr></thead>
-    <tbody>
-    {{range .Devices}}
-      <tr>
-        <td>{{.Name}}{{if .Current}} <span class="muted">· это устройство</span>{{end}}</td>
-        <td class="mono">{{.IP}}</td>
-        <td class="muted">{{.Created}}</td>
-        <td class="muted">{{.Seen}}</td>
-        <td class="row-actions">
-          {{if not .Current}}<form method="post" action="/account/devices/remove"><input type="hidden" name="id" value="{{.ID}}"><button class="bad">отключить</button></form>{{end}}
-        </td>
-      </tr>
-    {{end}}
-    </tbody>
-  </table>
-  {{else}}<p class="muted">нет устройств</p>{{end}}
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>устройство</th><th class="hide-sm">ip</th><th>вход</th><th class="hide-sm">активность</th><th></th></tr></thead>
+      <tbody>
+      {{range .Devices}}
+        <tr>
+          <td{{if .Unknown}} class="unknown"{{end}}>{{.Name}}{{if .Current}}<span class="tag you">это устройство</span>{{end}}</td>
+          <td class="mono hide-sm">{{.IP}}</td>
+          <td class="muted nowrap">{{.Created}}</td>
+          <td class="muted nowrap hide-sm">{{.Seen}}</td>
+          <td class="actions">
+            {{if not .Current}}<form method="post" action="/account/devices/remove" data-confirm="Отключить это устройство?"><input type="hidden" name="id" value="{{.ID}}"><button class="bad">отключить</button></form>{{end}}
+          </td>
+        </tr>
+      {{end}}
+      </tbody>
+    </table>
+  </div>
+  <p class="hint">Отключённое устройство выйдет из аккаунта при следующем запросе.</p>
+  {{else}}<div class="empty">нет устройств</div>{{end}}
 </section>
 {{template "foot" .}}{{end}}

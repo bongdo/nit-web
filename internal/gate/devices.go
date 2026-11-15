@@ -202,8 +202,16 @@ func newDeviceID() (string, error) {
 }
 
 var browserLabels = []struct{ token, label string }{
+	{"EdgiOS/", "Edge"},
+	{"EdgA/", "Edge"},
 	{"Edg/", "Edge"},
+	{"OPiOS/", "Opera"},
 	{"OPR/", "Opera"},
+	{"YaBrowser/", "Yandex"},
+	{"SamsungBrowser/", "Samsung"},
+	{"CriOS/", "Chrome"},
+	{"FxiOS/", "Firefox"},
+	{"HeadlessChrome/", "Headless Chrome"},
 	{"Firefox/", "Firefox"},
 	{"Chrome/", "Chrome"},
 	{"Safari/", "Safari"},
@@ -213,23 +221,53 @@ var systemLabels = []struct{ token, label string }{
 	{"Android", "Android"},
 	{"iPhone", "iOS"},
 	{"iPad", "iOS"},
+	{"CrOS", "ChromeOS"},
 	{"Windows", "Windows"},
 	{"Macintosh", "macOS"},
 	{"Linux", "Linux"},
 }
 
+var clientLabels = []struct{ token, label string }{
+	{"curl/", "curl"},
+	{"Wget/", "wget"},
+	{"Go-http-client", "Go-клиент"},
+	{"python-requests", "python"},
+	{"okhttp", "Android-приложение"},
+	{"PostmanRuntime", "Postman"},
+}
+
 func deviceName(agent string) string {
+	if strings.TrimSpace(agent) == "" {
+		return unknownDevice
+	}
+	if client := labelFor(agent, clientLabels); client != "" {
+		return client
+	}
 	browser := labelFor(agent, browserLabels)
 	system := labelFor(agent, systemLabels)
 	switch {
 	case browser == "" && system == "":
-		return unknownDevice
+		return productName(agent)
 	case browser == "":
 		return system
 	case system == "":
 		return browser
 	}
 	return browser + " · " + system
+}
+
+func productName(agent string) string {
+	product := strings.Fields(agent)[0]
+	if cut := strings.IndexByte(product, '/'); cut > 0 {
+		product = product[:cut]
+	}
+	if len(product) > 24 {
+		product = product[:24]
+	}
+	if product == "" {
+		return unknownDevice
+	}
+	return product
 }
 
 func labelFor(agent string, table []struct{ token, label string }) string {

@@ -1,9 +1,11 @@
 {{define "invite"}}{{template "head" .}}
-<h1>приглашение</h1>
-<p class="muted">имя: {{.Name}}</p>
-<form class="stack" method="post" action="/i/{{.Token}}">
-  <label>пароль<input name="password" type="password" autocomplete="new-password" autofocus></label>
-  <label>ещё раз<input name="confirm" type="password" autocomplete="new-password"></label>
-  <button>задать пароль</button>
-</form>
+<div class="panel">
+  <h1>приглашение</h1>
+  <p class="lede">имя: <span class="mono">{{.Name}}</span></p>
+  <form class="stack" method="post" action="/i/{{.Token}}">
+    <label>пароль<input name="password" type="password" autocomplete="new-password" autofocus></label>
+    <label>ещё раз<input name="confirm" type="password" autocomplete="new-password"></label>
+    <button class="primary">задать пароль</button>
+  </form>
+</div>
 {{template "foot" .}}{{end}}

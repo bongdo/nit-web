@@ -90,6 +90,7 @@ deploy_frankfurt() {
   local port="${NIT_GUI_DEPLOY_PORT:-7791}"
   local public_port="${NIT_GUI_PUBLIC_PORT:-7792}"
   local public_host="${NIT_GUI_PUBLIC_HOST:-frankfurt.tailf358cb.ts.net}"
+  local domain="${NIT_GUI_DOMAIN:-}"
   local base_path="${NIT_GUI_BASE:-/nit/}"
   base_path="${base_path%/}"
   local run_dir="$PWD/.cache"
@@ -115,6 +116,9 @@ deploy_frankfurt() {
   for candidate in "$tailnet_ip" "$(hostname)" frankfurt; do
     [ -n "$candidate" ] && allowed="$allowed,$candidate"
   done
+  if [ -n "$domain" ]; then
+    allowed="$allowed,$domain,www.$domain"
+  fi
 
   mkdir -p "$run_dir"
   go build -trimpath -o "$bin" .
@@ -153,12 +157,29 @@ deploy_frankfurt() {
     return 1
   fi
 
-  cat >"$caddyfile" <<EOF
-{
-	auto_https off
-	admin off
-}
+  local options=$'auto_https off\n\tadmin off'
+  local domain_site=""
+  if [ -n "$domain" ]; then
+    options="admin off"
+    domain_site="$domain, www.$domain {
+	encode zstd gzip
+	header {
+		X-Content-Type-Options nosniff
+		Referrer-Policy no-referrer
+		Cross-Origin-Opener-Policy same-origin
+		-Server
+	}
+	handle_path $base_path/* {
+		reverse_proxy 127.0.0.1:$port
+	}
+	handle {
+		reverse_proxy 127.0.0.1:$port
+	}
+}"
+  fi
 
+  printf '{\n\t%s\n}\n\n' "$options" >"$caddyfile"
+  cat >>"$caddyfile" <<EOF
 :$public_port {
 	bind 127.0.0.1
 	encode zstd gzip
@@ -182,6 +203,7 @@ deploy_frankfurt() {
 	}
 }
 EOF
+  [ -z "$domain_site" ] || printf '%s\n' "$domain_site" >>"$caddyfile"
 
   caddy validate --config "$caddyfile" --adapter caddyfile >/dev/null
   stop "caddy run --config $caddyfile"

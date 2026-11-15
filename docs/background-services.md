@@ -169,6 +169,7 @@ and is not measured here.
 | `NIT_GUI_WARM` | `0` disables startup warmup |
 | `NIT_GUI_PUBLIC_PORT` | Caddy loopback port, default `7792` |
 | `NIT_GUI_PUBLIC_HOST` | Funnel hostname, default `frankfurt.tailf358cb.ts.net` |
+| `NIT_GUI_DOMAIN` | Optional own domain served on 443 next to the Funnel, e.g. `bongdo.space` |
 | `NIT_GUI_BASE_PATH` | External path prefix, default `/nit` |
 | `NIT_GUI_AUTH_ENV` | Auth env file, default `~/.config/nit-gui/auth.env` |
 | `NIT_GATE_PASSWORD_HASH` | Shared PBKDF2-SHA256 login hash set by `bin/auth` |

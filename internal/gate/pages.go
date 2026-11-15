@@ -18,6 +18,7 @@ type routeView struct {
 
 type view struct {
 	Title   string
+	Narrow  bool
 	User    gateid.Identity
 	Routes  []routeView
 	Users   []User
@@ -32,6 +33,12 @@ type view struct {
 
 func (s *Server) newView(r *http.Request, title string) view {
 	return view{Title: title, User: identity(r)}
+}
+
+func (s *Server) newNarrow(r *http.Request, title string) view {
+	data := s.newView(r, title)
+	data.Narrow = true
+	return data
 }
 
 func (s *Server) home(w http.ResponseWriter, r *http.Request) {
@@ -52,14 +59,14 @@ func (s *Server) home(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) loginPage(w http.ResponseWriter, r *http.Request) {
-	data := s.newView(r, "вход")
+	data := s.newNarrow(r, "вход")
 	data.Next = safeNext(r.URL.Query().Get("next"))
 	s.render(w, "login", data)
 }
 
 func (s *Server) loginSubmit(w http.ResponseWriter, r *http.Request) {
 	if wait, blocked := s.blockedIP(r); blocked {
-		data := s.newView(r, "вход")
+		data := s.newNarrow(r, "вход")
 		data.Error = "слишком много попыток, попробуй через " + wait.Round(time.Minute).String()
 		s.renderStatus(w, "login", data, http.StatusTooManyRequests)
 		return
@@ -70,7 +77,7 @@ func (s *Server) loginSubmit(w http.ResponseWriter, r *http.Request) {
 	user, ok := s.users.Authenticate(name, password)
 	if !ok {
 		s.noteFailure(r)
-		data := s.newView(r, "вход")
+		data := s.newNarrow(r, "вход")
 		data.Error = "неверное имя или пароль"
 		data.Next = next
 		data.Name = name
@@ -94,7 +101,7 @@ func (s *Server) signupPage(w http.ResponseWriter, r *http.Request) {
 func (s *Server) signupSubmit(w http.ResponseWriter, r *http.Request) {
 	name := strings.TrimSpace(r.PostFormValue("name"))
 	_, err := s.users.Request(name)
-	data := s.newView(r, "запрос доступа")
+	data := s.newNarrow(r, "запрос доступа")
 	if err != nil {
 		data.Error = signupError(err)
 		data.Name = name
@@ -117,7 +124,7 @@ func signupError(err error) string {
 }
 
 func (s *Server) accountPage(w http.ResponseWriter, r *http.Request) {
-	data := s.newView(r, "аккаунт")
+	data := s.newNarrow(r, "аккаунт")
 	if data.User.Anonymous() {
 		http.Redirect(w, r, "/login?next=%2Faccount", http.StatusSeeOther)
 		return
@@ -131,7 +138,7 @@ func (s *Server) accountPassword(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/login?next=%2Faccount", http.StatusSeeOther)
 		return
 	}
-	data := s.newView(r, "аккаунт")
+	data := s.newNarrow(r, "аккаунт")
 	password := r.PostFormValue("password")
 	current := r.PostFormValue("current")
 	if _, ok := s.users.Authenticate(id.User, current); !ok {
@@ -212,7 +219,7 @@ func (s *Server) invitePage(w http.ResponseWriter, r *http.Request) {
 		s.renderStatus(w, "invite", s.newView(r, "приглашение"), http.StatusNotFound)
 		return
 	}
-	data := s.newView(r, "приглашение")
+	data := s.newNarrow(r, "приглашение")
 	data.Name = user.Name
 	data.Token = token
 	s.render(w, "invite", data)
@@ -221,7 +228,7 @@ func (s *Server) invitePage(w http.ResponseWriter, r *http.Request) {
 func (s *Server) inviteSubmit(w http.ResponseWriter, r *http.Request) {
 	token := r.PathValue("token")
 	if r.PostFormValue("password") != r.PostFormValue("confirm") {
-		data := s.newView(r, "приглашение")
+		data := s.newNarrow(r, "приглашение")
 		data.Token = token
 		data.Error = "пароли не совпадают"
 		s.renderStatus(w, "invite", data, http.StatusBadRequest)
@@ -229,7 +236,7 @@ func (s *Server) inviteSubmit(w http.ResponseWriter, r *http.Request) {
 	}
 	user, err := s.users.SetPassword(token, r.PostFormValue("password"))
 	if err != nil {
-		data := s.newView(r, "приглашение")
+		data := s.newNarrow(r, "приглашение")
 		data.Token = token
 		data.Error = passwordError(err)
 		if err == ErrNotInvited {
@@ -277,6 +284,10 @@ const pageSource = `
   * { box-sizing:border-box; }
   body { margin:0; background:var(--bg); color:var(--text); font:15px/1.6 ui-sans-serif,system-ui,sans-serif; }
   .wrap { max-width:720px; margin:0 auto; padding:32px 20px 64px; }
+  .wrap.narrow { max-width:380px; padding-top:8vh; }
+  .wrap.narrow .stack { max-width:none; }
+  .wrap.narrow header { margin-bottom:28px; }
+  .wrap.narrow header .who { flex-wrap:wrap; justify-content:flex-end; }
   header { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:24px; }
   header a.brand { color:var(--text); text-decoration:none; font-weight:600; letter-spacing:-.01em; }
   header .who { color:var(--muted); font-size:13px; display:flex; align-items:center; gap:10px; }
@@ -308,7 +319,7 @@ const pageSource = `
 </style>
 </head>
 <body>
-<div class="wrap">
+<div class="wrap{{if .Narrow}} narrow{{end}}">
 <header>
   <a class="brand" href="/">bongdo.space</a>
   <div class="who">

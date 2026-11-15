@@ -134,9 +134,9 @@ export const api = {
     if (!response.ok) throw new ApiError(await errorText(response), response.status);
     return response.blob();
   },
-  health: () => request<Health>("/api/health"),
+  health: (instance?: string) => request<Health>("/api/health", { instance }),
   config: () => request<Config>("/api/config"),
-  projects: () => request<Project[]>("/api/projects"),
+  projects: (instance?: string) => request<Project[]>("/api/projects", { instance }),
   folders: (path?: string, signal?: AbortSignal) =>
     request<FolderListing>(
       path ? `/api/fs?path=${encodeURIComponent(path)}` : "/api/fs",
@@ -301,8 +301,10 @@ export const api = {
       method: "POST",
       body: { agent },
     }),
-  models: async () => (await request<{ data: Model[] }>("/api/models")).data,
-  agents: async () => (await request<{ data: Agent[] }>("/api/agents")).data,
+  models: async (instance?: string) =>
+    (await request<{ data: Model[] }>("/api/models", { instance })).data,
+  agents: async (instance?: string) =>
+    (await request<{ data: Agent[] }>("/api/agents", { instance })).data,
   review: (directory: string) =>
     request<ReviewQueue>(`/api/review?dir=${encodeURIComponent(directory)}`),
   doc: (directory: string, path: string) =>

@@ -3,6 +3,7 @@ package gate
 import (
 	"context"
 	"html/template"
+	"io"
 	"log/slog"
 	"net"
 	"net/http"
@@ -74,6 +75,7 @@ func (s *Server) Handler() http.Handler {
 
 func (s *Server) security(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		forwarded := r.Header.Get(gateid.Header)
 		r.Header.Del(gateid.Header)
 		w.Header().Set("X-Content-Type-Options", "nosniff")
 		w.Header().Set("X-Frame-Options", "DENY")
@@ -83,9 +85,47 @@ func (s *Server) security(next http.Handler) http.Handler {
 		}
 		if id, ok := s.session(r); ok {
 			r = r.WithContext(context.WithValue(r.Context(), identityKey, id))
+		} else if id, ok := s.serviceIdentity(r, forwarded); ok {
+			r = r.WithContext(context.WithValue(r.Context(), identityKey, id))
 		}
 		next.ServeHTTP(w, r)
 	})
+}
+
+func (s *Server) serviceIdentity(r *http.Request, forwarded string) (gateid.Identity, bool) {
+	if forwarded == "" || !isLoopback(r.RemoteAddr) {
+		return gateid.Identity{}, false
+	}
+	id, err := gateid.Verify(s.secret, forwarded, s.now())
+	if err != nil || id.Anonymous() {
+		return gateid.Identity{}, false
+	}
+	return id, true
+}
+
+func isLoopback(remote string) bool {
+	host, _, err := net.SplitHostPort(remote)
+	if err != nil {
+		host = remote
+	}
+	ip := net.ParseIP(strings.Trim(host, "[]"))
+	return ip != nil && ip.IsLoopback()
+}
+
+func wantsJSON(r *http.Request) bool {
+	if strings.HasPrefix(r.URL.Path, "/i/") || strings.HasPrefix(r.URL.Path, "/api/") {
+		return true
+	}
+	if strings.Contains(strings.ToLower(r.Header.Get("Accept")), "application/json") {
+		return true
+	}
+	return strings.EqualFold(r.Header.Get("X-Requested-With"), "XMLHttpRequest")
+}
+
+func writeAuthError(w http.ResponseWriter, status int, message string) {
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	w.WriteHeader(status)
+	_, _ = io.WriteString(w, `{"error":"`+message+`"}`)
 }
 
 func identity(r *http.Request) gateid.Identity {
@@ -149,6 +189,10 @@ func (s *Server) proxy(w http.ResponseWriter, r *http.Request) {
 	if !route.Optional && !id.Has(route.Cap) {
 		if !id.Anonymous() {
 			s.forbidden(w, r, route)
+			return
+		}
+		if wantsJSON(r) {
+			writeAuthError(w, http.StatusUnauthorized, "authentication required")
 			return
 		}
 		http.Redirect(w, r, "/login?next="+url.QueryEscape(r.URL.RequestURI()), http.StatusSeeOther)

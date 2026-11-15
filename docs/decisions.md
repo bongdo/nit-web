@@ -1145,3 +1145,30 @@ auth surface); a file-editing API in the bridge (a second editor protocol).
 Cost: writes go through sshfs, so a slow or sleeping link makes saving slow; the
 mount has to exist before the editor starts.
 
+## 2026-11-15 — API calls get 401, browsers get a redirect
+
+Context: the gate answered every anonymous request with a 303 to `/login`. A
+fetch or an EventSource from nit-gui, or any server-side client, therefore
+received an HTML login page as a successful response instead of an
+authentication error.
+
+Decision: an anonymous request that asks for JSON (`Accept: application/json`),
+carries `X-Requested-With: XMLHttpRequest`, or targets `/i/` or `/api/` gets
+`401` with a JSON body. Everything else keeps the redirect, so a browser typing
+an address still lands on the login form. Separately, a request from loopback may
+present a signed identity in `X-Gate-Identity`; the gate verifies it with the same
+key as the session cookie, strips the header, and forwards a freshly signed
+identity upstream.
+
+Why: the two callers are simply different and pretending otherwise produces the
+worst failure mode — a 200 that is a login page. The signed loopback identity lets
+nit-gui talk to `/i/<machine>/...` without inventing a second credential.
+
+Rejected: 401 for every anonymous request (breaks the login flow for humans); a
+separate service password (a second secret to rotate for a client that already
+runs as the same user on the same host).
+
+Cost: loopback is trusted, so any local process can act as admin at the gate. That
+is already true for the services themselves, but it must not become an excuse for
+opening `/i/` to the network without a session.
+

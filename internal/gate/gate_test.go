@@ -280,3 +280,106 @@ func TestMatchPrefersLongest(t *testing.T) {
 		t.Fatal("unrouted path matched")
 	}
 }
+
+func TestAPIRequestGetsUnauthorized(t *testing.T) {
+	server, _ := testServer(t, nil)
+	request, err := http.NewRequest(http.MethodGet, server.URL+"/nit/api/sessions", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	request.Header.Set("Accept", "application/json")
+	response, err := noRedirect(t).Do(request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer response.Body.Close()
+	if response.StatusCode != http.StatusUnauthorized {
+		t.Fatalf("status = %d, want 401", response.StatusCode)
+	}
+	if got := response.Header.Get("Content-Type"); !strings.HasPrefix(got, "application/json") {
+		t.Fatalf("content type = %q", got)
+	}
+	body, err := io.ReadAll(response.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(body), "authentication required") {
+		t.Fatalf("body = %s", body)
+	}
+}
+
+func TestBrowserRequestStillRedirects(t *testing.T) {
+	server, _ := testServer(t, nil)
+	response, err := noRedirect(t).Get(server.URL + "/nit/")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer response.Body.Close()
+	if response.StatusCode != http.StatusSeeOther {
+		t.Fatalf("status = %d, want 303", response.StatusCode)
+	}
+	if location := response.Header.Get("Location"); !strings.HasPrefix(location, "/login") {
+		t.Fatalf("location = %q", location)
+	}
+}
+
+func TestLoopbackServiceIdentity(t *testing.T) {
+	seen := http.Header{}
+	server, _ := testServer(t, &seen)
+	id := gateid.Identity{
+		User: "nit-gui",
+		Role: gateid.RoleAdmin,
+		Caps: gateid.Caps(gateid.RoleAdmin),
+		Exp:  time.Now().Add(time.Minute).Unix(),
+	}
+	token := gateid.Sign([]byte(testKey), id)
+
+	request, err := http.NewRequest(http.MethodGet, server.URL+"/nit/api/info", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	request.Header.Set(gateid.Header, token)
+	response, err := noRedirect(t).Do(request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer response.Body.Close()
+	if response.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d, want 200", response.StatusCode)
+	}
+	forwarded := seen.Get(gateid.Header)
+	if forwarded == "" {
+		t.Fatal("upstream saw no identity")
+	}
+	got, err := gateid.Verify([]byte(testKey), forwarded, time.Now())
+	if err != nil {
+		t.Fatalf("forwarded identity: %v", err)
+	}
+	if got.User != "nit-gui" {
+		t.Fatalf("forwarded user = %q", got.User)
+	}
+}
+
+func TestServiceIdentityIgnoredOffLoopback(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer upstream.Close()
+	handler := New(testRoutes(t, upstream.URL), testStore(t), []byte(testKey), nil).Handler()
+
+	id := gateid.Identity{
+		User: "nit-gui",
+		Role: gateid.RoleAdmin,
+		Caps: gateid.Caps(gateid.RoleAdmin),
+		Exp:  time.Now().Add(time.Minute).Unix(),
+	}
+	request := httptest.NewRequest(http.MethodGet, "http://gate.local/nit/api/info", nil)
+	request.RemoteAddr = "203.0.113.5:4000"
+	request.Header.Set(gateid.Header, gateid.Sign([]byte(testKey), id))
+	request.Header.Set("Accept", "application/json")
+	recorder := httptest.NewRecorder()
+	handler.ServeHTTP(recorder, request)
+	if recorder.Code != http.StatusUnauthorized {
+		t.Fatalf("status = %d, want 401", recorder.Code)
+	}
+}

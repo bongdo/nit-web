@@ -337,9 +337,11 @@ export const Sidebar = memo(function Sidebar({
     if (child.parentID && isRunning(child.id)) runningParents.add(child.parentID);
   }
 
+  const working = (id: string) => isRunning(id) || runningParents.has(id);
+
   const rank = (session: Session) => {
     if (waitingIds.has(session.id) || failedIds.has(session.id)) return 0;
-    if (isRunning(session.id) || runningParents.has(session.id)) return 2;
+    if (working(session.id)) return 2;
     if (doneIds.has(session.id)) return 0;
     return 1;
   };
@@ -401,7 +403,7 @@ export const Sidebar = memo(function Sidebar({
           session={session}
           depth={depth}
           active={session.id === selectedId}
-          running={isRunning(session.id)}
+          running={working(session.id)}
           waiting={waitingIds.has(session.id)}
           failed={failedIds.has(session.id)}
           done={doneIds.has(session.id)}
@@ -432,7 +434,7 @@ export const Sidebar = memo(function Sidebar({
                 session={child}
                 depth={depth + 1}
                 active={child.id === selectedId}
-                running={isRunning(child.id)}
+                running={working(child.id)}
                 waiting={waitingIds.has(child.id)}
                 failed={failedIds.has(child.id)}
                 done={doneIds.has(child.id)}

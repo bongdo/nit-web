@@ -65,6 +65,7 @@ import {
 } from "./lib/sessions";
 import { shortcutKeys } from "./lib/keys";
 import { cn } from "./lib/utils";
+import { cachedSessions, needsBootScreen, readBoot, writeBoot } from "./lib/bootCache";
 import { instanceScopedKey } from "./lib/instances";
 import { saveDraftFiles } from "./lib/draft-files";
 import { parseSnooze, pendingCount, snoozeItem, type SnoozeMap } from "./lib/review";
@@ -186,12 +187,13 @@ export default function App({
   const sessionKey = instanceScopedKey("nit-gui.session", instance, defaultInstance);
   const recentKey = instanceScopedKey("nit-gui.recent", instance, defaultInstance);
   const { theme, setTheme } = useTheme();
-  const [health, setHealth] = useState<Health | null>(null);
-  const healthRef = useRef<Health | null>(null);
+  const [boot] = useState(() => readBoot(instance));
+  const [health, setHealth] = useState<Health | null>(boot?.health ?? null);
+  const healthRef = useRef<Health | null>(boot?.health ?? null);
   const [config, setConfig] = useState<Config | null>(null);
-  const [models, setModels] = useState<Model[]>([]);
-  const [agents, setAgents] = useState<Agent[]>([]);
-  const [projects, setProjects] = useState<Project[]>([]);
+  const [models, setModels] = useState<Model[]>(boot?.models ?? []);
+  const [agents, setAgents] = useState<Agent[]>(boot?.agents ?? []);
+  const [projects, setProjects] = useState<Project[]>(boot?.projects ?? []);
   const [workspace, setWorkspaceState] = useState<string | null>(() => {
     const stored = localStorage.getItem(workspaceKey);
     if (stored && stored.startsWith("/")) return stored;
@@ -258,8 +260,10 @@ export default function App({
   const [uiReady, setUiReady] = useState(false);
   const [hiddenIds, setHiddenIds] = useState<Set<string>>(() => new Set());
   const [showHidden, setShowHidden] = useState(false);
-  const [sessions, setSessions] = useState<Session[]>([]);
-  const [sessionsLoading, setSessionsLoading] = useState(true);
+  const [sessions, setSessions] = useState<Session[]>(() =>
+    cachedSessions(boot, scope, workspace),
+  );
+  const [sessionsLoading, setSessionsLoading] = useState(() => sessions.length === 0);
   const [selectedId, setSelectedIdState] = useState<string | null>(() =>
     localStorage.getItem(sessionKey),
   );
@@ -285,7 +289,7 @@ export default function App({
   const [reviewSent, setReviewSent] = useState<string | null>(null);
   const [reviewSnooze, setReviewSnooze] = useState<SnoozeMap>({});
   const curatorIds = useRef(new Map<string, string>());
-  const [booting, setBooting] = useState(true);
+  const [booting, setBooting] = useState(() => needsBootScreen(boot));
   const [search, setSearch] = useState("");
   const searchQueryRef = useRef(search);
   searchQueryRef.current = search;
@@ -532,6 +536,7 @@ export default function App({
       const result = await api.health();
       setHealth(result);
       healthRef.current = result;
+      if (result.ok) writeBoot(instance, { health: result });
       return result;
     } catch (error) {
       const result: Health = { ok: false, error: messageOf(error) };
@@ -539,7 +544,7 @@ export default function App({
       healthRef.current = result;
       return result;
     }
-  }, []);
+  }, [instance]);
 
   const loadEverywhere = useCallback(async (query: string) => {
     const { instances } = await api.instances();
@@ -591,6 +596,7 @@ export default function App({
         }
       }
       setSessions(data);
+      if (!query && currentScope !== "everywhere") writeBoot(instance, { sessions: data });
       if (!query) {
         if (currentScope === "mine") poolCache.current = data;
         else if (currentScope === "everywhere") everywhereCache.current = data;
@@ -603,7 +609,7 @@ export default function App({
     } finally {
       setSessionsLoading(false);
     }
-  }, [loadEverywhere]);
+  }, [instance, loadEverywhere]);
 
   const loadPoolCache = useCallback(async () => {
     if (
@@ -692,11 +698,13 @@ export default function App({
 
   const loadProjects = useCallback(async () => {
     try {
-      setProjects(await api.projects());
+      const list = await api.projects();
+      setProjects(list);
+      writeBoot(instance, { projects: list });
     } catch {
       setProjects([]);
     }
-  }, []);
+  }, [instance]);
 
   const loadChildren = useCallback(async () => {
     const id = selectedIdRef.current;

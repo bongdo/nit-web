@@ -4,9 +4,9 @@ import type { Agent, FormInfo, Session } from "./types";
 export type Scope = "directory" | "mine" | "everywhere";
 
 export const SCOPES: { id: Scope; label: string }[] = [
-  { id: "directory", label: "This project" },
+  { id: "directory", label: "This dir" },
   { id: "mine", label: "All chats" },
-  { id: "everywhere", label: "All machines" },
+  { id: "everywhere", label: "Everywhere" },
 ];
 
 export function isTechnical(session: Session, agents: Agent[]): boolean {
@@ -22,11 +22,18 @@ export function scopeSessions(sessions: Session[], scope: Scope, agents: Agent[]
 
 export type InstanceSessions = { instance: string; sessions: Session[] };
 
-// shortcut: session ids are assumed unique across instances; revisit if two instances can share one.
+// shortcut: a session id seen twice keeps the first instance, revisit if two instances can really share one.
 export function mergeInstanceSessions(pools: InstanceSessions[]): Session[] {
-  return pools.flatMap(({ instance, sessions }) =>
-    sessions.map((session) => ({ ...session, instance })),
-  );
+  const seen = new Set<string>();
+  const merged: Session[] = [];
+  for (const { instance, sessions } of pools) {
+    for (const session of sessions) {
+      if (seen.has(session.id)) continue;
+      seen.add(session.id);
+      merged.push({ ...session, instance });
+    }
+  }
+  return merged;
 }
 
 export function listedSessions(
@@ -102,7 +109,7 @@ export function newlyRunning(
 
 export type SessionRow = { session: Session; depth: number };
 
-export type SessionGroup = { directory: string; rows: SessionRow[] };
+export type SessionGroup = { directory: string; instance?: string; rows: SessionRow[] };
 
 export function hoistFinished(
   rows: SessionRow[],
@@ -119,17 +126,27 @@ export function hoistFinished(
 }
 
 export function groupByDirectory(rows: SessionRow[]): SessionGroup[] {
-  const groups = new Map<string, SessionRow[]>();
+  const groups = new Map<string, SessionGroup>();
   for (const row of rows) {
     const directory = row.session.location?.directory ?? "";
-    const list = groups.get(directory);
-    if (list) list.push(row);
-    else groups.set(directory, [row]);
+    const instance = row.session.instance;
+    const key = `${instance ?? ""}\u0000${directory}`;
+    const group = groups.get(key);
+    if (group) group.rows.push(row);
+    else groups.set(key, { directory, instance, rows: [row] });
   }
-  const updated = (list: SessionRow[]) => Math.max(...list.map((row) => row.session.time.updated));
-  return Array.from(groups, ([directory, list]) => ({ directory, rows: list })).sort(
-    (a, b) => updated(b.rows) - updated(a.rows) || a.directory.localeCompare(b.directory),
+  const updated = (group: SessionGroup) =>
+    Math.max(...group.rows.map((row) => row.session.time.updated));
+  return Array.from(groups.values()).sort(
+    (a, b) =>
+      updated(b) - updated(a) ||
+      a.directory.localeCompare(b.directory) ||
+      (a.instance ?? "").localeCompare(b.instance ?? ""),
   );
+}
+
+export function groupKey(group: SessionGroup): string {
+  return `${group.instance ?? ""}\u0000${group.directory}`;
 }
 
 export function nextSessionId(

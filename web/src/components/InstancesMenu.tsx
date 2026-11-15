@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from "react";
-import { ArrowRight, Plus, RefreshCw, Server, X } from "lucide-react";
+import { Plus, RefreshCw, Server, X } from "lucide-react";
 import { api } from "../lib/api";
 import type {
   CapabilityState,
@@ -70,14 +70,6 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
 
 function capabilityTag(cap: InstanceCapability, state: CapabilityState): string {
   return cap.required ? "required" : state;
-}
-
-function FlowNode({ label }: { label: string }) {
-  return (
-    <span className="border-border bg-muted/30 max-w-full truncate rounded-md border px-2 py-1 font-mono text-[10px]">
-      {label}
-    </span>
-  );
 }
 
 export function InstancesMenu({
@@ -456,31 +448,6 @@ export function InstancesMenu({
                   {info.error && (
                     <div className="text-destructive mt-1 text-[11px]">{info.error}</div>
                   )}
-                </div>
-
-                <div className="space-y-1.5">
-                  <div className="text-muted-foreground text-[10px] uppercase tracking-wide">
-                    Where it runs
-                  </div>
-                  <div className="flex flex-wrap items-center gap-1.5">
-                    <FlowNode label="Browser" />
-                    <ArrowRight className="text-muted-foreground size-3 shrink-0" />
-                    <FlowNode label={appLabel(data.app.host)} />
-                    <ArrowRight className="text-muted-foreground size-3 shrink-0" />
-                    <FlowNode label={`OpenCode @ ${info.name}`} />
-                  </div>
-                </div>
-
-                <div className="space-y-1.5">
-                  <div className="text-muted-foreground text-[10px] uppercase tracking-wide">
-                    Editor and terminal for {info.name}
-                  </div>
-                  <div className="font-mono text-[11px]">
-                    pero {info.peroURL || defaults.peroURL}
-                  </div>
-                  <div className="font-mono text-[11px]">
-                    term {info.termURL || defaults.termURL}
-                  </div>
                 </div>
 
                 <div className="space-y-1.5">

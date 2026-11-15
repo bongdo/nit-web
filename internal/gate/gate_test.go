@@ -436,6 +436,7 @@ func TestCorrectPasswordBreaksTheBlock(t *testing.T) {
 }
 
 func TestWrongAttemptDuringBlockStaysBlocked(t *testing.T) {
+	server, _ := testServer(t, nil)
 	client := noRedirect(t)
 	attempt := func(password string) int {
 		form := url.Values{"name": {"bongdo"}, "password": {password}}
@@ -454,5 +455,275 @@ func TestWrongAttemptDuringBlockStaysBlocked(t *testing.T) {
 		if code := attempt("wrong-again"); code != http.StatusTooManyRequests {
 			t.Fatalf("wrong attempt %d during block = %d, want 429", i+1, code)
 		}
+	}
+}
+
+func TestDeviceName(t *testing.T) {
+	cases := []struct{ agent, want string }{
+		{"Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36", "Chrome · Android"},
+		{"Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1", "Safari · iOS"},
+		{"Mozilla/5.0 (iPad; CPU OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1", "Safari · iOS"},
+		{"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 Edg/120.0.0.0", "Edge · Windows"},
+		{"Mozilla/5.0 (X11; Linux x86_64; rv:121.0) Gecko/20100101 Firefox/121.0", "Firefox · Linux"},
+		{"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36", "Chrome · macOS"},
+		{"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:121.0) Gecko/20100101 Firefox/121.0", "Firefox · Windows"},
+		{"curl/8.4.0", "неизвестно"},
+		{"", "неизвестно"},
+	}
+	for _, test := range cases {
+		if got := deviceName(test.agent); got != test.want {
+			t.Fatalf("deviceName(%q) = %q, want %q", test.agent, got, test.want)
+		}
+	}
+}
+
+func TestDeviceStore(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "devices.json")
+	devices, err := OpenDevices(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	base := time.Unix(1700000000, 0)
+	devices.now = func() time.Time { return base }
+
+	device, err := devices.Add("Friend", "Chrome · Android", "203.0.113.5")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if device.User != "friend" || device.ID == "" || device.Seen != base.Unix() {
+		t.Fatalf("device = %+v", device)
+	}
+	if !devices.Has("friend", device.ID) {
+		t.Fatal("owner does not have the device")
+	}
+	if devices.Has("bongdo", device.ID) {
+		t.Fatal("device leaked to another user")
+	}
+
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if mode := info.Mode().Perm(); mode != 0o600 {
+		t.Fatalf("devices.json mode = %v", mode)
+	}
+	reopened, err := OpenDevices(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if list := reopened.ListFor("friend"); len(list) != 1 || list[0].ID != device.ID {
+		t.Fatalf("reopened list = %+v", list)
+	}
+
+	devices.Touch(device.ID, "198.51.100.7")
+	if seen := devices.List()[0].Seen; seen != base.Unix() {
+		t.Fatalf("seen updated inside the throttle window: %d", seen)
+	}
+	devices.now = func() time.Time { return base.Add(2 * time.Minute) }
+	devices.Touch(device.ID, "198.51.100.7")
+	moved := devices.List()[0]
+	if moved.Seen != base.Add(2*time.Minute).Unix() || moved.IP != "198.51.100.7" {
+		t.Fatalf("touch = %+v", moved)
+	}
+
+	other, err := devices.Add("friend", "Safari · iOS", "203.0.113.9")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if list := devices.ListFor("friend"); len(list) != 2 || list[0].ID != other.ID {
+		t.Fatalf("list order = %+v", list)
+	}
+	if len(devices.List()) != 2 {
+		t.Fatalf("all devices = %+v", devices.List())
+	}
+
+	if err := devices.Remove(device.ID); err != nil {
+		t.Fatal(err)
+	}
+	if devices.Has("friend", device.ID) {
+		t.Fatal("device survived removal")
+	}
+	if err := devices.Remove(device.ID); err != ErrNoDevice {
+		t.Fatalf("second removal = %v", err)
+	}
+	if len(devices.ListFor("friend")) != 1 {
+		t.Fatal("removal took other devices too")
+	}
+}
+
+func TestRemovedDeviceBecomesAnonymous(t *testing.T) {
+	server, _, devices := testServerDevices(t, nil)
+	client := noRedirect(t)
+	if resp := login(t, client, server.URL, "friend", "member-pass"); resp.StatusCode != http.StatusSeeOther {
+		t.Fatalf("member login = %d", resp.StatusCode)
+	}
+	own := devices.ListFor("friend")
+	if len(own) != 1 {
+		t.Fatalf("devices after login = %+v", own)
+	}
+	resp, err := client.Get(server.URL + "/account")
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("account before removal = %d", resp.StatusCode)
+	}
+
+	if err := devices.Remove(own[0].ID); err != nil {
+		t.Fatal(err)
+	}
+	resp, err = client.Get(server.URL + "/account")
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusSeeOther {
+		t.Fatalf("account after removal = %d, want 303", resp.StatusCode)
+	}
+	if location := resp.Header.Get("Location"); !strings.HasPrefix(location, "/login") {
+		t.Fatalf("redirect = %q", location)
+	}
+	resp, err = client.Get(server.URL + "/share/thing/")
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("public route after removal = %d", resp.StatusCode)
+	}
+}
+
+func TestMemberCannotRemoveForeignDevice(t *testing.T) {
+	server, _, devices := testServerDevices(t, nil)
+	member := noRedirect(t)
+	if resp := login(t, member, server.URL, "friend", "member-pass"); resp.StatusCode != http.StatusSeeOther {
+		t.Fatalf("member login = %d", resp.StatusCode)
+	}
+	adminClient := noRedirect(t)
+	if resp := login(t, adminClient, server.URL, "bongdo", "secret-pass"); resp.StatusCode != http.StatusSeeOther {
+		t.Fatalf("admin login = %d", resp.StatusCode)
+	}
+	foreign := devices.ListFor("bongdo")
+	if len(foreign) != 1 {
+		t.Fatalf("admin devices = %+v", foreign)
+	}
+
+	resp, err := member.PostForm(server.URL+"/account/devices/remove", url.Values{"id": {foreign[0].ID}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusForbidden {
+		t.Fatalf("foreign removal = %d, want 403", resp.StatusCode)
+	}
+	if !devices.Has("bongdo", foreign[0].ID) {
+		t.Fatal("member removed another user's device")
+	}
+}
+
+func TestAdminSeesAllDevices(t *testing.T) {
+	server, _, devices := testServerDevices(t, nil)
+	member := noRedirect(t)
+	if resp := login(t, member, server.URL, "friend", "member-pass"); resp.StatusCode != http.StatusSeeOther {
+		t.Fatalf("member login = %d", resp.StatusCode)
+	}
+	adminClient := noRedirect(t)
+	if resp := login(t, adminClient, server.URL, "bongdo", "secret-pass"); resp.StatusCode != http.StatusSeeOther {
+		t.Fatalf("admin login = %d", resp.StatusCode)
+	}
+
+	body := getBody(t, adminClient, server.URL+"/admin")
+	for _, device := range devices.List() {
+		if !strings.Contains(body, device.ID) {
+			t.Fatalf("admin page misses device %s of %s", device.ID, device.User)
+		}
+	}
+	mine := devices.ListFor("friend")
+	if len(mine) != 1 {
+		t.Fatalf("member devices = %+v", mine)
+	}
+	memberBody := getBody(t, member, server.URL+"/account")
+	if !strings.Contains(memberBody, mine[0].ID) {
+		t.Fatal("account page misses the current device")
+	}
+	for _, device := range devices.ListFor("bongdo") {
+		if strings.Contains(memberBody, device.ID) {
+			t.Fatal("account page shows another user's device")
+		}
+	}
+}
+
+func getBody(t *testing.T, client *http.Client, url string) string {
+	t.Helper()
+	resp, err := client.Get(url)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("GET %s = %d", url, resp.StatusCode)
+	}
+	return string(body)
+}
+
+func TestActiveAccountCannotBeRejected(t *testing.T) {
+	server, store := testServer(t, nil)
+	adminClient := noRedirect(t)
+	if resp := login(t, adminClient, server.URL, "bongdo", "secret-pass"); resp.StatusCode != http.StatusSeeOther {
+		t.Fatalf("admin login = %d", resp.StatusCode)
+	}
+
+	resp, err := adminClient.PostForm(server.URL+"/admin/reject", url.Values{"name": {"bongdo"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("reject active account = %d, want 400", resp.StatusCode)
+	}
+	if _, ok := store.Get("bongdo"); !ok {
+		t.Fatal("active account is gone")
+	}
+	if resp := login(t, noRedirect(t), server.URL, "bongdo", "secret-pass"); resp.StatusCode != http.StatusSeeOther {
+		t.Fatalf("admin login after reject = %d", resp.StatusCode)
+	}
+
+	resp, err = adminClient.PostForm(server.URL+"/signup", url.Values{"name": {"newbie"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	resp, err = adminClient.PostForm(server.URL+"/admin/reject", url.Values{"name": {"newbie"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusSeeOther {
+		t.Fatalf("reject pending = %d, want 303", resp.StatusCode)
+	}
+	if _, ok := store.Get("newbie"); ok {
+		t.Fatal("pending request survived rejection")
+	}
+}
+
+func TestAdminCannotSeeDeleteActionForActiveUsers(t *testing.T) {
+	server, _ := testServer(t, nil)
+	adminClient := noRedirect(t)
+	if resp := login(t, adminClient, server.URL, "bongdo", "secret-pass"); resp.StatusCode != http.StatusSeeOther {
+		t.Fatalf("admin login = %d", resp.StatusCode)
+	}
+	body := getBody(t, adminClient, server.URL+"/admin")
+	active := body[strings.Index(body, "активные"):]
+	devices := strings.Index(active, "устройства")
+	if devices >= 0 {
+		active = active[:devices]
+	}
+	if strings.Contains(active, "/admin/reject") {
+		t.Fatal("active users still expose a delete action")
 	}
 }

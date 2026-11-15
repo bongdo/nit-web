@@ -108,18 +108,7 @@ if [ -n "$domain" ]; then
 		Cross-Origin-Opener-Policy same-origin
 		-Server
 	}
-	handle_path $base_path/* {
-		reverse_proxy 127.0.0.1:$port
-	}
-	handle_path /pero/* {
-		reverse_proxy 127.0.0.1:7789
-	}
-	handle_path /term/* {
-		reverse_proxy 127.0.0.1:7795
-	}
-	handle {
-		reverse_proxy 127.0.0.1:$port
-	}
+	reverse_proxy 127.0.0.1:8090
 }"
 fi
 

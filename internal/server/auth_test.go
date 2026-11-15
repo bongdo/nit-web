@@ -4,11 +4,13 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
 	"nitgui/internal/auth"
+	"nitgui/internal/gateid"
 )
 
 func testAuthGate(t *testing.T) *authGate {
@@ -140,6 +142,42 @@ func TestShareRouter(t *testing.T) {
 		if seen != want {
 			t.Fatalf("%s reached %q, want %q", target, seen, want)
 		}
+	}
+}
+
+func TestAuthAcceptsGateIdentity(t *testing.T) {
+	keyPath := filepath.Join(t.TempDir(), "gate.key")
+	secret, err := gateid.LoadSecret(keyPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("NIT_GATE_KEY", keyPath)
+	gate := testAuthGate(t)
+	reached := false
+	handler := gate.wrap(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		reached = true
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	request := authRequest(http.MethodGet, "/api/sessions", "")
+	request.Header.Set(gateid.Header, gateid.Sign(secret, gateid.Identity{
+		User: "bongdo",
+		Role: gateid.RoleAdmin,
+		Caps: gateid.Caps(gateid.RoleAdmin),
+		Exp:  time.Now().Add(time.Minute).Unix(),
+	}))
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, request)
+	if rec.Code != http.StatusOK || !reached {
+		t.Fatalf("gate identity status = %d, reached = %v", rec.Code, reached)
+	}
+
+	forged := authRequest(http.MethodGet, "/api/sessions", "")
+	forged.Header.Set(gateid.Header, "forged")
+	rec = httptest.NewRecorder()
+	handler.ServeHTTP(rec, forged)
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("forged identity status = %d", rec.Code)
 	}
 }
 

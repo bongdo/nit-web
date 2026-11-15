@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+set -euo pipefail
+cd "$(dirname "$0")/.."
+
+auth_env="${NIT_GUI_AUTH_ENV:-$HOME/.config/nit-gui/auth.env}"
+if [ -r "$auth_env" ]; then
+  set -a
+  . "$auth_env"
+  set +a
+fi
+
+mkdir -p .cache
+go build -trimpath -o .cache/gate ./cmd/gate
+
+pids="$(pgrep -f '\.cache/gate --addr' || true)"
+if [ -n "$pids" ]; then
+  kill $pids 2>/dev/null || true
+  sleep 0.3
+fi
+
+setsid .cache/gate --addr "${NIT_GATE_ADDR:-127.0.0.1:8090}" >.cache/gate.log 2>&1 </dev/null &
+for _ in $(seq 1 40); do
+  if curl -fsS "http://${NIT_GATE_ADDR:-127.0.0.1:8090}/" >/dev/null 2>&1; then
+    echo "gate: http://${NIT_GATE_ADDR:-127.0.0.1:8090}/"
+    exit 0
+  fi
+  sleep 0.2
+done
+
+echo "gate: did not start" >&2
+tail -20 .cache/gate.log >&2 || true
+exit 1

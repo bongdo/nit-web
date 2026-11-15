@@ -19,6 +19,7 @@ import (
 
 	"nitgui/internal/auth"
 	"nitgui/internal/drop"
+	"nitgui/internal/gateid"
 )
 
 const (
@@ -43,6 +44,7 @@ type authGate struct {
 	secret             []byte
 	base               string
 	publicHost         string
+	gateSecret         []byte
 	log                *slog.Logger
 	mu                 sync.Mutex
 	attempts           map[string]*authAttempt
@@ -108,6 +110,10 @@ func newAuthGate(log *slog.Logger) *authGate {
 	if log == nil {
 		log = slog.Default()
 	}
+	gateKey, err := gateid.ReadSecret(gateid.DefaultSecretPath())
+	if err != nil {
+		gateKey = nil
+	}
 	hash := strings.TrimSpace(os.Getenv("NIT_GATE_PASSWORD_HASH"))
 	if hash == "" {
 		hash = strings.TrimSpace(os.Getenv("NIT_GUI_PASSWORD_HASH"))
@@ -131,6 +137,7 @@ func newAuthGate(log *slog.Logger) *authGate {
 		secret:     gateSecret(hash),
 		base:       strings.TrimRight(os.Getenv("NIT_GUI_BASE_PATH"), "/"),
 		publicHost: strings.TrimSuffix(strings.ToLower(strings.TrimSpace(os.Getenv("NIT_GUI_PUBLIC_HOST"))), "."),
+		gateSecret: gateKey,
 		log:        log,
 		attempts:   map[string]*authAttempt{},
 		now:        time.Now,
@@ -257,6 +264,11 @@ func (a *authGate) renderLogin(w http.ResponseWriter, r *http.Request, status in
 }
 
 func (a *authGate) authenticated(r *http.Request) bool {
+	if len(a.gateSecret) > 0 {
+		if id, ok := gateid.From(r, a.gateSecret); ok && !id.Anonymous() {
+			return true
+		}
+	}
 	cookie, err := r.Cookie(authCookieName)
 	if err != nil || cookie.Value == "" {
 		return false

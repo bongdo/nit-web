@@ -7,6 +7,8 @@
 - `bin/auth` prints the password once and stores only its hash. If you rotate it,
   print the new password in the reply.
 - `bin/run` is the local development server on `127.0.0.1:7788`.
+- `bin/gate` builds and restarts the auth gate on `127.0.0.1:8090`; Caddy
+  proxies the domain there, the gate routes `/nit`, `/pero`, `/term`, `/share`.
 - `bin/funnel` is the one-time Tailscale Funnel setup for public HTTPS.
 - If `bin/` gains or loses a command, update this list in the same change.
 

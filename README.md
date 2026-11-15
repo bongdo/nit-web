@@ -166,27 +166,26 @@ set.
 
 ```sh
 bin/auth        # once: generate the server password
-bin/deploy      # build and restart the app and its local Caddy
-bin/funnel      # once: public HTTPS through Tailscale Funnel
+bin/gate        # build and restart the auth gate on 127.0.0.1:8090
+bin/deploy      # build and restart the app and Caddy
 ```
 
 `bin/auth` writes `~/.config/nit-gui/auth.env` with mode `0600` and a
 PBKDF2-SHA256 hash, then prints the password once. The same hash is the one
 password and session key for nit-gui, pero-gui and term-gui: `bin/auth` in
 `pero-gui` or `term-gui` rotates the same file. Rotate it with `bin/auth -force`
-and restart the apps. `bin/funnel` runs the one-time `sudo tailscale funnel`
-command that enables the public URL.
+and restart the apps.
 
 `bin/deploy` builds the web bundle with base `/nit/`, restarts the app on
-`127.0.0.1:7791`, and starts a user Caddy on `127.0.0.1:7792`. Caddy is
-loopback-only; Tailscale Funnel terminates HTTPS and exposes the app at
-`https://frankfurt.tailf358cb.ts.net/nit/`. The app serves `/auth` and keeps a
+`127.0.0.1:7791`, and reloads Caddy on `10.0.0.88:443` with a Let's Encrypt
+certificate. Caddy only terminates TLS and forwards everything to the gate on
+`127.0.0.1:8090`, which owns sessions and the route table, so the app is exposed
+at `https://bongdo.space/nit/` and nowhere else. The app serves `/auth` and keeps a
 signed HttpOnly SameSite=Lax `nit_gate` cookie on path `/` for 7 days. This is
 the only login page: pero-gui and term-gui have none, verify the same cookie and
 redirect unauthenticated pages to `/nit/auth?next=<absolute URL>`. The cookie is
 not kept in memory, so a restart does not log you out; it is shared with
-pero-gui and term-gui on the same host. Browsers still keep separate cookies for
-the tailnet IP and the public hostname. Five wrong passwords block an IP for 15
+pero-gui and term-gui on the same host. Five wrong passwords block an IP for 15
 minutes.
 
 The box's public IP is `92.5.143.242`. The OCI security list does not expose

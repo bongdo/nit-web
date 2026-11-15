@@ -3,7 +3,6 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 port="${NIT_GUI_DEPLOY_PORT:-7791}"
-public_port="${NIT_GUI_PUBLIC_PORT:-7792}"
 public_host="${NIT_GUI_PUBLIC_HOST:-frankfurt.tailf358cb.ts.net}"
 domain="${NIT_GUI_DOMAIN-bongdo.space}"
 base_path="${NIT_GUI_BASE:-/nit/}"
@@ -72,11 +71,7 @@ if [ -z "${NIT_GUI_LANGUAGETOOL_URL:-}" ] && {
   fi
 fi
 
-term_url="${NIT_GUI_TERM_URL:-}"
-if [ -z "$term_url" ]; then
-  term_url="https://$public_host:8443/term/"
-  [ -z "$domain" ] || term_url="https://$domain/term/"
-fi
+term_url="${NIT_GUI_TERM_URL:-/term/}"
 NIT_GUI_TERM_URL="$term_url" \
   NIT_GUI_ALLOWED_HOSTS="$allowed" NIT_GUI_BASE_PATH="$base_path" NIT_GUI_PUBLIC_HOST="$public_host" setsid "$bin" --addr "127.0.0.1:$port" >"$run_dir/nit-gui.log" 2>&1 < /dev/null &
 
@@ -94,13 +89,20 @@ if [ "$ready" = 0 ]; then
   exit 1
 fi
 
-options=$'auto_https off\n\tadmin off'
-domain_site=""
-if [ -n "$domain" ]; then
-  options="admin off"
-  listen_addr="$(ip -4 -o addr show scope global 2>/dev/null | awk '$2 != "tailscale0" {print $4}' | cut -d/ -f1 | head -1)"
-  domain_site="$domain, www.$domain {
-	bind ${listen_addr:-0.0.0.0}
+if [ -z "$domain" ]; then
+  echo "deploy: NIT_GUI_DOMAIN is required; the ts.net entry is gone" >&2
+  exit 1
+fi
+listen_addr="$(ip -4 -o addr show scope global 2>/dev/null | awk '$2 != "tailscale0" {print $4}' | cut -d/ -f1 | head -1)"
+listen_addr="${listen_addr:-0.0.0.0}"
+
+cat >"$caddyfile" <<EOF
+{
+	admin off
+}
+
+$domain, www.$domain {
+	bind $listen_addr
 	encode zstd gzip
 	header {
 		X-Content-Type-Options nosniff
@@ -109,35 +111,8 @@ if [ -n "$domain" ]; then
 		-Server
 	}
 	reverse_proxy 127.0.0.1:8090
-}"
-fi
-
-printf '{\n\t%s\n}\n\n' "$options" >"$caddyfile"
-cat >>"$caddyfile" <<EOF
-:$public_port {
-	bind 127.0.0.1
-	encode zstd gzip
-	header {
-		X-Content-Type-Options nosniff
-		Referrer-Policy no-referrer
-		Cross-Origin-Opener-Policy same-origin
-		-Server
-	}
-	handle_path $base_path/* {
-		reverse_proxy 127.0.0.1:$port {
-			header_up X-Forwarded-For {http.request.header.X-Forwarded-For}
-			header_up X-Forwarded-Proto {http.request.header.X-Forwarded-Proto}
-		}
-	}
-	handle {
-		reverse_proxy 127.0.0.1:$port {
-			header_up X-Forwarded-For {http.request.header.X-Forwarded-For}
-			header_up X-Forwarded-Proto {http.request.header.X-Forwarded-Proto}
-		}
-	}
 }
 EOF
-[ -z "$domain_site" ] || printf '%s\n' "$domain_site" >>"$caddyfile"
 
 caddy validate --config "$caddyfile" --adapter caddyfile >/dev/null
 stop "caddy run --config $caddyfile"
@@ -145,7 +120,7 @@ setsid caddy run --config "$caddyfile" --adapter caddyfile >"$run_dir/frankfurt-
 
 ready=0
 for _ in $(seq 1 40); do
-  code="$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:$public_port$base_path/" || true)"
+  code="$(curl -s -o /dev/null -w '%{http_code}' --resolve "$domain:443:$listen_addr" "https://$domain$base_path/" || true)"
   if [ "$code" = 303 ] || [ "$code" = 302 ] || [ "$code" = 200 ]; then
     ready=1
     break
@@ -153,20 +128,9 @@ for _ in $(seq 1 40); do
   sleep 0.2
 done
 if [ "$ready" = 0 ]; then
-  echo "deploy: public listener did not start" >&2
+  echo "deploy: domain listener did not start" >&2
   tail -20 "$run_dir/frankfurt-caddy.log" >&2
   exit 1
 fi
 
-tailnet_ip="$(tailscale ip -4 2>/dev/null | head -1 || true)"
-echo "deploy: local http://127.0.0.1:$public_port$base_path/"
-if [ -n "$tailnet_ip" ]; then
-  echo "deploy: tailnet http://$tailnet_ip:$public_port$base_path/"
-fi
-echo "deploy: public https://$public_host$base_path/"
-if [ -n "$domain" ]; then
-  echo "deploy: domain https://$domain$base_path/"
-fi
-if ! tailscale funnel status 2>/dev/null | grep -q "$public_port"; then
-  echo "deploy: enable public access with: bin/funnel"
-fi
+echo "deploy: https://$domain$base_path/"

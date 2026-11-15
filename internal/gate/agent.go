@@ -70,7 +70,7 @@ type agentPending struct {
 type agentConn struct {
 	name     string
 	hash     string
-	ws       *wsConn
+	ws       *WSConn
 	agents   *Agents
 	hub      *agentHub
 	log      *slog.Logger
@@ -151,7 +151,6 @@ func (s *Server) agentSocket(w http.ResponseWriter, r *http.Request) {
 		pending:   map[string]*agentPending{},
 		connected: time.Now(),
 	}
-	s.hub.attach(c)
 	c.serve()
 }
 
@@ -187,6 +186,8 @@ func (c *agentConn) serve() {
 	if err := c.ws.WriteJSON(AgentFrame{Type: "welcome", Session: randomSession(), Time: time.Now().Unix()}); err != nil {
 		return
 	}
+	c.hub.attach(c)
+	c.ws.SetIdleTimeout(agentIdleTimeout)
 	c.log.Info("agent connected", "machine", c.name, "version", hello.Version)
 
 	stop := make(chan struct{})
@@ -194,7 +195,6 @@ func (c *agentConn) serve() {
 	go c.heartbeat(stop)
 
 	for {
-		c.ws.SetReadDeadline(time.Now().Add(agentIdleTimeout))
 		op, data, err := c.ws.ReadMessage()
 		if err != nil {
 			c.log.Debug("agent socket closed", "machine", c.name, "error", err)
@@ -243,7 +243,13 @@ func (c *agentConn) handle(data []byte) {
 			state.OpenCode = *frame.OpenCode
 		}
 		state.Targets = frame.Targets
+		if state.Targets == nil {
+			state.Targets = []AgentTarget{}
+		}
 		state.Dirs = frame.Dirs
+		if state.Dirs == nil {
+			state.Dirs = []string{}
+		}
 		c.mu.Lock()
 		c.state = state
 		c.mu.Unlock()
@@ -309,10 +315,7 @@ func (c *agentConn) target(name string) (AgentTarget, bool) {
 func (c *agentConn) snapshot() (AgentState, int64) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	state := c.state
-	state.Targets = append([]AgentTarget(nil), c.state.Targets...)
-	state.Dirs = append([]string(nil), c.state.Dirs...)
-	return state, c.events
+	return c.state, atomic.LoadInt64(&c.events)
 }
 
 func randomSession() string {

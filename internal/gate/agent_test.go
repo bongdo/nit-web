@@ -171,7 +171,7 @@ func TestAgentSocketRejectsBadToken(t *testing.T) {
 	}
 }
 
-func dialAgent(t *testing.T, server *httptest.Server, name, token string) *wsConn {
+func dialAgent(t *testing.T, server *httptest.Server, name, token string) *WSConn {
 	t.Helper()
 	endpoint := "ws" + strings.TrimPrefix(server.URL, "http") + "/agent"
 	ws, err := DialWebSocket(context.Background(), endpoint, http.Header{"Authorization": {"Bearer " + token}})
@@ -182,7 +182,7 @@ func dialAgent(t *testing.T, server *httptest.Server, name, token string) *wsCon
 	return ws
 }
 
-func sendHello(t *testing.T, ws *wsConn, name string, protocol int) {
+func sendHello(t *testing.T, ws *WSConn, name string, protocol int) {
 	t.Helper()
 	hello := AgentFrame{Type: "hello", Name: name, Protocol: protocol, Version: "test"}
 	if err := ws.WriteJSON(hello); err != nil {
@@ -190,7 +190,7 @@ func sendHello(t *testing.T, ws *wsConn, name string, protocol int) {
 	}
 }
 
-func readFrame(t *testing.T, ws *wsConn) AgentFrame {
+func readFrame(t *testing.T, ws *WSConn) AgentFrame {
 	t.Helper()
 	ws.SetReadDeadline(time.Now().Add(3 * time.Second))
 	for {
@@ -328,7 +328,7 @@ func waitAgent(t *testing.T, server *httptest.Server, ready func(machineView) bo
 	return machineView{}
 }
 
-func sendState(t *testing.T, ws *wsConn, targets ...AgentTarget) {
+func sendState(t *testing.T, ws *WSConn, targets ...AgentTarget) {
 	t.Helper()
 	state := AgentFrame{
 		Type:     "state",
@@ -341,7 +341,7 @@ func sendState(t *testing.T, ws *wsConn, targets ...AgentTarget) {
 	}
 }
 
-func fakeBridge(t *testing.T, ws *wsConn, base map[string]string) {
+func fakeBridge(t *testing.T, ws *WSConn, base map[string]string) {
 	t.Helper()
 	go func() {
 		for {
@@ -367,7 +367,7 @@ func fakeBridge(t *testing.T, ws *wsConn, base map[string]string) {
 	}()
 }
 
-func fakeForward(ws *wsConn, base string, frame AgentFrame) {
+func fakeForward(ws *WSConn, base string, frame AgentFrame) {
 	var body []byte
 	if frame.Body != "" {
 		body, _ = base64.StdEncoding.DecodeString(frame.Body)
@@ -404,7 +404,7 @@ func fakeForward(ws *wsConn, base string, frame AgentFrame) {
 	_ = ws.WriteJSON(AgentFrame{Type: "end", ID: frame.ID})
 }
 
-func readyBridge(t *testing.T, server *httptest.Server, agents *Agents, token, base string) *wsConn {
+func readyBridge(t *testing.T, server *httptest.Server, agents *Agents, token, base string) *WSConn {
 	t.Helper()
 	ws := dialAgent(t, server, "nixos", token)
 	sendHello(t, ws, "nixos", agentProtocol)

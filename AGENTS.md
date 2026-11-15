@@ -1,7 +1,7 @@
 # nit-gui
 
 - `bin/check` — typecheck, unit tests, production build, `gofmt`, `go vet`, Go tests and build. The only build and test command; it must be green before you report or deploy.
-- `bin/deploy` — the only publish command: builds the web bundle with base `/nit/`, builds the Go binary, restarts the app behind Caddy on `:7792`, public at `https://bongdo.space/nit/`. There is no other deploy target.
+- `bin/deploy` — the only publish command: builds the web bundle with base `/nit/`, builds the Go binary, restarts it on `127.0.0.1:7791` and reloads Caddy on `10.0.0.88:443`, which proxies to the gate on `127.0.0.1:8090`. Public at `https://bongdo.space/nit/`; the old ts.net entry is gone.
 - Cycle: green `bin/check` → `save "<what changed>"` → `bin/deploy` → report `https://bongdo.space/nit/` and what to look at.
 - A UI or behavior change is not done until it is deployed: the user sees the old build.
 - `bin/auth` prints the password once and stores only its hash. If you rotate it,
@@ -9,7 +9,6 @@
 - `bin/run` is the local development server on `127.0.0.1:7788`.
 - `bin/gate` builds and restarts the auth gate on `127.0.0.1:8090`; Caddy
   proxies the domain there, the gate routes `/nit`, `/pero`, `/term`, `/share`.
-- `bin/funnel` is the one-time Tailscale Funnel setup for public HTTPS.
 - If `bin/` gains or loses a command, update this list in the same change.
 
 ## Drop

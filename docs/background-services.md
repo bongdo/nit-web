@@ -9,10 +9,11 @@ hub live on the nit-gui host. The browser is a thin client: it renders the UI an
 plays audio. It is not assumed to have local TTS voices, Hunspell dictionaries,
 LanguageTool, a GPU or any other capability.
 
-Caddy listens on loopback only. Tailscale Funnel terminates public HTTPS and
-exposes the app at `https://frankfurt.tailf358cb.ts.net/nit/`. Authentication is
-a server-side password page at `/auth`; there is no Caddy basic auth and no
-per-user account system.
+Caddy terminates TLS for `bongdo.space` on `10.0.0.88:443` and forwards
+everything to the gate on `127.0.0.1:8090`; the gate owns sessions, roles and the
+route table. The app is exposed at `https://bongdo.space/nit/` and nowhere else.
+Authentication is a server-side password page at `/auth`; there is no Caddy basic
+auth and no per-user account system.
 
 This is a product boundary, not a temporary packaging detail. A feature that
 needs a model, dictionary, voice, JVM or another process is added as a service
@@ -33,8 +34,8 @@ on every device.
 | --- | --- | --- | --- |
 | OpenCode | one per instance: `127.0.0.1:49374`, URL, or a local SSH forward | Sessions, messages, models, agents, provider credentials | yes |
 | nit-gui | `127.0.0.1:7791` | Go API, embedded web bundle, `/auth` login, instance registry, SSH tunnels, sessions and shared UI state | yes |
-| Caddy | `127.0.0.1:7792` | Loopback reverse proxy, security headers, `/nit` path | yes |
-| Tailscale Funnel | `https://frankfurt.tailf358cb.ts.net/nit/` | Public HTTPS ingress | for public access |
+| Caddy | `10.0.0.88:443` | Let's Encrypt TLS, forwards everything to the gate | yes |
+| gate | `127.0.0.1:8090` | Sessions, roles, route table, `/i/<machine>/<target>` for bridges | yes |
 | LanguageTool | `127.0.0.1:8180` | Grammar and real-word checks | optional |
 | OpenCode TTS plugin | `127.0.0.1:7787` target; currently `0.0.0.0:7787` | Speech text hub for an audio client; nit-gui publishes to it | optional |
 | `piper` | nit-gui host | Warm host voice worker; browser voice is the last fallback | optional |
@@ -84,10 +85,9 @@ models, agents and drafts. Grammar and host TTS run on the nit-gui
 host and are therefore shared by all instances; sessions, models, agents and
 workspaces are per instance.
 
-Only Tailscale Funnel is public. Caddy, OpenCode, nit-gui, LanguageTool
-and the TTS hub stay on loopback; the TTS hub does not meet that yet. The host
-public IP `92.5.143.242` is not the ingress: `80`/`7792` are not open in the OCI
-security list and `443` is used by another service.
+Only the domain is public. Caddy owns `10.0.0.88:443` and forwards to the gate;
+OpenCode, nit-gui, LanguageTool and the TTS hub stay on loopback (the TTS hub does
+not meet that yet). The old tailscale funnel entry was removed.
 
 ## Client contract
 
@@ -124,14 +124,14 @@ is in use.
 1. OpenCode and its TTS plugin.
 2. LanguageTool.
 3. nit-gui.
-4. Caddy on loopback.
-5. Tailscale Funnel (`bin/funnel`).
+4. the gate on `127.0.0.1:8090`.
+5. Caddy on `10.0.0.88:443` (`bin/deploy`).
 
 The Go app warms LanguageTool at startup. A local or URL
 instance is contacted on demand; an SSH tunnel opens on the first request that
 needs that instance. If LanguageTool is started as a detached sidecar
 (`bin/languagetool`), it can start before the app and survive app restarts.
-Enable Funnel only after the app and Caddy health checks pass.
+Reload the gate and Caddy only after the app health check passes.
 
 ## Resource budget
 
@@ -167,9 +167,8 @@ and is not measured here.
 | `NIT_GUI_TTS_PIPER` / `_PIPER_MODEL` | piper binary and voice model |
 | `NIT_GUI_TTS_RATE` | speech rate, default `1.0` |
 | `NIT_GUI_WARM` | `0` disables startup warmup |
-| `NIT_GUI_PUBLIC_PORT` | Caddy loopback port, default `7792` |
-| `NIT_GUI_PUBLIC_HOST` | Funnel hostname, default `frankfurt.tailf358cb.ts.net` |
-| `NIT_GUI_DOMAIN` | Own domain served on 443 next to the Funnel, default `bongdo.space`; empty disables |
+| `NIT_GUI_PUBLIC_HOST` | Label and allowed host, default `frankfurt.tailf358cb.ts.net` |
+| `NIT_GUI_DOMAIN` | Domain served on 443, default `bongdo.space`; empty aborts the deploy |
 | `NIT_GUI_BASE_PATH` | External path prefix, default `/nit` |
 | `NIT_GUI_AUTH_ENV` | Auth env file, default `~/.config/nit-gui/auth.env` |
 | `NIT_GATE_PASSWORD_HASH` | Shared PBKDF2-SHA256 login hash set by `bin/auth` |
@@ -195,9 +194,9 @@ or `NIT_GUI_TTS_TOKEN`) when an audio client is connected. The browser's
   set of OpenCode instances, sessions, credentials and working directories. An
   instance is a separate OpenCode namespace, not a security or quota boundary.
   This is a one-user product until real per-user auth and session scoping exist.
-- Tailscale Funnel terminates public TLS. Caddy and the Go app stay on
-  loopback; `bin/deploy` binds Caddy to `127.0.0.1:7792` and proxies only to
-  `127.0.0.1:7791`. Set `NIT_GUI_ALLOWED_HOSTS` for the public name.
+- Caddy terminates public TLS on `10.0.0.88:443` and proxies only to the gate
+  on `127.0.0.1:8090`, which routes to the app on `127.0.0.1:7791`. Set
+  `NIT_GUI_ALLOWED_HOSTS` for the public name.
 - The app login is a server-side password page at `/auth`. The password is
   stored as a PBKDF2-SHA256 hash (600k rounds), the signed `nit_gate` cookie is
   HttpOnly, Secure, SameSite=Lax and shared with pero-gui and term-gui for
@@ -253,9 +252,8 @@ or `NIT_GUI_TTS_TOKEN`) when an audio client is connected. The browser's
 - **One shared password, in-memory sessions.** There is no per-user account,
   2FA or session revocation list. An app restart signs everyone out and clears
   login lockout counters.
-- **Public IP is not the ingress.** `92.5.143.242` has no usable inbound
-  `80`/`443` path here; public access depends on Tailscale Funnel. A real
-  domain would need DNS and a free TLS port.
+- **One ingress.** `bongdo.space` on `92.5.143.242:443` is the only public
+  entry; the ephemeral public IP is not reserved, so DNS must follow it.
 - **No supervisor.** `bin/deploy` starts the app and Caddy with `setsid`;
   they do not survive reboot. `bin/languagetool` also has no supervisor.
   systemd is the durable answer.
@@ -300,8 +298,8 @@ After=network.target
 
 [Service]
 Environment=NIT_GUI_LANGUAGETOOL_URL=http://127.0.0.1:8180
-Environment=NIT_GUI_ALLOWED_HOSTS=frankfurt.tailf358cb.ts.net,frankfurt
-Environment=NIT_GUI_PUBLIC_HOST=frankfurt.tailf358cb.ts.net
+Environment=NIT_GUI_ALLOWED_HOSTS=bongdo.space,www.bongdo.space,frankfurt
+Environment=NIT_GUI_PUBLIC_HOST=frankfurt
 Environment=NIT_GUI_BASE_PATH=/nit
 EnvironmentFile=%h/.config/nit-gui/auth.env
 ExecStart=/path/to/nit-gui --addr 127.0.0.1:7791
@@ -318,7 +316,7 @@ plugin starts with OpenCode; do not run a second TTS hub.
 
 ## Before exposing beyond the tailnet
 
-1. Keep TLS at Tailscale Funnel; Caddy and the app stay on loopback.
+1. Keep TLS at Caddy on 443; the gate and the app stay on loopback.
 2. Replace the shared password with real per-user authentication if more than
    one person needs access.
 3. Add rate limits for prompt, grammar and uploads.

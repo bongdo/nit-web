@@ -35,11 +35,12 @@ var (
 	errWSClosed        = errors.New("gate: websocket closed")
 )
 
-type wsConn struct {
+type WSConn struct {
 	conn        net.Conn
 	br          *bufio.Reader
 	readMasked  bool
 	writeMasked bool
+	idle        time.Duration
 	wmu         sync.Mutex
 	once        sync.Once
 }
@@ -60,7 +61,7 @@ func headerHasToken(header http.Header, name string, token string) bool {
 	return false
 }
 
-func AcceptWebSocket(w http.ResponseWriter, r *http.Request) (*wsConn, error) {
+func AcceptWebSocket(w http.ResponseWriter, r *http.Request) (*WSConn, error) {
 	if !strings.EqualFold(r.Header.Get("Upgrade"), "websocket") || !headerHasToken(r.Header, "Connection", "upgrade") {
 		w.Header().Set("Upgrade", "websocket")
 		w.Header().Set("Connection", "Upgrade")
@@ -99,10 +100,10 @@ func AcceptWebSocket(w http.ResponseWriter, r *http.Request) (*wsConn, error) {
 		conn.Close()
 		return nil, err
 	}
-	return &wsConn{conn: conn, br: rw.Reader, readMasked: true}, nil
+	return &WSConn{conn: conn, br: rw.Reader, readMasked: true}, nil
 }
 
-func DialWebSocket(ctx context.Context, rawURL string, header http.Header) (*wsConn, error) {
+func DialWebSocket(ctx context.Context, rawURL string, header http.Header) (*WSConn, error) {
 	u, err := url.Parse(rawURL)
 	if err != nil {
 		return nil, err
@@ -139,6 +140,10 @@ func DialWebSocket(ctx context.Context, rawURL string, header http.Header) (*wsC
 		}
 		conn = tlsConn
 	}
+	if err := conn.SetDeadline(time.Now().Add(30 * time.Second)); err != nil {
+		conn.Close()
+		return nil, err
+	}
 	keyBytes := make([]byte, 16)
 	if _, err := rand.Read(keyBytes); err != nil {
 		conn.Close()
@@ -171,24 +176,32 @@ func DialWebSocket(ctx context.Context, rawURL string, header http.Header) (*wsC
 		conn.Close()
 		return nil, errors.New("gate: websocket handshake rejected")
 	}
-	return &wsConn{conn: conn, br: br, writeMasked: true}, nil
+	if err := conn.SetDeadline(time.Time{}); err != nil {
+		conn.Close()
+		return nil, err
+	}
+	return &WSConn{conn: conn, br: br, writeMasked: true}, nil
 }
 
-func (c *wsConn) SetReadDeadline(t time.Time) error {
+func (c *WSConn) SetReadDeadline(t time.Time) error {
 	return c.conn.SetReadDeadline(t)
 }
 
-func (c *wsConn) Close() error {
+func (c *WSConn) SetIdleTimeout(d time.Duration) {
+	c.idle = d
+}
+
+func (c *WSConn) Close() error {
 	var err error
 	c.once.Do(func() { err = c.conn.Close() })
 	return err
 }
 
-func (c *wsConn) WriteText(payload []byte) error {
+func (c *WSConn) WriteText(payload []byte) error {
 	return c.writeFrame(wsText, payload)
 }
 
-func (c *wsConn) WriteJSON(value any) error {
+func (c *WSConn) WriteJSON(value any) error {
 	payload, err := json.Marshal(value)
 	if err != nil {
 		return err
@@ -199,18 +212,18 @@ func (c *wsConn) WriteJSON(value any) error {
 	return c.writeFrame(wsText, payload)
 }
 
-func (c *wsConn) WritePing() error {
+func (c *WSConn) WritePing() error {
 	return c.writeFrame(wsPing, nil)
 }
 
-func (c *wsConn) WriteClose(code int, reason string) error {
+func (c *WSConn) WriteClose(code int, reason string) error {
 	payload := make([]byte, 2+len(reason))
 	binary.BigEndian.PutUint16(payload, uint16(code))
 	copy(payload[2:], reason)
 	return c.writeFrame(wsClose, payload)
 }
 
-func (c *wsConn) writeFrame(op int, payload []byte) error {
+func (c *WSConn) writeFrame(op int, payload []byte) error {
 	c.wmu.Lock()
 	defer c.wmu.Unlock()
 	head := make([]byte, 0, 14)
@@ -246,7 +259,7 @@ func (c *wsConn) writeFrame(op int, payload []byte) error {
 	return err
 }
 
-func (c *wsConn) ReadMessage() (int, []byte, error) {
+func (c *WSConn) ReadMessage() (int, []byte, error) {
 	op := 0
 	var data []byte
 	for {
@@ -284,14 +297,14 @@ func (c *wsConn) ReadMessage() (int, []byte, error) {
 	}
 }
 
-func (c *wsConn) WritePong(payload []byte) error {
+func (c *WSConn) WritePong(payload []byte) error {
 	if len(payload) > 125 {
 		payload = payload[:125]
 	}
 	return c.writeFrame(wsPong, payload)
 }
 
-func (c *wsConn) readFrame() (bool, int, []byte, error) {
+func (c *WSConn) readFrame() (bool, int, []byte, error) {
 	var head [2]byte
 	if _, err := io.ReadFull(c.br, head[:]); err != nil {
 		return false, 0, nil, err
@@ -299,6 +312,9 @@ func (c *wsConn) readFrame() (bool, int, []byte, error) {
 	fin := head[0]&0x80 != 0
 	if head[0]&0x70 != 0 {
 		return false, 0, nil, errors.New("gate: websocket reserved bits set")
+	}
+	if c.idle > 0 {
+		_ = c.conn.SetReadDeadline(time.Now().Add(c.idle))
 	}
 	op := int(head[0] & 0x0f)
 	mask := head[1]&0x80 != 0

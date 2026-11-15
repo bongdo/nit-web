@@ -31,6 +31,8 @@ type Machine struct {
 type Agents struct {
 	mu       sync.Mutex
 	path     string
+	mod      time.Time
+	size     int64
 	machines map[string]Machine
 }
 
@@ -65,7 +67,35 @@ func OpenAgents(path string) (*Agents, error) {
 	for _, machine := range file.Machines {
 		agents.machines[machine.Name] = machine
 	}
+	if info, err := os.Stat(path); err == nil {
+		agents.mod, agents.size = info.ModTime(), info.Size()
+	}
 	return agents, nil
+}
+
+func (a *Agents) reload() {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	info, err := os.Stat(a.path)
+	if err != nil {
+		return
+	}
+	if info.ModTime().Equal(a.mod) && info.Size() == a.size {
+		return
+	}
+	data, err := os.ReadFile(a.path)
+	if err != nil {
+		return
+	}
+	var file agentsFile
+	if json.Unmarshal(data, &file) != nil {
+		return
+	}
+	machines := make(map[string]Machine, len(file.Machines))
+	for _, machine := range file.Machines {
+		machines[machine.Name] = machine
+	}
+	a.machines, a.mod, a.size = machines, info.ModTime(), info.Size()
 }
 
 func (a *Agents) Add(name string) (string, error) {
@@ -98,6 +128,7 @@ func (a *Agents) Remove(name string) error {
 }
 
 func (a *Agents) List() []Machine {
+	a.reload()
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	list := make([]Machine, 0, len(a.machines))
@@ -109,6 +140,7 @@ func (a *Agents) List() []Machine {
 }
 
 func (a *Agents) Exists(name string) bool {
+	a.reload()
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	_, ok := a.machines[name]
@@ -116,6 +148,7 @@ func (a *Agents) Exists(name string) bool {
 }
 
 func (a *Agents) Active(name string, hash string) bool {
+	a.reload()
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	machine, ok := a.machines[name]
@@ -126,6 +159,7 @@ func (a *Agents) Authorize(token string) (Machine, bool) {
 	if token == "" {
 		return Machine{}, false
 	}
+	a.reload()
 	hash := hashToken(token)
 	a.mu.Lock()
 	defer a.mu.Unlock()

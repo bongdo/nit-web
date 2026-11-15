@@ -94,7 +94,10 @@ add() {
   printf '{"server":"%s","name":"%s","token":"%s","opencode":"%s","targets":[]}' \
     "$server" "$name" "$token" "$opencode" |
     ssh "$host" "umask 077; cat > ~/.config/nit-bridge/config.json"
-  ssh "$host" "cat > ~/$unit" <<EOF
+  if ssh "$host" "test -f /etc/systemd/user/nit-bridge.service"; then
+    ssh "$host" "systemctl --user daemon-reload && systemctl --user restart nit-bridge"
+  else
+    ssh "$host" "cat > ~/$unit" <<EOF
 [Unit]
 Description=nit bridge
 After=network-online.target
@@ -108,7 +111,8 @@ RestartSec=2
 [Install]
 WantedBy=default.target
 EOF
-  ssh "$host" "systemctl --user daemon-reload && systemctl --user enable --now nit-bridge"
+    ssh "$host" "systemctl --user daemon-reload && systemctl --user enable --now nit-bridge"
+  fi
   ssh "$host" "loginctl enable-linger \$(id -un)"
   echo "bridge: $name installed on $host"
   wait_online "$name"

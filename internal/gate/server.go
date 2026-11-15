@@ -2,7 +2,6 @@ package gate
 
 import (
 	"context"
-	"html/template"
 	"io"
 	"log/slog"
 	"net"
@@ -350,5 +349,3 @@ func safeNext(raw string) string {
 	}
 	return raw
 }
-
-var pages = template.Must(template.New("gate").Parse(pageSource))

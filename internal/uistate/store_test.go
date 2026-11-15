@@ -194,6 +194,36 @@ func TestInstancesAreIsolated(t *testing.T) {
 	}
 }
 
+func TestStoreShowHiddenPersists(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "ui-state.json")
+	store, err := Open(path, "frankfurt")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if store.Snapshot("frankfurt").ShowHidden {
+		t.Fatal("showHidden defaults to true")
+	}
+	if err := store.SetShowHidden("frankfurt", true); err != nil {
+		t.Fatal(err)
+	}
+	reopened, err := Open(path, "frankfurt")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reopened.Snapshot("frankfurt").ShowHidden {
+		t.Fatal("showHidden did not persist")
+	}
+	if reopened.Snapshot("riga").ShowHidden {
+		t.Fatal("showHidden leaked to another instance")
+	}
+	if err := reopened.SetShowHidden("frankfurt", false); err != nil {
+		t.Fatal(err)
+	}
+	if reopened.Snapshot("frankfurt").ShowHidden {
+		t.Fatal("showHidden did not reset")
+	}
+}
+
 func TestOpenBrokenFile(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "ui-state.json")
 	if err := os.WriteFile(path, []byte("{"), 0o600); err != nil {

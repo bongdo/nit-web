@@ -24,11 +24,12 @@ type Draft struct {
 }
 
 type InstanceState struct {
-	Hidden []string          `json:"hidden"`
-	Status map[string]string `json:"status"`
-	Drafts map[string]Draft  `json:"drafts,omitempty"`
-	Model  *ModelRef         `json:"model,omitempty"`
-	Agent  string            `json:"agent,omitempty"`
+	Hidden     []string          `json:"hidden"`
+	Status     map[string]string `json:"status"`
+	Drafts     map[string]Draft  `json:"drafts,omitempty"`
+	Model      *ModelRef         `json:"model,omitempty"`
+	Agent      string            `json:"agent,omitempty"`
+	ShowHidden bool              `json:"showHidden,omitempty"`
 }
 
 type State struct {
@@ -151,7 +152,7 @@ func (s *Store) Snapshot(instance string) InstanceState {
 		clone := *current.Model
 		model = &clone
 	}
-	return InstanceState{Hidden: hidden, Status: status, Drafts: drafts, Model: model, Agent: current.Agent}
+	return InstanceState{Hidden: hidden, Status: status, Drafts: drafts, Model: model, Agent: current.Agent, ShowHidden: current.ShowHidden}
 }
 
 func (s *Store) instanceLocked(instance string) InstanceState {
@@ -185,9 +186,30 @@ func (s *Store) SetHidden(instance string, ids []string, hidden bool) error {
 		next = append(next, id)
 	}
 	sort.Strings(next)
+	previous := state.Hidden
 	state.Hidden = next
 	s.state.Instances[instance] = state
-	return s.saveLocked()
+	if err := s.saveLocked(); err != nil {
+		state.Hidden = previous
+		s.state.Instances[instance] = state
+		return err
+	}
+	return nil
+}
+
+func (s *Store) SetShowHidden(instance string, show bool) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	state := s.instanceLocked(instance)
+	previous := state.ShowHidden
+	state.ShowHidden = show
+	s.state.Instances[instance] = state
+	if err := s.saveLocked(); err != nil {
+		state.ShowHidden = previous
+		s.state.Instances[instance] = state
+		return err
+	}
+	return nil
 }
 
 func (s *Store) SetStatus(instance, id, status string) error {

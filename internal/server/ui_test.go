@@ -1,8 +1,12 @@
 package server
 
 import (
+	"encoding/json"
+	"io"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -16,7 +20,7 @@ func uiTestServer(t *testing.T) *Server {
 	if err != nil {
 		t.Fatal(err)
 	}
-	return &Server{ui: store, multi: singleProvider{}}
+	return &Server{ui: store, multi: singleProvider{}, log: slog.New(slog.NewTextHandler(io.Discard, nil))}
 }
 
 func jsonRequest(method, target, body string) *http.Request {
@@ -129,5 +133,119 @@ func TestUIStateIsIsolatedPerInstance(t *testing.T) {
 	}
 	if body := list("alpha"); !strings.Contains(body, `"hidden":["ses_a"]`) {
 		t.Fatalf("alpha lost its state: %s", body)
+	}
+}
+
+func TestUIHiddenRoundTrip(t *testing.T) {
+	tests := []struct {
+		name   string
+		ids    []string
+		hidden bool
+		want   string
+	}{
+		{name: "hide another chat", ids: []string{"ses_c"}, hidden: true, want: `"hidden":["ses_a","ses_b","ses_c"]`},
+		{name: "unhide one chat", ids: []string{"ses_b"}, hidden: false, want: `"hidden":["ses_a"]`},
+		{name: "unhide every chat", ids: []string{"ses_a", "ses_b"}, hidden: false, want: `"hidden":[]`},
+		{name: "empty write keeps state", ids: []string{}, hidden: true, want: `"hidden":["ses_a","ses_b"]`},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			s := uiTestServer(t)
+			if err := s.ui.SetHidden("local", []string{"ses_a", "ses_b"}, true); err != nil {
+				t.Fatal(err)
+			}
+			body, err := json.Marshal(map[string]any{"ids": test.ids, "hidden": test.hidden})
+			if err != nil {
+				t.Fatal(err)
+			}
+			write := httptest.NewRecorder()
+			s.setHidden(write, jsonRequest(http.MethodPost, "/api/ui/hidden", string(body)))
+			if write.Code != http.StatusOK {
+				t.Fatalf("hidden status = %d: %s", write.Code, write.Body)
+			}
+			if got := write.Body.String(); !strings.Contains(got, test.want) {
+				t.Fatalf("hidden response = %s, want %s", got, test.want)
+			}
+			read := httptest.NewRecorder()
+			s.uiState(read, httptest.NewRequest(http.MethodGet, "/api/ui", nil))
+			if got := read.Body.String(); !strings.Contains(got, test.want) {
+				t.Fatalf("ui state = %s, want %s", got, test.want)
+			}
+		})
+	}
+}
+
+func TestUIHiddenWriteFailureLeavesStateUnchanged(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "sub", "ui-state.json")
+	store, err := uistate.Open(path, "local")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "sub"), []byte("not a directory"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	s := &Server{ui: store, multi: singleProvider{}, log: slog.New(slog.NewTextHandler(io.Discard, nil))}
+
+	for _, call := range []struct {
+		name    string
+		handler http.HandlerFunc
+		target  string
+		body    string
+	}{
+		{name: "hidden", handler: s.setHidden, target: "/api/ui/hidden", body: `{"ids":["ses_a"],"hidden":true}`},
+		{name: "show hidden", handler: s.setShowHidden, target: "/api/ui/show-hidden", body: `{"showHidden":true}`},
+	} {
+		t.Run(call.name, func(t *testing.T) {
+			rec := httptest.NewRecorder()
+			call.handler(rec, jsonRequest(http.MethodPost, call.target, call.body))
+			if rec.Code != http.StatusInternalServerError {
+				t.Fatalf("status = %d: %s", rec.Code, rec.Body)
+			}
+			state := store.Snapshot("local")
+			if len(state.Hidden) != 0 || state.ShowHidden {
+				t.Fatalf("state after failed write = %+v", state)
+			}
+		})
+	}
+}
+
+func TestUIShowHiddenPersistsPerInstance(t *testing.T) {
+	s := uiTestServer(t)
+
+	write := func(instance string, show bool) string {
+		body, err := json.Marshal(map[string]bool{"showHidden": show})
+		if err != nil {
+			t.Fatal(err)
+		}
+		request := jsonRequest(http.MethodPost, "/api/ui/show-hidden", string(body))
+		request.Header.Set("X-Nit-Instance", instance)
+		rec := httptest.NewRecorder()
+		s.setShowHidden(rec, request)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("show-hidden %s = %d: %s", instance, rec.Code, rec.Body)
+		}
+		return rec.Body.String()
+	}
+	list := func(instance string) string {
+		request := httptest.NewRequest(http.MethodGet, "/api/ui", nil)
+		request.Header.Set("X-Nit-Instance", instance)
+		rec := httptest.NewRecorder()
+		s.uiState(rec, request)
+		return rec.Body.String()
+	}
+
+	if body := write("alpha", true); !strings.Contains(body, `"showHidden":true`) {
+		t.Fatalf("write response = %s", body)
+	}
+	if body := list("alpha"); !strings.Contains(body, `"showHidden":true`) {
+		t.Fatalf("alpha = %s", body)
+	}
+	if body := list("beta"); !strings.Contains(body, `"showHidden":false`) {
+		t.Fatalf("beta = %s", body)
+	}
+	write("alpha", false)
+	if body := list("alpha"); !strings.Contains(body, `"showHidden":false`) {
+		t.Fatalf("alpha after reset = %s", body)
 	}
 }

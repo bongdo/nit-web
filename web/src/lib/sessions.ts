@@ -22,6 +22,27 @@ export function scopeSessions(sessions: Session[], scope: Scope, agents: Agent[]
 
 export type InstanceSessions = { instance: string; sessions: Session[] };
 
+export type InstanceHidden = { instance: string; hidden: string[] };
+
+export type HiddenIndex = Record<string, ReadonlySet<string>>;
+
+const NO_HIDDEN: ReadonlySet<string> = new Set();
+
+export function hiddenIndex(pools: InstanceHidden[]): HiddenIndex {
+  const index: HiddenIndex = {};
+  for (const pool of pools) {
+    const ids = new Set(index[pool.instance]);
+    for (const id of pool.hidden) ids.add(id);
+    index[pool.instance] = ids;
+  }
+  return index;
+}
+
+export function hiddenLookup(index: HiddenIndex, active: string) {
+  return (session: Pick<Session, "id" | "instance">) =>
+    (index[session.instance ?? active] ?? NO_HIDDEN).has(session.id);
+}
+
 // shortcut: a session id seen twice keeps the first instance, revisit if two instances can really share one.
 export function mergeInstanceSessions(pools: InstanceSessions[]): Session[] {
   const seen = new Set<string>();
@@ -38,24 +59,24 @@ export function mergeInstanceSessions(pools: InstanceSessions[]): Session[] {
 
 export function listedSessions(
   sessions: Session[],
-  hiddenIds: ReadonlySet<string>,
+  isHidden: (session: Pick<Session, "id" | "instance">) => boolean,
   showHidden: boolean,
 ): Session[] {
   return sessions.filter(
-    (session) => !session.parentID && (showHidden || !hiddenIds.has(session.id)),
+    (session) => !session.parentID && (showHidden || !isHidden(session)),
   );
 }
 
 export function listedSubagents(
   sessions: Session[],
   parentIds: ReadonlySet<string>,
-  hiddenIds: ReadonlySet<string>,
+  isHidden: (session: Pick<Session, "id" | "instance">) => boolean,
   showHidden: boolean,
 ): Session[] {
   return sessions.filter(
     (session) =>
       Boolean(session.parentID && parentIds.has(session.parentID)) &&
-      (showHidden || !hiddenIds.has(session.id)),
+      (showHidden || !isHidden(session)),
   );
 }
 

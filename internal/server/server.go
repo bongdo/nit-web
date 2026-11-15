@@ -231,6 +231,7 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("GET /api/agents", s.agents)
 	s.mux.HandleFunc("GET /api/ui", s.uiState)
 	s.mux.HandleFunc("POST /api/ui/hidden", s.setHidden)
+	s.mux.HandleFunc("POST /api/ui/show-hidden", s.setShowHidden)
 	s.mux.HandleFunc("GET /api/ui/drafts", s.getDraft)
 	s.mux.HandleFunc("POST /api/ui/drafts", s.setDraft)
 	s.mux.HandleFunc("POST /api/ui/model", s.setModel)
@@ -1649,10 +1650,11 @@ func (s *Server) uiState(w http.ResponseWriter, r *http.Request) {
 		agent = state.Agent
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
-		"hidden": state.Hidden,
-		"status": state.Status,
-		"model":  state.Model,
-		"agent":  agent,
+		"hidden":     state.Hidden,
+		"status":     state.Status,
+		"model":      state.Model,
+		"agent":      agent,
+		"showHidden": state.ShowHidden,
 	})
 }
 
@@ -1680,7 +1682,23 @@ func (s *Server) setHidden(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "could not save ui state")
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "hidden": s.ui.Snapshot(s.instanceName(r)).Hidden})
+}
+
+func (s *Server) setShowHidden(w http.ResponseWriter, r *http.Request) {
+	in, err := decodeJSON[struct {
+		ShowHidden bool `json:"showHidden"`
+	}](w, r)
+	if err != nil {
+		writeDecodeError(w, err)
+		return
+	}
+	if err := s.ui.SetShowHidden(s.instanceName(r), in.ShowHidden); err != nil {
+		s.log.Error("ui state save failed", "error", err)
+		writeError(w, http.StatusInternalServerError, "could not save ui state")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "showHidden": in.ShowHidden})
 }
 
 func (s *Server) getDraft(w http.ResponseWriter, r *http.Request) {

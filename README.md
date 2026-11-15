@@ -188,6 +188,25 @@ not kept in memory, so a restart does not log you out; it is shared with
 pero-gui and term-gui on the same host. Five wrong passwords block an IP for 15
 minutes.
 
+### Where the pages live
+
+The gate's HTML is plain templates in `internal/gate/views/`, one file per page:
+`layout.html` (`{{define "head"}}` with the CSS and the header, plus
+`{{define "foot"}}`), `home.html`, `login.html`, `signup.html`, `account.html`,
+`admin.html`, `invite.html`, `empty.html`. They are compiled into the binary with
+`//go:embed views/*.html` and parsed by `template.ParseFS` in
+`internal/gate/view.go`; the stylesheet is the `head` template, there is no
+separate CSS route. Handlers are split the same way: `home.go`, `login.go`,
+`signup.go`, `account.go`, `admin.go`, `invite.go`, with shared view helpers and
+the template set in `view.go`.
+
+Template names are unchanged, so handlers still call `s.render(w, "admin", data)`.
+A new page is one `views/<name>.html` file with `{{define "<name>"}}` that opens
+with `{{template "head" .}}` and closes with `{{template "foot" .}}`, a handler
+that renders it, and a route in `Handler()`. Edit the HTML and run `bin/gate`;
+`go test ./internal/gate/ -run TestEveryPageRenders` fails loudly if a page's
+template file is missing or broken.
+
 The box's public IP is `92.5.143.242`. The OCI security list does not expose
 `80`/`7792`, and `443` is used by another service. The supported public path is
 Tailscale Funnel; do not bind the app or Caddy to `0.0.0.0`.

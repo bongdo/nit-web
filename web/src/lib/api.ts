@@ -311,9 +311,19 @@ export const api = {
     request<{ path: string; text: string }>(
       `/api/doc?dir=${encodeURIComponent(directory)}&path=${encodeURIComponent(path)}`,
     ),
-  ui: () => request<UiState>("/api/ui"),
-  setHidden: (ids: string[], hidden: boolean) =>
-    request<{ ok: boolean }>("/api/ui/hidden", { method: "POST", body: { ids, hidden } }),
+  ui: (instance?: string) => request<UiState>("/api/ui", { instance }),
+  setHidden: (ids: string[], hidden: boolean, instance?: string) =>
+    request<{ ok: boolean; hidden: string[] }>("/api/ui/hidden", {
+      method: "POST",
+      body: { ids, hidden },
+      instance,
+    }),
+  setShowHidden: (showHidden: boolean, instance?: string) =>
+    request<{ ok: boolean; showHidden: boolean }>("/api/ui/show-hidden", {
+      method: "POST",
+      body: { showHidden },
+      instance,
+    }),
   setSessionStatus: (id: string, status: "" | "done" | "failed") =>
     request<{ ok: boolean }>(`/api/ui/sessions/${encodeURIComponent(id)}/status`, {
       method: "POST",

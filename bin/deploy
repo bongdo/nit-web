@@ -140,7 +140,12 @@ deploy_frankfurt() {
     fi
   fi
 
-  NIT_GUI_TERM_URL="${NIT_GUI_TERM_URL:-https://$public_host:8443/term/}" \
+  local term_url="${NIT_GUI_TERM_URL:-}"
+  if [ -z "$term_url" ]; then
+    term_url="https://$public_host:8443/term/"
+    [ -z "$domain" ] || term_url="https://$domain/term/"
+  fi
+  NIT_GUI_TERM_URL="$term_url" \
     NIT_GUI_ALLOWED_HOSTS="$allowed" NIT_GUI_BASE_PATH="$base_path" NIT_GUI_PUBLIC_HOST="$public_host" setsid "$bin" --addr "127.0.0.1:$port" >"$run_dir/nit-gui.log" 2>&1 < /dev/null &
 
   local ready=0
@@ -174,6 +179,12 @@ deploy_frankfurt() {
 	}
 	handle_path $base_path/* {
 		reverse_proxy 127.0.0.1:$port
+	}
+	handle_path /pero/* {
+		reverse_proxy 127.0.0.1:7789
+	}
+	handle_path /term/* {
+		reverse_proxy 127.0.0.1:7795
 	}
 	handle {
 		reverse_proxy 127.0.0.1:$port

@@ -43,12 +43,13 @@ type AttentionOptions = {
   ready: boolean;
   sessions: Session[];
   doneIds?: ReadonlySet<string>;
+  title?: string;
   onOpen: (id: string) => void;
 };
 
 export function useAttention(
   waitingIds: Set<string>,
-  { enabled, ready, sessions, doneIds, onOpen }: AttentionOptions,
+  { enabled, ready, sessions, doneIds, title = TITLE, onOpen }: AttentionOptions,
 ) {
   const previous = useRef(waitingIds);
   const previousDone = useRef(doneIds ?? new Set<string>());
@@ -60,8 +61,8 @@ export function useAttention(
   list.current = sessions;
 
   useEffect(() => {
-    document.title = waitingIds.size > 0 ? `(${waitingIds.size}) ${TITLE}` : TITLE;
-  }, [waitingIds]);
+    document.title = waitingIds.size > 0 ? `(${waitingIds.size}) ${title}` : title;
+  }, [waitingIds, title]);
 
   useEffect(() => {
     const fresh = [...waitingIds].find((id) => !previous.current.has(id));

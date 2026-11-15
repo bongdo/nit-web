@@ -993,3 +993,26 @@ step the user rejected).
 
 Cost: a reload costs one request per 100 sessions; the walk stops at 100 pages
 (10,000 sessions) as a guard against a runaway cursor.
+
+## 2026-11-15 — Touch screens: native spellcheck, Enter inserts a line
+
+Context: on a phone the custom wavy underline drifted off the word, the
+replacement chip duplicated what the keyboard's T9 already offers, and Enter
+sent the message while the user wanted a new line for indents.
+
+Decision: on `pointer: coarse` the composer does not run the nspell worker, the
+underline layer or the replacement chip, sets `spellcheck` on the textarea so
+the system checker owns squiggles and suggestions, and Enter inserts a newline
+in both the message field and the question form; Send and Answer buttons are
+the only submission paths. Desktop keeps the current behavior.
+
+Why: the underline is a second text layout that must match the textarea
+exactly; the system checker measures the real one. One Enter meaning per
+platform is learnable, and the footer hint says which one applies.
+
+Rejected: a smaller or lighter custom underline (same layout coupling), a
+per-word check on a timer (more worker traffic, still misaligned), sending on
+Enter with a modifier (no modifier key reachable from the phone keyboard).
+
+Cost: auto-fix and the personal dictionary do not run on phones; a tablet with
+a hardware keyboard also needs the button to send.

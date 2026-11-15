@@ -170,12 +170,14 @@ export default function App({
   instance,
   defaultInstance,
   defaultDirectory,
+  title,
   onOpenInstances,
   onSwitchInstance,
 }: {
   instance: string;
   defaultInstance: string;
   defaultDirectory?: string;
+  title: string;
   onOpenInstances: () => void;
   onSwitchInstance: (id: string) => void;
 }) {
@@ -1164,6 +1166,7 @@ export default function App({
     ready: uiReady,
     sessions,
     doneIds,
+    title,
     onOpen: selectSession,
   });
 

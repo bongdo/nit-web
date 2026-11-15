@@ -30,6 +30,25 @@ func ValidSSHHost(host string) bool {
 	return sshHostRE.MatchString(host) && !strings.HasPrefix(host, "-")
 }
 
+func ValidAppURL(raw string) bool {
+	if raw == "" {
+		return true
+	}
+	for _, r := range raw {
+		if r <= ' ' || r == 0x7f {
+			return false
+		}
+	}
+	if strings.HasPrefix(raw, "/") {
+		return !strings.HasPrefix(raw, "//")
+	}
+	u, err := url.Parse(raw)
+	if err != nil || u.Host == "" || u.User != nil {
+		return false
+	}
+	return u.Scheme == "http" || u.Scheme == "https"
+}
+
 type InstanceSpec struct {
 	Name         string `json:"name"`
 	URL          string `json:"url,omitempty"`
@@ -37,6 +56,8 @@ type InstanceSpec struct {
 	Dir          string `json:"dir,omitempty"`
 	Password     string `json:"password,omitempty"`
 	PasswordFile string `json:"passwordFile,omitempty"`
+	PeroURL      string `json:"peroURL,omitempty"`
+	TermURL      string `json:"termURL,omitempty"`
 }
 
 func ValidInstanceName(name string) bool {
@@ -159,6 +180,12 @@ func validateSpecs(specs []InstanceSpec) error {
 		}
 		if spec.Dir != "" && !filepath.IsAbs(spec.Dir) {
 			return fmt.Errorf("instance %q directory must be absolute", spec.Name)
+		}
+		if !ValidAppURL(spec.PeroURL) {
+			return fmt.Errorf("instance %q has an invalid pero url", spec.Name)
+		}
+		if !ValidAppURL(spec.TermURL) {
+			return fmt.Errorf("instance %q has an invalid term url", spec.Name)
 		}
 	}
 	return nil

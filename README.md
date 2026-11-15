@@ -285,18 +285,18 @@ The sidebar has three scopes:
 | `All chats` | every top-level chat with a primary agent, across workspaces. |
 | `All machines` | the same chats from every connected instance, merged and still grouped by directory. |
 
-In `All machines` every row carries its instance name in a small pill, and the
-merged list is fetched when the scope opens and again on reconnect, then cached
-for the session. Opening a chat from another instance switches to that instance
-first. Group headers are not clickable there: switch instances before starting a
-chat in another machine's directory.
+In `All machines` every row carries its instance name in a small pill. The merged
+list is fetched when the scope first opens and refreshed on reconnect, then
+cached for the session. Opening a chat from another instance switches to that
+instance first. Group headers are not clickable there: switch instances before
+starting a chat in another machine's directory.
 
 In a cross-project scope, chats that finished or wait for an answer rise above
 the project groups as one unlabelled block; each row names its project. The rest
 stay grouped by directory, and running chats keep their dock at the bottom.
 
 Each chat row shows its own subagent counter on the directory line and expands
-only that chat's subagents. In the `This dir` scope the tab shows the workspace
+only that chat's subagents. In the `This project` scope the tab shows the workspace
 name and the card omits the directory. The selected chat's `N subagents` menu
 opens the same transcripts, and the parent header has `Back to parent`.
 
@@ -346,7 +346,10 @@ server, so hiding a chat or continuing a draft works on the next device.
   in a word (or click it) and a gray `→ ...` chip shows replacements next to
   it. Click a suggestion to apply it, or `ignore` to add the word to your
   dictionary. `Esc` hides the chip, and Settings → Spelling & grammar turns
-  both checks off. Code blocks, inline code, URLs, paths, file names and known
+  both checks off. On a touch screen the composer skips the custom underline
+  and the chip and leaves spelling to the system keyboard, so there is no
+  overlap with its suggestions. Code blocks, inline code, URLs, paths, file
+  names and known
   project terms are skipped. This is the last capability that still runs on
   the client; it is scheduled to move behind `/api/spell` on Frankfurt.
 - Grammar is optional: when a LanguageTool sidecar is configured on Frankfurt,
@@ -606,7 +609,9 @@ nspell worker. It is not implemented yet.
 - Streaming text, reasoning, tool calls collapsed by default, code copy,
   GFM tables/task lists.
 - Composer: Enter sends, Shift+Enter adds a line, stop while streaming, token
-  and cost footer when OpenCode reports them. While the agent is running, a new
+  and cost footer when OpenCode reports them. On a touch screen Enter only adds
+  a line and the Send button is the only way to send. While the agent is
+  running, a new
   message is steered in at the next step boundary (after the current tool call)
   instead of waiting for the whole run to finish.
 - The composer is a bottom dock overlay: growing it never resizes the transcript
@@ -730,10 +735,10 @@ own startup warmup.
 - Only the active instance keeps an event stream. Inactive instances do not
   accumulate unread counts or approvals in the background; switching to one
   reloads its list and transcript.
-- `All machines` fans out one request per connected instance when the scope opens
-  and on reconnect. There is no multi-instance event stream, so other machines'
-  lists are a snapshot and hidden/done/failed markers plus drafts come from the
-  active instance only; hide or delete a foreign chat after switching to it.
+- `All machines` fans out one request per connected instance on first open and on
+  reconnect. There is no multi-instance event stream, so other machines' lists
+  are a snapshot and hidden/done/failed markers plus drafts come from the active
+  instance only; hide or delete a foreign chat after switching to it.
 - Drafts, hidden chats and done/failed markers are scoped by instance. The
   default instance keeps the old unscoped `localStorage` keys; other instances
   use a `:<instance>` suffix.

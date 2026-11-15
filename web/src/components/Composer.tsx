@@ -1083,7 +1083,7 @@ export const Composer = memo(function Composer({
                       updateValue(`/${selectedCommand.id}`);
                       return;
                     }
-                    if (event.key === "Enter" && !event.shiftKey && selectedCommand) {
+                    if (event.key === "Enter" && !event.shiftKey && selectedCommand && !coarse) {
                       event.preventDefault();
                       runCommand(selectedCommand.id);
                       return;
@@ -1126,7 +1126,12 @@ export const Composer = memo(function Composer({
                     ref.current?.blur();
                     return;
                   }
-                  if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
+                  if (
+                    event.key === "Enter" &&
+                    !event.shiftKey &&
+                    !coarse &&
+                    !event.nativeEvent.isComposing
+                  ) {
                     event.preventDefault();
                     if (question) advanceForm();
                     else void submit();
@@ -1212,9 +1217,13 @@ export const Composer = memo(function Composer({
             <span aria-live="polite" className="hidden text-[11px] text-muted-foreground sm:inline">
               {question
                 ? customAnswer
-                  ? "Enter to answer · Shift+Enter for a new line"
+                  ? coarse
+                    ? "Answer with the button · Enter for a new line"
+                    : "Enter to answer · Shift+Enter for a new line"
                   : "Pick an option above"
-                : "Enter to send · Shift+Enter for a new line · / commands"}
+                : coarse
+                  ? "Send with the button · Enter for a new line"
+                  : "Enter to send · Shift+Enter for a new line · / commands"}
             </span>
             <div className="ml-auto flex items-center gap-1">
               {running && !question && (

@@ -36,6 +36,8 @@ type instanceOut struct {
 	Error            string          `json:"error"`
 	URL              string          `json:"url,omitempty"`
 	SSH              string          `json:"ssh,omitempty"`
+	PeroURL          string          `json:"peroURL,omitempty"`
+	TermURL          string          `json:"termURL,omitempty"`
 	OpenCode         opencodeOut     `json:"opencode"`
 	DefaultDirectory string          `json:"defaultDirectory,omitempty"`
 	Capabilities     []capabilityOut `json:"capabilities"`

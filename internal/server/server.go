@@ -1573,14 +1573,32 @@ func (s *Server) config(w http.ResponseWriter, r *http.Request) {
 	if def.Data != nil && def.Data.ID != "" && def.Data.ProviderID != "" {
 		model = &opencode.ModelRef{ID: def.Data.ID, ProviderID: def.Data.ProviderID}
 	}
+	peroURL, termURL := s.appLinks(s.instanceName(r))
 	writeJSON(w, http.StatusOK, map[string]any{
 		"directory": loc.Directory,
 		"model":     model,
 		"agent":     agent,
-		"peroURL":   s.peroURL,
-		"termURL":   s.termURL,
+		"peroURL":   peroURL,
+		"termURL":   termURL,
 		"transport": s.multi.Transport(s.instanceName(r)),
 	})
+}
+
+func (s *Server) appLinks(name string) (string, string) {
+	pero, term := s.peroURL, s.termURL
+	for _, spec := range s.multi.Instances() {
+		if spec.Name != name {
+			continue
+		}
+		if spec.PeroURL != "" {
+			pero = spec.PeroURL
+		}
+		if spec.TermURL != "" {
+			term = spec.TermURL
+		}
+		break
+	}
+	return pero, term
 }
 
 func appURL(env, fallback string) string {

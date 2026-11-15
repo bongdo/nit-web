@@ -9,7 +9,7 @@ import type {
   InstanceTransport,
   InstancesResponse,
 } from "../lib/types";
-import { mergeDeviceCapabilities } from "../lib/instances";
+import { appLabel, mergeDeviceCapabilities } from "../lib/instances";
 import { cn } from "../lib/utils";
 import { useModalFocus } from "../hooks/useModalFocus";
 import { Button } from "./ui/button";
@@ -256,7 +256,7 @@ export function InstancesMenu({
 
         <div className="border-border space-y-1 border-b px-4 py-3">
           <div className="font-mono text-[11px]">
-            This app: {data.app.name} @ {data.app.host}
+            This app: {appLabel(data.app.host)}
           </div>
           <div className="text-muted-foreground text-[11px] leading-5">
             OpenCode + nit-gui are required. Everything else only adds capabilities.
@@ -435,7 +435,7 @@ export function InstancesMenu({
                   <div className="flex flex-wrap items-center gap-1.5">
                     <FlowNode label="Browser" />
                     <ArrowRight className="text-muted-foreground size-3 shrink-0" />
-                    <FlowNode label={`${data.app.name} @ ${data.app.host}`} />
+                    <FlowNode label={appLabel(data.app.host)} />
                     <ArrowRight className="text-muted-foreground size-3 shrink-0" />
                     <FlowNode label={`OpenCode @ ${info.name}`} />
                   </div>

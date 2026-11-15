@@ -1,5 +1,12 @@
 import type { InstanceCapability } from "./types";
 
+export const APP_NAME = "nit-gui 2";
+
+export function appLabel(host: string): string {
+  if (!host) return APP_NAME;
+  return `${APP_NAME} — ${host.charAt(0).toUpperCase()}${host.slice(1)}`;
+}
+
 export function instanceScopedKey(base: string, instance: string, defaultInstance: string): string {
   return !instance || instance === defaultInstance ? base : `${base}:${instance}`;
 }

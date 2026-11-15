@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { CircleAlert, RefreshCw } from "lucide-react";
 import App from "./App";
 import { api } from "./lib/api";
+import { appLabel } from "./lib/instances";
 import type { InstancesResponse } from "./lib/types";
 import { BootScreen } from "./components/StatusScreens";
 import { InstancesMenu } from "./components/InstancesMenu";
@@ -90,7 +91,6 @@ export default function Root() {
     data.instances.find((item) => item.id === active) ??
     data.instances.find((item) => item.id === data.default) ??
     data.instances[0];
-
   if (!info) {
     return (
       <LoadError
@@ -109,6 +109,7 @@ export default function Root() {
         instance={info.id}
         defaultInstance={data.default}
         defaultDirectory={info.defaultDirectory}
+        title={appLabel(data.app.host)}
         onOpenInstances={openMenu}
         onSwitchInstance={select}
       />

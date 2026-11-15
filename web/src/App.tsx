@@ -1290,6 +1290,12 @@ export default function App({
     }
   }, [hiddenIds, runningIds, sessions, unhideSession]);
 
+  useEffect(() => {
+    for (const id of hiddenIds) {
+      if (doneIds.has(id)) unhideSession(id);
+    }
+  }, [doneIds, hiddenIds, unhideSession]);
+
   const forgetSession = useCallback(
     async (id: string) => {
       await api.deleteSession(id);

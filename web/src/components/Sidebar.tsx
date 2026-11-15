@@ -57,11 +57,9 @@ function SessionRow({
   session,
   depth,
   active,
-  running,
   waiting,
   failed,
   done,
-  animated,
   hidden,
   now,
   subagentCount = 0,
@@ -77,11 +75,9 @@ function SessionRow({
   session: Session;
   depth: number;
   active: boolean;
-  running: boolean;
   waiting: boolean;
   failed: boolean;
   done: boolean;
-  animated: boolean;
   hidden: boolean;
   now: number;
   subagentCount?: number;
@@ -138,74 +134,39 @@ function SessionRow({
               )}
             />
           ) : (
-            <>
-              <span className="flex size-4 shrink-0 items-center justify-center">
-                {hasSubagents && (
-                  <button
-                    type="button"
-                    onClick={onToggle}
-                    aria-expanded={expanded}
-                    aria-label={expanded ? "Hide subagents" : "Show subagents"}
-                    title={expanded ? "Hide subagents" : "Show subagents"}
-                    className="pointer-events-auto flex size-4 items-center justify-center rounded text-muted-foreground hover:text-foreground"
-                  >
-                    <ChevronRight
-                      className={cn(
-                        "size-3 transition-transform",
-                        expanded && "rotate-90",
-                      )}
-                    />
-                  </button>
-                )}
-              </span>
-              <span
-                className={cn(
-                  "size-1.5 shrink-0 rounded-full",
-                  waiting
-                    ? cn("bg-spark ring-spark/30 ring-2", animated && "waiting-dot")
-                    : running
-                      ? "animate-pulse bg-success"
-                      : doneHere
-                        ? "bg-success ring-success/20 ring-2"
-                        : "bg-border",
-                )}
-                title={
-                  waiting
-                    ? "Waiting for your answer"
-                    : running
-                      ? "Running"
-                      : doneHere
-                        ? "Done"
-                        : "Idle"
-                }
-              />
-            </>
+            <span className="flex size-4 shrink-0 items-center justify-center">
+              {hasSubagents && (
+                <button
+                  type="button"
+                  onClick={onToggle}
+                  aria-expanded={expanded}
+                  aria-label={expanded ? "Hide subagents" : "Show subagents"}
+                  title={expanded ? "Hide subagents" : "Show subagents"}
+                  className="pointer-events-auto flex size-4 items-center justify-center rounded text-muted-foreground hover:text-foreground"
+                >
+                  <ChevronRight
+                    className={cn(
+                      "size-3 transition-transform",
+                      expanded && "rotate-90",
+                    )}
+                  />
+                </button>
+              )}
+            </span>
           )}
           <span className="min-w-0 flex-1 truncate text-[13px] font-medium">{title}</span>
           <span
             className={cn(
               "shrink-0 text-[10px] transition-opacity group-hover:opacity-0",
-              waiting
-                ? "text-foreground font-semibold"
-                : running
-                  ? "text-success"
-                  : "text-muted-foreground",
+              waiting ? "text-foreground font-semibold" : "text-muted-foreground",
             )}
             title={
-              waiting
-                ? "Waiting for your answer"
-                : running
-                  ? "Running"
-                  : doneHere
-                    ? "Done"
-                    : undefined
+              waiting ? "Waiting for your answer" : doneHere ? "Done" : undefined
             }
           >
             {waiting
               ? "Waiting for your answer"
-              : running
-                ? "running"
-                : formatRelative(session.time.updated, now)}
+              : formatRelative(session.time.updated, now)}
           </span>
         </div>
         {depth === 0 && showDirectory && (
@@ -384,11 +345,6 @@ export const Sidebar = memo(function Sidebar({
 
   const visible = groupSessions(filterSessions(sessions, search), waitingIds, rank);
   const waitingCount = sessions.filter((session) => waitingIds.has(session.id)).length;
-  const runningCount = sessions.filter(
-    (session) =>
-      (isRunning(session.id) || runningParents.has(session.id)) &&
-      !waitingIds.has(session.id),
-  ).length;
   const childrenByParent = new Map<string, Session[]>();
   for (const session of subagents) {
     if (!session.parentID) continue;
@@ -418,9 +374,7 @@ export const Sidebar = memo(function Sidebar({
     : null;
   const selectedRank = selectedSession ? rank(selectedSession) : null;
   const pool = scope !== "directory";
-  const { top: finishedRows, rest } = pool
-    ? hoistFinished(visible, (session) => rank(session) === 0)
-    : { top: [], rest: visible };
+  const { top: finishedRows, rest } = hoistFinished(visible, (session) => rank(session) === 0);
   const firstRunning = rest.findIndex(
     (row) => row.depth === 0 && rank(row.session) === 2,
   );
@@ -440,11 +394,9 @@ export const Sidebar = memo(function Sidebar({
           session={session}
           depth={depth}
           active={session.id === selectedId}
-          running={isRunning(session.id)}
           waiting={waitingIds.has(session.id)}
           failed={failedIds.has(session.id)}
           done={doneIds.has(session.id)}
-          animated={animated}
           hidden={hiddenIds.has(session.id)}
           now={now}
           showDirectory={scope !== "directory" && !grouped}
@@ -472,11 +424,9 @@ export const Sidebar = memo(function Sidebar({
                 session={child}
                 depth={depth + 1}
                 active={child.id === selectedId}
-                running={isRunning(child.id)}
                 waiting={waitingIds.has(child.id)}
                 failed={failedIds.has(child.id)}
                 done={doneIds.has(child.id)}
-                animated={animated}
                 hidden={hiddenIds.has(child.id)}
                 now={now}
                 onClick={() => onSelect(child.id)}
@@ -502,10 +452,13 @@ export const Sidebar = memo(function Sidebar({
     const container = listRef.current;
     if (!container || orderSignature === lastOrder.current) return;
     const rows = Array.from(container.querySelectorAll<HTMLElement>("[data-session-row]"));
+    const box = container.getBoundingClientRect();
     const next = new Map<string, number>();
     for (const row of rows) {
       const id = row.dataset.sessionRow;
-      if (id) next.set(id, row.offsetTop);
+      if (id) {
+        next.set(id, row.getBoundingClientRect().top - box.top + container.scrollTop);
+      }
     }
     if (lastOrder.current && animated) {
       for (const row of rows) {
@@ -621,23 +574,6 @@ export const Sidebar = memo(function Sidebar({
             )}
           />
         </button>
-        {waitingCount > 0 && (
-          <span
-            className="text-foreground/80 inline-flex items-center gap-1 text-[10px] font-medium"
-            title="Waiting for your answer"
-          >
-            <span
-              className={cn("bg-spark size-1.5 rounded-full", animated && "waiting-dot")}
-            />
-            {waitingCount}
-          </span>
-        )}
-        {runningCount > 0 && (
-          <span className="text-muted-foreground inline-flex items-center gap-1 text-[10px]">
-            <span className="size-1.5 animate-pulse rounded-full bg-success" />
-            {runningCount}
-          </span>
-        )}
       </div>
 
       <div className="px-3 pb-2" role="group" aria-label="Chat scope">
@@ -783,32 +719,42 @@ export const Sidebar = memo(function Sidebar({
                   ? "No chats in this workspace yet."
                   : "No chats yet."}
             </div>
-          ) : pool ? (
-            <div className="relative space-y-0.5">
-              {finishedRows.map((row) => renderRow(row))}
-              {poolGroups.map((group) => (
-                <Fragment key={group.directory}>
-                  <button
-                    type="button"
-                    onClick={() => onNew(group.directory)}
-                    title={`New chat in ${group.directory}`}
-                    aria-label={`New chat in ${group.directory}`}
-                    className="text-muted-foreground hover:bg-accent/60 hover:text-foreground flex w-full items-center gap-2 rounded-md px-3 pt-2.5 pb-0.5 text-left text-[10px] font-medium"
-                  >
-                    <span className="truncate">
-                      {basename(group.directory) || group.directory || "unknown"}
-                    </span>
-                    <span className="tabular-nums opacity-60">{group.rows.length}</span>
-                    <span className="bg-border h-px flex-1 opacity-50" />
-                  </button>
-                  {group.rows.map((row) => renderRow(row, true))}
-                </Fragment>
-              ))}
-            </div>
           ) : (
-            <div className="relative space-y-0.5">
-              {rest.slice(0, runningStart).map((row) => renderRow(row))}
-            </div>
+            <>
+              {finishedRows.length > 0 && (
+                <div className="bg-card/95 border-border/60 scrollbar-thin sticky top-0 z-10 -mx-2 mb-1 max-h-[45vh] overflow-y-auto border-b px-2 pb-1 backdrop-blur-sm">
+                  <div className="space-y-0.5">
+                    {finishedRows.map((row) => renderRow(row))}
+                  </div>
+                </div>
+              )}
+              {pool ? (
+                <div className="relative space-y-0.5">
+                  {poolGroups.map((group) => (
+                    <Fragment key={group.directory}>
+                      <button
+                        type="button"
+                        onClick={() => onNew(group.directory)}
+                        title={`New chat in ${group.directory}`}
+                        aria-label={`New chat in ${group.directory}`}
+                        className="text-muted-foreground hover:bg-accent/60 hover:text-foreground flex w-full items-center gap-2 rounded-md px-3 pt-2.5 pb-0.5 text-left text-[10px] font-medium"
+                      >
+                        <span className="truncate">
+                          {basename(group.directory) || group.directory || "unknown"}
+                        </span>
+                        <span className="tabular-nums opacity-60">{group.rows.length}</span>
+                        <span className="bg-border h-px flex-1 opacity-50" />
+                      </button>
+                      {group.rows.map((row) => renderRow(row, true))}
+                    </Fragment>
+                  ))}
+                </div>
+              ) : (
+                <div className="relative space-y-0.5">
+                  {rest.slice(0, runningStart).map((row) => renderRow(row))}
+                </div>
+              )}
+            </>
           )}
         </div>
         {(showLoad || loadLeaving) && (
@@ -835,7 +781,6 @@ export const Sidebar = memo(function Sidebar({
         {runningStart < rest.length && (
           <div className="max-h-[70%] shrink-0 overflow-y-auto px-2">
             <div className="text-muted-foreground flex items-center gap-2 px-2 pt-3 pb-1 font-mono text-[9px] tracking-[0.12em] uppercase">
-              <span className="bg-success size-1.5 rounded-full" />
               <span>Running</span>
               <span className="text-muted-foreground/70 tabular-nums">
                 {runningGroupCount}

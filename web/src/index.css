@@ -796,10 +796,6 @@
     --pulse: 5s;
   }
 
-  .waiting-dot {
-    animation: waiting-dot 3.2s ease-in-out infinite;
-  }
-
   @keyframes session-breathe {
     0%,
     100% {
@@ -816,18 +812,6 @@
     }
     to {
       transform: translateX(35%);
-    }
-  }
-
-  @keyframes waiting-dot {
-    0%,
-    100% {
-      opacity: 1;
-      transform: scale(1);
-    }
-    50% {
-      opacity: 0.55;
-      transform: scale(0.8);
     }
   }
 
@@ -986,7 +970,6 @@
   @media (prefers-reduced-motion: reduce) {
     .session-state,
     .session-state::before,
-    .waiting-dot,
     .compaction-enter .compaction-line,
     .compaction-enter .compaction-pill,
     .compaction-enter .compaction-pill::after,

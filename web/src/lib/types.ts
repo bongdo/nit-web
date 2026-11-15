@@ -205,6 +205,7 @@ export type UiState = {
   status: Record<string, string>;
   model: ModelRef | null;
   agent: string | null;
+  showHidden?: boolean;
 };
 
 export type Model = {

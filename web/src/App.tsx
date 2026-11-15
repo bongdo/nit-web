@@ -159,6 +159,7 @@ const COMMANDS: ComposerCommand[] = [
   { id: "compact", label: "/compact", description: "Compact this session's context" },
   { id: "revert", label: "/revert", description: "Revert the last message and edit it" },
   { id: "fork", label: "/fork", description: "Fork before the last message" },
+  { id: "fork-here", label: "/fork-here", description: "Fork at the end, keeping every message" },
   { id: "retry", label: "/retry", description: "Repeat the last prompt" },
   { id: "theme", label: "/theme", description: "Pick a color theme" },
   { id: "backgrounds", label: "/backgrounds", description: "Pick a background scene" },
@@ -2023,9 +2024,9 @@ export default function App({
   );
 
   const forkAt = useCallback(
-    async (message: Message) => {
+    async (message: Message | null) => {
       const session = selectedSession;
-      const target = previousUser(message);
+      const target = message ? previousUser(message) : null;
       if (!session) return;
       setBanner(null);
       try {
@@ -2117,6 +2118,9 @@ export default function App({
         case "fork":
           if (lastUser) void forkAt(lastUser);
           break;
+        case "fork-here":
+          void forkAt(null);
+          break;
         case "retry":
           void retryLast();
           break;
@@ -2128,7 +2132,7 @@ export default function App({
           break;
         case "help":
           setBanner(
-            "Commands: /new /dir /instances /compact /revert /fork /retry /theme /backgrounds /clear /help · Shortcuts: Alt+N new chat, Alt+O switch workspace, Alt+J/K or Ctrl+Tab/Shift+Ctrl+Tab next/prev chat (Tab in a text field completes /commands, accepts the highlighted suggestion, otherwise indents two spaces; Shift+Tab or Esc leaves the field), Alt+←/→ this project / all chats / all machines, Ctrl/⌘K search",
+            "Commands: /new /dir /instances /compact /revert /fork /fork-here /retry /theme /backgrounds /clear /help · Shortcuts: Alt+N new chat, Alt+O switch workspace, Alt+J/K or Ctrl+Tab/Shift+Ctrl+Tab next/prev chat (Tab in a text field completes /commands, accepts the highlighted suggestion, otherwise indents two spaces; Shift+Tab or Esc leaves the field), Alt+←/→ this project / all chats / all machines, Ctrl/⌘K search",
           );
           break;
       }

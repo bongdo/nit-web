@@ -330,8 +330,9 @@ server, so hiding a chat or continuing a draft works on the next device.
 - Typing anywhere focuses the composer and keeps the first key, unless a
   dialog/menu is open or another field already has focus.
 - `/` opens the command palette: `/new`, `/dir`, `/compact`, `/revert`, `/fork`,
-  `/retry`, `/theme`, `/clear`, `/help`. Commands run in the client; they are
-  never sent to the model.
+  `/fork-here`, `/retry`, `/theme`, `/clear`, `/help`. Commands run in the client;
+  they are never sent to the model. `/fork` branches before the last prompt;
+  `/fork-here` copies the whole session as it is.
 - Attach files with the paperclip, clipboard paste or drag and drop. The file is
   written to the OpenCode host through `/api/experimental/fs/write` and attached
   as `files: [{uri, name}]` on the next prompt. The limit is 20 MiB, matching
@@ -511,7 +512,7 @@ All `/api` endpoints except `/api/instances*` accept `X-Nit-Instance: <id>` or
 | `POST /api/sessions/{id}/prompt` | Send `{text, files?}`. |
 | `POST /api/sessions/{id}/interrupt` | Stop the active execution. |
 | `POST /api/sessions/{id}/revert` | Stage and commit a revert at `{messageID}`. |
-| `POST /api/sessions/{id}/fork` | Fork before `{before?}`. |
+| `POST /api/sessions/{id}/fork` | Fork before `{before?}`; omit `before` to copy the whole session. |
 | `POST /api/sessions/{id}/compact` | Compact the context. |
 | `POST /api/upload?dir=&name=` | Raw file body up to 20 MiB, written through OpenCode `/api/experimental/fs/write`. |
 | `POST /api/grammar` | `{text}`; optional LanguageTool grammar/punctuation check on the nit-gui host. |

@@ -43,7 +43,7 @@ Spelling is the remaining exception; see [Known limits](#known-limits).
 | nit-gui on the host | Instance definitions and SSH tunnels; hidden chats, done/failed markers, drafts, preferred model and agent in `ui-state.json`, keyed by instance; the auth cookie is signed and stateless; uploads under
 `/tmp`. |
 | Browser `localStorage` | Device preferences: theme, sidebar mode, motion, background, spelling/autofix, notifications, scope, personal spelling dictionary. Workspace, recent workspaces and selected chat are per instance; the default instance keeps the old unscoped keys. Drafts are mirrored locally only as an instant-load cache. |
-| Browser memory | Transcript cache (up to 12 MiB), running/waiting state, form state, current stream. |
+| Browser memory | Transcript cache (up to 12 MiB), running/waiting state, form state, current stream, and the per-instance boot cache (health, models, agents, projects, chats). |
 
 The cache is deliberately local: it makes chat switching instant and is safe to
 lose. Hidden chats, done/failed markers, drafts, model and agent are deliberately
@@ -141,6 +141,14 @@ stream, models, agents and drafts are reloaded for the selected OpenCode server.
 The previous instance keeps its own UI state, drafts and selected workspace.
 There is one event stream for the active instance; inactive instances do not
 keep background SSE connections.
+
+Before a switch to a connected instance the browser preloads that instance's
+health, models, agents, projects and chat list into a per-instance boot cache and
+then remounts. The wait is capped at 1.5 s, so a cold SSH instance cannot hold
+the menu: the switch happens anyway and the view refreshes in the background. A
+cached instance paints its chat list at once and shows no boot or offline screen;
+those appear only on a first visit whose health still fails one retry 400 ms
+later. The cache is browser memory only and is safe to lose.
 
 ## Run
 
@@ -291,22 +299,25 @@ The sidebar has three scopes:
 
 | Scope | Shows |
 | --- | --- |
-| `This project` | chats created in the current workspace. |
+| `This dir` | chats created in the current workspace. |
 | `All chats` | every top-level chat with a primary agent, across workspaces. |
-| `All machines` | the same chats from every connected instance, merged and still grouped by directory. |
+| `Everywhere` | the same chats from every connected instance, merged and still grouped by directory. |
 
-In `All machines` every row carries its instance name in a small pill. The merged
-list is fetched when the scope first opens and refreshed on reconnect, then
-cached for the session. Opening a chat from another instance switches to that
-instance first. Group headers are not clickable there: switch instances before
-starting a chat in another machine's directory.
+In `Everywhere`, groups are keyed by machine and directory, so the same path on
+two machines is two groups and each group header carries its instance name. Rows
+carry no machine pill; a finished or running chat outside a directory group names
+its instance on the directory line. The merged list is fetched when the scope
+first opens and refreshed on reconnect, then cached for the session. A chat is
+listed once even when two instances report the same id. Opening a chat from
+another instance switches to that instance first. Group headers are not clickable
+there: switch instances before starting a chat in another machine's directory.
 
 In a cross-project scope, chats that finished or wait for an answer rise above
 the project groups as one unlabelled block; each row names its project. The rest
 stay grouped by directory, and running chats keep their dock at the bottom.
 
 Each chat row shows its own subagent counter on the directory line and expands
-only that chat's subagents. In the `This project` scope the tab shows the workspace
+only that chat's subagents. In the `This dir` scope the tab shows the workspace
 name and the card omits the directory. The selected chat's `N subagents` menu
 opens the same transcripts, and the parent header has `Back to parent`.
 
@@ -614,9 +625,10 @@ nspell worker. It is not implemented yet.
   version, the Browser → nit-gui → OpenCode flow and a capability row for every
   instance. The same icon carries the live/offline state. `/instances` opens the
   same menu. Switching remounts the chat view, so the new instance starts from
-  its own sessions and drafts. Offline and boot screens also have `Switch
-  instance`. The menu creates, edits and deletes instances; saving writes
-  `instances.json` on the host.
+  its own sessions and drafts; a connected instance is prefetched first (capped
+  at 1.5 s) and a cached one paints its chat list before the refresh. Offline and
+  boot screens also have `Switch instance`. The menu creates, edits and deletes
+  instances; saving writes `instances.json` on the host.
 - Streaming text, reasoning, tool calls collapsed by default, code copy,
   GFM tables/task lists.
 - Composer: Enter sends, Shift+Enter adds a line, stop while streaming, token
@@ -658,7 +670,7 @@ nspell worker. It is not implemented yet.
   follows `prefers-reduced-motion`; the choice is stored in `localStorage`.
 - Shortcuts: `mod+k` search, `alt+n` new chat, `tab`/`shift+tab` (or
   `alt+j`/`alt+k`) next/previous chat in the sidebar order, `alt+←`/`alt+→`
-  switches the scope This project / All chats / All machines, `enter` send and
+  switches the scope This dir / All chats / Everywhere, `enter` send and
   `shift+enter`
   newline (in the composer), double `esc` stop.
   In a text field `tab` belongs to the field: the composer completes the
@@ -746,10 +758,12 @@ own startup warmup.
 - Only the active instance keeps an event stream. Inactive instances do not
   accumulate unread counts or approvals in the background; switching to one
   reloads its list and transcript.
-- `All machines` fans out one request per connected instance on first open and on
+- `Everywhere` fans out one request per connected instance on first open and on
   reconnect. There is no multi-instance event stream, so other machines' lists
   are a snapshot and hidden/done/failed markers plus drafts come from the active
-  instance only; hide or delete a foreign chat after switching to it.
+  instance only; hide or delete a foreign chat after switching to it. The boot
+  cache keeps one list per instance, so a switch shows that instance's chats even
+  while a cold SSH tunnel is still coming up.
 - Drafts, hidden chats and done/failed markers are scoped by instance. The
   default instance keeps the old unscoped `localStorage` keys; other instances
   use a `:<instance>` suffix.

@@ -69,8 +69,12 @@ export function cachedSessions(
   boot: Boot | null,
   scope: Scope,
   workspace: string | null,
+  instance: string,
 ): Session[] {
   if (!boot) return [];
-  if (scope !== "directory" || !workspace) return boot.sessions;
-  return boot.sessions.filter((session) => session.location?.directory === workspace);
+  if (scope === "everywhere")
+    return boot.sessions.map((session) => ({ ...session, instance }));
+  if (scope === "directory" && workspace)
+    return boot.sessions.filter((session) => session.location?.directory === workspace);
+  return boot.sessions;
 }

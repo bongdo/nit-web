@@ -75,7 +75,11 @@ func testServer(t *testing.T, seen *http.Header) (*httptest.Server, *Store) {
 	}))
 	t.Cleanup(upstream.Close)
 	store := testStore(t)
-	server := httptest.NewServer(New(testRoutes(t, upstream.URL), store, []byte(testKey), nil).Handler())
+	agents, err := OpenAgents(filepath.Join(t.TempDir(), "agents.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	server := httptest.NewServer(New(testRoutes(t, upstream.URL), store, agents, []byte(testKey), nil).Handler())
 	t.Cleanup(server.Close)
 	return server, store
 }
@@ -365,7 +369,7 @@ func TestServiceIdentityIgnoredOffLoopback(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	}))
 	defer upstream.Close()
-	handler := New(testRoutes(t, upstream.URL), testStore(t), []byte(testKey), nil).Handler()
+	handler := New(testRoutes(t, upstream.URL), testStore(t), testAgents(t), []byte(testKey), nil).Handler()
 
 	id := gateid.Identity{
 		User: "nit-gui",

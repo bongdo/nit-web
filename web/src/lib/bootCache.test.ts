@@ -67,10 +67,23 @@ describe("boot cache", () => {
       sessions: [session("a", "/work/nit"), session("b", "/work/other")],
     });
     const boot = readBoot("boot-scope");
-    expect(cachedSessions(boot, "mine", null).map((item) => item.id)).toEqual(["a", "b"]);
-    expect(cachedSessions(boot, "everywhere", null).map((item) => item.id)).toEqual(["a", "b"]);
-    expect(cachedSessions(boot, "directory", "/work/nit").map((item) => item.id)).toEqual(["a"]);
-    expect(cachedSessions(null, "directory", "/work/nit")).toEqual([]);
+    expect(cachedSessions(boot, "mine", null, "frankfurt").map((item) => item.id)).toEqual([
+      "a",
+      "b",
+    ]);
+    expect(
+      cachedSessions(boot, "everywhere", null, "frankfurt").map((item) => [
+        item.id,
+        item.instance,
+      ]),
+    ).toEqual([
+      ["a", "frankfurt"],
+      ["b", "frankfurt"],
+    ]);
+    expect(
+      cachedSessions(boot, "directory", "/work/nit", "frankfurt").map((item) => item.id),
+    ).toEqual(["a"]);
+    expect(cachedSessions(null, "directory", "/work/nit", "frankfurt")).toEqual([]);
   });
 
   it("prefetches health, catalog and sessions once", async () => {

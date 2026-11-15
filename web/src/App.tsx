@@ -261,9 +261,9 @@ export default function App({
   const [hiddenIds, setHiddenIds] = useState<Set<string>>(() => new Set());
   const [showHidden, setShowHidden] = useState(false);
   const [sessions, setSessions] = useState<Session[]>(() =>
-    cachedSessions(boot, scope, workspace),
+    cachedSessions(boot, scope, workspace, instance),
   );
-  const [sessionsLoading, setSessionsLoading] = useState(() => sessions.length === 0);
+  const [sessionsLoading, setSessionsLoading] = useState(true);
   const [selectedId, setSelectedIdState] = useState<string | null>(() =>
     localStorage.getItem(sessionKey),
   );

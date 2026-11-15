@@ -31,6 +31,8 @@ const identityKey ctxKey = 1
 type Server struct {
 	routes  *Routes
 	users   *Store
+	agents  *Agents
+	hub     *agentHub
 	secret  []byte
 	log     *slog.Logger
 	now     func() time.Time
@@ -39,13 +41,15 @@ type Server struct {
 	blocked map[string]time.Time
 }
 
-func New(routes *Routes, users *Store, secret []byte, log *slog.Logger) *Server {
+func New(routes *Routes, users *Store, agents *Agents, secret []byte, log *slog.Logger) *Server {
 	if log == nil {
 		log = slog.Default()
 	}
 	return &Server{
 		routes:  routes,
 		users:   users,
+		agents:  agents,
+		hub:     newAgentHub(),
 		secret:  secret,
 		log:     log,
 		now:     time.Now,
@@ -69,6 +73,10 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /admin/reject", s.adminReject)
 	mux.HandleFunc("GET /i/{token}", s.invitePage)
 	mux.HandleFunc("POST /i/{token}", s.inviteSubmit)
+	mux.HandleFunc("GET /agent", s.agentSocket)
+	mux.HandleFunc("GET /api/agents", s.machines)
+	mux.HandleFunc("/i/{machine}/{target}", s.instanceProxy)
+	mux.HandleFunc("/i/{machine}/{target}/{rest...}", s.instanceProxy)
 	mux.HandleFunc("/", s.proxy)
 	return s.security(mux)
 }

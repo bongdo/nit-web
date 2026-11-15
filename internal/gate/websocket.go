@@ -36,11 +36,12 @@ var (
 )
 
 type wsConn struct {
-	conn   net.Conn
-	br     *bufio.Reader
-	masked bool
-	wmu    sync.Mutex
-	once   sync.Once
+	conn        net.Conn
+	br          *bufio.Reader
+	readMasked  bool
+	writeMasked bool
+	wmu         sync.Mutex
+	once        sync.Once
 }
 
 func wsAccept(key string) string {
@@ -98,7 +99,7 @@ func AcceptWebSocket(w http.ResponseWriter, r *http.Request) (*wsConn, error) {
 		conn.Close()
 		return nil, err
 	}
-	return &wsConn{conn: conn, br: rw.Reader, masked: true}, nil
+	return &wsConn{conn: conn, br: rw.Reader, readMasked: true}, nil
 }
 
 func DialWebSocket(ctx context.Context, rawURL string, header http.Header) (*wsConn, error) {
@@ -170,7 +171,7 @@ func DialWebSocket(ctx context.Context, rawURL string, header http.Header) (*wsC
 		conn.Close()
 		return nil, errors.New("gate: websocket handshake rejected")
 	}
-	return &wsConn{conn: conn, br: bufio.NewReader(resp.Body), masked: false}, nil
+	return &wsConn{conn: conn, br: br, writeMasked: true}, nil
 }
 
 func (c *wsConn) SetReadDeadline(t time.Time) error {
@@ -225,7 +226,7 @@ func (c *wsConn) writeFrame(op int, payload []byte) error {
 		head = append(head, 127, 0, 0, 0, 0, 0, 0, 0, 0)
 		binary.BigEndian.PutUint64(head[2:], uint64(n))
 	}
-	if c.masked {
+	if c.writeMasked {
 		head[1] |= 0x80
 		var key [4]byte
 		if _, err := rand.Read(key[:]); err != nil {
@@ -301,7 +302,7 @@ func (c *wsConn) readFrame() (bool, int, []byte, error) {
 	}
 	op := int(head[0] & 0x0f)
 	mask := head[1]&0x80 != 0
-	if mask != c.masked {
+	if mask != c.readMasked {
 		return false, 0, nil, errors.New("gate: websocket masked bit mismatch")
 	}
 	length := int64(head[1] & 0x7f)

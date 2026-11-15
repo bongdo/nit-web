@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"flag"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
@@ -21,11 +22,24 @@ func main() {
 	admin := flag.String("admin", envOr("NIT_GATE_ADMIN", "bongdo"), "name of the seeded admin")
 	flag.Parse()
 
+	if args := flag.Args(); len(args) > 0 && args[0] == "token" {
+		if err := tokenCommand(args[1:]); err != nil {
+			fmt.Fprintln(os.Stderr, "gate:", err)
+			os.Exit(1)
+		}
+		return
+	}
+
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelInfo}))
 
 	secret, err := gateid.LoadSecret(gateid.DefaultSecretPath())
 	if err != nil {
 		log.Error("gate key", "error", err)
+		os.Exit(1)
+	}
+	agents, err := gate.OpenAgents(gate.DefaultAgentsPath())
+	if err != nil {
+		log.Error("gate agents", "error", err)
 		os.Exit(1)
 	}
 	users, err := gate.OpenStore(gate.DefaultUsersPath())
@@ -54,7 +68,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	server := gate.New(routes, users, secret, log)
+	server := gate.New(routes, users, agents, secret, log)
 	httpServer := &http.Server{
 		Addr:              *addr,
 		Handler:           server.Handler(),
@@ -94,4 +108,40 @@ func envOr(name, fallback string) string {
 		return value
 	}
 	return fallback
+}
+
+func tokenCommand(args []string) error {
+	agents, err := gate.OpenAgents(gate.DefaultAgentsPath())
+	if err != nil {
+		return err
+	}
+	if len(args) == 0 {
+		return errors.New("usage: gate token add|rm|list [name]")
+	}
+	switch args[0] {
+	case "add":
+		if len(args) < 2 {
+			return errors.New("usage: gate token add <name>")
+		}
+		token, err := agents.Add(args[1])
+		if err != nil {
+			return err
+		}
+		fmt.Println(token)
+	case "rm":
+		if len(args) < 2 {
+			return errors.New("usage: gate token rm <name>")
+		}
+		if err := agents.Remove(args[1]); err != nil {
+			return err
+		}
+		fmt.Println("removed", args[1])
+	case "list":
+		for _, machine := range agents.List() {
+			fmt.Printf("%s\t%s\n", machine.Name, time.Unix(machine.Added, 0).Format(time.RFC3339))
+		}
+	default:
+		return errors.New("usage: gate token add|rm|list [name]")
+	}
+	return nil
 }

@@ -783,7 +783,7 @@ export const Sidebar = memo(function Sidebar({
                         {group.instance && (
                           <span
                             className="border-border shrink-0 rounded border px-1 font-mono text-[9px]"
-                            title={`Calls from ${group.instance}`}
+                            title={group.instance}
                           >
                             {group.instance}
                           </span>

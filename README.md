@@ -254,7 +254,7 @@ the frontend build always runs before the Go build.
 Development with hot reload:
 
 ```sh
-./bin/run             # backend on 127.0.0.1:7788
+./bin/run             # backend on 127.0.0.1:7788, own UI state in .cache
 npm --prefix web run dev
 ```
 
@@ -696,6 +696,12 @@ nspell worker. It is not implemented yet.
   streaming part stops, so an iframe is not rebuilt for every token. Reasoning
   and tool calls are collapsed by default; code copy, GFM tables and task lists
   stay.
+- Prose highlights values without a background: a number with a unit or a
+  currency amount, and session/task ids, get one copper tint and tabular digits.
+  Units are matched in English and Russian (`260px`, `8 МБ`, `0.5-1 день`,
+  `$0.16`); bare numbers, versions and paths are left alone, and inline code is
+  never touched. A table column made only of values is right-aligned; a mixed
+  column (a duration next to "недели") stays left-aligned.
 - HTML answers: an agent or user can reference a workspace page as
   `[[html:pages/chart.html|Title]]` on its own line. The chat reads the file
   through `/api/artifact` and renders it inline as part of the reply; the marker

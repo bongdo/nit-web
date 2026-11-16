@@ -24,6 +24,9 @@ describe("splitValues", () => {
     expect(marked("3 дня, 4 недели, 2 месяца")).toBe(
       "[value:3 дня], [value:4 недели], [value:2 месяца]",
     );
+    expect(marked("0.5-1 день и 1.5–2 дня")).toBe(
+      "[value:0.5-1 день] и [value:1.5–2 дня]",
+    );
   });
 
   it("marks money, ids and task numbers", () => {

@@ -40,9 +40,29 @@ function textOf(node: ReactNode): string {
   return "";
 }
 
+function MarkdownTd({
+  children,
+  className,
+}: {
+  children?: ReactNode;
+  className?: string;
+}) {
+  return <td className={className}>{valuesIn(children)}</td>;
+}
+
+function MarkdownTh({
+  children,
+  className,
+}: {
+  children?: ReactNode;
+  className?: string;
+}) {
+  return <th className={className}>{valuesIn(children)}</th>;
+}
+
 function cellsOf(row: ReactNode): ReactElement[] {
   if (!isValidElement(row)) return [];
-  if (row.type === "td" || row.type === "th") return [row];
+  if (row.type === MarkdownTd || row.type === MarkdownTh) return [row];
   return Children.toArray((row.props as { children?: ReactNode }).children).flatMap(cellsOf);
 }
 
@@ -86,7 +106,7 @@ function alignCells(node: ReactNode, columns: boolean[]): ReactNode {
     const cells = Children.toArray(props.children).map((child) => {
       if (!isValidElement(child)) return child;
       const at = index++;
-      if (child.type !== "td" && child.type !== "th") return child;
+      if (child.type !== MarkdownTd && child.type !== MarkdownTh) return child;
       if (!columns[at]) return child;
       const cell = child as ReactElement<{ className?: string; children?: ReactNode }>;
       return cloneElement(cell, { className: cn(cell.props.className, "md-num") });
@@ -157,12 +177,8 @@ function componentsFor(streaming: boolean): Components {
     },
     p: ({ children }) => <p>{valuesIn(children)}</p>,
     li: ({ children }) => <li>{valuesIn(children)}</li>,
-    td: ({ children, className }) => (
-      <td className={className}>{valuesIn(children)}</td>
-    ),
-    th: ({ children, className }) => (
-      <th className={className}>{valuesIn(children)}</th>
-    ),
+    td: MarkdownTd,
+    th: MarkdownTh,
     img({ src, alt, ...props }) {
       return <img src={src} alt={alt ?? ""} loading="lazy" {...props} />;
     },

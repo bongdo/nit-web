@@ -128,7 +128,7 @@ const TOKEN = new RegExp(
     String.raw`(?<id>(?<![\p{L}\p{N}_])(?:ses|frm|msg|prt)_[A-Za-z0-9]{1,})`,
     String.raw`(?<task>(?<![\p{L}\p{N}_])(?:T|#)\d{1,4}(?![\p{L}\p{N}_]))`,
     String.raw`(?<money>(?<![\p{L}\p{N}_])[$€₽][ \u00a0]?\d+(?:[.,]\d+)?(?![\p{L}\p{N}_]))`,
-    String.raw`(?<value>(?<![\p{L}\p{N}_])\d+(?:[.,]\d+)?[ \u00a0]?(?:${UNITS.join("|")})(?![\p{L}\p{N}_]))`,
+    String.raw`(?<value>(?<![\p{L}\p{N}_])(?:\d+(?:[.,]\d+)?[–—-])?\d+(?:[.,]\d+)?[ \u00a0]?(?:${UNITS.join("|")})(?![\p{L}\p{N}_]))`,
   ].join("|"),
   "giu",
 );

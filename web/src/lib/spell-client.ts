@@ -4,6 +4,7 @@ type Response =
   | { type: "ready" }
   | { type: "issues"; id: number; issues: SpellIssue[] }
   | { type: "completion"; id: number; words: string[] }
+  | { type: "learned"; id: number; words: string[] }
   | { type: "error"; message: string };
 
 type Pending = {
@@ -100,4 +101,8 @@ export function checkSpelling(text: string, ignore: string[]): Promise<SpellIssu
 
 export function completeSpelling(prefix: string, ignore: string[]): Promise<string[]> {
   return request<string[]>({ kind: "completion", prefix, ignore });
+}
+
+export function learnWords(text: string, ignore: string[]): Promise<string[]> {
+  return request<string[]>({ kind: "learn", text, ignore });
 }

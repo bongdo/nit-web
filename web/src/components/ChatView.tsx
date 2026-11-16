@@ -24,6 +24,7 @@ import {
 } from "../lib/scroll";
 import { cn } from "../lib/utils";
 import type { TimeFormat } from "../lib/time";
+import { useChatDictionary } from "../hooks/useChatDictionary";
 import { Button } from "./ui/button";
 import { AssistantTurn } from "./AssistantTurn";
 import { CompactionBusy } from "./Compaction";
@@ -171,6 +172,7 @@ export function ChatView({
   motionRef.current = motion;
   const messagesRef = useRef(messages);
   messagesRef.current = messages;
+  useChatDictionary(messages, !loading);
   const anchors = useRef(new Map<string, ScrollAnchor>());
   const pendingRestore = useRef<string | null>(null);
   const settle = useRef<{ id: string; anchor: ScrollAnchor } | null>(null);

@@ -281,6 +281,30 @@ export function findIssues(
   return issues.sort((left, right) => left.start - right.start);
 }
 
+export function unknownWords(
+  text: string,
+  ru: SpellChecker,
+  en: SpellChecker,
+  ignore: Set<string> = new Set(),
+): string[] {
+  const result = new Set<string>();
+  for (const token of words(text)) {
+    const parts = token.value.includes("-") ? token.value.split("-") : [token.value];
+    for (const part of parts) {
+      const lower = part.toLowerCase();
+      if (lower.length < 3 || ignore.has(lower) || allowedWord(part)) continue;
+      const language = languageOf(part);
+      if (!language) continue;
+      const primary = language === "en" ? en : ru;
+      if (primary.correct(part)) continue;
+      if (language === "mixed" && (ru.correct(part) || en.correct(part))) continue;
+      result.add(lower);
+      if (result.size >= 400) return Array.from(result);
+    }
+  }
+  return Array.from(result);
+}
+
 export function applyIssue(text: string, issue: SpellIssue, replacement: string): string {
   return text.slice(0, issue.start) + replacement + text.slice(issue.end);
 }

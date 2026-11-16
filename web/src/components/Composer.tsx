@@ -29,6 +29,7 @@ import {
 } from "../lib/spell";
 import { useSpellcheck } from "../hooks/useSpellcheck";
 import { useCompletion } from "../hooks/useCompletion";
+import { loadIgnoredWords, SPELL_CHANGED } from "../lib/chatWords";
 import { checkSpelling } from "../lib/spell-client";
 import { cn } from "../lib/utils";
 import { FileTypeIcon } from "./Attachment";
@@ -81,17 +82,6 @@ function restoredAttachment(file: File): Attachment {
     preview: file.type.startsWith("image/") ? URL.createObjectURL(file) : undefined,
     file,
   };
-}
-
-function loadIgnoredWords(): string[] {
-  try {
-    const value = JSON.parse(localStorage.getItem("nit-gui.spell-ignore") ?? "[]");
-    return Array.isArray(value)
-      ? value.filter((item): item is string => typeof item === "string" && item.length > 0)
-      : [];
-  } catch {
-    return [];
-  }
 }
 
 export const Composer = memo(function Composer({
@@ -309,6 +299,12 @@ export const Composer = memo(function Composer({
     caret,
   );
   const ghost = useCompletion(answerText, caret, customSpell && !disabled, ignored);
+
+  useEffect(() => {
+    const reload = () => setIgnored(loadIgnoredWords());
+    window.addEventListener(SPELL_CHANGED, reload);
+    return () => window.removeEventListener(SPELL_CHANGED, reload);
+  }, []);
 
   useEffect(() => {
     if (!focusKey) return;

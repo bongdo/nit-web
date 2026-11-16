@@ -16,6 +16,7 @@ import {
   pendingWord,
   prefixMatches,
   safeAutoFix,
+  unknownWords,
   words,
   type SpellChecker,
   type SpellIssue,
@@ -271,6 +272,15 @@ describe("spell", () => {
     expect(addsOnlyPunctuation("ситуация где", "ситуации где")).toBe(false);
     expect(addsOnlyPunctuation("слово", "слово")).toBe(false);
     expect(addsOnlyPunctuation("слово", "слова")).toBe(false);
+  });
+
+  it("collects unknown words from chat text", () => {
+    expect(
+      unknownWords("привет хочю просмотршик run opencode bin/check", ru, en, new Set(["просмотршик"])),
+    ).toEqual(["привет", "хочю"]);
+    expect(unknownWords("кто-нибудь", ru, en)).toEqual([]);
+    expect(unknownWords("хочю-хочю", ru, en)).toEqual(["хочю"]);
+    expect(unknownWords("в", ru, en)).toEqual([]);
   });
 
   it("detects code and path positions", () => {

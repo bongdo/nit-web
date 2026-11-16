@@ -438,9 +438,13 @@ server, so hiding a chat or continuing a draft works on the next device.
   corrected word, or `Ctrl/Cmd+Z`, restores the original and adds it to the
   ignore list so it is not fixed again. Ambiguous, capitalized, code and path
   words are never auto-fixed; Settings → Auto-fix typos turns this off.
-- The personal dictionary grows from `ignore`, from undoing an auto-fix, and
-  from words you send three times while they are still flagged. This is how
-  project terms and names stop being tinted red.
+- The personal dictionary grows from `ignore`, from undoing an auto-fix, from
+  words you send three times while they are still flagged, and from the chat
+  itself: user messages and the assistant's prose are scanned after they settle,
+  and words neither dictionary knows (anglicisms, project terms) go into
+  `nit-gui.spell-chat` (last 4000, lowercase). Both lists feed the red tint,
+  auto-fix and the grey completion, so a term the agent used stops being an
+  error in the composer without a manual step.
 - Inline completion: after two letters the rest of the most likely Russian or
   English word from the dictionaries or your personal dictionary appears in
   grey, and `Tab` accepts it. Correct words, code, paths and `/commands` get no

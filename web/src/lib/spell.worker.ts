@@ -1,14 +1,16 @@
 import nspell from "nspell";
-import { findIssues, prefixMatches, type SpellIssue } from "./spell";
+import { findIssues, prefixMatches, unknownWords, type SpellIssue, type SpellChecker } from "./spell";
 
 type IssuesRequest = { kind?: "issues"; id: number; text: string; ignore: string[] };
 type CompletionRequest = { kind: "completion"; id: number; prefix: string; ignore: string[] };
-type Request = IssuesRequest | CompletionRequest;
+type LearnRequest = { kind: "learn"; id: number; text: string; ignore: string[] };
+type Request = IssuesRequest | CompletionRequest | LearnRequest;
 
 type Response =
   | { type: "ready" }
   | { type: "issues"; id: number; issues: SpellIssue[] }
   | { type: "completion"; id: number; words: string[] }
+  | { type: "learned"; id: number; words: string[] }
   | { type: "error"; message: string };
 
 type WorkerScope = {
@@ -71,6 +73,20 @@ void ready
     scope.postMessage({ type: "error", message: error instanceof Error ? error.message : "dictionary failed" });
   });
 
+function wrap(checker: ReturnType<typeof nspell>): SpellChecker {
+  return {
+    correct: (word: string) => checker.correct(word),
+    suggest: (word: string) => {
+      let list = suggestions.get(word);
+      if (!list) {
+        list = checker.suggest(word);
+        suggestions.set(word, list);
+      }
+      return list;
+    },
+  };
+}
+
 function complete(dictionaries: Loaded, prefix: string, ignore: string[]): string[] {
   const lower = prefix.toLowerCase();
   if (ignore.some((word) => word.toLowerCase() === lower)) return [];
@@ -89,6 +105,20 @@ function complete(dictionaries: Loaded, prefix: string, ignore: string[]): strin
 
 scope.onmessage = (event) => {
   const request = event.data;
+  if (request.kind === "learn") {
+    void ready
+      .then(({ ru, en }) => {
+        scope.postMessage({
+          type: "learned",
+          id: request.id,
+          words: unknownWords(request.text, wrap(ru), wrap(en), new Set(request.ignore)),
+        });
+      })
+      .catch((error: unknown) => {
+        scope.postMessage({ type: "error", message: error instanceof Error ? error.message : "dictionary failed" });
+      });
+    return;
+  }
   if (request.kind === "completion") {
     void ready
       .then((dictionaries) => {
@@ -110,17 +140,6 @@ scope.onmessage = (event) => {
   }
   void ready
     .then(({ ru, en }) => {
-      const wrap = (checker: ReturnType<typeof nspell>) => ({
-        correct: (word: string) => checker.correct(word),
-        suggest: (word: string) => {
-          let list = suggestions.get(word);
-          if (!list) {
-            list = checker.suggest(word);
-            suggestions.set(word, list);
-          }
-          return list;
-        },
-      });
       const issues = findIssues(request.text, wrap(ru), wrap(en), new Set(request.ignore));
       cachedText = request.text;
       cachedIgnore = ignoreKey;

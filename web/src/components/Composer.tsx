@@ -1047,8 +1047,8 @@ export const Composer = memo(function Composer({
                     : !workspace
                       ? "Choose a workspace to start"
                       : session
-                        ? "Ask anything…  / for commands"
-                        : "New chat in this workspace…"
+                        ? "Ask anything… / for commands"
+                        : "New chat in this workspace… / for commands"
                 }
                 className={cn(
                   COMPOSER_TEXT,
@@ -1199,7 +1199,7 @@ export const Composer = memo(function Composer({
                     applySuggestion(visibleIssue, firstSuggestion);
                     return;
                   }
-                  if (plainTab && ghost) {
+                  if (plainTab && ghost && !event.nativeEvent.isComposing) {
                     event.preventDefault();
                     const next = answerText + ghost.tail;
                     updateValue(next);

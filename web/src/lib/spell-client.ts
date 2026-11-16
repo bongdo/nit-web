@@ -3,10 +3,11 @@ import type { SpellIssue } from "./spell";
 type Response =
   | { type: "ready" }
   | { type: "issues"; id: number; issues: SpellIssue[] }
+  | { type: "completion"; id: number; words: string[] }
   | { type: "error"; message: string };
 
 type Pending = {
-  resolve: (issues: SpellIssue[]) => void;
+  resolve: (value: SpellIssue[] | string[]) => void;
   reject: (error: Error) => void;
 };
 
@@ -49,7 +50,7 @@ function start(): Promise<void> {
       const item = pending.get(data.id);
       if (!item) return;
       pending.delete(data.id);
-      item.resolve(data.issues);
+      item.resolve(data.type === "issues" ? data.issues : data.words);
     };
     worker.onerror = (event) => {
       const error = new Error(event.message || "spellcheck worker failed");
@@ -64,30 +65,39 @@ function start(): Promise<void> {
   return starting;
 }
 
+function request<T>(message: Record<string, unknown>): Promise<T> {
+  if (broken) return Promise.resolve([] as T);
+  return start().then(() => {
+    if (!worker) return [] as T;
+    const id = ++sequence;
+    return new Promise<T>((resolve, reject) => {
+      const timer = setTimeout(() => {
+        pending.delete(id);
+        reject(new Error("spellcheck timed out"));
+      }, 15_000);
+      pending.set(id, {
+        resolve: (value) => {
+          clearTimeout(timer);
+          resolve(value as T);
+        },
+        reject: (error) => {
+          clearTimeout(timer);
+          reject(error);
+        },
+      });
+      worker?.postMessage({ ...message, id });
+    });
+  });
+}
+
 export function preloadSpellcheck(): Promise<void> {
   return start().catch(() => undefined);
 }
 
-export async function checkSpelling(text: string, ignore: string[]): Promise<SpellIssue[]> {
-  if (broken) return [];
-  await start();
-  if (!worker) return [];
-  const id = ++sequence;
-  return new Promise<SpellIssue[]>((resolve, reject) => {
-    const timer = setTimeout(() => {
-      pending.delete(id);
-      reject(new Error("spellcheck timed out"));
-    }, 15_000);
-    pending.set(id, {
-      resolve: (issues) => {
-        clearTimeout(timer);
-        resolve(issues);
-      },
-      reject: (error) => {
-        clearTimeout(timer);
-        reject(error);
-      },
-    });
-    worker?.postMessage({ id, text, ignore });
-  });
+export function checkSpelling(text: string, ignore: string[]): Promise<SpellIssue[]> {
+  return request<SpellIssue[]>({ kind: "issues", text, ignore });
+}
+
+export function completeSpelling(prefix: string, ignore: string[]): Promise<string[]> {
+  return request<string[]>({ kind: "completion", prefix, ignore });
 }

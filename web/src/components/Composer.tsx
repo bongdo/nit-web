@@ -28,12 +28,13 @@ import {
   type SpellIssue,
 } from "../lib/spell";
 import { useSpellcheck } from "../hooks/useSpellcheck";
+import { useCompletion } from "../hooks/useCompletion";
 import { checkSpelling } from "../lib/spell-client";
 import { cn } from "../lib/utils";
 import { FileTypeIcon } from "./Attachment";
 import { ImageCrop } from "./ImageCrop";
 import { CommandPalette } from "./CommandPalette";
-import { COMPOSER_TEXT, ComposerHighlights, type HintRect } from "./ComposerHighlights";
+import { COMPOSER_TEXT, ComposerHighlights, type ComposerHighlightsHandle, type HintRect } from "./ComposerHighlights";
 import { Button } from "./ui/button";
 import { Textarea } from "./ui/textarea";
 
@@ -172,7 +173,9 @@ export const Composer = memo(function Composer({
   const [removing, setRemoving] = useState<string[]>([]);
   const [cropId, setCropId] = useState<string | null>(null);
   const ref = useRef<HTMLTextAreaElement>(null);
-  const highlightRef = useRef<HTMLDivElement>(null);
+  const highlightRef = useRef<ComposerHighlightsHandle>(null);
+  const syncFrame = useRef(0);
+  const syncUntil = useRef(0);
   const autoCorrectPending = useRef(false);
   const grammarFixes = useRef(0);
   const lastTypedAt = useRef(0);
@@ -304,6 +307,7 @@ export const Composer = memo(function Composer({
     answerText,
     caret,
   );
+  const ghost = useCompletion(answerText, caret, customSpell && !disabled, ignored);
 
   useEffect(() => {
     if (!focusKey) return;
@@ -426,20 +430,29 @@ export const Composer = memo(function Composer({
 
   useLayoutEffect(() => {
     const area = ref.current;
-    const layer = highlightRef.current;
-    if (!area || !layer) return;
-    layer.scrollTop = area.scrollTop;
-    layer.scrollLeft = area.scrollLeft;
+    if (!area) return;
+    highlightRef.current?.sync(area.scrollTop, area.scrollLeft);
   }, [value]);
 
   const syncScroll = () => {
     const area = ref.current;
-    const layer = highlightRef.current;
-    if (!area || !layer) return;
-    layer.scrollTop = area.scrollTop;
-    layer.scrollLeft = area.scrollLeft;
+    if (!area) return;
+    highlightRef.current?.sync(area.scrollTop, area.scrollLeft);
     setHintRect(null);
   };
+
+  const startSync = () => {
+    syncUntil.current = Date.now() + 700;
+    if (syncFrame.current) return;
+    const tick = () => {
+      const area = ref.current;
+      if (area) highlightRef.current?.sync(area.scrollTop, area.scrollLeft);
+      syncFrame.current = Date.now() < syncUntil.current ? requestAnimationFrame(tick) : 0;
+    };
+    syncFrame.current = requestAnimationFrame(tick);
+  };
+
+  useEffect(() => () => cancelAnimationFrame(syncFrame.current), []);
 
   const updateCaret = () => {
     const area = ref.current;
@@ -1066,6 +1079,8 @@ export const Composer = memo(function Composer({
                   void autoFixWord(start, end, word);
                 }}
                 onScroll={syncScroll}
+                onWheel={startSync}
+                onTouchMove={startSync}
                 onSelect={updateCaret}
                 onClick={() => {
                   setDismissed(null);
@@ -1184,6 +1199,17 @@ export const Composer = memo(function Composer({
                     applySuggestion(visibleIssue, firstSuggestion);
                     return;
                   }
+                  if (plainTab && ghost) {
+                    event.preventDefault();
+                    const next = answerText + ghost.tail;
+                    updateValue(next);
+                    setCaret(next.length);
+                    setDismissed(null);
+                    requestAnimationFrame(() => {
+                      ref.current?.setSelectionRange(next.length, next.length);
+                    });
+                    return;
+                  }
                   if (plainTab && !event.shiftKey && !question) {
                     const area = ref.current;
                     if (!area) return;
@@ -1228,6 +1254,7 @@ export const Composer = memo(function Composer({
                 issues={issues}
                 active={visibleIssue}
                 askRange={askRange}
+                ghost={ghost?.tail ?? null}
                 onRect={onHintRect}
               />
               {visibleIssue && hintRect && (

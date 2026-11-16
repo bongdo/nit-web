@@ -441,6 +441,10 @@ server, so hiding a chat or continuing a draft works on the next device.
 - The personal dictionary grows from `ignore`, from undoing an auto-fix, and
   from words you send three times while they are still flagged. This is how
   project terms and names stop being tinted red.
+- Inline completion: after two letters the rest of the most likely Russian or
+  English word from the dictionaries or your personal dictionary appears in
+  grey, and `Tab` accepts it. Correct words, code, paths and `/commands` get no
+  completion; a visible spelling suggestion takes `Tab` first.
 - A permission request from the agent appears as a card above the composer:
   `Allow once`, `Always` or `Reject`, with an optional rejection reason. A
   request in a background chat shows the waiting marker and desktop

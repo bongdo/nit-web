@@ -1,20 +1,26 @@
 import nspell from "nspell";
-import { findIssues, type SpellIssue } from "./spell";
+import { findIssues, prefixMatches, type SpellIssue } from "./spell";
 
-type Request = {
-  id: number;
-  text: string;
-  ignore: string[];
-};
+type IssuesRequest = { kind?: "issues"; id: number; text: string; ignore: string[] };
+type CompletionRequest = { kind: "completion"; id: number; prefix: string; ignore: string[] };
+type Request = IssuesRequest | CompletionRequest;
 
 type Response =
   | { type: "ready" }
   | { type: "issues"; id: number; issues: SpellIssue[] }
+  | { type: "completion"; id: number; words: string[] }
   | { type: "error"; message: string };
 
 type WorkerScope = {
   onmessage: ((event: MessageEvent<Request>) => void) | null;
   postMessage: (value: Response) => void;
+};
+
+type Loaded = {
+  ru: ReturnType<typeof nspell>;
+  en: ReturnType<typeof nspell>;
+  ruWords: string[];
+  enWords: string[];
 };
 
 const scope = self as unknown as WorkerScope;
@@ -25,7 +31,18 @@ const files = [
   `${import.meta.env.BASE_URL}dictionaries/en.dic`,
 ];
 
-async function load() {
+// shortcut: stems only, affixed forms are not in the list, rebuild from nspell if completions need them
+function dictionaryWords(dictionary: string): string[] {
+  const words = new Set<string>();
+  for (const line of dictionary.split("\n")) {
+    const head = line.trim().split(/[\t ]/, 1)[0];
+    const word = head.split("/")[0];
+    if (word && /^\p{L}/u.test(word)) words.add(word);
+  }
+  return Array.from(words).sort();
+}
+
+async function load(): Promise<Loaded> {
   const [ruAff, ruDic, enAff, enDic] = await Promise.all(
     files.map(async (url) => {
       const response = await fetch(url);
@@ -33,10 +50,15 @@ async function load() {
       return response.text();
     }),
   );
-  return { ru: nspell(ruAff, ruDic), en: nspell(enAff, enDic) };
+  return {
+    ru: nspell(ruAff, ruDic),
+    en: nspell(enAff, enDic),
+    ruWords: dictionaryWords(ruDic),
+    enWords: dictionaryWords(enDic),
+  };
 }
 
-let loaded: Promise<{ ru: ReturnType<typeof nspell>; en: ReturnType<typeof nspell> }> | null = null;
+let loaded: Promise<Loaded> | null = null;
 const suggestions = new Map<string, string[]>();
 let cachedText = "";
 let cachedIgnore = "";
@@ -49,8 +71,38 @@ void ready
     scope.postMessage({ type: "error", message: error instanceof Error ? error.message : "dictionary failed" });
   });
 
+function complete(dictionaries: Loaded, prefix: string, ignore: string[]): string[] {
+  const lower = prefix.toLowerCase();
+  if (ignore.some((word) => word.toLowerCase() === lower)) return [];
+  if (dictionaries.ru.correct(prefix) || dictionaries.en.correct(prefix)) return [];
+  const candidates = [
+    ...prefixMatches(dictionaries.ruWords, prefix, 80),
+    ...prefixMatches(dictionaries.enWords, prefix, 80),
+    ...ignore.filter((word) => word.length > prefix.length && word.toLowerCase().startsWith(lower)),
+  ];
+  const best = candidates
+    .filter((word) => word.length > prefix.length)
+    .sort((left, right) => left.length - right.length || (left < right ? -1 : left > right ? 1 : 0))[0];
+  if (!best) return [];
+  return [/^\p{Lu}/u.test(prefix) ? best[0].toUpperCase() + best.slice(1) : best];
+}
+
 scope.onmessage = (event) => {
   const request = event.data;
+  if (request.kind === "completion") {
+    void ready
+      .then((dictionaries) => {
+        scope.postMessage({
+          type: "completion",
+          id: request.id,
+          words: complete(dictionaries, request.prefix, request.ignore),
+        });
+      })
+      .catch((error: unknown) => {
+        scope.postMessage({ type: "error", message: error instanceof Error ? error.message : "dictionary failed" });
+      });
+    return;
+  }
   const ignoreKey = request.ignore.join("\u0000");
   if (request.text === cachedText && ignoreKey === cachedIgnore) {
     scope.postMessage({ type: "issues", id: request.id, issues: cachedIssues });

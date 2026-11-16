@@ -13,6 +13,8 @@ import {
   maskCode,
   maskedAt,
   mergeIssues,
+  pendingWord,
+  prefixMatches,
   safeAutoFix,
   words,
   type SpellChecker,
@@ -224,7 +226,7 @@ describe("spell", () => {
     expect(safeAutoFix("лут", ["лук"])).toBe("лук");
   });
 
-  it("hides the mark on the word that is still being typed", () => {
+  it("hides every mark that touches the word being typed", () => {
     const word: SpellIssue = {
       start: 0,
       end: 5,
@@ -241,10 +243,26 @@ describe("spell", () => {
       language: "ru",
       source: "grammar",
     };
+    const stale: SpellIssue = { ...word, end: 3 };
     expect(hidePending([word], "ситуа", 5)).toEqual([]);
-    expect(hidePending([word, phrase], "ситуа", 5)).toEqual([phrase]);
+    expect(hidePending([phrase], "ситуа", 5)).toEqual([]);
+    expect(hidePending([stale], "ситуа", 5)).toEqual([]);
     expect(hidePending([word], "ситуа", 3)).toEqual([word]);
     expect(hidePending([word], "ситуа ", 6)).toEqual([word]);
+    expect(hidePending([word], "ситуа", null)).toEqual([word]);
+    expect(pendingWord("я, а ощщо", 9)).toEqual({ start: 5, end: 9 });
+    expect(pendingWord("я, а ощщо ", 10)).toBeNull();
+    expect(pendingWord("я, а ощщо", 4)).toBeNull();
+  });
+
+  it("finds completions by prefix", () => {
+    const sorted = ["бар", "баран", "батон", "ситуация", "я"];
+    expect(prefixMatches(sorted, "ба")).toEqual(["бар", "баран", "батон"]);
+    expect(prefixMatches(sorted, "бара")).toEqual(["баран"]);
+    expect(prefixMatches(sorted, "Ба")).toEqual(["бар", "баран", "батон"]);
+    expect(prefixMatches(sorted, "ситуа")).toEqual(["ситуация"]);
+    expect(prefixMatches(sorted, "zzz")).toEqual([]);
+    expect(prefixMatches(sorted, "")).toEqual([]);
   });
 
   it("accepts only punctuation insertions from grammar", () => {

@@ -363,8 +363,35 @@ export function levenshtein(left: string, right: string): number {
 }
 
 export function hidePending(issues: SpellIssue[], text: string, caret: number | null): SpellIssue[] {
-  if (caret === null || caret !== text.length || !/\p{L}$/u.test(text)) return issues;
-  return issues.filter((issue) => issue.source === "grammar" || issue.end !== caret);
+  const pending = pendingWord(text, caret);
+  if (!pending) return issues;
+  return issues.filter((issue) => issue.end <= pending.start || issue.start >= pending.end);
+}
+
+export function pendingWord(text: string, caret: number | null): { start: number; end: number } | null {
+  if (caret === null || caret !== text.length) return null;
+  const match = /[\p{L}\p{M}][\p{L}\p{M}'’\-]*$/u.exec(text);
+  if (!match) return null;
+  return { start: caret - match[0].length, end: caret };
+}
+
+export function prefixMatches(sorted: string[], prefix: string, limit = 200): string[] {
+  const query = prefix.toLowerCase();
+  if (!query) return [];
+  let low = 0;
+  let high = sorted.length;
+  while (low < high) {
+    const mid = (low + high) >> 1;
+    if (sorted[mid].toLowerCase() < query) low = mid + 1;
+    else high = mid;
+  }
+  const result: string[] = [];
+  for (let index = low; index < sorted.length && result.length < limit; index += 1) {
+    const word = sorted[index];
+    if (!word.toLowerCase().startsWith(query)) break;
+    if (word.length > prefix.length) result.push(word);
+  }
+  return result;
 }
 
 const PUNCTUATION = /[.,!?;:—–-]/gu;

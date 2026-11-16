@@ -19,23 +19,41 @@ export type HintRect = {
   height: number;
 };
 
+export type ComposerHighlightsHandle = {
+  sync: (top: number, left: number) => void;
+};
+
 export const ComposerHighlights = forwardRef<
-  HTMLDivElement,
+  ComposerHighlightsHandle,
   {
     value: string;
     issues: SpellIssue[];
     active: SpellIssue | null;
     askRange: { start: number; end: number } | null;
+    ghost: string | null;
     onRect: (rect: HintRect | null) => void;
   }
->(function ComposerHighlights({ value, issues, active, askRange, onRect }, ref) {
+>(function ComposerHighlights({ value, issues, active, askRange, ghost, onRect }, ref) {
   const layerRef = useRef<HTMLDivElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
   const activeRef = useRef<HTMLSpanElement>(null);
   const askRef = useRef<HTMLSpanElement>(null);
+  const anchorRef = useRef<HTMLSpanElement>(null);
+  const ghostRef = useRef<HTMLSpanElement>(null);
   const lastAsk = useRef<HintRect | null>(null);
   const wasAsk = useRef(false);
   const [leaving, setLeaving] = useState<HintRect | null>(null);
-  useImperativeHandle(ref, () => layerRef.current as HTMLDivElement);
+
+  useImperativeHandle(
+    ref,
+    () => ({
+      sync(top: number, left: number) {
+        const content = contentRef.current;
+        if (content) content.style.transform = `translate(${-left}px, ${-top}px)`;
+      },
+    }),
+    [],
+  );
 
   useLayoutEffect(() => {
     const span = activeRef.current;
@@ -82,6 +100,14 @@ export const ComposerHighlights = forwardRef<
     return () => window.clearTimeout(timer);
   }, [leaving]);
 
+  useLayoutEffect(() => {
+    const anchor = anchorRef.current;
+    const tail = ghostRef.current;
+    if (!anchor || !tail) return;
+    tail.style.left = `${anchor.offsetLeft}px`;
+    tail.style.top = `${anchor.offsetTop}px`;
+  }, [value, ghost]);
+
   const parts: ReactNode[] = [];
   let cursor = 0;
   const ask =
@@ -124,7 +150,19 @@ export const ComposerHighlights = forwardRef<
         "pointer-events-none absolute inset-0 z-10 select-none overflow-hidden whitespace-pre-wrap break-words text-transparent",
       )}
     >
-      {parts}
+      <div ref={contentRef} className="relative">
+        {parts}
+        <span ref={anchorRef} />
+        {ghost && (
+          <span
+            ref={ghostRef}
+            className="pointer-events-none absolute whitespace-pre"
+            style={{ color: "var(--muted-foreground)", opacity: 0.55 }}
+          >
+            {ghost}
+          </span>
+        )}
+      </div>
       {leaving && !ask && (
         <span
           className="ask-sheen-chip ask-sheen-chip-leaving"

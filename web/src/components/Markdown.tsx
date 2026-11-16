@@ -1,12 +1,16 @@
-import { memo } from "react";
+import { memo, useMemo } from "react";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { attachmentNameFromHref, localFileHref } from "../lib/attachments";
+import { peroHref, resolveFilePath } from "../lib/diff";
+import { fileMention } from "../lib/fileMentions";
 import { AttachmentPreview } from "./Attachment";
 import { CodeBlock } from "./CodeBlock";
 import { cn } from "../lib/utils";
 
-function componentsFor(streaming: boolean): Components {
+type Links = { cwd?: string | null; peroURL: string };
+
+function componentsFor(streaming: boolean, links?: Links): Components {
   return {
     pre: ({ children }) => <>{children}</>,
     code({ node, className, children }) {
@@ -16,6 +20,19 @@ function componentsFor(streaming: boolean): Components {
         node?.position !== undefined && node.position.start.line !== node.position.end.line;
       if (language || multiline) {
         return <CodeBlock code={text} language={language} streaming={streaming} />;
+      }
+      const mention = links ? fileMention(text) : null;
+      if (mention && links) {
+        return (
+          <a
+            href={peroHref(links.peroURL, resolveFilePath(mention.path, links.cwd), mention.lines)}
+            target="_blank"
+            rel="noreferrer noopener"
+            title={`Open ${mention.path} in pero`}
+          >
+            <code className={className}>{children}</code>
+          </a>
+        );
       }
       return <code className={className}>{children}</code>;
     },
@@ -58,17 +75,27 @@ export const Markdown = memo(function Markdown({
   text,
   className,
   streaming = false,
+  cwd,
+  peroURL,
 }: {
   text: string;
   className?: string;
   streaming?: boolean;
+  cwd?: string | null;
+  peroURL?: string;
 }) {
+  const components = useMemo(
+    () =>
+      peroURL
+        ? componentsFor(streaming, { cwd, peroURL })
+        : streaming
+          ? streamingComponents
+          : stableComponents,
+    [streaming, cwd, peroURL],
+  );
   return (
     <div className={cn("markdown", className)}>
-      <ReactMarkdown
-        remarkPlugins={[remarkGfm]}
-        components={streaming ? streamingComponents : stableComponents}
-      >
+      <ReactMarkdown remarkPlugins={[remarkGfm]} components={components}>
         {text}
       </ReactMarkdown>
     </div>

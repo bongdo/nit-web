@@ -17,7 +17,16 @@ import { loadDraftState, saveDraftState, type DraftState } from "../lib/drafts";
 import { questionAnswer, questionFields } from "../lib/forms";
 import { formatBytes, quoteText } from "../lib/format";
 import { shouldCaptureKey, shortcutKeys } from "../lib/keys";
-import { applyIssue, issueAtCaret, issueKey, maskedAt, safeAutoFix, type SpellIssue } from "../lib/spell";
+import {
+  addsOnlyPunctuation,
+  applyIssue,
+  hidePending,
+  issueAtCaret,
+  issueKey,
+  maskedAt,
+  safeAutoFix,
+  type SpellIssue,
+} from "../lib/spell";
 import { useSpellcheck } from "../hooks/useSpellcheck";
 import { checkSpelling } from "../lib/spell-client";
 import { cn } from "../lib/utils";
@@ -50,6 +59,7 @@ type AutoFix = {
   replacement: string;
   start: number;
   at: number;
+  ignore: boolean;
 };
 
 const MAX_UPLOAD = 20 << 20;
@@ -164,6 +174,7 @@ export const Composer = memo(function Composer({
   const ref = useRef<HTMLTextAreaElement>(null);
   const highlightRef = useRef<HTMLDivElement>(null);
   const autoCorrectPending = useRef(false);
+  const grammarFixes = useRef(0);
   const fileRef = useRef<HTMLInputElement>(null);
   const draftBeforeForm = useRef("");
   const activeForm = useRef<string | null>(null);
@@ -285,9 +296,13 @@ export const Composer = memo(function Composer({
     customSpell,
     ignored,
   );
-  const issues = askRange
-    ? detected.filter((issue) => issue.end <= askRange.start || issue.start >= askRange.end)
-    : detected;
+  const issues = hidePending(
+    askRange
+      ? detected.filter((issue) => issue.end <= askRange.start || issue.start >= askRange.end)
+      : detected,
+    answerText,
+    caret,
+  );
 
   useEffect(() => {
     if (!focusKey) return;
@@ -457,6 +472,40 @@ export const Composer = memo(function Composer({
   const visibleIssue = activeIssue && issueKey(activeIssue) !== dismissed ? activeIssue : null;
 
   useEffect(() => {
+    if (!customSpell || question || disabled || formBusy || grammarFixes.current > 0) return;
+    if (answerText.startsWith("/") && !answerText.includes("\n")) return;
+    const area = ref.current;
+    if (!area || document.activeElement !== area) return;
+    if (area.selectionStart !== answerText.length || area.selectionEnd !== answerText.length) return;
+    const issue = issues.find(
+      (item) =>
+        item.source === "grammar" &&
+        item.end === answerText.length &&
+        item.suggestions.length === 1 &&
+        addsOnlyPunctuation(answerText.slice(item.start, item.end), item.suggestions[0]),
+    );
+    if (!issue) return;
+    const replacement = issue.suggestions[0];
+    const position = issue.start + replacement.length;
+    grammarFixes.current += 1;
+    updateValue(applyIssue(answerText, issue, replacement));
+    setCaret(position);
+    setUndoFix({
+      original: answerText.slice(issue.start, issue.end),
+      replacement,
+      start: issue.start,
+      at: Date.now(),
+      ignore: false,
+    });
+    requestAnimationFrame(() => {
+      const current = ref.current;
+      if (!current) return;
+      current.focus();
+      current.setSelectionRange(position, position);
+    });
+  }, [issues, answerText, customSpell, question, disabled, formBusy]);
+
+  useEffect(() => {
     const hide = () => setHintRect(null);
     window.addEventListener("resize", hide);
     return () => window.removeEventListener("resize", hide);
@@ -518,7 +567,7 @@ export const Composer = memo(function Composer({
     setCaret(nextCaret);
     setDismissed(null);
     setHintRect(null);
-    setUndoFix({ original: word, replacement: fix, start, at: Date.now() });
+    setUndoFix({ original: word, replacement: fix, start, at: Date.now(), ignore: true });
     requestAnimationFrame(() => {
       const current = ref.current;
       if (!current) return;
@@ -542,7 +591,7 @@ export const Composer = memo(function Composer({
     const nextCaret = caretNow >= end ? caretNow + shift : caretNow;
     updateValue(next);
     setCaret(nextCaret);
-    ignoreWord(fix.original);
+    if (fix.ignore) ignoreWord(fix.original);
     setUndoFix(null);
     requestAnimationFrame(() => {
       const current = ref.current;
@@ -993,12 +1042,13 @@ export const Composer = memo(function Composer({
                   const next = event.target.value;
                   const pending = autoCorrectPending.current;
                   autoCorrectPending.current = false;
+                  grammarFixes.current = 0;
                   updateValue(next);
                   const caretNow = event.target.selectionStart;
                   setCaret(caretNow === event.target.selectionEnd ? caretNow : null);
                   setDismissed(null);
                   if (!pending || !autofix || !customSpell) return;
-                  if (caretNow !== next.length || !next.endsWith(" ")) return;
+                  if (caretNow !== next.length || !/[ \t\n.,;:!?]$/u.test(next)) return;
                   if (next.startsWith("/") && !next.includes("\n")) return;
                   const end = next.length - 1;
                   const match = /(\p{L}[\p{L}\p{M}]*(?:['’\-]\p{L}[\p{L}\p{M}]*)*)$/u.exec(
@@ -1087,7 +1137,7 @@ export const Composer = memo(function Composer({
                     }
                   }
                   if (
-                    event.key === " " &&
+                    (/^[ .,;:!?]$/u.test(event.key) || (event.key === "Enter" && event.shiftKey)) &&
                     !event.nativeEvent.isComposing &&
                     !event.metaKey &&
                     !event.ctrlKey &&

@@ -1795,6 +1795,7 @@ export default function App({
   const closeSettings = useCallback(() => setSettingsOpen(false), []);
   const openTheme = useCallback(() => setThemeOpen(true), []);
   const closeTheme = useCallback(() => setThemeOpen(false), []);
+  const openBackground = useCallback(() => setBackgroundOpen(true), []);
   const closeBackground = useCallback(() => setBackgroundOpen(false), []);
   const changeBackground = useCallback((next: SceneSetting) => {
     setBackground(next);
@@ -2908,7 +2909,8 @@ export default function App({
           instance={instance}
           onModel={(model) => void changeModel(model)}
           onAgent={(agent) => void changeAgent(agent)}
-          onTheme={changeTheme}
+          onOpenTheme={openTheme}
+          onOpenBackground={openBackground}
           onSpellcheck={(value) => {
             setSpellcheck(value);
             localStorage.setItem("nit-gui.spellcheck", value ? "1" : "0");
@@ -2929,7 +2931,6 @@ export default function App({
             setMotion(value);
             localStorage.setItem("nit-gui.motion", value);
           }}
-          onBackground={changeBackground}
           notify={notifications}
           onNotify={() => void toggleNotify()}
           onScopes={toggleView}

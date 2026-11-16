@@ -362,8 +362,22 @@ export function levenshtein(left: string, right: string): number {
   return previous[right.length];
 }
 
+export function hidePending(issues: SpellIssue[], text: string, caret: number | null): SpellIssue[] {
+  if (caret === null || caret !== text.length || !/\p{L}$/u.test(text)) return issues;
+  return issues.filter((issue) => issue.source === "grammar" || issue.end !== caret);
+}
+
+const PUNCTUATION = /[.,!?;:—–-]/gu;
+
+export function addsOnlyPunctuation(original: string, replacement: string): boolean {
+  return (
+    replacement.length > original.length &&
+    original.replace(PUNCTUATION, "") === replacement.replace(PUNCTUATION, "")
+  );
+}
+
 export function safeAutoFix(word: string, suggestions: string[]): string | null {
-  if (word.length < 4 || word.includes("-") || word !== word.toLowerCase()) return null;
+  if (word.length < 3 || word.includes("-") || word !== word.toLowerCase()) return null;
   const lower = word.toLowerCase();
   const candidates = Array.from(new Set(suggestions))
     .map((item) => item.trim())

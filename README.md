@@ -701,7 +701,7 @@ nspell worker. It is not implemented yet.
   instead of waiting for the whole run to finish.
 - The composer is a bottom dock overlay: growing it never resizes the transcript
   or the background canvas, and the transcript scrolls underneath it.
-- Model and agent pickers in the header; changes are applied to the current
+- Model and agent pickers in Settings; changes are applied to the current
   session and remembered on the server for the next new session on any device.
   When the selected model
   exposes variants, a variant picker appears and the chosen `variant` is sent
@@ -716,7 +716,8 @@ nspell worker. It is not implemented yet.
 - Stock light and dark themes plus Nord, Solarized, Gruvbox, Dracula, Paper,
   Paper Dark, Ember, Kiln, Mist, Ash and Ash Dark, or follow the system. `/theme`
   opens the picker. Theme is stored in `localStorage`.
-- Settings → Sign out posts to `/auth/logout` and clears the session cookie.
+- Settings has no sign-out button; `/auth/logout` remains a POST that clears the
+  session cookie.
 - The empty chat and the workspace picker draw slow contour lines with a copper
   accent (`--spark`). Settings → Background picks `spotlight`, `magnetic`,
   `split`, `ripple`, `diagonal` or `random` (one variant per new chat).
@@ -724,12 +725,11 @@ nspell worker. It is not implemented yet.
   stops its frame loop when the pointer leaves. The rest bend toward the pointer
   and light up near it. The canvas pauses on a hidden tab and never intercepts
   pointer events.
-- Settings → Chats sidebar switches between the header button and a hover
-  reveal at the left screen edge. The reveal slides over the chat with a
-  fade/settle animation and is stored in `localStorage`.
-- Settings → Background switches that canvas between `Animated` and `Static`.
-  `Static` draws one frame and still repaints when the pointer moves. The default
-  follows `prefers-reduced-motion`; the choice is stored in `localStorage`.
+- Settings → Appearance shows the current theme and background as preview tiles;
+  each opens its own picker. Motion switches that canvas between `Animated` and
+  `Static`. `Static` draws one frame and still repaints when the pointer moves.
+  The default follows `prefers-reduced-motion`; the choice is stored in
+  `localStorage`.
 - Shortcuts: `mod+k` search, `alt+n` new chat, `tab`/`shift+tab` (or
   `alt+j`/`alt+k`) next/previous chat in the sidebar order, `alt+←`/`alt+→`
   switches the scope This dir / All chats / Everywhere, `enter` send and

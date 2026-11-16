@@ -1,5 +1,7 @@
 import {
   Check,
+  ChevronDown,
+  ChevronRight,
   Clock,
   Cpu,
   Globe2,
@@ -7,22 +9,28 @@ import {
   MessageSquare,
   Palette,
   Pencil,
+  Shuffle,
   X,
   type LucideIcon,
 } from "lucide-react";
-import type { ReactNode } from "react";
+import {
+  Fragment,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
+import { createPortal } from "react-dom";
 import type { Agent, Model, ModelRef } from "../lib/types";
-import { THEMES, type Theme } from "../lib/themes";
+import { THEMES, themeLabel, type Theme } from "../lib/themes";
 import { BACKGROUNDS } from "../lib/backgrounds";
-import type { SceneSetting } from "./Scene";
+import { Scene, type SceneSetting } from "./Scene";
 import type { TimeFormat } from "../lib/time";
 import { modelKey } from "../lib/format";
-import { appPath } from "../lib/base";
 import { SCOPES, type Scope } from "../lib/sessions";
 import { cn } from "../lib/utils";
 import { useModalFocus } from "../hooks/useModalFocus";
 import { Button } from "./ui/button";
-import { Select } from "./ui/select";
 
 const VIEW_ICONS: Record<Scope, LucideIcon> = {
   directory: MessageSquare,
@@ -35,6 +43,8 @@ const VIEW_HINTS: Record<Scope, string> = {
   mine: "Every chat on this machine, grouped by directory.",
   everywhere: "Chats from this machine and every connected instance.",
 };
+
+type Option = { value: string; label: string; hint?: string; group?: string };
 
 function Section({
   icon: Icon,
@@ -80,14 +90,16 @@ function Field({
   children: ReactNode;
 }) {
   return (
-    <div className="flex items-center justify-between gap-3">
+    <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
       <div className="min-w-0">
         <div className="text-xs leading-tight font-medium">{label}</div>
         {hint && (
           <div className="text-muted-foreground mt-0.5 text-[10px] leading-tight">{hint}</div>
         )}
       </div>
-      <div className="flex shrink-0 items-center gap-2">{children}</div>
+      <div className="flex shrink-0 items-center gap-2 max-sm:w-full max-sm:justify-end">
+        {children}
+      </div>
     </div>
   );
 }
@@ -126,6 +138,183 @@ function Toggle({
   );
 }
 
+function Pick({
+  value,
+  options,
+  placeholder,
+  label,
+  width,
+  onChange,
+}: {
+  value: string;
+  options: Option[];
+  placeholder: string;
+  label: string;
+  width?: string;
+  onChange: (value: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [rect, setRect] = useState<DOMRect | null>(null);
+  const button = useRef<HTMLButtonElement>(null);
+  const panel = useRef<HTMLDivElement>(null);
+  const current = options.find((item) => item.value === value);
+
+  const toggle = () => {
+    if (open) {
+      setOpen(false);
+      return;
+    }
+    const box = button.current?.getBoundingClientRect();
+    if (!box) return;
+    setRect(box);
+    setOpen(true);
+  };
+
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (event: PointerEvent) => {
+      const target = event.target as Node;
+      if (button.current?.contains(target) || panel.current?.contains(target)) return;
+      setOpen(false);
+    };
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      event.stopPropagation();
+      setOpen(false);
+    };
+    const dismiss = () => setOpen(false);
+    document.addEventListener("pointerdown", onDown);
+    document.addEventListener("keydown", onKey, true);
+    document.addEventListener("scroll", dismiss, true);
+    window.addEventListener("resize", dismiss);
+    return () => {
+      document.removeEventListener("pointerdown", onDown);
+      document.removeEventListener("keydown", onKey, true);
+      document.removeEventListener("scroll", dismiss, true);
+      window.removeEventListener("resize", dismiss);
+    };
+  }, [open]);
+
+  const spaceBelow = rect ? window.innerHeight - rect.bottom - 12 : 320;
+  const spaceAbove = rect ? rect.top - 12 : 0;
+  const estimate = Math.min(320, options.length * 32 + 12);
+  const above = spaceBelow < estimate && spaceAbove > spaceBelow;
+  const height = Math.max(120, Math.min(320, above ? spaceAbove : spaceBelow));
+  const dropWidth = rect ? Math.min(Math.max(rect.width, 232), 320) : 232;
+  const left = rect
+    ? Math.max(8, Math.min(rect.right - dropWidth, window.innerWidth - dropWidth - 8))
+    : 8;
+  const placement = above
+    ? { bottom: window.innerHeight - (rect?.top ?? 0) + 6 }
+    : { top: (rect?.bottom ?? 0) + 6 };
+
+  return (
+    <div className={cn("relative min-w-0", width ?? "w-full sm:w-[220px]")}>
+      <button
+        ref={button}
+        type="button"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-label={label}
+        onClick={toggle}
+        className="border-border bg-background hover:bg-accent/50 focus-visible:ring-ring flex h-8 w-full items-center justify-between gap-2 rounded-md border px-2 text-left text-xs outline-none focus-visible:ring-2"
+      >
+        <span className="min-w-0 flex-1 truncate">{current?.label ?? placeholder}</span>
+        <ChevronDown
+          className={cn(
+            "text-muted-foreground size-3.5 shrink-0 transition-transform",
+            open && "rotate-180",
+          )}
+        />
+      </button>
+      {open &&
+        rect &&
+        createPortal(
+          <div
+            ref={panel}
+            role="menu"
+            aria-label={label}
+            style={{ ...placement, left, width: dropWidth, maxHeight: height }}
+            className="overlay-popover border-border bg-popover text-popover-foreground fixed z-[60] min-w-0 overflow-y-auto rounded-lg border p-1 shadow-lg"
+          >
+            {options.map((item, index) => {
+              const heading =
+                item.group && (index === 0 || options[index - 1]?.group !== item.group);
+              return (
+                <Fragment key={item.value || item.label}>
+                  {heading && (
+                    <div className="text-muted-foreground px-2 pt-1.5 pb-1 font-mono text-[9px] tracking-[0.12em] uppercase">
+                      {item.group}
+                    </div>
+                  )}
+                  <button
+                    type="button"
+                    role="menuitemradio"
+                    aria-checked={item.value === value}
+                    onClick={() => {
+                      onChange(item.value);
+                      setOpen(false);
+                    }}
+                    className={cn(
+                      "hover:bg-accent/60 flex w-full items-center gap-2 rounded px-2 py-1.5 text-left",
+                      item.value === value && "bg-accent/40",
+                    )}
+                  >
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-xs">{item.label}</span>
+                      {item.hint && (
+                        <span className="text-muted-foreground block truncate text-[10px]">
+                          {item.hint}
+                        </span>
+                      )}
+                    </span>
+                    {item.value === value && <Check className="text-primary size-3 shrink-0" />}
+                  </button>
+                </Fragment>
+              );
+            })}
+          </div>,
+          document.body,
+        )}
+    </div>
+  );
+}
+
+function PickerTile({
+  label,
+  value,
+  hint,
+  preview,
+  onClick,
+}: {
+  label: string;
+  value: string;
+  hint?: string;
+  preview: ReactNode;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={`${label}: ${value}`}
+      className="border-border/70 hover:border-ring/50 hover:bg-accent/30 flex items-center gap-2.5 rounded-lg border p-2 text-left transition-colors"
+    >
+      {preview}
+      <span className="min-w-0 flex-1">
+        <span className="text-muted-foreground block text-[10px] uppercase tracking-wide">
+          {label}
+        </span>
+        <span className="block truncate text-xs font-medium">{value}</span>
+        {hint && (
+          <span className="text-muted-foreground block truncate text-[10px]">{hint}</span>
+        )}
+      </span>
+      <ChevronRight className="text-muted-foreground size-3.5 shrink-0" />
+    </button>
+  );
+}
+
 export function SettingsPanel({
   models,
   agents,
@@ -144,15 +333,15 @@ export function SettingsPanel({
   instance,
   onModel,
   onAgent,
-  onTheme,
   onSpellcheck,
   onAutofix,
   onTimeFormat,
   onShowTime,
   onMotion,
-  onBackground,
   onNotify,
   onScopes,
+  onOpenTheme,
+  onOpenBackground,
   onInstances,
   onClose,
 }: {
@@ -173,19 +362,18 @@ export function SettingsPanel({
   instance: string;
   onModel: (model: ModelRef) => void;
   onAgent: (agent: string) => void;
-  onTheme: (theme: Theme) => void;
   onSpellcheck: (value: boolean) => void;
   onAutofix: (value: boolean) => void;
   onTimeFormat: (value: TimeFormat) => void;
   onShowTime: (value: boolean) => void;
   onMotion: (mode: "animated" | "static") => void;
-  onBackground: (mode: SceneSetting) => void;
   onNotify: () => void;
   onScopes: (id: Scope) => void;
+  onOpenTheme: () => void;
+  onOpenBackground: () => void;
   onInstances: () => void;
   onClose: () => void;
 }) {
-  const providers = Array.from(new Set(models.map((item) => item.providerID)));
   const primaryAgents = agents
     .filter((item) => !item.hidden && (item.mode === "primary" || item.mode === "all"))
     .sort((a, b) => (a.id === "build" ? -1 : b.id === "build" ? 1 : a.name.localeCompare(b.name)));
@@ -196,6 +384,13 @@ export function SettingsPanel({
     ? (models.find((item) => item.id === model.id && item.providerID === model.providerID)
         ?.variants ?? [])
     : [];
+  const modelOptions: Option[] = models
+    .filter((item) => item.enabled)
+    .map((item) => ({ value: modelKey(item), label: item.name, group: item.providerID }));
+  if (model && !modelOptions.some((item) => item.value === modelKey(model))) {
+    modelOptions.unshift({ value: modelKey(model), label: model.id, group: model.providerID });
+  }
+  const scene = BACKGROUNDS.find((item) => item.id === background);
   const panel = useModalFocus<HTMLDivElement>();
 
   return (
@@ -213,9 +408,7 @@ export function SettingsPanel({
         className="overlay-modal bg-background border-border flex max-h-[calc(100dvh-2rem)] w-full max-w-3xl flex-col overflow-hidden rounded-xl border shadow-xl outline-none"
       >
         <div className="border-border flex items-center justify-between border-b px-4 py-3">
-          <div className="min-w-0">
-            <h2 className="text-sm font-semibold">Settings</h2>
-          </div>
+          <h2 className="text-sm font-semibold">Settings</h2>
           <Button variant="ghost" size="icon-sm" onClick={onClose} aria-label="Close settings">
             <X />
           </Button>
@@ -275,21 +468,23 @@ export function SettingsPanel({
             </p>
           </Section>
 
-          <Section icon={Cpu} title="Model & agent" wide>
+          <Section icon={Cpu} title="Session defaults" wide>
             <Field label="Workspace" hint="Where new chats start">
               <span
-                className="border-border bg-muted/30 max-w-[240px] truncate rounded-md border px-2 py-1 font-mono text-[10px]"
+                className="border-border bg-muted/30 max-w-[260px] truncate rounded-md border px-2 py-1 font-mono text-[10px]"
                 title={directory ?? undefined}
               >
                 {directory ?? "none"}
               </span>
             </Field>
             <Field label="Model" hint="Default for this browser">
-              <Select
-                className="w-[220px]"
+              <Pick
+                label="Model"
                 value={model ? modelKey(model) : ""}
-                onChange={(event) => {
-                  const [providerID, ...rest] = event.target.value.split("/");
+                placeholder="Default model"
+                options={modelOptions}
+                onChange={(value) => {
+                  const [providerID, ...rest] = value.split("/");
                   const id = rest.join("/");
                   if (!providerID || !id) return;
                   const supported = models
@@ -297,100 +492,77 @@ export function SettingsPanel({
                     ?.variants.some((item) => item.id === model?.variant);
                   onModel({ id, providerID, variant: supported ? model?.variant : undefined });
                 }}
-                disabled={models.length === 0}
-              >
-                {!model && <option value="">Default model</option>}
-                {providers.map((providerID) => (
-                  <optgroup key={providerID} label={providerID}>
-                    {models
-                      .filter((item) => item.providerID === providerID && item.enabled)
-                      .map((item) => (
-                        <option key={modelKey(item)} value={modelKey(item)}>
-                          {item.name}
-                        </option>
-                      ))}
-                  </optgroup>
-                ))}
-              </Select>
+              />
             </Field>
             {model && variants.length > 0 && (
               <Field label="Reasoning" hint="Variant for this model">
-                <Select
-                  className="w-[220px]"
+                <Pick
+                  label="Reasoning"
                   value={model.variant ?? ""}
-                  onChange={(event) =>
-                    onModel({ ...model, variant: event.target.value || undefined })
-                  }
-                >
-                  <option value="">Default</option>
-                  {model.variant && !variants.some((item) => item.id === model.variant) && (
-                    <option value={model.variant}>{model.variant}</option>
-                  )}
-                  {variants.map((item) => (
-                    <option key={item.id} value={item.id}>
-                      {item.id}
-                    </option>
-                  ))}
-                </Select>
+                  placeholder="Default"
+                  options={[
+                    { value: "", label: "Default" },
+                    ...variants.map((item) => ({ value: item.id, label: item.id })),
+                  ]}
+                  onChange={(value) => onModel({ ...model, variant: value || undefined })}
+                />
               </Field>
             )}
             <Field label="Agent" hint="Used for new messages">
-              <Select
-                className="w-[220px]"
+              <Pick
+                label="Agent"
                 value={agent ?? ""}
-                onChange={(event) => onAgent(event.target.value)}
-                disabled={primaryAgents.length === 0}
-              >
-                {!agent && <option value="">Agent</option>}
-                {primaryAgents.map((item) => (
-                  <option key={item.id} value={item.id}>
-                    {item.name}
-                  </option>
-                ))}
-              </Select>
-            </Field>
-          </Section>
-
-          <Section icon={Pencil} title="Writing">
-            <Field label="Spelling & grammar" hint="RU + EN, grammar if configured">
-              <Toggle
-                on={spellcheck}
-                onChange={onSpellcheck}
-                label="Spelling and grammar"
+                placeholder="Agent"
+                options={primaryAgents.map((item) => ({ value: item.id, label: item.name }))}
+                onChange={onAgent}
               />
             </Field>
-            <Field label="Auto-fix typos" hint="Only unambiguous lowercase words">
-              <Toggle on={autofix} onChange={onAutofix} label="Auto-fix typos" />
+            <Field label="Instances" hint={`Connected as ${instance}`}>
+              <Button variant="outline" size="sm" onClick={onInstances}>
+                Manage
+              </Button>
             </Field>
           </Section>
 
-          <Section icon={Palette} title="Appearance">
-            <Field label="Theme">
-              <Select
-                className="w-[160px]"
-                value={theme}
-                onChange={(event) => onTheme(event.target.value as Theme)}
-              >
-                {THEMES.map((item) => (
-                  <option key={item.id} value={item.id}>
-                    {item.label}
-                  </option>
-                ))}
-              </Select>
-            </Field>
-            <Field label="Background">
-              <Select
-                className="w-[160px]"
-                value={background}
-                onChange={(event) => onBackground(event.target.value as SceneSetting)}
-              >
-                {BACKGROUNDS.map((item) => (
-                  <option key={item.id} value={item.id}>
-                    {item.menu}
-                  </option>
-                ))}
-              </Select>
-            </Field>
+          <Section icon={Palette} title="Appearance" wide>
+            <div className="grid gap-2 sm:grid-cols-2">
+              <PickerTile
+                label="Theme"
+                value={themeLabel(theme)}
+                hint={THEMES.find((item) => item.id === theme)?.hint}
+                preview={
+                  <span
+                    data-theme={theme === "system" ? undefined : theme}
+                    className="border-border bg-background text-foreground flex size-9 shrink-0 items-center justify-center rounded-md border text-[11px] font-semibold"
+                  >
+                    Aa
+                  </span>
+                }
+                onClick={onOpenTheme}
+              />
+              <PickerTile
+                label="Background"
+                value={scene?.label ?? background}
+                hint={scene?.hint}
+                preview={
+                  <span className="border-border relative block size-9 shrink-0 overflow-hidden rounded-md border">
+                    {background === "random" ? (
+                      <span className="from-primary/25 via-spark/15 to-success/25 grid size-full place-items-center bg-linear-to-br">
+                        <Shuffle className="size-3.5" />
+                      </span>
+                    ) : (
+                      <Scene
+                        variant={background}
+                        motion="static"
+                        preview
+                        className="[mask-image:none]"
+                      />
+                    )}
+                  </span>
+                }
+                onClick={onOpenBackground}
+              />
+            </div>
             <Field label="Motion" hint="Row and panel transitions">
               <Toggle
                 on={motion === "animated"}
@@ -400,42 +572,36 @@ export function SettingsPanel({
             </Field>
           </Section>
 
+          <Section icon={Pencil} title="Writing">
+            <Field label="Spelling & grammar" hint="RU + EN, grammar if configured">
+              <Toggle on={spellcheck} onChange={onSpellcheck} label="Spelling and grammar" />
+            </Field>
+            <Field label="Auto-fix typos" hint="Only unambiguous lowercase words">
+              <Toggle on={autofix} onChange={onAutofix} label="Auto-fix typos" />
+            </Field>
+          </Section>
+
           <Section icon={Clock} title="Time & alerts">
             <Field label="Time format">
-              <Select
-                className="w-[160px]"
+              <Pick
+                label="Time format"
                 value={timeFormat}
-                onChange={(event) => onTimeFormat(event.target.value as TimeFormat)}
-              >
-                <option value="24h">24-hour · 13:05</option>
-                <option value="12h">12-hour · 1:05 PM</option>
-              </Select>
+                placeholder="Time format"
+                width="w-[150px] max-sm:w-full"
+                options={[
+                  { value: "24h", label: "24-hour", hint: "13:05" },
+                  { value: "12h", label: "12-hour", hint: "1:05 PM" },
+                ]}
+                onChange={(value) => onTimeFormat(value as TimeFormat)}
+              />
             </Field>
             <Field label="Message time" hint="Show the clock on messages">
               <Toggle on={showTime} onChange={onShowTime} label="Show message time" />
             </Field>
             <Field label="Desktop notifications" hint="Waiting and finished chats">
-              <Toggle
-                on={notify}
-                onChange={() => onNotify()}
-                label="Desktop notifications"
-              />
+              <Toggle on={notify} onChange={() => onNotify()} label="Desktop notifications" />
             </Field>
           </Section>
-        </div>
-
-        <div className="border-border flex items-center justify-between gap-3 border-t px-4 py-3">
-          <span className="text-muted-foreground truncate text-xs">nit-gui · {instance}</span>
-          <div className="flex shrink-0 items-center gap-2">
-            <Button variant="outline" size="sm" onClick={onInstances}>
-              Instances
-            </Button>
-            <form method="post" action={appPath("/auth/logout")}>
-              <Button type="submit" variant="outline" size="sm">
-                Sign out
-              </Button>
-            </form>
-          </div>
         </div>
       </div>
     </div>

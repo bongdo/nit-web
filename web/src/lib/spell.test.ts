@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
+  addsOnlyPunctuation,
   allowedWord,
   applyIssue,
   findIssues,
   grammarIssues,
+  hidePending,
   issueAtCaret,
   keepStale,
   languageOf,
@@ -219,6 +221,38 @@ describe("spell", () => {
     expect(safeAutoFix("Хочю", ["хочу"])).toBeNull();
     expect(safeAutoFix("кот", ["кто"])).toBeNull();
     expect(safeAutoFix("кто-то", ["кто-то"])).toBeNull();
+    expect(safeAutoFix("лут", ["лук"])).toBe("лук");
+  });
+
+  it("hides the mark on the word that is still being typed", () => {
+    const word: SpellIssue = {
+      start: 0,
+      end: 5,
+      word: "ситуа",
+      suggestions: [],
+      language: "ru",
+      source: "spell",
+    };
+    const phrase: SpellIssue = {
+      start: 0,
+      end: 5,
+      word: "ситуа",
+      suggestions: ["ситуация"],
+      language: "ru",
+      source: "grammar",
+    };
+    expect(hidePending([word], "ситуа", 5)).toEqual([]);
+    expect(hidePending([word, phrase], "ситуа", 5)).toEqual([phrase]);
+    expect(hidePending([word], "ситуа", 3)).toEqual([word]);
+    expect(hidePending([word], "ситуа ", 6)).toEqual([word]);
+  });
+
+  it("accepts only punctuation insertions from grammar", () => {
+    expect(addsOnlyPunctuation("ситуация где", "ситуация, где")).toBe(true);
+    expect(addsOnlyPunctuation("проверку но", "проверку, но")).toBe(true);
+    expect(addsOnlyPunctuation("ситуация где", "ситуации где")).toBe(false);
+    expect(addsOnlyPunctuation("слово", "слово")).toBe(false);
+    expect(addsOnlyPunctuation("слово", "слова")).toBe(false);
   });
 
   it("detects code and path positions", () => {

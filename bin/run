@@ -14,5 +14,10 @@ export NIT_GUI_PERO_URL="${NIT_GUI_PERO_URL:-http://127.0.0.1:7789/}"
 export NIT_GUI_TERM_URL="${NIT_GUI_TERM_URL:-http://127.0.0.1:7795/term/}"
 
 mkdir -p .cache
+export NIT_GUI_STATE="${NIT_GUI_STATE:-$PWD/.cache/ui-state.json}"
+if [ ! -f "$NIT_GUI_STATE" ] && [ -f "$HOME/.local/state/nit-gui/ui-state.json" ]; then
+  cp "$HOME/.local/state/nit-gui/ui-state.json" "$NIT_GUI_STATE" || true
+fi
+
 go build -o .cache/nit-gui .
 exec .cache/nit-gui

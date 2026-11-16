@@ -2046,8 +2046,8 @@
     background: linear-gradient(
       100deg,
       transparent 42%,
-      color-mix(in oklab, white 55%, var(--spark)) 48%,
-      color-mix(in oklab, white 18%, var(--spark)) 52%,
+      color-mix(in oklab, white 22%, var(--spark)) 48%,
+      color-mix(in oklab, white 8%, var(--spark)) 52%,
       transparent 58%
     );
     transform: translateX(-120%);
@@ -2073,10 +2073,10 @@
       transform: translateX(-120%);
     }
     7% {
-      opacity: 1;
+      opacity: 0.5;
     }
     30% {
-      opacity: 0.85;
+      opacity: 0.35;
     }
     40%,
     100% {

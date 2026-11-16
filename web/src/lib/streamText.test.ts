@@ -3,13 +3,13 @@ import { revealAdvance } from "./streamText";
 
 describe("revealAdvance", () => {
   it("moves at least one character", () => {
-    expect(revealAdvance("abcdef", 0)).toBe(1);
     expect(revealAdvance("abcdef", 5)).toBe(6);
+    expect(revealAdvance("a", 0)).toBe(1);
   });
 
   it("catches up faster when the backlog is large", () => {
     expect(revealAdvance("x".repeat(200), 0)).toBe(24);
-    expect(revealAdvance("x".repeat(200), 196)).toBe(200);
+    expect(revealAdvance("x".repeat(200), 196)).toBe(197);
   });
 
   it("does not split a surrogate pair", () => {

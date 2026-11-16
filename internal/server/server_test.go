@@ -394,7 +394,7 @@ func TestArtifactServesHtmlFromSessionDirectory(t *testing.T) {
 	upstream := httptest.NewServer(auth(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/api/session/ses_1":
-			fmt.Fprint(w, `{"location":{"directory":"/home/ubuntu/work"}}`)
+			fmt.Fprint(w, `{"data":{"location":{"directory":"/home/ubuntu/work"}}}`)
 		case "/api/fs/read/home/ubuntu/work/pages/chart.html":
 			fmt.Fprint(w, `<!doctype html><html><body><h1>Hi</h1></body></html>`)
 		default:
@@ -426,7 +426,7 @@ func TestArtifactServesHtmlFromSessionDirectory(t *testing.T) {
 func TestArtifactRejectsEscape(t *testing.T) {
 	upstream := httptest.NewServer(auth(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/api/session/ses_1" {
-			fmt.Fprint(w, `{"location":{"directory":"/home/ubuntu/work"}}`)
+			fmt.Fprint(w, `{"data":{"location":{"directory":"/home/ubuntu/work"}}}`)
 			return
 		}
 		t.Errorf("unexpected path %s", r.URL.Path)
@@ -448,7 +448,7 @@ func TestArtifactRejectsBrokenHtmlAndRedacts(t *testing.T) {
 	upstream := httptest.NewServer(auth(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/api/session/ses_1":
-			fmt.Fprint(w, `{"location":{"directory":"/home/ubuntu/work"}}`)
+			fmt.Fprint(w, `{"data":{"location":{"directory":"/home/ubuntu/work"}}}`)
 		case "/api/fs/read/home/ubuntu/work/plain.html":
 			fmt.Fprint(w, `not a page`)
 		case "/api/fs/read/home/ubuntu/work/page.html":

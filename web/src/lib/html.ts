@@ -41,7 +41,7 @@ export type HtmlArtifactSegment = {
 };
 
 const HTML_ARTIFACT =
-  /^[ \t]*\[\[html:([^\]|\r\n]+?)(?:\|([^\]\r\n]*))?\][ \t]*$/gm;
+  /^[ \t]*\[\[html:([^\]|\r\n]+?)(?:\|([^\]\r\n]*))?\]\][ \t]*$/gm;
 
 function blankCode(text: string): string {
   return text

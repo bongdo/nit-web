@@ -1275,15 +1275,17 @@ func (s *Server) artifact(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var info struct {
-		Location struct {
-			Directory string `json:"directory"`
-		} `json:"location"`
+		Data struct {
+			Location struct {
+				Directory string `json:"directory"`
+			} `json:"location"`
+		} `json:"data"`
 	}
 	if err := c.Do(r.Context(), http.MethodGet, "/api/session/"+url.PathEscape(sessionID), nil, &info); err != nil {
 		s.upstreamError(w, r, err)
 		return
 	}
-	dir := strings.TrimSpace(info.Location.Directory)
+	dir := strings.TrimSpace(info.Data.Location.Directory)
 	if !filepath.IsAbs(dir) {
 		writeError(w, http.StatusBadGateway, "session has no directory")
 		return

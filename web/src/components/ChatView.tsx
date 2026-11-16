@@ -517,7 +517,7 @@ export function ChatView({
           >
             <AssistantTurn
               messages={group}
-              sessionID={session.id ?? ""}
+              sessionID={session?.id ?? ""}
               instance={instance}
               models={models}
               agents={agents}
@@ -669,16 +669,16 @@ export function ChatView({
           stopScroll();
           if (event.deltaY < 0) pullEarlier();
         }}
-        onPointerDown={() => {
+        onPointerDown={(event) => {
           jumping.current = false;
-          stopScroll();
+          if (event.target === event.currentTarget) stopScroll();
         }}
         onTouchStart={(event) => {
           jumping.current = false;
-          stopScroll();
           touchY.current = event.touches[0]?.clientY ?? null;
         }}
         onTouchMove={(event) => {
+          stopScroll();
           const y = event.touches[0]?.clientY;
           if (y !== undefined && touchY.current !== null && y > touchY.current) {
             pullEarlier();

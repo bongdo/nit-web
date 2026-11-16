@@ -177,6 +177,10 @@ serves it on loopback. This is local development, not a deployment. Local
 `bin/run` has no login unless `NIT_GATE_PASSWORD` or `NIT_GATE_PASSWORD_HASH` is
 set.
 
+`bin/htmlcheck page.html` loads a page in the same headless Chromium the
+previews use and exits non-zero on a console error, a page error or an empty
+body. Agents run it before attaching a page with `[[html:...]]`.
+
 ## Deploy
 
 ```sh

@@ -267,13 +267,14 @@ export const AssistantTurn = memo(function AssistantTurn({
           const live = streaming && block.part === lastText;
           const text = live ? revealed : block.part.text;
           const pureHtml = isPureHtml(text);
+          const page = pureHtml || /^\s*</.test(text);
           const segments = htmlArtifactSegments(text);
           return (
             <div
               key={`text-${index}`}
               className={cn("min-w-0", live && text.trim() !== "" && "stream-soft")}
             >
-              {live && pureHtml ? (
+              {live && page ? (
                 <div className="text-muted-foreground flex items-center gap-2 py-2 text-xs">
                   <Loader2 className="size-3.5 animate-spin" />
                   Writing page…
@@ -300,7 +301,7 @@ export const AssistantTurn = memo(function AssistantTurn({
               {!live && (pureHtml || looksLikeHtml(text)) && (
                 <HtmlMessagePreview source={text} />
               )}
-              {live && !pureHtml && <span className="stream-caret" />}
+              {live && !page && <span className="stream-caret" />}
             </div>
           );
         })}

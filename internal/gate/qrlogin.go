@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/json"
+	"html/template"
 	"net/http"
 	"net/url"
 	"strings"
@@ -21,7 +22,7 @@ const (
 
 type qrView struct {
 	Code  string
-	Image string
+	Image template.URL
 	Link  string
 	Agent string
 	IP    string
@@ -63,6 +64,17 @@ func (q *qrStore) create(bind, agent, ip string, now time.Time) (string, bool) {
 	return code, true
 }
 
+func (q *qrStore) findByBind(bind string, now time.Time) (string, bool) {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	for code, ticket := range q.items {
+		if ticket.bind == bind && !ticket.done && now.Before(ticket.expires) {
+			return code, true
+		}
+	}
+	return "", false
+}
+
 func (q *qrStore) lookup(code string, now time.Time) (qrTicket, bool) {
 	q.mu.Lock()
 	defer q.mu.Unlock()
@@ -97,29 +109,67 @@ func (q *qrStore) claim(code, bind string, now time.Time) (qrTicket, bool) {
 }
 
 func (s *Server) qrCard(w http.ResponseWriter, r *http.Request) (qrView, bool) {
-	bind, err := randomToken()
-	if err != nil {
-		return qrView{}, false
+	bind := ""
+	if cookie, err := r.Cookie(qrBindCookie); err == nil {
+		bind = cookie.Value
 	}
-	code, ok := s.qr.create(bind, deviceName(r.UserAgent()), clientIP(r), s.now())
-	if !ok {
-		return qrView{}, false
+	code := ""
+	if bind != "" {
+		code, _ = s.qr.findByBind(bind, s.now())
+	}
+	if code == "" {
+		generated, err := randomToken()
+		if err != nil {
+			return qrView{}, false
+		}
+		created, ok := s.qr.create(generated, deviceName(r.UserAgent()), clientIP(r), s.now())
+		if !ok {
+			return qrView{}, false
+		}
+		bind, code = generated, created
+		http.SetCookie(w, &http.Cookie{
+			Name:     qrBindCookie,
+			Value:    bind,
+			Path:     "/",
+			MaxAge:   int(qrTTL.Seconds()),
+			HttpOnly: true,
+			Secure:   s.secure(r),
+			SameSite: http.SameSiteLaxMode,
+		})
 	}
 	link := s.origin(r) + "/qr/" + code
 	image, err := qrImage(link)
 	if err != nil {
 		return qrView{}, false
 	}
-	http.SetCookie(w, &http.Cookie{
-		Name:     qrBindCookie,
-		Value:    bind,
-		Path:     "/",
-		MaxAge:   int(qrTTL.Seconds()),
-		HttpOnly: true,
-		Secure:   s.secure(r),
-		SameSite: http.SameSiteLaxMode,
-	})
 	return qrView{Code: code, Image: image, Link: link}, true
+}
+
+func (s *Server) scanPage(w http.ResponseWriter, r *http.Request) {
+	if raw := strings.TrimSpace(r.URL.Query().Get("url")); raw != "" {
+		if target, ok := safeScanTarget(raw, r.Host); ok {
+			http.Redirect(w, r, target, http.StatusSeeOther)
+			return
+		}
+	}
+	s.render(w, "scan", s.newNarrow(r, "камера"))
+}
+
+func safeScanTarget(raw, host string) (string, bool) {
+	parsed, err := url.Parse(raw)
+	if err != nil {
+		return "", false
+	}
+	if parsed.Host != "" {
+		if !strings.EqualFold(parsed.Host, host) || (parsed.Scheme != "http" && parsed.Scheme != "https") {
+			return "", false
+		}
+		return parsed.RequestURI(), true
+	}
+	if !strings.HasPrefix(parsed.Path, "/") || strings.HasPrefix(parsed.Path, "//") {
+		return "", false
+	}
+	return parsed.RequestURI(), true
 }
 
 func (s *Server) qrConfirmPage(w http.ResponseWriter, r *http.Request) {
@@ -192,12 +242,12 @@ func (s *Server) qrStatus(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(map[string]string{"state": "ok", "next": next})
 }
 
-func qrImage(text string) (string, error) {
+func qrImage(text string) (template.URL, error) {
 	png, err := qrcode.Encode(text, qrcode.Medium, 360)
 	if err != nil {
 		return "", err
 	}
-	return "data:image/png;base64," + base64.StdEncoding.EncodeToString(png), nil
+	return template.URL("data:image/png;base64," + base64.StdEncoding.EncodeToString(png)), nil
 }
 
 func randomToken() (string, error) {

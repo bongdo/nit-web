@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -1001,5 +1002,254 @@ func TestSessionRestoresAppSession(t *testing.T) {
 	}
 	if !appSessionValid("hash-one", token, time.Now()) {
 		t.Fatalf("app session cookie not restored: %q", token)
+	}
+}
+
+func TestTOTPVectors(t *testing.T) {
+	const secret = "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ"
+	cases := []struct {
+		unix int64
+		want string
+	}{
+		{59, "287082"},
+		{1111111109, "081804"},
+		{1234567890, "005924"},
+	}
+	for _, tc := range cases {
+		got, err := totpAt(secret, totpStepOf(time.Unix(tc.unix, 0)))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got != tc.want {
+			t.Fatalf("code at %d = %s, want %s", tc.unix, got, tc.want)
+		}
+	}
+}
+
+func TestTOTPWindowAndReplay(t *testing.T) {
+	const secret = "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ"
+	now := time.Unix(1234567890, 0)
+	step := totpStepOf(now)
+	code, err := totpAt(secret, step)
+	if err != nil {
+		t.Fatal(err)
+	}
+	used, ok := totpMatch(secret, code, now, 0)
+	if !ok || used != step {
+		t.Fatalf("fresh code rejected: %d %v", used, ok)
+	}
+	if _, ok := totpMatch(secret, code, now, step); ok {
+		t.Fatal("replayed code accepted")
+	}
+	previous, err := totpAt(secret, step-1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := totpMatch(secret, previous, now, 0); !ok {
+		t.Fatal("code from the previous step rejected inside the window")
+	}
+	if _, ok := totpMatch(secret, previous, now, step); ok {
+		t.Fatal("code from an older step accepted after use")
+	}
+}
+
+func TestRecoveryCodeIsSingleUse(t *testing.T) {
+	store := testStore(t)
+	plain, hashed, err := newRecoveryCodes(2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.SetTOTP("bongdo", "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ", hashed); err != nil {
+		t.Fatal(err)
+	}
+	if used, err := store.ConsumeRecovery("bongdo", plain[0]); err != nil || !used {
+		t.Fatalf("first use = %v %v", used, err)
+	}
+	if used, _ := store.ConsumeRecovery("bongdo", plain[0]); used {
+		t.Fatal("recovery code reused")
+	}
+	if used, _ := store.ConsumeRecovery("bongdo", plain[1]); !used {
+		t.Fatal("second recovery code rejected")
+	}
+}
+
+func TestTempLoginKeepsNoDevice(t *testing.T) {
+	server, _, devices := testServerDevices(t, nil)
+	client := noRedirect(t)
+	form := strings.NewReader("name=bongdo&password=secret-pass&temp=1&next=/account")
+	resp, err := client.Post(server.URL+"/login", "application/x-www-form-urlencoded", form)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusSeeOther {
+		t.Fatalf("login = %d", resp.StatusCode)
+	}
+	if got := len(devices.List()); got != 0 {
+		t.Fatalf("devices after temp login = %d, want 0", got)
+	}
+	var session *http.Cookie
+	for _, cookie := range resp.Cookies() {
+		if cookie.Name == sessionCookie {
+			session = cookie
+		}
+	}
+	if session == nil || session.MaxAge != 0 {
+		t.Fatalf("temp session cookie = %+v, want a cookie without Max-Age", session)
+	}
+	account, err := client.Get(server.URL + "/account")
+	if err != nil {
+		t.Fatal(err)
+	}
+	account.Body.Close()
+	if account.StatusCode != http.StatusOK {
+		t.Fatalf("account = %d", account.StatusCode)
+	}
+	if got := len(devices.List()); got != 0 {
+		t.Fatalf("devices after visiting account = %d, want 0", got)
+	}
+}
+
+func TestLoginSecondFactor(t *testing.T) {
+	server, store, _ := testServerDevices(t, nil)
+	secret, err := newTOTPSecret()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.SetTOTP("bongdo", secret, nil); err != nil {
+		t.Fatal(err)
+	}
+	client := noRedirect(t)
+
+	resp, err := client.Post(server.URL+"/login", "application/x-www-form-urlencoded",
+		strings.NewReader("name=bongdo&password=secret-pass&next=/account"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	body, err := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("password step = %d", resp.StatusCode)
+	}
+	match := regexp.MustCompile(`name="pending" value="([^"]+)"`).FindStringSubmatch(string(body))
+	if match == nil {
+		t.Fatal("no pending token in the second step page")
+	}
+	code, err := totpAt(secret, totpStepOf(time.Now()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := client.Post(server.URL+"/login", "application/x-www-form-urlencoded",
+		strings.NewReader("pending="+url.QueryEscape(match[1])+"&code="+code+"&next=/account"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	second.Body.Close()
+	if second.StatusCode != http.StatusSeeOther {
+		t.Fatalf("code step = %d", second.StatusCode)
+	}
+	account, err := client.Get(server.URL + "/account")
+	if err != nil {
+		t.Fatal(err)
+	}
+	account.Body.Close()
+	if account.StatusCode != http.StatusOK {
+		t.Fatalf("account after 2FA = %d", account.StatusCode)
+	}
+}
+
+func TestQRLogin(t *testing.T) {
+	server, _, _ := testServerDevices(t, nil)
+	desktop := noRedirect(t)
+
+	page, err := desktop.Get(server.URL + "/login")
+	if err != nil {
+		t.Fatal(err)
+	}
+	body, err := io.ReadAll(page.Body)
+	page.Body.Close()
+	if err != nil {
+		t.Fatal(err)
+	}
+	match := regexp.MustCompile(`data-qr="([^"]+)"`).FindStringSubmatch(string(body))
+	if match == nil {
+		t.Fatal("no QR code on the login page")
+	}
+	code := match[1]
+
+	phone := noRedirect(t)
+	login(t, phone, server.URL, "friend", "member-pass")
+	confirmPage, err := phone.Get(server.URL + "/qr/" + code)
+	if err != nil {
+		t.Fatal(err)
+	}
+	confirmPage.Body.Close()
+	if confirmPage.StatusCode != http.StatusOK {
+		t.Fatalf("confirm page = %d", confirmPage.StatusCode)
+	}
+	confirm, err := phone.Post(server.URL+"/qr/"+code, "application/x-www-form-urlencoded", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	confirm.Body.Close()
+	if confirm.StatusCode != http.StatusOK {
+		t.Fatalf("confirm = %d", confirm.StatusCode)
+	}
+
+	status, err := desktop.Get(server.URL + "/qr/" + code + "/status?next=%2Faccount")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var state map[string]string
+	if err := json.NewDecoder(status.Body).Decode(&state); err != nil {
+		t.Fatal(err)
+	}
+	status.Body.Close()
+	if state["state"] != "ok" {
+		t.Fatalf("status = %v", state)
+	}
+	account, err := desktop.Get(server.URL + "/account")
+	if err != nil {
+		t.Fatal(err)
+	}
+	account.Body.Close()
+	if account.StatusCode != http.StatusOK {
+		t.Fatalf("desktop account after QR = %d", account.StatusCode)
+	}
+
+	again, err := desktop.Get(server.URL + "/qr/" + code + "/status")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := json.NewDecoder(again.Body).Decode(&state); err != nil {
+		t.Fatal(err)
+	}
+	again.Body.Close()
+	if state["state"] != "expired" {
+		t.Fatalf("second claim = %v, want expired", state)
+	}
+}
+
+func TestSafeScanTarget(t *testing.T) {
+	cases := []struct {
+		raw  string
+		host string
+		want string
+		ok   bool
+	}{
+		{"https://bongdo.space/qr/abc", "bongdo.space", "/qr/abc", true},
+		{"https://evil.example/qr/abc", "bongdo.space", "", false},
+		{"/qr/abc", "bongdo.space", "/qr/abc", true},
+		{"//evil.example/x", "bongdo.space", "", false},
+		{"javascript:alert(1)", "bongdo.space", "", false},
+	}
+	for _, tc := range cases {
+		got, ok := safeScanTarget(tc.raw, tc.host)
+		if ok != tc.ok || got != tc.want {
+			t.Fatalf("safeScanTarget(%q) = %q %v, want %q %v", tc.raw, got, ok, tc.want, tc.ok)
+		}
 	}
 }

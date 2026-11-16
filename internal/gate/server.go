@@ -99,6 +99,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /login", s.loginPage)
 	mux.HandleFunc("POST /login", s.loginSubmit)
 	mux.HandleFunc("POST /logout", s.logout)
+	mux.HandleFunc("GET /scan", s.scanPage)
 	mux.HandleFunc("GET /qr/{code}", s.qrConfirmPage)
 	mux.HandleFunc("POST /qr/{code}", s.qrConfirm)
 	mux.HandleFunc("GET /qr/{code}/status", s.qrStatus)

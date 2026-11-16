@@ -89,7 +89,7 @@ type view struct {
 	QR           qrView
 	TOTPOn       bool
 	TOTPSecret   string
-	TOTPQR       string
+	TOTPQR       template.URL
 	TOTPPending  string
 	Recovery     []string
 	RecoveryLeft int

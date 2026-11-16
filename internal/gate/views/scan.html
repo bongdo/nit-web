@@ -1,0 +1,76 @@
+{{define "scan"}}{{template "head" .}}
+<div class="panel">
+  <h1>камера</h1>
+  <p class="lede">Наведите камеру на QR-код со страницы входа на другом устройстве.</p>
+  <video class="scanner" id="cam" muted playsinline autoplay></video>
+  <p class="hint" id="scan-status">запрашиваем камеру…</p>
+  <form class="stack" method="get" action="/scan" id="scan-form">
+    <label>или вставьте ссылку<input name="url" id="scan-url" placeholder="https://bongdo.space/qr/…" autocomplete="off"></label>
+    <button class="ghost">перейти</button>
+  </form>
+</div>
+<script>
+(function () {
+  var video = document.getElementById("cam");
+  var status = document.getElementById("scan-status");
+  var form = document.getElementById("scan-form");
+  var field = document.getElementById("scan-url");
+  var stop = false;
+
+  function fail(text) {
+    status.textContent = text;
+    video.style.display = "none";
+  }
+
+  function go(url) {
+    var parsed;
+    try { parsed = new URL(url, location.origin); } catch (e) { status.textContent = "не похоже на ссылку"; return; }
+    if (parsed.protocol !== "https:" && parsed.protocol !== "http:") return;
+    stop = true;
+    location.href = parsed.href;
+  }
+
+  form.addEventListener("submit", function (event) {
+    event.preventDefault();
+    var value = (field.value || "").trim();
+    if (value) go(value);
+  });
+
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    fail("браузер не даёт доступ к камере — вставьте ссылку ниже");
+    return;
+  }
+  if (!("BarcodeDetector" in window)) {
+    fail("этот браузер не распознаёт QR сам — откройте камеру телефона или вставьте ссылку");
+    return;
+  }
+
+  navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
+    .then(function (stream) {
+      video.srcObject = stream;
+      return video.play();
+    })
+    .then(function () {
+      status.textContent = "ищем код…";
+      var detector = new BarcodeDetector({ formats: ["qr_code"] });
+      var tick = function () {
+        if (stop) return;
+        detector.detect(video).then(function (codes) {
+          if (stop) return;
+          if (codes.length && codes[0].rawValue) {
+            go(codes[0].rawValue);
+            return;
+          }
+          setTimeout(tick, 300);
+        }, function () {
+          if (!stop) setTimeout(tick, 600);
+        });
+      };
+      tick();
+    })
+    .catch(function () {
+      fail("камера недоступна — разрешите её в браузере или вставьте ссылку ниже");
+    });
+})();
+</script>
+{{template "foot" .}}{{end}}

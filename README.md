@@ -341,6 +341,9 @@ The sidebar has three scopes:
 | `All chats` | every top-level chat with a primary agent, across workspaces. |
 | `Everywhere` | the same chats from every connected instance, merged and still grouped by directory. |
 
+Settings → Chat views hides any of them; the switcher and `Alt+←`/`Alt+→` skip
+the hidden ones, and the last visible view cannot be switched off.
+
 In `Everywhere`, groups are keyed by machine and directory, so the same path on
 two machines is two groups and each group header carries its instance name. Rows
 carry no machine pill; a finished or running chat outside a directory group names

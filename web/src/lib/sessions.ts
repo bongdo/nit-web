@@ -9,6 +9,21 @@ export const SCOPES: { id: Scope; label: string }[] = [
   { id: "everywhere", label: "Everywhere" },
 ];
 
+export function parseScopes(raw: string | null): Scope[] {
+  const ids = new Set((raw ?? "").split(",").filter(Boolean));
+  const picked = SCOPES.filter((item) => ids.has(item.id)).map((item) => item.id);
+  return picked.length > 0 ? picked : SCOPES.map((item) => item.id);
+}
+
+export function toggleScope(active: Scope[], id: Scope): Scope[] {
+  const on = active.includes(id);
+  if (on && active.length === 1) return active;
+  const next = new Set(active);
+  if (on) next.delete(id);
+  else next.add(id);
+  return SCOPES.filter((item) => next.has(item.id)).map((item) => item.id);
+}
+
 export function isTechnical(session: Session, agents: Agent[]): boolean {
   if (session.parentID) return true;
   const agent = agents.find((item) => item.id === session.agent);

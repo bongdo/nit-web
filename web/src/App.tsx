@@ -63,8 +63,9 @@ import {
   nextSessionId,
   NO_HIDDEN,
   pollSessionIds,
-  SCOPES,
+  parseScopes,
   scopeSessions,
+  toggleScope,
   type HiddenIndex,
   type InstanceHidden,
   type Scope,
@@ -217,10 +218,15 @@ export default function App({
       return [];
     }
   });
+  const [scopes, setScopes] = useState<Scope[]>(() =>
+    parseScopes(localStorage.getItem("nit-gui.scopes")),
+  );
+  const scopesRef = useRef(scopes);
+  scopesRef.current = scopes;
   const [scope, setScopeState] = useState<Scope>(() => {
     const value = localStorage.getItem("nit-gui.scope");
-    if (value === "everywhere") return "everywhere";
-    return value === "mine" || value === "all" ? "mine" : "directory";
+    const stored = value === "everywhere" ? "everywhere" : value === "mine" || value === "all" ? "mine" : "directory";
+    return scopes.includes(stored) ? stored : scopes[0]!;
   });
   const scopeRef = useRef(scope);
   scopeRef.current = scope;
@@ -1419,7 +1425,9 @@ export default function App({
     if (owner && owner !== instance) {
       rememberWorkspaceFor(owner, directory);
       localStorage.removeItem(instanceScopedKey("nit-gui.session", owner, defaultInstance));
-      localStorage.setItem("nit-gui.scope", "directory");
+      if (scopesRef.current.includes("directory")) {
+        localStorage.setItem("nit-gui.scope", "directory");
+      }
       setPickerOpen(false);
       onSwitchInstance(owner);
       return;
@@ -1427,8 +1435,10 @@ export default function App({
     const restore = restoreDraft.current;
     saveCurrentTranscript();
     rememberWorkspace(directory);
-    setScopeState("directory");
-    localStorage.setItem("nit-gui.scope", "directory");
+    if (scopesRef.current.includes("directory")) {
+      setScopeState("directory");
+      localStorage.setItem("nit-gui.scope", "directory");
+    }
     setSelectedIdState(null);
     setSceneEpoch((epoch) => epoch + 1);
     localStorage.removeItem(sessionKey);
@@ -1517,7 +1527,7 @@ export default function App({
   }, [messageLoads]);
 
   const changeScope = useCallback((next: Scope) => {
-    if (next === scopeRef.current) return;
+    if (next === scopeRef.current || !scopesRef.current.includes(next)) return;
     if (!searchQueryRef.current.trim()) {
       if (next === "directory") {
         const directory = workspaceRef.current;
@@ -1544,6 +1554,17 @@ export default function App({
     setScopeState(next);
     localStorage.setItem("nit-gui.scope", next);
   }, [instance]);
+
+  const toggleView = useCallback(
+    (id: Scope) => {
+      const next = toggleScope(scopesRef.current, id);
+      if (next === scopesRef.current) return;
+      setScopes(next);
+      localStorage.setItem("nit-gui.scopes", next.join(","));
+      if (!next.includes(scopeRef.current)) changeScope(next[0]!);
+    },
+    [changeScope],
+  );
 
   const newChat = useCallback(
     (directory?: string, owner?: string) => {
@@ -2550,9 +2571,10 @@ export default function App({
       if (event.altKey && (event.code === "ArrowLeft" || event.code === "ArrowRight")) {
         event.preventDefault();
         const step = event.code === "ArrowRight" ? 1 : -1;
-        const index = SCOPES.findIndex((item) => item.id === scopeRef.current);
-        const next = SCOPES[(index + step + SCOPES.length) % SCOPES.length];
-        if (next) changeScope(next.id);
+        const list = scopesRef.current;
+        const index = list.indexOf(scopeRef.current);
+        const next = list[((index < 0 ? 0 : index) + step + list.length) % list.length];
+        if (next) changeScope(next);
         return;
       }
       if (event.ctrlKey && event.key === "Tab") {
@@ -2672,6 +2694,7 @@ export default function App({
             subagents={visibleSubagents}
             workspace={workspace}
             scope={scope}
+            scopes={scopes}
             poolChats={scopedSessions.length}
             poolDirectories={scopedDirectories}
             selectedId={selectedId}
@@ -2881,6 +2904,7 @@ export default function App({
           showTime={showTime}
           motion={motion}
           background={background}
+          scopes={scopes}
           instance={instance}
           onModel={(model) => void changeModel(model)}
           onAgent={(agent) => void changeAgent(agent)}
@@ -2908,6 +2932,7 @@ export default function App({
           onBackground={changeBackground}
           notify={notifications}
           onNotify={() => void toggleNotify()}
+          onScopes={toggleView}
           onInstances={onOpenInstances}
           onClose={closeSettings}
         />

@@ -13,9 +13,11 @@ import {
   mergeWaitingSessionIds,
   newlyRunning,
   nextSessionId,
+  parseScopes,
   pollSessionIds,
   SCOPES,
   scopeSessions,
+  toggleScope,
   waitingSessionIds,
 } from "./sessions";
 import type { Agent, FormInfo, Session } from "./types";
@@ -66,6 +68,22 @@ describe("sessions", () => {
       ["mine", "All chats"],
       ["everywhere", "Everywhere"],
     ]);
+  });
+
+  it("keeps enabled views in canonical order and never drops the last one", () => {
+    expect(parseScopes(null)).toEqual(["directory", "mine", "everywhere"]);
+    expect(parseScopes("everywhere,directory")).toEqual(["directory", "everywhere"]);
+    expect(parseScopes("nonsense")).toEqual(["directory", "mine", "everywhere"]);
+    expect(toggleScope(["directory", "mine", "everywhere"], "mine")).toEqual([
+      "directory",
+      "everywhere",
+    ]);
+    expect(toggleScope(["directory", "mine"], "everywhere")).toEqual([
+      "directory",
+      "mine",
+      "everywhere",
+    ]);
+    expect(toggleScope(["directory"], "directory")).toEqual(["directory"]);
   });
 
   it("merges instance pools, tags every chat and groups per machine", () => {

@@ -242,6 +242,7 @@ export const Sidebar = memo(function Sidebar({
   subagents,
   workspace,
   scope,
+  scopes,
   poolChats,
   poolDirectories,
   selectedId,
@@ -279,6 +280,7 @@ export const Sidebar = memo(function Sidebar({
   subagents: Session[];
   workspace: string | null;
   scope: Scope;
+  scopes: Scope[];
   poolChats: number;
   poolDirectories: number;
   selectedId: string | null;
@@ -379,9 +381,10 @@ export const Sidebar = memo(function Sidebar({
     : null;
   const selectedRank = selectedSession ? rank(selectedSession) : null;
   const pool = scope !== "directory";
+  const scopeTabs = SCOPES.filter((item) => scopes.includes(item.id));
   const scopeIndex = Math.max(
     0,
-    SCOPES.findIndex((item) => item.id === scope),
+    scopeTabs.findIndex((item) => item.id === scope),
   );
   const poolLabel = SCOPES.find((item) => item.id === scope)?.label ?? "All chats";
   const { top: finishedRows, rest } = hoistFinished(visible, (session) => rank(session) === 0);
@@ -593,7 +596,7 @@ export const Sidebar = memo(function Sidebar({
       <div className="px-3 pb-2" role="group" aria-label="Chat scope">
         <div
           className="relative grid text-[11px] font-medium"
-          style={{ gridTemplateColumns: `repeat(${SCOPES.length}, minmax(0, 1fr))` }}
+          style={{ gridTemplateColumns: `repeat(${scopeTabs.length}, minmax(0, 1fr))` }}
         >
           <span
             aria-hidden
@@ -602,11 +605,11 @@ export const Sidebar = memo(function Sidebar({
               animated && "transition-transform duration-300 ease-out",
             )}
             style={{
-              width: `${100 / SCOPES.length}%`,
+              width: `${100 / scopeTabs.length}%`,
               transform: `translateX(${scopeIndex * 100}%)`,
             }}
           />
-          {SCOPES.map((item) => (
+          {scopeTabs.map((item) => (
             <button
               key={item.id}
               type="button"

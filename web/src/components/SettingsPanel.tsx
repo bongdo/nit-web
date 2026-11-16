@@ -1,4 +1,16 @@
-import { X } from "lucide-react";
+import {
+  Check,
+  Clock,
+  Cpu,
+  Globe2,
+  Layers,
+  MessageSquare,
+  Palette,
+  Pencil,
+  X,
+  type LucideIcon,
+} from "lucide-react";
+import type { ReactNode } from "react";
 import type { Agent, Model, ModelRef } from "../lib/types";
 import { THEMES, type Theme } from "../lib/themes";
 import { BACKGROUNDS } from "../lib/backgrounds";
@@ -6,9 +18,113 @@ import type { SceneSetting } from "./Scene";
 import type { TimeFormat } from "../lib/time";
 import { modelKey } from "../lib/format";
 import { appPath } from "../lib/base";
+import { SCOPES, type Scope } from "../lib/sessions";
+import { cn } from "../lib/utils";
 import { useModalFocus } from "../hooks/useModalFocus";
 import { Button } from "./ui/button";
 import { Select } from "./ui/select";
+
+const VIEW_ICONS: Record<Scope, LucideIcon> = {
+  directory: MessageSquare,
+  mine: Layers,
+  everywhere: Globe2,
+};
+
+const VIEW_HINTS: Record<Scope, string> = {
+  directory: "Only chats started in the current workspace.",
+  mine: "Every chat on this machine, grouped by directory.",
+  everywhere: "Chats from this machine and every connected instance.",
+};
+
+function Section({
+  icon: Icon,
+  title,
+  hint,
+  wide,
+  children,
+}: {
+  icon: LucideIcon;
+  title: string;
+  hint?: string;
+  wide?: boolean;
+  children: ReactNode;
+}) {
+  return (
+    <section
+      className={cn(
+        "bg-card/40 border-border/70 rounded-xl border p-3",
+        wide && "sm:col-span-2",
+      )}
+    >
+      <header className="mb-2.5 flex items-center gap-2">
+        <span className="bg-accent/60 text-foreground flex size-6 shrink-0 items-center justify-center rounded-md">
+          <Icon className="size-3.5" />
+        </span>
+        <h3 className="text-[11px] font-semibold uppercase tracking-wider">{title}</h3>
+        {hint && (
+          <span className="text-muted-foreground ml-auto min-w-0 truncate text-[10px]">{hint}</span>
+        )}
+      </header>
+      <div className="space-y-2.5">{children}</div>
+    </section>
+  );
+}
+
+function Field({
+  label,
+  hint,
+  children,
+}: {
+  label: string;
+  hint?: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-3">
+      <div className="min-w-0">
+        <div className="text-xs leading-tight font-medium">{label}</div>
+        {hint && (
+          <div className="text-muted-foreground mt-0.5 text-[10px] leading-tight">{hint}</div>
+        )}
+      </div>
+      <div className="flex shrink-0 items-center gap-2">{children}</div>
+    </div>
+  );
+}
+
+function Toggle({
+  on,
+  onChange,
+  label,
+  disabled,
+}: {
+  on: boolean;
+  onChange: (value: boolean) => void;
+  label: string;
+  disabled?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={on}
+      aria-label={label}
+      disabled={disabled}
+      onClick={() => onChange(!on)}
+      className={cn(
+        "focus-visible:ring-ring relative h-5 w-9 shrink-0 rounded-full border transition-colors outline-none focus-visible:ring-2 disabled:opacity-40",
+        on ? "bg-primary border-primary" : "bg-muted border-border",
+      )}
+    >
+      <span
+        className={cn(
+          "bg-background absolute top-0.5 left-0.5 size-3.5 rounded-full shadow-sm transition-transform",
+          on && "translate-x-4",
+        )}
+      />
+    </button>
+  );
+}
 
 export function SettingsPanel({
   models,
@@ -24,6 +140,7 @@ export function SettingsPanel({
   motion,
   background,
   notify,
+  scopes,
   instance,
   onModel,
   onAgent,
@@ -35,6 +152,7 @@ export function SettingsPanel({
   onMotion,
   onBackground,
   onNotify,
+  onScopes,
   onInstances,
   onClose,
 }: {
@@ -51,6 +169,7 @@ export function SettingsPanel({
   motion: "animated" | "static";
   background: SceneSetting;
   notify: boolean;
+  scopes: Scope[];
   instance: string;
   onModel: (model: ModelRef) => void;
   onAgent: (agent: string) => void;
@@ -62,6 +181,7 @@ export function SettingsPanel({
   onMotion: (mode: "animated" | "static") => void;
   onBackground: (mode: SceneSetting) => void;
   onNotify: () => void;
+  onScopes: (id: Scope) => void;
   onInstances: () => void;
   onClose: () => void;
 }) {
@@ -90,197 +210,218 @@ export function SettingsPanel({
         aria-label="Settings"
         tabIndex={-1}
         onClick={(event) => event.stopPropagation()}
-        className="overlay-modal bg-background border-border flex max-h-[calc(100dvh-2rem)] w-full max-w-2xl flex-col overflow-hidden rounded-xl border shadow-xl outline-none"
+        className="overlay-modal bg-background border-border flex max-h-[calc(100dvh-2rem)] w-full max-w-3xl flex-col overflow-hidden rounded-xl border shadow-xl outline-none"
       >
         <div className="border-border flex items-center justify-between border-b px-4 py-3">
-          <h2 className="text-sm font-semibold">Settings</h2>
+          <div className="min-w-0">
+            <h2 className="text-sm font-semibold">Settings</h2>
+          </div>
           <Button variant="ghost" size="icon-sm" onClick={onClose} aria-label="Close settings">
             <X />
           </Button>
         </div>
 
-        <div className="scrollbar-thin grid min-h-0 gap-3 overflow-y-auto p-4 sm:grid-cols-2">
-          <label className="block space-y-1 sm:col-span-2">
-            <span className="text-muted-foreground text-[11px]">Workspace</span>
-            <div className="border-border bg-muted/30 truncate rounded-md border px-2.5 py-1.5 font-mono text-[11px]">
-              {directory ?? "none"}
+        <div className="scrollbar-thin grid min-h-0 gap-3 overflow-y-auto p-3 sm:grid-cols-2">
+          <Section
+            icon={Layers}
+            title="Chat views"
+            hint={`${scopes.length} of ${SCOPES.length} on`}
+            wide
+          >
+            <div className="grid gap-2 sm:grid-cols-3">
+              {SCOPES.map((item) => {
+                const Icon = VIEW_ICONS[item.id];
+                const on = scopes.includes(item.id);
+                const locked = on && scopes.length === 1;
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    aria-pressed={on}
+                    disabled={locked}
+                    onClick={() => onScopes(item.id)}
+                    title={locked ? "At least one view must stay on" : undefined}
+                    className={cn(
+                      "group relative flex items-start gap-2 rounded-lg border p-2 text-left transition-all",
+                      on
+                        ? "border-primary/40 bg-primary/5"
+                        : "border-border/70 hover:border-border hover:bg-accent/40",
+                      locked && "cursor-default",
+                    )}
+                  >
+                    <span
+                      className={cn(
+                        "flex size-7 shrink-0 items-center justify-center rounded-md transition-colors",
+                        on ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground",
+                      )}
+                    >
+                      <Icon className="size-3.5" />
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="flex items-center gap-1 text-xs font-medium">
+                        <span className="truncate">{item.label}</span>
+                        {on && <Check className="text-primary size-3 shrink-0" />}
+                      </span>
+                      <span className="text-muted-foreground mt-0.5 block text-[10px] leading-snug">
+                        {VIEW_HINTS[item.id]}
+                      </span>
+                    </span>
+                  </button>
+                );
+              })}
             </div>
-          </label>
+            <p className="text-muted-foreground text-[10px]">
+              Pick what shows up in the sidebar switcher. One view always stays on.
+            </p>
+          </Section>
 
-          <label className="block space-y-1">
-            <span className="text-muted-foreground text-[11px]">Model</span>
-            <Select
-              className="w-full"
-              value={model ? modelKey(model) : ""}
-              onChange={(event) => {
-                const [providerID, ...rest] = event.target.value.split("/");
-                const id = rest.join("/");
-                if (!providerID || !id) return;
-                const supported = models
-                  .find((item) => item.id === id && item.providerID === providerID)
-                  ?.variants.some((item) => item.id === model?.variant);
-                onModel({ id, providerID, variant: supported ? model?.variant : undefined });
-              }}
-              disabled={models.length === 0}
-            >
-              {!model && <option value="">Default model</option>}
-              {providers.map((providerID) => (
-                <optgroup key={providerID} label={providerID}>
-                  {models
-                    .filter((item) => item.providerID === providerID && item.enabled)
-                    .map((item) => (
-                      <option key={modelKey(item)} value={modelKey(item)}>
-                        {item.name}
-                      </option>
-                    ))}
-                </optgroup>
-              ))}
-            </Select>
-          </label>
-
-          {model && variants.length > 0 && (
-            <label className="block space-y-1">
-              <span className="text-muted-foreground text-[11px]">Reasoning / variant</span>
-              <Select
-                className="w-full"
-                value={model.variant ?? ""}
-                onChange={(event) =>
-                  onModel({ ...model, variant: event.target.value || undefined })
-                }
+          <Section icon={Cpu} title="Model & agent" wide>
+            <Field label="Workspace" hint="Where new chats start">
+              <span
+                className="border-border bg-muted/30 max-w-[240px] truncate rounded-md border px-2 py-1 font-mono text-[10px]"
+                title={directory ?? undefined}
               >
-                <option value="">Default</option>
-                {model.variant && !variants.some((item) => item.id === model.variant) && (
-                  <option value={model.variant}>{model.variant}</option>
-                )}
-                {variants.map((item) => (
+                {directory ?? "none"}
+              </span>
+            </Field>
+            <Field label="Model" hint="Default for this browser">
+              <Select
+                className="w-[220px]"
+                value={model ? modelKey(model) : ""}
+                onChange={(event) => {
+                  const [providerID, ...rest] = event.target.value.split("/");
+                  const id = rest.join("/");
+                  if (!providerID || !id) return;
+                  const supported = models
+                    .find((item) => item.id === id && item.providerID === providerID)
+                    ?.variants.some((item) => item.id === model?.variant);
+                  onModel({ id, providerID, variant: supported ? model?.variant : undefined });
+                }}
+                disabled={models.length === 0}
+              >
+                {!model && <option value="">Default model</option>}
+                {providers.map((providerID) => (
+                  <optgroup key={providerID} label={providerID}>
+                    {models
+                      .filter((item) => item.providerID === providerID && item.enabled)
+                      .map((item) => (
+                        <option key={modelKey(item)} value={modelKey(item)}>
+                          {item.name}
+                        </option>
+                      ))}
+                  </optgroup>
+                ))}
+              </Select>
+            </Field>
+            {model && variants.length > 0 && (
+              <Field label="Reasoning" hint="Variant for this model">
+                <Select
+                  className="w-[220px]"
+                  value={model.variant ?? ""}
+                  onChange={(event) =>
+                    onModel({ ...model, variant: event.target.value || undefined })
+                  }
+                >
+                  <option value="">Default</option>
+                  {model.variant && !variants.some((item) => item.id === model.variant) && (
+                    <option value={model.variant}>{model.variant}</option>
+                  )}
+                  {variants.map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.id}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+            )}
+            <Field label="Agent" hint="Used for new messages">
+              <Select
+                className="w-[220px]"
+                value={agent ?? ""}
+                onChange={(event) => onAgent(event.target.value)}
+                disabled={primaryAgents.length === 0}
+              >
+                {!agent && <option value="">Agent</option>}
+                {primaryAgents.map((item) => (
                   <option key={item.id} value={item.id}>
-                    {item.id}
+                    {item.name}
                   </option>
                 ))}
               </Select>
-            </label>
-          )}
+            </Field>
+          </Section>
 
-          <label className="block space-y-1">
-            <span className="text-muted-foreground text-[11px]">Agent</span>
-            <Select
-              className="w-full"
-              value={agent ?? ""}
-              onChange={(event) => onAgent(event.target.value)}
-              disabled={primaryAgents.length === 0}
-            >
-              {!agent && <option value="">Agent</option>}
-              {primaryAgents.map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.name}
-                </option>
-              ))}
-            </Select>
-          </label>
+          <Section icon={Pencil} title="Writing">
+            <Field label="Spelling & grammar" hint="RU + EN, grammar if configured">
+              <Toggle
+                on={spellcheck}
+                onChange={onSpellcheck}
+                label="Spelling and grammar"
+              />
+            </Field>
+            <Field label="Auto-fix typos" hint="Only unambiguous lowercase words">
+              <Toggle on={autofix} onChange={onAutofix} label="Auto-fix typos" />
+            </Field>
+          </Section>
 
-          <label className="block space-y-1">
-            <span className="text-muted-foreground text-[11px]">Theme</span>
-            <Select
-              className="w-full"
-              value={theme}
-              onChange={(event) => onTheme(event.target.value as Theme)}
-            >
-              {THEMES.map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.label}
-                </option>
-              ))}
-            </Select>
-          </label>
+          <Section icon={Palette} title="Appearance">
+            <Field label="Theme">
+              <Select
+                className="w-[160px]"
+                value={theme}
+                onChange={(event) => onTheme(event.target.value as Theme)}
+              >
+                {THEMES.map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {item.label}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+            <Field label="Background">
+              <Select
+                className="w-[160px]"
+                value={background}
+                onChange={(event) => onBackground(event.target.value as SceneSetting)}
+              >
+                {BACKGROUNDS.map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {item.menu}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+            <Field label="Motion" hint="Row and panel transitions">
+              <Toggle
+                on={motion === "animated"}
+                onChange={(on) => onMotion(on ? "animated" : "static")}
+                label="Animated motion"
+              />
+            </Field>
+          </Section>
 
-          <label className="block space-y-1">
-            <span className="text-muted-foreground text-[11px]">Spelling & grammar</span>
-            <Select
-              className="w-full"
-              value={spellcheck ? "on" : "off"}
-              onChange={(event) => onSpellcheck(event.target.value === "on")}
-            >
-              <option value="on">On · RU + EN spelling, grammar if configured</option>
-              <option value="off">Off</option>
-            </Select>
-          </label>
-
-          <label className="block space-y-1">
-            <span className="text-muted-foreground text-[11px]">Auto-fix typos</span>
-            <Select
-              className="w-full"
-              value={autofix ? "on" : "off"}
-              onChange={(event) => onAutofix(event.target.value === "on")}
-            >
-              <option value="on">On · only unambiguous lowercase words</option>
-              <option value="off">Off</option>
-            </Select>
-          </label>
-
-          <label className="block space-y-1">
-            <span className="text-muted-foreground text-[11px]">Time format</span>
-            <Select
-              className="w-full"
-              value={timeFormat}
-              onChange={(event) => onTimeFormat(event.target.value as TimeFormat)}
-            >
-              <option value="24h">24-hour · 13:05</option>
-              <option value="12h">12-hour · 1:05 PM</option>
-            </Select>
-          </label>
-
-          <label className="block space-y-1">
-            <span className="text-muted-foreground text-[11px]">Message time</span>
-            <Select
-              className="w-full"
-              value={showTime ? "on" : "off"}
-              onChange={(event) => onShowTime(event.target.value === "on")}
-            >
-              <option value="on">Show</option>
-              <option value="off">Hide</option>
-            </Select>
-          </label>
-
-          <label className="block space-y-1">
-            <span className="text-muted-foreground text-[11px]">Desktop notifications</span>
-            <Select
-              className="w-full"
-              value={notify ? "on" : "off"}
-              onChange={(event) => {
-                if ((event.target.value === "on") !== notify) onNotify();
-              }}
-            >
-              <option value="on">On · waiting and finished chats</option>
-              <option value="off">Off</option>
-            </Select>
-          </label>
-
-          <label className="block space-y-1">
-            <span className="text-muted-foreground text-[11px]">Background</span>
-            <Select
-              className="w-full"
-              value={background}
-              onChange={(event) => onBackground(event.target.value as SceneSetting)}
-            >
-              {BACKGROUNDS.map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.menu}
-                </option>
-              ))}
-            </Select>
-          </label>
-
-          <label className="block space-y-1">
-            <span className="text-muted-foreground text-[11px]">Motion</span>
-            <Select
-              className="w-full"
-              value={motion}
-              onChange={(event) => onMotion(event.target.value as "animated" | "static")}
-            >
-              <option value="animated">Animated</option>
-              <option value="static">Static</option>
-            </Select>
-          </label>
+          <Section icon={Clock} title="Time & alerts">
+            <Field label="Time format">
+              <Select
+                className="w-[160px]"
+                value={timeFormat}
+                onChange={(event) => onTimeFormat(event.target.value as TimeFormat)}
+              >
+                <option value="24h">24-hour · 13:05</option>
+                <option value="12h">12-hour · 1:05 PM</option>
+              </Select>
+            </Field>
+            <Field label="Message time" hint="Show the clock on messages">
+              <Toggle on={showTime} onChange={onShowTime} label="Show message time" />
+            </Field>
+            <Field label="Desktop notifications" hint="Waiting and finished chats">
+              <Toggle
+                on={notify}
+                onChange={() => onNotify()}
+                label="Desktop notifications"
+              />
+            </Field>
+          </Section>
         </div>
 
         <div className="border-border flex items-center justify-between gap-3 border-t px-4 py-3">

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   basename,
+  workspaceLabel,
   contextPercent,
   estimateCost,
   fileUri,
@@ -192,6 +193,9 @@ describe("format", () => {
     expect(basename("/home/ubuntu/project/")).toBe("project");
     expect(basename("/")).toBe("/");
     expect(basename(undefined)).toBe("");
+    expect(workspaceLabel("/")).toBe("Root");
+    expect(workspaceLabel("/tmp")).toBe("Temp");
+    expect(workspaceLabel("/home/ubuntu/project/")).toBe("project");
   });
 
   it("turns a selection into a markdown quote", () => {

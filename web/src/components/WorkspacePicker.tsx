@@ -15,7 +15,7 @@ import {
   X,
 } from "lucide-react";
 import type { FolderListing, Instance, Project } from "../lib/types";
-import { basename, formatRelative } from "../lib/format";
+import { formatRelative, workspaceLabel } from "../lib/format";
 import {
   isAbsolutePath,
   isFolderName,
@@ -497,7 +497,7 @@ export function WorkspacePicker({
                   )}
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-[13px] font-medium">
-                      {basename(directory) || directory}
+                      {workspaceLabel(directory) || directory}
                     </span>
                     <span className="text-muted-foreground block truncate font-mono text-[10px]">
                       {directory}
@@ -760,7 +760,7 @@ export function WorkspacePicker({
               onClick={() => target && onPick(target, machine)}
               title={target ? `Use ${target}` : undefined}
             >
-              <span className="truncate">{target ? `Use “${basename(target)}”` : "Use folder"}</span>
+              <span className="truncate">{target ? `Use “${workspaceLabel(target)}”` : "Use folder"}</span>
             </Button>
           </div>
         )}
@@ -984,7 +984,7 @@ export function WorkspaceMenu({
                     )}
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-[12px] font-medium">
-                        {basename(directory)}
+                        {workspaceLabel(directory)}
                       </span>
                       <span className="text-muted-foreground block truncate font-mono text-[10px]">
                         {directory}

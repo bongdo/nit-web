@@ -135,6 +135,12 @@ export function basename(path?: string): string {
   return idx >= 0 ? clean.slice(idx + 1) || "/" : clean;
 }
 
+export function workspaceLabel(path?: string): string {
+  if (path === "/") return "Root";
+  if (path === "/tmp") return "Temp";
+  return basename(path);
+}
+
 export function sessionRunning(session?: Session | null): boolean {
   if (!session) return false;
   const { busy, idle } = session.time;

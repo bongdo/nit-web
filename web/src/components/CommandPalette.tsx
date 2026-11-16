@@ -1,6 +1,39 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import {
+  ChevronRight,
+  CircleHelp,
+  Eraser,
+  FolderOpen,
+  GitBranch,
+  GitFork,
+  Images,
+  Palette,
+  Plus,
+  RotateCcw,
+  Server,
+  Shrink,
+  SlidersHorizontal,
+  Undo2,
+  type LucideIcon,
+} from "lucide-react";
 import { cn } from "../lib/utils";
 import type { ComposerCommand } from "./Composer";
+
+const ICONS: Record<string, LucideIcon> = {
+  new: Plus,
+  dir: FolderOpen,
+  settings: SlidersHorizontal,
+  instances: Server,
+  compact: Shrink,
+  revert: Undo2,
+  fork: GitFork,
+  "fork-here": GitBranch,
+  retry: RotateCcw,
+  theme: Palette,
+  backgrounds: Images,
+  clear: Eraser,
+  help: CircleHelp,
+};
 
 export function CommandPalette({
   open,
@@ -64,28 +97,32 @@ export function CommandPalette({
         >
           <span key={`sweep-${active}`} className="palette-sheen-sweep" />
         </span>
-        {shown.map((item, index) => (
-          <button
-            key={item.id}
-            ref={(node) => {
-              rowRefs.current[index] = node;
-            }}
-            type="button"
-            onFocus={() => onHighlight(index)}
-            onMouseEnter={() => onHighlight(index)}
-            onMouseDown={(event) => {
-              event.preventDefault();
-              onSelect(item.id);
-            }}
-            className={cn(
-              "relative z-10 flex w-full items-baseline gap-2 rounded px-2 py-1.5 text-left",
-              index === active && "text-foreground",
-            )}
-          >
-            <span className="font-mono text-xs">/{item.id}</span>
-            <span className="text-muted-foreground truncate text-[11px]">{item.description}</span>
-          </button>
-        ))}
+        {shown.map((item, index) => {
+          const Icon = ICONS[item.id] ?? ChevronRight;
+          return (
+            <button
+              key={item.id}
+              ref={(node) => {
+                rowRefs.current[index] = node;
+              }}
+              type="button"
+              onFocus={() => onHighlight(index)}
+              onMouseEnter={() => onHighlight(index)}
+              onMouseDown={(event) => {
+                event.preventDefault();
+                onSelect(item.id);
+              }}
+              className={cn(
+                "relative z-10 flex w-full items-center gap-2 rounded px-2 py-1.5 text-left",
+                index === active && "text-foreground",
+              )}
+            >
+              <Icon className="text-muted-foreground size-3.5 shrink-0" />
+              <span className="font-mono text-xs">/{item.id}</span>
+              <span className="text-muted-foreground truncate text-[11px]">{item.description}</span>
+            </button>
+          );
+        })}
       </div>
     </div>
   );

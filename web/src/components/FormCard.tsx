@@ -12,6 +12,24 @@ import { cn } from "../lib/utils";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 
+function ChoiceMark({ kind }: { kind: "checkbox" | "radio" }) {
+  return (
+    <span
+      aria-hidden
+      className={cn(
+        "border-border peer-checked:border-primary peer-checked:bg-primary peer-focus-visible:ring-ring mt-0.5 grid size-3.5 shrink-0 place-items-center border transition-colors peer-focus-visible:ring-2 peer-checked:[&>svg]:opacity-100 peer-checked:[&>span]:opacity-100",
+        kind === "radio" ? "rounded-full" : "rounded-[4px]",
+      )}
+    >
+      {kind === "radio" ? (
+        <span className="bg-primary-foreground size-1.5 rounded-full opacity-0" />
+      ) : (
+        <Check className="text-primary-foreground size-2.5 opacity-0" strokeWidth={3} />
+      )}
+    </span>
+  );
+}
+
 export function FormCard({
   form,
   sessionID,
@@ -169,9 +187,10 @@ export function FormCard({
                   type="checkbox"
                   checked={Boolean(values[field.key])}
                   onChange={(event) => set(field.key, event.target.checked)}
-                  className="accent-primary size-3.5"
+                  className="peer sr-only"
                 />
-                Yes
+                <ChoiceMark kind="checkbox" />
+                <span>Yes</span>
               </label>
             ) : field.type === "multiselect" ? (
               <div className="space-y-1">
@@ -196,8 +215,9 @@ export function FormCard({
                               : [...current, option.value],
                           )
                         }
-                        className="accent-primary mt-0.5 size-3.5"
+                        className="peer sr-only"
                       />
+                      <ChoiceMark kind="checkbox" />
                       <span className="min-w-0">
                         <span className="block">{option.label}</span>
                         {option.description && (
@@ -243,8 +263,9 @@ export function FormCard({
                         name={`${form.id}-${field.key}`}
                         checked={current === option.value}
                         onChange={() => set(field.key, option.value)}
-                        className="accent-primary mt-0.5 size-3.5"
+                        className="peer sr-only"
                       />
+                      <ChoiceMark kind="radio" />
                       <span className="min-w-0">
                         <span className="block">{option.label}</span>
                         {option.description && (

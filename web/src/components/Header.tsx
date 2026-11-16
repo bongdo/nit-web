@@ -11,7 +11,7 @@ import {
   Terminal,
 } from "lucide-react";
 import type { Session } from "../lib/types";
-import { basename, formatCost, formatRelative, sessionRunning } from "../lib/format";
+import { formatCost, formatRelative, sessionRunning, workspaceLabel } from "../lib/format";
 import { peroHref, termHref } from "../lib/diff";
 import { cn } from "../lib/utils";
 import { Button } from "./ui/button";
@@ -90,7 +90,7 @@ function SessionMeta({
     >
       <Folder className="size-3 shrink-0" />
       <span className="truncate" title={directory ?? undefined}>
-        {directory ? basename(directory) : "no directory"}
+        {directory ? workspaceLabel(directory) : "no directory"}
       </span>
       {instance && (
         <span

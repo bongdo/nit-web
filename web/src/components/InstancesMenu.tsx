@@ -14,7 +14,7 @@ import { cn } from "../lib/utils";
 import { useModalFocus } from "../hooks/useModalFocus";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
-import { Select } from "./ui/select";
+import { Pick } from "./ui/pick";
 
 const dotClass: Record<string, string> = {
   connected: "bg-success",
@@ -335,17 +335,20 @@ export function InstancesMenu({
                 </Field>
 
                 <Field label="Transport">
-                  <Select
+                  <Pick
+                    label="Transport"
                     value={form.transport}
-                    onChange={(event) =>
-                      setForm({ ...form, transport: event.target.value as InstanceTransport })
+                    placeholder="Transport"
+                    width="w-full"
+                    options={[
+                      { value: "local", label: "Local (auto)" },
+                      { value: "url", label: "URL" },
+                      { value: "ssh", label: "SSH" },
+                    ]}
+                    onChange={(value) =>
+                      setForm({ ...form, transport: value as InstanceTransport })
                     }
-                    className="w-full"
-                  >
-                    <option value="local">Local (auto)</option>
-                    <option value="url">URL</option>
-                    <option value="ssh">SSH</option>
-                  </Select>
+                  />
                 </Field>
 
                 {form.transport === "url" && (

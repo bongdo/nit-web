@@ -31,7 +31,7 @@ import {
 import type { Health, Session } from "../lib/types";
 import type { StreamStatus } from "../hooks/useEventStream";
 import { themeLabel, type Theme } from "../lib/themes";
-import { basename, filterSessions, formatRelative } from "../lib/format";
+import { filterSessions, formatRelative, workspaceLabel } from "../lib/format";
 import { BASE_PATH } from "../lib/base";
 import {
   SCOPES,
@@ -188,7 +188,7 @@ function SessionRow({
           <div className="text-muted-foreground flex min-w-0 items-center gap-1 pl-10 text-[10px]">
             <Folder className="size-3 shrink-0" />
             <span className="truncate" title={session.location?.directory}>
-              {basename(session.location?.directory) || "unknown"}
+              {workspaceLabel(session.location?.directory) || "unknown"}
             </span>
             {session.instance && (
               <span className="shrink-0 font-mono opacity-70" title={session.instance}>
@@ -560,7 +560,7 @@ export const Sidebar = memo(function Sidebar({
               )}
             >
               <span className="block truncate text-[13px] leading-tight font-semibold">
-                {workspace ? basename(workspace) : "No workspace"}
+                {workspace ? workspaceLabel(workspace) : "No workspace"}
               </span>
               <span className="text-muted-foreground flex items-center gap-1 text-[10px] leading-tight">
                 <FolderOpen className="size-3 shrink-0" />
@@ -635,7 +635,7 @@ export const Sidebar = memo(function Sidebar({
                   key={workspace}
                   className={cn("block truncate", animated && "sidebar-sheen-scope-in")}
                 >
-                  {basename(workspace)}
+                  {workspaceLabel(workspace)}
                 </span>
               ) : (
                 item.label
@@ -710,7 +710,7 @@ export const Sidebar = memo(function Sidebar({
           New chat
           {pool && workspace && (
             <span className="text-muted-foreground ml-1 truncate text-[10px] font-normal">
-              in {basename(workspace)}
+              in {workspaceLabel(workspace)}
             </span>
           )}
           <kbd className="border-border text-muted-foreground ml-auto rounded border px-1 font-mono text-[9px] font-normal">
@@ -776,7 +776,7 @@ export const Sidebar = memo(function Sidebar({
                           className="hover:text-foreground min-w-0 rounded-md text-left hover:underline"
                         >
                           <span className="block truncate">
-                            {basename(group.directory) || group.directory || "unknown"}
+                            {workspaceLabel(group.directory) || group.directory || "unknown"}
                           </span>
                         </button>
                         {group.instance && (
@@ -860,18 +860,18 @@ export const Sidebar = memo(function Sidebar({
           <button
             type="button"
             onClick={onToggleHidden}
-            className="hover:text-foreground ml-auto inline-flex items-center gap-1"
+            className="hover:text-foreground ml-auto inline-flex items-center gap-1 tabular-nums"
             title={showHidden ? "Hide hidden chats" : "Show hidden chats"}
           >
             {showHidden ? <EyeOff className="size-3" /> : <Eye className="size-3" />}
-            {hiddenCount}
+            {hiddenCount} hidden
           </button>
         )}
         <span
-          className={cn("pr-1 font-mono", hiddenCount === 0 && "ml-auto")}
+          className={cn("pr-1 tabular-nums", hiddenCount === 0 && "ml-auto")}
           title={`${sessions.length} chats`}
         >
-          {sessions.length}
+          {sessions.length} chats
         </span>
       </div>
     </div>

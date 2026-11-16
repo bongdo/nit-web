@@ -611,7 +611,7 @@ export function ChatView({
           </h2>
           <p className="text-muted-foreground mt-2 text-sm leading-6">
             {workspace
-              ? "Ask anything, attach files or dictate. Code, tables and HTML previews render inline."
+              ? "Ask anything or attach files. Code, tables and HTML previews render inline."
               : "Pick a directory for this chat. Markdown, tables, code and HTML previews render here."}
           </p>
           <div className="mt-3 flex justify-center">

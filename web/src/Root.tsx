@@ -1,42 +1,40 @@
 import { useCallback, useEffect, useState } from "react";
-import { CircleAlert, RefreshCw } from "lucide-react";
 import App from "./App";
 import { api } from "./lib/api";
 import { prefetchBoot } from "./lib/bootCache";
 import { appLabel } from "./lib/instances";
 import type { InstancesResponse } from "./lib/types";
-import { BootScreen } from "./components/StatusScreens";
 import { InstancesMenu } from "./components/InstancesMenu";
-import { Button } from "./components/ui/button";
+
+const CACHE_KEY = "nit-gui.instances.v1";
 
 function messageOf(error: unknown): string {
   if (error instanceof Error && error.message) return error.message;
   return "Could not load instances";
 }
 
-function LoadError({ message, onRetry }: { message: string; onRetry: () => void }) {
-  return (
-    <div className="bg-background flex h-full items-center justify-center px-6">
-      <div className="max-w-md text-center">
-        <div className="bg-destructive/10 text-destructive mx-auto mb-4 flex size-12 items-center justify-center rounded-2xl">
-          <CircleAlert className="size-6" />
-        </div>
-        <h1 className="text-xl font-semibold tracking-tight">Could not load instances</h1>
-        <pre className="bg-muted text-muted-foreground mt-4 overflow-x-auto rounded-lg px-3 py-2 text-left font-mono text-[11px] whitespace-pre-wrap">
-          {message}
-        </pre>
-        <Button className="mt-5" onClick={onRetry}>
-          <RefreshCw />
-          Retry
-        </Button>
-      </div>
-    </div>
-  );
+function readCached(): InstancesResponse | null {
+  try {
+    const raw = localStorage.getItem(CACHE_KEY);
+    if (!raw) return null;
+    const value = JSON.parse(raw) as InstancesResponse;
+    if (!value || !Array.isArray(value.instances) || value.instances.length === 0) return null;
+    if (typeof value.default !== "string" || !value.app) return null;
+    return value;
+  } catch {
+    return null;
+  }
+}
+
+function writeCached(value: InstancesResponse) {
+  try {
+    localStorage.setItem(CACHE_KEY, JSON.stringify(value));
+  } catch {}
 }
 
 export default function Root() {
-  const [data, setData] = useState<InstancesResponse | null>(null);
-  const [active, setActive] = useState("");
+  const [data, setData] = useState<InstancesResponse | null>(() => readCached());
+  const [active, setActive] = useState(() => localStorage.getItem("nit-gui.instance") || "");
   const [error, setError] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
 
@@ -45,6 +43,7 @@ export default function Root() {
     try {
       const result = await api.instances("none");
       setData(result);
+      writeCached(result);
       const stored = localStorage.getItem("nit-gui.instance");
       const next =
         stored && result.instances.some((item) => item.id === stored) ? stored : result.default;
@@ -64,6 +63,7 @@ export default function Root() {
     try {
       const result = await api.instances("all");
       setData(result);
+      writeCached(result);
       setActive((current) =>
         result.instances.some((item) => item.id === current) ? current : result.default,
       );
@@ -72,17 +72,38 @@ export default function Root() {
     }
   }, []);
 
+  const seed = active || localStorage.getItem("nit-gui.instance") || "local";
+  const seedWorkspace =
+    localStorage.getItem("nit-gui.workspace") ||
+    localStorage.getItem(`nit-gui.workspace:${seed}`) ||
+    undefined;
+  const current: InstancesResponse = data ?? {
+    app: { name: "nit-gui", host: "", version: "dev" },
+    default: seed,
+    instances: [
+      {
+        id: seed,
+        name: seed,
+        transport: "local",
+        detail: "",
+        state: "unknown",
+        defaultDirectory: seedWorkspace,
+        capabilities: [],
+      },
+    ],
+  };
+
   const select = useCallback(
     (id: string) => {
       setMenuOpen(false);
-      const target = data?.instances.find((item) => item.id === id);
+      const target = current.instances.find((item) => item.id === id);
       if (id !== active && target && target.state !== "offline") {
         void prefetchBoot(id);
       }
       setActive(id);
       localStorage.setItem("nit-gui.instance", id);
     },
-    [active, data],
+    [active, current.instances],
   );
 
   const openMenu = useCallback(() => {
@@ -90,43 +111,36 @@ export default function Root() {
     void refresh();
   }, [refresh]);
 
-  if (!data) {
-    if (error) return <LoadError message={error} onRetry={() => void load()} />;
-    return <BootScreen />;
-  }
-
   const info =
-    data.instances.find((item) => item.id === active) ??
-    data.instances.find((item) => item.id === data.default) ??
-    data.instances[0];
-  if (!info) {
-    return (
-      <LoadError
-        message="No OpenCode instances are configured."
-        onRetry={() => void load()}
-      />
-    );
-  }
+    current.instances.find((item) => item.id === active) ??
+    current.instances.find((item) => item.id === current.default) ??
+    current.instances[0];
 
   api.setInstance(info.id);
 
   return (
     <>
       <App
-        key={info.id}
+        key={`${info.id}:${current.default}:${data ? "ready" : "seed"}`}
         instance={info.id}
-        defaultInstance={data.default}
+        defaultInstance={current.default}
         defaultDirectory={info.defaultDirectory}
-        instances={data.instances}
-        title={`${appLabel(data.app.host)} · ${info.id}`}
+        instances={current.instances}
+        title={`${appLabel(current.app.host)} · ${info.id}`}
         onOpenInstances={openMenu}
         onSwitchInstance={select}
       />
+      {error && (
+        <div className="border-destructive/30 bg-destructive/10 text-destructive fixed bottom-3 left-1/2 z-40 max-w-[calc(100vw-1.5rem)] -translate-x-1/2 rounded-md border px-3 py-1.5 text-xs shadow-sm backdrop-blur-xl">
+          {data ? "Instances are stale: " : "Instances unavailable: "}
+          {error}
+        </div>
+      )}
       {menuOpen && (
         <InstancesMenu
-          data={data}
+          data={current}
           active={info.id}
-          configError={data.configError || error || ""}
+          configError={current.configError || error || ""}
           onSelect={select}
           onRefresh={refresh}
           onClose={() => setMenuOpen(false)}

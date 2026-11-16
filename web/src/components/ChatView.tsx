@@ -15,7 +15,7 @@ import {
   Quote,
   Sparkles,
 } from "lucide-react";
-import type { Agent, Message, Model, Project, Session } from "../lib/types";
+import type { Agent, Instance, Message, Model, Project, Session } from "../lib/types";
 import {
   anchorIndex,
   BOTTOM_GAP,
@@ -90,6 +90,9 @@ export function ChatView({
   projects,
   recent,
   workspace,
+  instance,
+  instances,
+  defaultInstance,
   peroURL,
   motion,
   background,
@@ -120,6 +123,9 @@ export function ChatView({
   projects: Project[];
   recent: string[];
   workspace: string | null;
+  instance: string;
+  instances: Instance[];
+  defaultInstance: string;
   peroURL: string;
   motion: "animated" | "static";
   background: SceneSetting;
@@ -130,7 +136,7 @@ export function ChatView({
   onRevert: (message: Message) => Promise<void>;
   onFork: (message: Message) => Promise<void>;
   onQuote: (text: string) => void;
-  onPickWorkspace: (directory: string) => void;
+  onPickWorkspace: (directory: string, instance?: string) => void;
   onBrowseWorkspace: () => void;
   hasEarlier: boolean;
   loadingEarlier: boolean;
@@ -581,6 +587,9 @@ export function ChatView({
                 projects={projects}
                 recent={recent}
                 current={workspace}
+                instance={instance}
+                instances={instances}
+                defaultInstance={defaultInstance}
                 onPick={onPickWorkspace}
                 onBrowse={onBrowseWorkspace}
               />

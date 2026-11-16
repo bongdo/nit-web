@@ -1,17 +1,6 @@
-import { ArrowLeftRight, Loader2, PlugZap, RefreshCw } from "lucide-react";
+import { ArrowLeftRight, PlugZap, RefreshCw } from "lucide-react";
 import type { Health } from "../lib/types";
 import { Button } from "./ui/button";
-
-export function BootScreen() {
-  return (
-    <div className="bg-background flex h-full items-center justify-center">
-      <div className="text-muted-foreground flex items-center gap-2 text-sm">
-        <Loader2 className="size-4 animate-spin" />
-        Loading…
-      </div>
-    </div>
-  );
-}
 
 export function OfflineScreen({
   health,

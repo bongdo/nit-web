@@ -814,22 +814,56 @@ export function WorkspaceMenu({
   projects,
   recent,
   current,
+  instance,
+  instances = [],
+  defaultInstance = "",
   onPick,
   onBrowse,
 }: {
   projects: Project[];
   recent: string[];
   current: string;
-  onPick: (directory: string) => void;
+  instance?: string;
+  instances?: Instance[];
+  defaultInstance?: string;
+  onPick: (directory: string, instance?: string) => void;
   onBrowse: () => void;
 }) {
   const [open, setOpen] = useState(false);
+  const [machine, setMachine] = useState(instance ?? "");
+  const [machineProjects, setMachineProjects] = useState<Project[]>(projects);
   const root = useRef<HTMLDivElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
   const menu = useRef<HTMLDivElement>(null);
-  const known = new Map(projects.map((project) => [project.canonical, project]));
-  const directories = workspaceOptions(projects, recent).filter(
-    (directory) => directory !== current,
+
+  useEffect(() => {
+    setMachine(instance ?? "");
+  }, [instance]);
+
+  useEffect(() => {
+    if (!machine || machine === instance) {
+      setMachineProjects(projects);
+      return;
+    }
+    let cancelled = false;
+    setMachineProjects([]);
+    api
+      .projects(machine)
+      .then((list) => {
+        if (!cancelled) setMachineProjects(list);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [machine, instance, projects]);
+
+  const projectsFor = machine === instance ? projects : machineProjects;
+  const recentFor = machine === instance ? recent : readRecent(machine, defaultInstance);
+  const currentFor = machine === instance ? current : "";
+  const known = new Map(projectsFor.map((project) => [project.canonical, project]));
+  const directories = workspaceOptions(projectsFor, recentFor).filter(
+    (directory) => directory !== currentFor,
   );
 
   useEffect(() => {
@@ -898,8 +932,30 @@ export function WorkspaceMenu({
           onKeyDown={onMenuKeyDown}
           className="overlay-popover border-border bg-popover absolute top-full left-1/2 z-40 mt-1 w-80 max-w-[calc(100vw-2rem)] -translate-x-1/2 rounded-lg border p-1 text-left shadow-lg"
         >
+          {instances.length > 1 && (
+            <div className="border-border flex flex-wrap gap-1 border-b px-1.5 pb-1.5">
+              {instances.map((item) => (
+                <button
+                  key={item.id}
+                  role="menuitem"
+                  type="button"
+                  tabIndex={-1}
+                  onClick={() => setMachine(item.id)}
+                  className={cn(
+                    "flex min-w-0 items-center gap-1 rounded border px-1.5 py-0.5 text-[10px]",
+                    machine === item.id
+                      ? "border-foreground/30 bg-accent text-foreground"
+                      : "border-border text-muted-foreground hover:bg-accent/60",
+                  )}
+                >
+                  <span className={cn("size-1.5 shrink-0 rounded-full", machineDot(item.state))} />
+                  <span className="max-w-24 truncate">{item.name}</span>
+                </button>
+              ))}
+            </div>
+          )}
           <div className="text-muted-foreground px-2 py-1 text-[10px] font-medium tracking-wide uppercase">
-            Recent
+            Recent on {machine || "this machine"}
           </div>
           <div className="scrollbar-thin max-h-48 overflow-y-auto">
             {directories.length === 0 ? (
@@ -917,7 +973,7 @@ export function WorkspaceMenu({
                     tabIndex={-1}
                     onClick={() => {
                       setOpen(false);
-                      onPick(directory);
+                      onPick(directory, machine);
                     }}
                     className="hover:bg-accent/60 flex w-full items-center gap-2 rounded px-2 py-1.5 text-left"
                   >

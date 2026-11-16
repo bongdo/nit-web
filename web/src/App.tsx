@@ -2773,6 +2773,9 @@ export default function App({
           projects={projects}
           recent={recent}
           workspace={workspace}
+          instance={instance}
+          instances={instances}
+          defaultInstance={defaultInstance}
           peroURL={config?.peroURL ?? "/pero/"}
           motion={motion}
           background={background}

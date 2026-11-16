@@ -450,13 +450,17 @@ void scene(vec2 p, vec2 cell, out vec4 color) {
 
 const GYRO = `
 mat2 turn(float a) { float c = cos(a), s = sin(a); return mat2(c, -s, s, c); }
-float ring(vec3 p, vec3 axis, float r, float t) {
-  p.yz = turn(axis.y) * p.yz;
-  p.xz = turn(axis.x) * p.xz;
-  vec2 q = vec2(length(p.xz) - r, p.y);
-  return length(q) - t;
+float hoop(vec3 p, float yaw, float tilt, float radius, float thick) {
+  p.yz = turn(tilt) * p.yz;
+  p.xz = turn(yaw) * p.xz;
+  vec2 q = vec2(length(p.xz) - radius, p.y);
+  return length(q) - thick;
 }
-
+float gyro(vec3 p, float t) {
+  return min(hoop(p, t, 0.0, 0.24, 0.022),
+         min(hoop(p, t * 1.3, 1.55, 0.30, 0.020),
+             hoop(p, t * 0.7, 0.8, 0.36, 0.018)));
+}
 void scene(vec2 p, vec2 cell, out vec4 color) {
   float t = uT * 0.5 + uScroll * 3.0;
   vec3 ro = vec3(0.0, 0.0, 1.35);
@@ -464,10 +468,7 @@ void scene(vec2 p, vec2 cell, out vec4 color) {
   float travel = 0.0;
   float hit = -1.0;
   for (int i = 0; i < 64; i++) {
-    vec3 q = ro + rd * travel;
-    float d = min(ring(q, vec3(t, 0.0, 0.0), 0.24, 0.022),
-              min(ring(q, vec3(0.0, t * 1.3, 1.57), 0.30, 0.020),
-                  ring(q, vec3(1.57, t * 0.7, 0.0), 0.36, 0.018)));
+    float d = gyro(ro + rd * travel, t);
     if (d < 0.0018) { hit = travel; break; }
     travel += d;
     if (travel > 2.4) break;
@@ -477,9 +478,9 @@ void scene(vec2 p, vec2 cell, out vec4 color) {
     vec3 pos = ro + rd * hit;
     float e = 0.004;
     vec3 n = normalize(vec3(
-      ring(pos + vec3(e, 0.0, 0.0), vec3(t, 0.0, 0.0), 0.24, 0.022) - ring(pos - vec3(e, 0.0, 0.0), vec3(t, 0.0, 0.0), 0.24, 0.022),
-      ring(pos + vec3(0.0, e, 0.0), vec3(t, 0.0, 0.0), 0.24, 0.022) - ring(pos - vec3(0.0, e, 0.0), vec3(t, 0.0, 0.0), 0.24, 0.022),
-      ring(pos + vec3(0.0, 0.0, e), vec3(t, 0.0, 0.0), 0.24, 0.022) - ring(pos - vec3(0.0, 0.0, e), vec3(t, 0.0, 0.0), 0.24, 0.022)));
+      gyro(pos + vec3(e, 0.0, 0.0), t) - gyro(pos - vec3(e, 0.0, 0.0), t),
+      gyro(pos + vec3(0.0, e, 0.0), t) - gyro(pos - vec3(0.0, e, 0.0), t),
+      gyro(pos + vec3(0.0, 0.0, e), t) - gyro(pos - vec3(0.0, 0.0, e), t)));
     vec3 light = normalize(vec3(0.4, 0.7, 0.6));
     float dif = max(dot(n, light), 0.0);
     float rim = pow(1.0 - max(dot(n, -rd), 0.0), 2.0);

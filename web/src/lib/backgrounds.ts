@@ -37,6 +37,8 @@ export const BACKGROUNDS: BackgroundEntry[] = [
   { id: "ascii-fish", label: "Fish", hint: "ascii", menu: "ASCII · fish", group: "ascii" },
   { id: "ascii-torus", label: "Torus", hint: "ascii", menu: "ASCII · torus", group: "ascii" },
   { id: "ascii-stars", label: "Stars", hint: "ascii", menu: "ASCII · stars", group: "ascii" },
+  { id: "ascii-angel", label: "Guardian", hint: "ascii", menu: "ASCII · winged guardian", group: "ascii" },
+  { id: "ascii-gyro", label: "Gyroscope", hint: "ascii", menu: "ASCII · gyroscope", group: "ascii" },
 ];
 
 export const BACKGROUND_GROUPS: Record<string, string> = {

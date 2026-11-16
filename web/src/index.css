@@ -522,7 +522,25 @@
   }
 
   .markdown :not(pre) > code {
-    @apply bg-muted text-foreground rounded px-1.5 py-0.5 font-mono text-[0.85em];
+    @apply rounded px-1.5 py-0.5 font-mono text-[0.85em];
+    color: color-mix(in oklab, var(--spark) 58%, currentColor);
+    background: color-mix(in oklab, var(--spark) 8%, transparent);
+  }
+
+  .markdown a.md-file {
+    @apply no-underline;
+  }
+
+  .markdown a.md-file code {
+    text-decoration: underline dotted;
+    text-decoration-color: color-mix(in oklab, var(--spark) 35%, transparent);
+    text-underline-offset: 3px;
+    transition: background-color 120ms linear;
+  }
+
+  .markdown a.md-file:hover code {
+    background: color-mix(in oklab, var(--spark) 16%, transparent);
+    text-decoration-color: color-mix(in oklab, var(--spark) 70%, transparent);
   }
 
   .compaction-summary.markdown {

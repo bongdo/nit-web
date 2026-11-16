@@ -702,6 +702,10 @@ nspell worker. It is not implemented yet.
   `$0.16`); bare numbers, versions and paths are left alone, and inline code is
   never touched. A table column made only of values is right-aligned; a mixed
   column (a duration next to "недели") stays left-aligned.
+- Inline code uses the same copper as a tint instead of a grey plate. A path or
+  a file with a known extension (`bin/check`, `docs/decisions.md:12`) is a link
+  to pero in a new tab, resolved against the chat directory; commands with
+  spaces, URLs, Cyrillic prose and bare words stay plain, so no accidental links.
 - HTML answers: an agent or user can reference a workspace page as
   `[[html:pages/chart.html|Title]]` on its own line. The chat reads the file
   through `/api/artifact` and renders it inline as part of the reply; the marker

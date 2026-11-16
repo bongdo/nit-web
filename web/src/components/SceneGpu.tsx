@@ -13,6 +13,10 @@ import {
 } from "../lib/gpu-scenes";
 
 const STILL_TIME = 6;
+const scrollProgress = () => {
+  const max = document.documentElement.scrollHeight - window.innerHeight;
+  return max > 0 ? Math.min(1, Math.max(0, window.scrollY / max)) : 0;
+};
 const CELL = 11;
 const GLYPH_FONT = 'ui-monospace, "SF Mono", Menlo, monospace';
 
@@ -197,6 +201,7 @@ export function SceneGpu({
       gl.uniform2f(uniform("uRes"), cols, rows);
       gl.uniform1f(uniform("uAspect"), (cols * 0.5) / rows);
       gl.uniform1f(uniform("uT"), time);
+      gl.uniform1f(uniform("uScroll"), scrollProgress());
       gl.uniform3fv(uniform("uInk"), ink.current);
       gl.uniform3fv(uniform("uAccent"), accent.current);
       gl.uniform1fv(uniform("uFill"), fill);

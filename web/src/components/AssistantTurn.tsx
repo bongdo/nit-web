@@ -283,7 +283,12 @@ export const AssistantTurn = memo(function AssistantTurn({
                 segments.map((segment, segmentIndex) => (
                   <div key={`segment-${segmentIndex}`} className="min-w-0">
                     {segment.text.trim() !== "" && (
-                      <Markdown text={segment.text} streaming={live} />
+                      <Markdown
+                        text={segment.text}
+                        streaming={live}
+                        directory={workspace}
+                        peroURL={peroURL}
+                      />
                     )}
                     {segment.artifacts.map((artifact) => {
                       const key =

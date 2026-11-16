@@ -42,6 +42,7 @@ export const MessageRow = memo(function MessageRow({
   running,
   alwaysShowActions,
   autoOpen,
+  directory,
   peroURL,
   timeFormat,
   showTime,
@@ -56,6 +57,7 @@ export const MessageRow = memo(function MessageRow({
   running?: boolean;
   alwaysShowActions?: boolean;
   autoOpen?: boolean;
+  directory?: string | null;
   peroURL: string;
   timeFormat: TimeFormat;
   showTime: boolean;
@@ -101,7 +103,7 @@ export const MessageRow = memo(function MessageRow({
                 ))}
               </div>
             )}
-            <Markdown text={message.text ?? ""} />
+            <Markdown text={message.text ?? ""} directory={directory} peroURL={peroURL} />
             {showTime && (
               <div className="text-muted-foreground mt-1 text-right text-[10px]">
                 {timeLabel(message.time.created, timeFormat)}
@@ -275,7 +277,7 @@ export const MessageRow = memo(function MessageRow({
                 <HtmlMessagePreview source={part.text} />
               ) : (
                 <>
-                  <Markdown text={part.text} />
+                  <Markdown text={part.text} directory={directory} peroURL={peroURL} />
                   {looksLikeHtml(part.text) && <HtmlMessagePreview source={part.text} />}
                 </>
               )}

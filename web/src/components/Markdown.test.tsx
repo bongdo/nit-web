@@ -23,6 +23,20 @@ describe("Markdown values", () => {
     expect(html.match(/md-num/g) ?? []).toHaveLength(3);
   });
 
+  it("links a path in inline code to pero", () => {
+    const html = renderToStaticMarkup(
+      <Markdown text={"Открой `bin/check` и `docs/decisions.md:12`."} directory="/work/app" peroURL="/pero/" />,
+    );
+    expect(html).toContain("md-file");
+    expect(html).toContain("/pero/?open=%2Fwork%2Fapp%2Fbin%2Fcheck");
+    expect(html).toContain("open=%2Fwork%2Fapp%2Fdocs%2Fdecisions.md&amp;lines=12");
+  });
+
+  it("does not link paths without a directory", () => {
+    const html = renderToStaticMarkup(<Markdown text={"Открой `bin/check`."} peroURL="/pero/" />);
+    expect(html).not.toContain("md-file");
+  });
+
   it("keeps mixed columns left-aligned", () => {
     const html = render("| случай | цена |\n| --- | --- |\n| a | ~1 день |\n| b | недели |");
     expect(html).not.toContain("md-num");

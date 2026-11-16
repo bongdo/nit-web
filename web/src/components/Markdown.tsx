@@ -9,6 +9,8 @@ import {
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { attachmentNameFromHref, localFileHref } from "../lib/attachments";
+import { peroHref, resolveFilePath } from "../lib/diff";
+import { fileTarget } from "../lib/fileLink";
 import { splitMarkdownBlocks } from "../lib/markdown";
 import { splitValues } from "../lib/values";
 import { AttachmentPreview } from "./Attachment";
@@ -127,7 +129,11 @@ type CodeProps = {
   children?: ReactNode;
 };
 
-function codeFor(streaming: boolean): Components["code"] {
+function codeFor(
+  streaming: boolean,
+  directory?: string | null,
+  peroURL?: string | null,
+): Components["code"] {
   return function MarkdownCode({ node, className, children }: CodeProps) {
     const text = String(children).replace(/\n$/, "");
     const language = /language-([\w+-]+)/.exec(className ?? "")?.[1];
@@ -136,17 +142,32 @@ function codeFor(streaming: boolean): Components["code"] {
     if (language || multiline) {
       return <CodeBlock code={text} language={language} streaming={streaming} />;
     }
+    const target = fileTarget(text);
+    if (target && directory && peroURL) {
+      return (
+        <a
+          href={peroHref(peroURL, resolveFilePath(target.path, directory), target.lines)}
+          target="_blank"
+          rel="noreferrer noopener"
+          title={`Open ${target.path} in pero`}
+          className="md-file"
+        >
+          <code className={className}>{children}</code>
+        </a>
+      );
+    }
     return <code className={className}>{children}</code>;
   } as Components["code"];
 }
 
-const stableCode = codeFor(false);
-const streamingCode = codeFor(true);
-
-function componentsFor(streaming: boolean): Components {
+function componentsFor(
+  streaming: boolean,
+  directory?: string | null,
+  peroURL?: string | null,
+): Components {
   const components: Components = {
     pre: ({ children }) => <>{children}</>,
-    code: streaming ? streamingCode : stableCode,
+    code: codeFor(streaming, directory, peroURL),
     a({ href, children, ...props }) {
       const localHref = localFileHref(href);
       if (localHref) {
@@ -186,20 +207,21 @@ function componentsFor(streaming: boolean): Components {
   return components;
 }
 
-const stableComponents = componentsFor(false);
-const streamingComponents = componentsFor(true);
-
 const MarkdownBlock = memo(function MarkdownBlock({
   text,
   streaming,
+  directory,
+  peroURL,
 }: {
   text: string;
   streaming: boolean;
+  directory?: string | null;
+  peroURL?: string | null;
 }) {
   return (
     <ReactMarkdown
       remarkPlugins={[remarkGfm]}
-      components={streaming ? streamingComponents : stableComponents}
+      components={componentsFor(streaming, directory, peroURL)}
     >
       {text}
     </ReactMarkdown>
@@ -210,10 +232,14 @@ export const Markdown = memo(function Markdown({
   text,
   className,
   streaming = false,
+  directory,
+  peroURL,
 }: {
   text: string;
   className?: string;
   streaming?: boolean;
+  directory?: string | null;
+  peroURL?: string | null;
 }) {
   const blocks = streaming ? splitMarkdownBlocks(text) : null;
   return (
@@ -227,7 +253,12 @@ export const Markdown = memo(function Markdown({
           />
         ))
       ) : (
-        <MarkdownBlock text={text} streaming={streaming} />
+        <MarkdownBlock
+        text={text}
+        streaming={streaming}
+        directory={directory}
+        peroURL={peroURL}
+      />
       )}
     </div>
   );

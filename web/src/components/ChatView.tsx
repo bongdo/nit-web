@@ -559,6 +559,7 @@ export function ChatView({
             running={running}
             alwaysShowActions={message.id === lastUserID}
             autoOpen={freshCompaction && message.id === lastCompactionId}
+            directory={workspace}
             peroURL={peroURL}
             timeFormat={timeFormat}
             showTime={showTime}

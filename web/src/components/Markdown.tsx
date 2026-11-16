@@ -1,11 +1,105 @@
-import { memo, type ReactNode } from "react";
+import {
+  Children,
+  cloneElement,
+  isValidElement,
+  memo,
+  type ReactElement,
+  type ReactNode,
+} from "react";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { attachmentNameFromHref, localFileHref } from "../lib/attachments";
 import { splitMarkdownBlocks } from "../lib/markdown";
+import { splitValues } from "../lib/values";
 import { AttachmentPreview } from "./Attachment";
 import { CodeBlock } from "./CodeBlock";
 import { cn } from "../lib/utils";
+
+function valuesIn(children: ReactNode): ReactNode {
+  return Children.map(children, (child) => {
+    if (typeof child !== "string") return child;
+    return splitValues(child).map((part, index) =>
+      typeof part === "string" ? (
+        part
+      ) : (
+        <span key={index} className={part.kind === "id" ? "md-id" : "md-value"}>
+          {part.text}
+        </span>
+      ),
+    );
+  });
+}
+
+const NUMERIC_CELL = /^[\s~≈<>+\-–—]*[$€₽]?\d[\d\s.,:/×x–—+-]*\s*[\p{L}%$€₽/]*$/u;
+const EMPTY_CELL = /^[\s—–-]*$/;
+
+function textOf(node: ReactNode): string {
+  if (typeof node === "string" || typeof node === "number") return String(node);
+  if (Array.isArray(node)) return node.map(textOf).join("");
+  if (isValidElement(node)) return textOf((node.props as { children?: ReactNode }).children);
+  return "";
+}
+
+function cellsOf(row: ReactNode): ReactElement[] {
+  if (!isValidElement(row)) return [];
+  if (row.type === "td" || row.type === "th") return [row];
+  return Children.toArray((row.props as { children?: ReactNode }).children).flatMap(cellsOf);
+}
+
+function bodyRows(children: ReactNode): ReactElement[] {
+  const rows: ReactElement[] = [];
+  const walk = (node: ReactNode) => {
+    if (Array.isArray(node)) {
+      node.forEach(walk);
+      return;
+    }
+    if (!isValidElement(node)) return;
+    if (node.type === "tr") {
+      rows.push(node);
+      return;
+    }
+    if (node.type === "thead") return;
+    Children.toArray((node.props as { children?: ReactNode }).children).forEach(walk);
+  };
+  walk(children);
+  return rows;
+}
+
+function numericColumns(children: ReactNode): boolean[] {
+  const columns: boolean[] = [];
+  for (const row of bodyRows(children)) {
+    cellsOf(row).forEach((cell, index) => {
+      const text = textOf((cell.props as { children?: ReactNode }).children).trim();
+      if (!text || EMPTY_CELL.test(text)) return;
+      columns[index] = (columns[index] ?? true) && NUMERIC_CELL.test(text);
+    });
+  }
+  return columns;
+}
+
+function alignCells(node: ReactNode, columns: boolean[]): ReactNode {
+  if (Array.isArray(node)) return node.map((child) => alignCells(child, columns));
+  if (!isValidElement(node)) return node;
+  const props = node.props as { children?: ReactNode; className?: string };
+  if (node.type === "tr") {
+    let index = 0;
+    const cells = Children.toArray(props.children).map((child) => {
+      if (!isValidElement(child)) return child;
+      const at = index++;
+      if (child.type !== "td" && child.type !== "th") return child;
+      if (!columns[at]) return child;
+      const cell = child as ReactElement<{ className?: string; children?: ReactNode }>;
+      return cloneElement(cell, { className: cn(cell.props.className, "md-num") });
+    });
+    return cloneElement(node as ReactElement<{ children?: ReactNode }>, { children: cells });
+  }
+  if (node.type === "thead" || node.type === "tbody" || node.type === "tfoot") {
+    return cloneElement(node as ReactElement<{ children?: ReactNode }>, {
+      children: alignCells(props.children, columns),
+    });
+  }
+  return node;
+}
 
 type CodeProps = {
   node?: { position?: { start: { line: number }; end: { line: number } } };
@@ -53,12 +147,22 @@ function componentsFor(streaming: boolean): Components {
       );
     },
     table({ children }) {
+      const columns = numericColumns(children);
+      const aligned = columns.some(Boolean) ? alignCells(children, columns) : children;
       return (
         <div className="scrollbar-thin -mx-1 overflow-x-auto">
-          <table>{children}</table>
+          <table>{aligned}</table>
         </div>
       );
     },
+    p: ({ children }) => <p>{valuesIn(children)}</p>,
+    li: ({ children }) => <li>{valuesIn(children)}</li>,
+    td: ({ children, className }) => (
+      <td className={className}>{valuesIn(children)}</td>
+    ),
+    th: ({ children, className }) => (
+      <th className={className}>{valuesIn(children)}</th>
+    ),
     img({ src, alt, ...props }) {
       return <img src={src} alt={alt ?? ""} loading="lazy" {...props} />;
     },

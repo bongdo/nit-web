@@ -489,6 +489,25 @@
     @apply bg-muted/60 font-medium;
   }
 
+  .markdown table {
+    font-variant-numeric: tabular-nums;
+  }
+
+  .markdown td.md-num,
+  .markdown th.md-num {
+    text-align: right;
+  }
+
+  .markdown .md-value {
+    color: color-mix(in oklab, var(--spark) 60%, currentColor);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .markdown .md-id {
+    @apply font-mono text-[0.9em];
+    color: color-mix(in oklab, var(--spark) 48%, currentColor);
+  }
+
   .markdown img {
     @apply my-3 max-w-full rounded-md border;
   }

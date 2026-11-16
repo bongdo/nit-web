@@ -9,6 +9,7 @@ export function useSmoothText(text: string, live: boolean): string {
   const frame = useRef<number | null>(null);
   const lastAt = useRef(0);
   const stalledAt = useRef(0);
+  const fallback = useRef(false);
 
   const stop = () => {
     if (frame.current !== null) {
@@ -20,6 +21,7 @@ export function useSmoothText(text: string, live: boolean): string {
   const settle = () => {
     stop();
     stalledAt.current = 0;
+    fallback.current = false;
     current.current = target.current;
     setShown(target.current);
   };
@@ -37,17 +39,21 @@ export function useSmoothText(text: string, live: boolean): string {
     lastAt.current = now;
     let next = revealWords(target.current, current.current.length);
     if (next === current.current.length && current.current.length < target.current.length) {
-      if (stalledAt.current === 0) stalledAt.current = now;
-      else if (now - stalledAt.current > 250) {
+      if (fallback.current) {
+        next = revealChar(target.current, current.current.length);
+      } else if (stalledAt.current === 0) {
+        stalledAt.current = now;
+      } else if (now - stalledAt.current > 250) {
+        fallback.current = true;
         next = revealChar(target.current, current.current.length);
       }
     } else {
       stalledAt.current = 0;
+      fallback.current = false;
     }
     if (next !== current.current.length) {
       current.current = target.current.slice(0, next);
       setShown(current.current);
-      stalledAt.current = 0;
     }
     if (current.current.length < target.current.length) {
       frame.current = requestAnimationFrame(step);

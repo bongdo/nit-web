@@ -1,5 +1,27 @@
 # Decisions
 
+## 2026-11-16 — A machine's home is mounted at the same absolute path
+
+Context: a chat on a machine carries paths like `/home/bongdo/Projects/x`, and the
+home term/pero chips opened those paths on frankfurt, where they did not exist.
+
+Decision: mount each machine's home at its own absolute path —
+`sshfs <host>:$HOME $HOME -o idmap=user,follow_symlinks,reconnect` — through the
+systemd user unit that `bin/mount-home <host>` writes. The mount point is created
+once, as root, on the machine that mounts. Nothing maps paths anywhere: chats,
+file links, terminals and a later home opencode all use the same string.
+
+Why: with identical paths there is no translation layer to keep in sync between
+the file tools, the shell and the browser links.
+
+Rejected: a different mount root with path rewriting (a mapping in every link and
+every tool call); NFSv4 now (a second listening service on each machine; the
+options line is swappable if sshfs latency hurts).
+
+Cost: sshfs costs a round-trip per metadata call, and a machine that is down makes
+its home return EIO instead of an empty directory; the mount point needs root once
+per machine.
+
 ## 2026-11-16 — The bridge is deleted; the gate is a door to home apps
 
 Context: the reverse-tunnel rule made a machine an ssh target, but the bridge was

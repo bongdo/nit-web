@@ -1,0 +1,65 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+machine="${1:-}"
+if [ -z "$machine" ]; then
+  echo "usage: mount-home <ssh-host>" >&2
+  exit 2
+fi
+
+sshfs_bin="$(command -v sshfs || true)"
+fusermount_bin="$(command -v fusermount3 || command -v fusermount || true)"
+if [ -z "$sshfs_bin" ] || [ -z "$fusermount_bin" ]; then
+  echo "mount-home: sshfs and fuse3 are needed: sudo apt-get install -y sshfs fuse3" >&2
+  exit 1
+fi
+
+ssh_opts=(-o BatchMode=yes -o ConnectTimeout=10)
+remote_home="$(ssh "${ssh_opts[@]}" "$machine" 'printf %s "$HOME"')"
+if [ "${remote_home:0:1}" != "/" ]; then
+  echo "mount-home: cannot resolve the home directory on $machine" >&2
+  exit 1
+fi
+
+if [ ! -d "$remote_home" ]; then
+  echo "mount-home: $remote_home must exist on this host, once:" >&2
+  echo "  sudo mkdir -p $remote_home && sudo chown $(id -un):$(id -gn) $remote_home" >&2
+  exit 1
+fi
+
+if mountpoint -q "$remote_home"; then
+  echo "mount-home: $machine already mounted at $remote_home"
+  exit 0
+fi
+
+unit="sshfs-$(printf %s "$machine" | tr -c 'A-Za-z0-9_.-' '_')"
+path="$HOME/.config/systemd/user/$unit.service"
+mkdir -p "$(dirname "$path")"
+cat >"$path" <<EOF
+[Unit]
+Description=$machine home at $remote_home
+After=network-online.target
+
+[Service]
+Type=simple
+ExecStart=$sshfs_bin $machine:$remote_home $remote_home -o idmap=user,follow_symlinks,reconnect,ServerAliveInterval=15,ServerAliveCountMax=3
+ExecStop=$fusermount_bin -u $remote_home
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=default.target
+EOF
+
+systemctl --user daemon-reload
+systemctl --user enable --now "$unit"
+for _ in $(seq 1 20); do
+  mountpoint -q "$remote_home" && break
+  sleep 0.5
+done
+if ! mountpoint -q "$remote_home"; then
+  echo "mount-home: $remote_home did not mount" >&2
+  systemctl --user status "$unit" --no-pager -n 10 >&2 || true
+  exit 1
+fi
+echo "mount-home: $machine:$remote_home mounted at $remote_home"

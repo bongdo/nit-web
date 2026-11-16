@@ -13,6 +13,9 @@
   `bin/gate` when an app's look changes. Without it the cards show a placeholder.
 - `bin/gate` builds and restarts the auth gate on `127.0.0.1:8090`; Caddy
   proxies the domain there, the gate routes `/nit`, `/pero`, `/term`, `/share`.
+- `bin/mount-home <ssh-host>` mounts that machine's home at the same absolute
+  path here, through a systemd user unit `sshfs-<host>.service`. It needs `sshfs`
+  and fuse3, and the mount point has to exist once (`sudo mkdir -p <home>`).
 - If `bin/` gains or loses a command, update this list in the same change.
 
 ## Drop

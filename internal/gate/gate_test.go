@@ -103,11 +103,24 @@ func noRedirect(t *testing.T) *http.Client {
 		t.Fatal(err)
 	}
 	return &http.Client{
-		Jar: jar,
+		Jar:       jar,
+		Transport: &uaTransport{base: http.DefaultTransport, ua: "Mozilla/5.0 (X11; Linux x86_64; rv:128.0) Gecko/20100101 Firefox/128.0"},
 		CheckRedirect: func(*http.Request, []*http.Request) error {
 			return http.ErrUseLastResponse
 		},
 	}
+}
+
+type uaTransport struct {
+	base http.RoundTripper
+	ua   string
+}
+
+func (t *uaTransport) RoundTrip(r *http.Request) (*http.Response, error) {
+	if r.Header.Get("User-Agent") == "" {
+		r.Header.Set("User-Agent", t.ua)
+	}
+	return t.base.RoundTrip(r)
 }
 
 func TestAnonymousGetsPublicOnly(t *testing.T) {
@@ -1251,5 +1264,61 @@ func TestSafeScanTarget(t *testing.T) {
 		if ok != tc.ok || got != tc.want {
 			t.Fatalf("safeScanTarget(%q) = %q %v, want %q %v", tc.raw, got, ok, tc.want, tc.ok)
 		}
+	}
+}
+
+func TestAutomationAgentKeepsNoDevice(t *testing.T) {
+	for _, agent := range []string{"curl/8.5.0", "Wget/1.21", "Go-http-client/2.0", "python-requests/2.31", "Mozilla/5.0 HeadlessChrome/120.0"} {
+		if !isAutomation(agent) {
+			t.Fatalf("%q is not treated as automation", agent)
+		}
+	}
+	for _, agent := range []string{"Mozilla/5.0 (X11; Linux x86_64; rv:128.0) Gecko/20100101 Firefox/128.0", "Mozilla/5.0 (Linux; Android 13) Chrome/120 Mobile Safari/537.36"} {
+		if isAutomation(agent) {
+			t.Fatalf("%q is treated as automation", agent)
+		}
+	}
+
+	server, _, devices := testServerDevices(t, nil)
+	client := noRedirect(t)
+	req, err := http.NewRequest(http.MethodPost, server.URL+"/login",
+		strings.NewReader("name=bongdo&password=secret-pass&next=/"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Set("User-Agent", "curl/8.5.0")
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusSeeOther {
+		t.Fatalf("login = %d", resp.StatusCode)
+	}
+	if got := len(devices.List()); got != 0 {
+		t.Fatalf("devices after curl login = %d, want 0", got)
+	}
+}
+
+func TestOpenDevicesDropsAutomationRows(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "devices.json")
+	body := `{"devices":[{"id":"a","user":"bongdo","name":"curl"},{"id":"b","user":"bongdo","name":"Headless Chrome · Linux"},{"id":"c","user":"bongdo","name":"Firefox · Linux"}]}`
+	if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	devices, err := OpenDevices(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := devices.List(); len(got) != 1 || got[0].ID != "c" {
+		t.Fatalf("kept devices = %+v", got)
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(data), `"curl"`) {
+		t.Fatal("automation rows are still on disk")
 	}
 }

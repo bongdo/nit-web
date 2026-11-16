@@ -209,10 +209,10 @@ func (s *Server) session(w http.ResponseWriter, r *http.Request) (gateid.Identit
 		s.ensureAppSession(w, r, false)
 		return id, true
 	}
-	if device, err := s.deviceFor(w, r, id.User); err == nil {
+	if device, err := s.deviceFor(w, r, id.User); err == nil && device.ID != "" {
 		id.Dev = device.ID
 		s.setSession(w, r, id, true)
-	} else {
+	} else if err != nil {
 		s.log.Warn("gate device add", "error", err)
 	}
 	s.ensureAppSession(w, r, true)
@@ -220,6 +220,9 @@ func (s *Server) session(w http.ResponseWriter, r *http.Request) (gateid.Identit
 }
 
 func (s *Server) deviceFor(w http.ResponseWriter, r *http.Request, user string) (Device, error) {
+	if isAutomation(r.UserAgent()) {
+		return Device{}, nil
+	}
 	if cookie, err := r.Cookie(deviceCookie); err == nil && cookie.Value != "" && s.devices.Has(user, cookie.Value) {
 		return s.devices.Refresh(cookie.Value, deviceName(r.UserAgent()), clientIP(r))
 	}

@@ -54,11 +54,6 @@ func (s *Server) accountTOTPStart(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	data := s.accountView(r)
-	if _, ok := s.users.Authenticate(id.User, r.PostFormValue("current")); !ok {
-		data.Error = "текущий пароль неверный"
-		s.renderStatus(w, "account", data, http.StatusUnauthorized)
-		return
-	}
 	secret, err := newTOTPSecret()
 	if err != nil {
 		data.Error = "не удалось создать секрет"

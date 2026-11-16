@@ -153,6 +153,10 @@ try{var saved=localStorage.getItem("bongdo.theme");var dark=saved?saved==="dark"
   .recovery { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px; margin: 0 0 18px; padding: 0; list-style: none; }
   .recovery li { padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--card); font: 600 12.5px/1 ui-monospace, monospace; letter-spacing: .04em; text-align: center; }
   .secret { word-break: break-all; user-select: all; }
+  .disclosure > summary { display: inline-flex; align-items: center; gap: 8px; padding: 8px 13px; border: 1px solid var(--border); border-radius: 9px; font-size: 13px; color: var(--fg); cursor: pointer; list-style: none; transition: background-color .15s ease; }
+  .disclosure > summary::-webkit-details-marker { display: none; }
+  .disclosure > summary:hover { background: var(--muted); }
+  .disclosure[open] > summary { margin-bottom: 16px; }
   .qr-mobile { display: none; margin: 0; text-align: center; font-size: 13px; }
   .qr-mobile a { color: var(--fg); text-decoration: underline; text-decoration-color: var(--border); text-underline-offset: 3px; }
   .scanner { display: block; width: 100%; max-height: 60vh; margin: 0 0 12px; border-radius: var(--radius); background: #000; object-fit: cover; }

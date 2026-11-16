@@ -2,12 +2,14 @@
 <h1>аккаунт</h1>
 <p class="lede">{{.User.User}} · роль {{.User.Role}}</p>
 <section>
-  <h2>сменить пароль</h2>
-  <form class="stack" method="post" action="/account/password">
-    <label>текущий пароль<input name="current" type="password" autocomplete="current-password"></label>
-    <label>новый пароль<input name="password" type="password" autocomplete="new-password"></label>
-    <button class="primary">сохранить</button>
-  </form>
+  <details class="disclosure">
+    <summary>сменить пароль</summary>
+    <form class="stack" method="post" action="/account/password">
+      <label>текущий пароль<input name="current" type="password" autocomplete="current-password"></label>
+      <label>новый пароль<input name="password" type="password" autocomplete="new-password"></label>
+      <button class="primary">сохранить</button>
+    </form>
+  </details>
 </section>
 <section>
   <h2>двухфакторная защита</h2>
@@ -39,7 +41,6 @@
   {{else}}
   <p class="lede">Пароль — единственный фактор. Добавьте код из Google Authenticator, 1Password или другого приложения.</p>
   <form class="stack" method="post" action="/account/totp/start">
-    <label>текущий пароль<input name="current" type="password" autocomplete="current-password"></label>
     <button class="ghost">включить</button>
   </form>
   {{end}}

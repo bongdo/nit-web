@@ -66,10 +66,19 @@ func OpenDevices(path string) (*Devices, error) {
 	if err := json.Unmarshal(data, &file); err != nil {
 		return nil, fmt.Errorf("gate: parse %s: %w", path, err)
 	}
+	pruned := false
 	for _, device := range file.Devices {
-		if device.ID != "" {
-			devices.items[device.ID] = device
+		if device.ID == "" {
+			continue
 		}
+		if automationName(device.Name) {
+			pruned = true
+			continue
+		}
+		devices.items[device.ID] = device
+	}
+	if pruned {
+		_ = devices.save()
 	}
 	return devices, nil
 }
@@ -271,6 +280,25 @@ var clientLabels = []struct{ token, label string }{
 	{"python-requests", "python"},
 	{"okhttp", "Android-приложение"},
 	{"PostmanRuntime", "Postman"},
+}
+
+var automationLabels = map[string]bool{
+	"curl":      true,
+	"wget":      true,
+	"Go-клиент": true,
+	"python":    true,
+	"Postman":   true,
+}
+
+func automationName(name string) bool {
+	return automationLabels[name] || strings.Contains(name, "Headless Chrome")
+}
+
+func isAutomation(agent string) bool {
+	if strings.TrimSpace(agent) == "" {
+		return true
+	}
+	return automationName(deviceName(agent))
 }
 
 func deviceName(agent string) string {

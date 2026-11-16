@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+root="$(cd "$(dirname "$(readlink -f "$0")")/.." && pwd)"
+
+if [ ! -d "$root/tools/previews/node_modules" ]; then
+  npm --prefix "$root/tools/previews" install --offline --no-audit --no-fund
+fi
+
+exec node "$root/tools/page/page.mjs" "$@"

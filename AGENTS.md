@@ -11,8 +11,9 @@
   `~/.local/state/nit-gui/gate/previews` for the root page thumbnails. It needs a
   local chromium; the Playwright cache is found automatically. Run it after
   `bin/gate` when an app's look changes. Without it the cards show a placeholder.
-- `bin/htmlcheck <file.html>` loads a page in headless Chromium and fails on
-  console or page errors. Run it before attaching a page with `[[html:...]]`.
+- `bin/page <file> [--title "Title"]` validates an HTML page in headless Chromium
+  and prints the `[[html:...]]` line to paste into the reply. It accepts fragments,
+  copies unsafe or outside paths into `.nit/pages/`, and prints only that line.
 - `bin/gate` builds and restarts the auth gate on `127.0.0.1:8090`; Caddy
   proxies the domain there, the gate routes `/nit`, `/pero`, `/term`, `/share`.
 - `bin/mount-home <ssh-host>` mounts that machine's home at the same absolute
@@ -22,14 +23,16 @@
 
 ## HTML answers
 
-- Do not paste a page into the reply. Write a self-contained `.html` file inside
-  the workspace, run `bin/htmlcheck <file>`, then put
-  `[[html:<relative path>|Title]]` on its own line. nit-gui renders the file
-  inline as part of the answer.
-- The file must start with `<!doctype html>` or `<html>`. The path is relative to
-  the session directory; `..`, absolute paths and files over 2 MiB are rejected.
-- A marker inside a code fence stays text. If the page is broken, the chat shows
-  the error instead of the page, so fix the file before finishing the reply.
+- Do not paste a page into the reply. Write a `.html` file, run
+  `bin/page <file> [--title "Title"]`, and paste the single line it prints. That
+  line is the marker nit-gui renders inline as part of the answer.
+- The tool handles validation, paths, titles and copying. Do not hand-write the
+  marker and do not check the path yourself.
+- Leave `html`/`body` background transparent and use `currentColor` or
+  semi-transparent surfaces, so the page follows the app's light and dark theme.
+  Do not hardcode a white page background.
+- A marker inside a code fence stays text. If the page logs an error or renders
+  empty, `page` exits non-zero with the reason: fix the page and run it again.
 
 ## Drop
 

@@ -1,9 +1,0 @@
-#!/usr/bin/env bash
-set -euo pipefail
-cd "$(dirname "$0")/.."
-
-if [ ! -d tools/previews/node_modules ]; then
-  npm --prefix tools/previews install --offline --no-audit --no-fund
-fi
-
-exec node tools/previews/check.mjs "$@"

@@ -152,6 +152,33 @@ export function stripHtmlArtifacts(text: string): string {
 
 
 
+function previewTheme(dark: boolean): string {
+  const foreground = dark ? "#e4e4e7" : "#18181b";
+  return `<style id="nit-preview-theme">
+html { color-scheme: ${dark ? "dark" : "light"}; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; }
+html, body { background: transparent; color: ${foreground}; }
+</style>`;
+}
+
+function withPreviewTheme(source: string, style: string): string {
+  const head = /<head(?:\s[^>]*)?>/i.exec(source);
+  if (head) {
+    const at = head.index + head[0].length;
+    return source.slice(0, at) + style + source.slice(at);
+  }
+  const root = /<html(?:\s[^>]*)?>/i.exec(source);
+  if (root) {
+    const at = root.index + root[0].length;
+    return `${source.slice(0, at)}<head>${style}</head>${source.slice(at)}`;
+  }
+  const doctype = /^\s*<!doctype[^>]*>/i.exec(source);
+  if (doctype) {
+    const at = doctype[0].length;
+    return `${source.slice(0, at)}<head>${style}</head>${source.slice(at)}`;
+  }
+  return style + source;
+}
+
 export function htmlDocument(
   source: string,
   dark = false,
@@ -159,7 +186,7 @@ export function htmlDocument(
 ): string {
   const trimmed = source.trim();
   if (/^<!doctype/i.test(trimmed) || /<html[\s>]/i.test(trimmed)) {
-    return source;
+    return withPreviewTheme(source, previewTheme(dark));
   }
   const foreground = dark ? "#e4e4e7" : "#18181b";
   const border = dark ? "#3f3f46" : "#d4d4d8";

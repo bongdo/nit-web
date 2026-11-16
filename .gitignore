@@ -17,3 +17,5 @@
 .agent/digest.last
 /node_modules/
 /tools/previews/node_modules
+
+/.nit/

@@ -177,9 +177,10 @@ serves it on loopback. This is local development, not a deployment. Local
 `bin/run` has no login unless `NIT_GATE_PASSWORD` or `NIT_GATE_PASSWORD_HASH` is
 set.
 
-`bin/htmlcheck page.html` loads a page in the same headless Chromium the
-previews use and exits non-zero on a console error, a page error or an empty
-body. Agents run it before attaching a page with `[[html:...]]`.
+`bin/page page.html --title "Chart"` loads a page in the same headless Chromium
+the previews use, fails on a console error, a page error or an empty body, and
+prints the `[[html:...]]` line to paste into the reply. It accepts fragments and
+copies files outside the workspace or with unsafe names into `.nit/pages/`.
 
 ## Deploy
 
@@ -563,7 +564,7 @@ All `/api` endpoints except `/api/instances*` accept `X-Nit-Instance: <id>` or
 | `POST /api/sessions/{id}/fork` | Fork before `{before?}`; omit `before` to copy the whole session. |
 | `POST /api/sessions/{id}/compact` | Compact the context. |
 | `POST /api/upload?dir=&name=` | Raw file body up to 20 MiB, written through OpenCode `/api/experimental/fs/write`. |
-| `GET /api/artifact?session=&path=` | Read a `.html` page from the session directory for inline rendering. `path` is relative, may not escape the directory, and the file must start with `<!doctype html>` or `<html>`; capped at 2 MiB. |
+| `GET /api/artifact?session=&path=` | Read a `.html` page from the session directory for inline rendering. `path` is relative, may not escape the directory, must look like HTML (a full document or a fragment), and is capped at 2 MiB. |
 | `POST /api/grammar` | `{text}`; optional LanguageTool grammar/punctuation check on the nit-gui host. |
 | `POST /api/sessions/{id}/model` | Switch model `{model: {id, providerID, variant?}}`. |
 | `POST /api/sessions/{id}/agent` | Switch agent `{agent}`. |
@@ -656,7 +657,7 @@ nspell worker. It is not implemented yet.
 - An inline page marker (`[[html:<relative path>|Title]]`) is read through
   `GET /api/artifact`, which resolves the session directory upstream and serves
   only an `.html`/`.htm` file inside it. The path cannot be absolute or contain
-  `..`, the file must start with `<!doctype html>` or `<html>`, it is capped at
+  `..`, the file must look like HTML (a document or a fragment), it is capped at
   2 MiB, and the response is redacted. The page is still rendered in the same
   sandboxed `iframe srcdoc`; it never enters the app DOM.
 - There is one shared password for nit-gui, pero-gui and term-gui, no per-user
@@ -686,8 +687,9 @@ nspell worker. It is not implemented yet.
   through `/api/artifact` and renders it inline as part of the reply; the marker
   itself is hidden and left out of copy and TTS. A pure HTML message or a fenced
   `html` block is rendered at the same place through the same sandboxed page
-  component, with no separate code block or preview button. `bin/htmlcheck
-  <file>` loads a page in headless Chromium and fails on console or page errors.
+  component, with no separate code block or preview button. Pages inherit the app
+  background and text color unless they set their own; `bin/page <file>` validates
+  a page, writes unsafe paths to `.nit/pages/`, and prints the marker to paste.
 - Composer: Enter sends, Shift+Enter adds a line, stop while streaming, token
   and cost footer when OpenCode reports them. On a touch screen Enter only adds
   a line and the Send button is the only way to send. While the agent is

@@ -144,9 +144,20 @@ describe("htmlDocument", () => {
     expect(result).toContain("<h1>Hi</h1>");
   });
 
-  it("keeps a full document unchanged", () => {
-    const source = "<!doctype html><html><body>Hi</body></html>";
-    expect(htmlDocument(source)).toBe(source);
+  it("adds the preview theme before a full document's own styles", () => {
+    const source =
+      '<!doctype html><html><head><style>body{background:#fff}</style></head><body>Hi</body></html>';
+    const result = htmlDocument(source);
+    expect(result).toContain("<!doctype html>");
+    expect(result).toContain("<body>Hi</body>");
+    expect(result.indexOf("nit-preview-theme")).toBeGreaterThan(-1);
+    expect(result.indexOf("nit-preview-theme")).toBeLessThan(result.indexOf("background:#fff"));
+  });
+
+  it("adds the preview theme to a document without a head", () => {
+    const result = htmlDocument("<!doctype html><html><body>Hi</body></html>", true);
+    expect(result).toContain("<head><style id=\"nit-preview-theme\">");
+    expect(result).toContain("color-scheme: dark");
   });
 
   it("paints the app background", () => {

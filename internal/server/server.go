@@ -16,6 +16,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -1225,6 +1226,8 @@ func (s *Server) file(w http.ResponseWriter, r *http.Request) {
 
 const maxArtifactBody = 2 << 20
 
+var htmlMarkupStart = regexp.MustCompile(`^<(?:!doctype\s+html|html[\s>]|(?:a|article|audio|body|br|button|canvas|details|div|figure|footer|form|h[1-6]|head|header|hr|iframe|img|li|link|main|meta|nav|ol|p|pre|section|select|span|style|script|svg|table|textarea|ul|video)\b)`)
+
 func artifactPath(raw string) (string, bool) {
 	raw = strings.TrimSpace(raw)
 	if raw == "" || len(raw) > 300 || strings.ContainsAny(raw, "\\\x00") {
@@ -1246,7 +1249,7 @@ func artifactPath(raw string) (string, bool) {
 	return filepath.ToSlash(clean), true
 }
 
-func htmlDocumentStart(body []byte) bool {
+func htmlMarkup(body []byte) bool {
 	text := strings.TrimSpace(strings.TrimPrefix(string(body), "\ufeff"))
 	for strings.HasPrefix(text, "<!--") {
 		end := strings.Index(text, "-->")
@@ -1255,8 +1258,10 @@ func htmlDocumentStart(body []byte) bool {
 		}
 		text = strings.TrimSpace(text[end+3:])
 	}
-	text = strings.ToLower(text)
-	return strings.HasPrefix(text, "<!doctype html") || strings.HasPrefix(text, "<html")
+	if text == "" || text[0] != '<' {
+		return false
+	}
+	return htmlMarkupStart.MatchString(strings.ToLower(text))
 }
 
 func (s *Server) artifact(w http.ResponseWriter, r *http.Request) {
@@ -1311,7 +1316,7 @@ func (s *Server) artifact(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusRequestEntityTooLarge, "page is larger than 2 MiB")
 		return
 	}
-	if !htmlDocumentStart(raw) {
+	if !htmlMarkup(raw) {
 		writeError(w, http.StatusBadRequest, "file is not an HTML document")
 		return
 	}

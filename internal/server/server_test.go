@@ -423,6 +423,27 @@ func TestArtifactServesHtmlFromSessionDirectory(t *testing.T) {
 	}
 }
 
+func TestArtifactAcceptsHtmlFragment(t *testing.T) {
+	upstream := httptest.NewServer(auth(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/session/ses_1":
+			fmt.Fprint(w, `{"data":{"location":{"directory":"/home/ubuntu/work"}}}`)
+		case "/api/fs/read/home/ubuntu/work/fragment.html":
+			fmt.Fprint(w, `<div class="card">Hi</div>`)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer upstream.Close()
+
+	rec := httptest.NewRecorder()
+	newHandler(t, upstream.URL).ServeHTTP(rec, httptest.NewRequest(http.MethodGet,
+		"http://127.0.0.1:7788/api/artifact?session=ses_1&path=fragment.html", nil))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d: %s", rec.Code, rec.Body)
+	}
+}
+
 func TestArtifactRejectsEscape(t *testing.T) {
 	upstream := httptest.NewServer(auth(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/api/session/ses_1" {

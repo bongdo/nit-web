@@ -44,7 +44,14 @@ func (s *Server) adminPage(w http.ResponseWriter, r *http.Request) {
 			entry.Failed = true
 		case "invite":
 			entry.Result = "приглашение"
+		case "qr":
+			entry.Result = "по QR"
+		case "totp-on":
+			entry.Result = "2FA включена"
+		case "totp-off":
+			entry.Result = "2FA отключена"
 		}
+		entry.Temp = event.Temp
 		data.Log = append(data.Log, entry)
 	}
 	s.render(w, "admin", data)

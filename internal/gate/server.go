@@ -40,6 +40,7 @@ type Server struct {
 	audit   *Audit
 	drops   *drop.Store
 	hub     *agentHub
+	qr      *qrStore
 	health  healthCache
 	secret  []byte
 	log     *slog.Logger
@@ -73,6 +74,7 @@ func New(routes *Routes, users *Store, agents *Agents, secret []byte, log *slog.
 		agents:  agents,
 		devices: deviceStore,
 		hub:     newAgentHub(),
+		qr:      newQRStore(),
 		secret:  secret,
 		log:     log,
 		now:     time.Now,
@@ -97,6 +99,12 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /login", s.loginPage)
 	mux.HandleFunc("POST /login", s.loginSubmit)
 	mux.HandleFunc("POST /logout", s.logout)
+	mux.HandleFunc("GET /qr/{code}", s.qrConfirmPage)
+	mux.HandleFunc("POST /qr/{code}", s.qrConfirm)
+	mux.HandleFunc("GET /qr/{code}/status", s.qrStatus)
+	mux.HandleFunc("POST /account/totp/start", s.accountTOTPStart)
+	mux.HandleFunc("POST /account/totp/enable", s.accountTOTPEnable)
+	mux.HandleFunc("POST /account/totp/disable", s.accountTOTPDisable)
 	mux.HandleFunc("GET /signup", s.signupPage)
 	mux.HandleFunc("POST /signup", s.signupSubmit)
 	mux.HandleFunc("GET /account", s.accountPage)

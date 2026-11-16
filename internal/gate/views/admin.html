@@ -110,7 +110,7 @@
         <tr>
           <td class="mono nowrap">{{.When}}</td>
           <td class="mono">{{.User}}</td>
-          <td><span class="tag{{if .Failed}} bad{{end}}">{{.Result}}</span></td>
+          <td><span class="tag{{if .Failed}} bad{{end}}">{{.Result}}</span>{{if .Temp}}<span class="tag">временный</span>{{end}}</td>
           <td class="mono hide-sm">{{.IP}}</td>
           <td class="muted hide-sm">{{.Agent}}</td>
         </tr>

@@ -56,7 +56,7 @@ func (s *Server) loginSubmit(w http.ResponseWriter, r *http.Request) {
 		data.Name = user.Name
 		data.Next = next
 		data.Temp = temp
-		data.Pending = s.signPayload("login", []string{user.Name, strconv.FormatBool(temp)}, pendingTTL, s.now())
+		data.PendingToken = s.signPayload("login", []string{user.Name, strconv.FormatBool(temp)}, pendingTTL, s.now())
 		s.render(w, "login", data)
 		return
 	}
@@ -104,7 +104,7 @@ func (s *Server) loginSecondFactor(w http.ResponseWriter, r *http.Request, pendi
 		data.Name = user.Name
 		data.Next = next
 		data.Temp = temp
-		data.Pending = pending
+		data.PendingToken = pending
 		data.Error = "код не подошёл"
 		s.renderStatus(w, "login", data, http.StatusUnauthorized)
 		return

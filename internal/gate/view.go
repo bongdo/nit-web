@@ -51,6 +51,7 @@ type auditView struct {
 	Agent  string
 	Result string
 	Failed bool
+	Temp   bool
 }
 
 type dropView struct {
@@ -82,6 +83,16 @@ type view struct {
 	Name         string
 	Token        string
 	Origin       string
+	Step         string
+	PendingToken string
+	Temp         bool
+	QR           qrView
+	TOTPOn       bool
+	TOTPSecret   string
+	TOTPQR       string
+	TOTPPending  string
+	Recovery     []string
+	RecoveryLeft int
 }
 
 func (s *Server) newView(r *http.Request, title string) view {

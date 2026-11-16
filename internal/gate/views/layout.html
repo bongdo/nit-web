@@ -138,6 +138,26 @@ try{var saved=localStorage.getItem("bongdo.theme");var dark=saved?saved==="dark"
   button.icon { display: grid; place-items: center; width: 30px; height: 30px; padding: 0; border: 1px solid var(--border); border-radius: 8px; background: transparent; color: var(--muted-fg); transition: color .15s ease, background-color .15s ease; }
   button.icon:hover { color: var(--fg); background: var(--muted); }
   button:active { transform: scale(.97); }
+  .check { display: flex; align-items: center; gap: 9px; font-size: 13px; color: var(--muted-fg); cursor: pointer; }
+  .check input { width: 16px; height: 16px; padding: 0; accent-color: var(--primary); }
+  .or { display: flex; align-items: center; gap: 12px; margin: 20px 0 16px; color: var(--muted-fg); font: 600 10px/1 ui-monospace, monospace; letter-spacing: .12em; text-transform: uppercase; }
+  .or::before, .or::after { content: ""; flex: 1; height: 1px; background: var(--border); }
+  .qr-card { display: flex; gap: 16px; align-items: center; padding: 14px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--muted); animation: rise .3s cubic-bezier(.22,.7,.2,1) both; }
+  .qr-card img { flex: none; width: 132px; height: 132px; padding: 6px; border-radius: 8px; background: #fff; }
+  .qr-side { min-width: 0; }
+  .qr-side b { display: block; font-size: 13.5px; margin-bottom: 4px; }
+  .qr-side .hint { margin: 0 0 10px; }
+  .qr-status { display: flex; align-items: center; gap: 7px; margin: 0; font-size: 12px; color: var(--muted-fg); }
+  .pulse { width: 7px; height: 7px; border-radius: 999px; background: var(--attention); animation: pulse 1.4s ease-in-out infinite; }
+  .qr-device { display: grid; gap: 4px; padding: 12px 14px; margin: 0 0 18px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--muted); }
+  .recovery { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px; margin: 0 0 18px; padding: 0; list-style: none; }
+  .recovery li { padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--card); font: 600 12.5px/1 ui-monospace, monospace; letter-spacing: .04em; text-align: center; }
+  .secret { word-break: break-all; user-select: all; }
+  @keyframes pulse { 0%, 100% { opacity: .35; transform: scale(.85); } 50% { opacity: 1; transform: scale(1); } }
+  @media (max-width: 520px) {
+    .qr-card { flex-direction: column; align-items: flex-start; }
+    .qr-card img { width: 148px; height: 148px; }
+  }
   button svg { display: block; }
   .sun { display: none; }
   .dark .sun { display: block; }

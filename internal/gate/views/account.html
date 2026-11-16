@@ -10,6 +10,41 @@
   </form>
 </section>
 <section>
+  <h2>двухфакторная защита</h2>
+  {{if .Recovery}}
+  <div class="msg">Коды восстановления. Сохраните их — больше они не покажутся. Каждый работает один раз.</div>
+  <ul class="recovery">{{range .Recovery}}<li>{{.}}</li>{{end}}</ul>
+  {{end}}
+  {{if .TOTPOn}}
+  <p class="lede">включена · {{if .RecoveryLeft}}{{.RecoveryLeft}} кодов восстановления{{else}}кодов восстановления нет{{end}}</p>
+  <form class="stack" method="post" action="/account/totp/disable">
+    <label>текущий пароль<input name="current" type="password" autocomplete="current-password"></label>
+    <label>код из приложения<input name="code" inputmode="numeric" autocomplete="one-time-code" placeholder="000000"></label>
+    <button class="bad">отключить</button>
+  </form>
+  {{else if .TOTPSecret}}
+  <p class="lede">Отсканируйте QR в приложении или введите ключ вручную, затем подтвердите кодом.</p>
+  <div class="qr-card">
+    {{if .TOTPQR}}<img src="{{.TOTPQR}}" alt="QR для приложения-аутентификатора" width="168" height="168">{{end}}
+    <div class="qr-side">
+      <b>ключ</b>
+      <p class="mono secret">{{.TOTPSecret}}</p>
+    </div>
+  </div>
+  <form class="stack" method="post" action="/account/totp/enable">
+    <input type="hidden" name="pending" value="{{.TOTPPending}}">
+    <label>код из приложения<input name="code" inputmode="numeric" autocomplete="one-time-code" placeholder="000000" required></label>
+    <button class="primary">включить</button>
+  </form>
+  {{else}}
+  <p class="lede">Пароль — единственный фактор. Добавьте код из Google Authenticator, 1Password или другого приложения.</p>
+  <form class="stack" method="post" action="/account/totp/start">
+    <label>текущий пароль<input name="current" type="password" autocomplete="current-password"></label>
+    <button class="ghost">включить</button>
+  </form>
+  {{end}}
+</section>
+<section>
   <h2>устройства</h2>
   {{if .Devices}}
   <div class="table-wrap">

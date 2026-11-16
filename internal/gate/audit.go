@@ -21,6 +21,7 @@ type AuditEvent struct {
 	IP     string `json:"ip,omitempty"`
 	Agent  string `json:"agent,omitempty"`
 	Result string `json:"result"`
+	Temp   bool   `json:"temp,omitempty"`
 }
 
 type Audit struct {

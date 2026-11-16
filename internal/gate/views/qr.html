@@ -1,0 +1,21 @@
+{{define "qr"}}{{template "head" .}}
+<div class="panel">
+  {{if .QR.Done}}
+  <h1>готово</h1>
+  <p class="lede">Вход на другом устройстве подтверждён. Вернитесь к компьютеру — он войдёт сам.</p>
+  {{else}}
+  <h1>вход с телефона</h1>
+  <p class="lede">Подтвердите вход на другом устройстве.</p>
+  {{end}}
+  <div class="qr-device">
+    <span class="mono">{{.QR.Agent}}</span>
+    <span class="mono">{{.QR.IP}}</span>
+  </div>
+  {{if not .QR.Done}}
+  <form class="stack" method="post" action="/qr/{{.QR.Code}}">
+    <button class="primary">подтвердить вход</button>
+  </form>
+  <p class="hint">Если вы не начинали вход — просто закройте страницу.</p>
+  {{end}}
+</div>
+{{template "foot" .}}{{end}}

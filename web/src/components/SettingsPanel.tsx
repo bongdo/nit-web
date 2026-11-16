@@ -52,7 +52,7 @@ function Section({
   return (
     <section
       className={cn(
-        "bg-card/40 border-border/70 rounded-xl border p-3",
+        "bg-card/40 border-border/70 self-start rounded-xl border p-3",
         wide && "sm:col-span-2",
       )}
     >

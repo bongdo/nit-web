@@ -1,5 +1,33 @@
 # Decisions
 
+## 2026-11-16 — A machine is an ssh target; the route is a reverse tunnel
+
+Context: the bridge is the only thing installed on a machine, but it re-implements
+shell, files and port access, and every capability grows our protocol, our updater
+and our token store.
+
+Decision: a machine is reachable when frankfurt can open ssh to it. The default
+route is a per-machine reverse tunnel — `ssh -R 127.0.0.1:<port>:localhost:22`,
+a systemd user unit, a key restricted with `permitlisten` — from the machine to
+`bongdo.space`. LAN, tailnet and a public address are equivalent alternatives;
+nothing of ours runs on the machine. nixos is the first machine on this route:
+port 2222, `Host nixos` points at `127.0.0.1:2222`.
+
+Why: sshd already exists on every machine and does shell, files and forwarding
+better than a bespoke protocol, so the dependency on the machine drops from our
+binary, unit, token and update path to a service the OS already runs.
+
+Rejected: the bridge as the general mechanism (own protocol, version matrix,
+updater and token store for what ssh does; this replaces 2026-11-15 "The bridge
+is the gate's agent" as the way to reach a machine); tailscale as the only route
+(another daemon and a controller, needed only because these two machines sit on
+different networks).
+
+Cost: the house sshd is exposed to the internet and is already being scanned, so
+key-only auth and bans are mandatory; the tunnel cannot be repaired over itself;
+a machine nothing can ssh to is out of scope. The bridge stays running until
+opencode-at-home workspaces replace the per-machine opencode instance.
+
 ## 2026-11-15 — Switchless instances: owner-aware actions, one network toggle
 
 Context: the bridge already routes every request to any machine (`/i/<name>/...`), but the GUI kept one active instance and either switched the whole app or refused cross-machine actions.

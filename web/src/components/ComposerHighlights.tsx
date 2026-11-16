@@ -38,8 +38,6 @@ export const ComposerHighlights = forwardRef<
   const contentRef = useRef<HTMLDivElement>(null);
   const activeRef = useRef<HTMLSpanElement>(null);
   const askRef = useRef<HTMLSpanElement>(null);
-  const anchorRef = useRef<HTMLSpanElement>(null);
-  const ghostRef = useRef<HTMLSpanElement>(null);
   const lastAsk = useRef<HintRect | null>(null);
   const wasAsk = useRef(false);
   const [leaving, setLeaving] = useState<HintRect | null>(null);
@@ -100,14 +98,6 @@ export const ComposerHighlights = forwardRef<
     return () => window.clearTimeout(timer);
   }, [leaving]);
 
-  useLayoutEffect(() => {
-    const anchor = anchorRef.current;
-    const tail = ghostRef.current;
-    if (!anchor || !tail) return;
-    tail.style.left = `${anchor.offsetLeft}px`;
-    tail.style.top = `${anchor.offsetTop}px`;
-  }, [value, ghost]);
-
   const parts: ReactNode[] = [];
   let cursor = 0;
   const ask =
@@ -152,13 +142,8 @@ export const ComposerHighlights = forwardRef<
     >
       <div ref={contentRef} className="relative">
         {parts}
-        <span ref={anchorRef} />
         {ghost && (
-          <span
-            ref={ghostRef}
-            className="pointer-events-none absolute whitespace-pre"
-            style={{ color: "var(--muted-foreground)", opacity: 0.55 }}
-          >
+          <span style={{ color: "var(--muted-foreground)", opacity: 0.55, whiteSpace: "pre" }}>
             {ghost}
           </span>
         )}

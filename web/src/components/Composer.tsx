@@ -1052,7 +1052,7 @@ export const Composer = memo(function Composer({
                 }
                 className={cn(
                   COMPOSER_TEXT,
-                  "block scrollbar-none max-h-[200px] min-h-[44px] overflow-y-auto",
+                  "block scrollbar-none max-h-[200px] min-h-[44px] overflow-y-auto overscroll-none",
                 )}
                 onChange={(event) => {
                   const next = event.target.value;

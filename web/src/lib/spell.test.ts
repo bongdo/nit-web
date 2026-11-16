@@ -59,6 +59,8 @@ const en: SpellChecker = {
       "and",
       "appear",
       "bad",
+      "box",
+      "executable",
       "is",
       "open",
       "read",
@@ -301,10 +303,24 @@ describe("spell", () => {
       { start: 5, end: 9, word: "грам", suggestions: ["грамм"], language: "ru" },
     ];
     expect(keepStale("хочю грам", "хочю грам ", issues)).toHaveLength(2);
-    expect(keepStale("хочю грам", "хочю грамма", issues)).toHaveLength(2);
+    expect(keepStale("хочю грам", "хочю грамма", issues)).toHaveLength(1);
     expect(keepStale("хочю грам", "хочю хграм", issues)).toHaveLength(1);
     expect(keepStale("хочю грам", "хочю г", issues)).toHaveLength(1);
     expect(keepStale("хочю грам", "хочю ", issues)).toHaveLength(1);
     expect(keepStale("хочю грам", "Хочю грам", issues)).toHaveLength(0);
+  });
+
+  it("drops a stale mark when the word gets another letter", () => {
+    const issues: SpellIssue[] = [
+      { start: 4, end: 11, word: "наблюда", suggestions: [], language: "ru" },
+    ];
+    expect(keepStale("это наблюда", "это наблюдаю", issues)).toHaveLength(0);
+  });
+
+  it("accepts English plurals of known words", () => {
+    expect(findIssues("executables", ru, en)).toEqual([]);
+    expect(findIssues("boxes", ru, en)).toEqual([]);
+    expect(findIssues("executablse", ru, en)).toHaveLength(1);
+    expect(unknownWords("executables boxes", ru, en)).toEqual([]);
   });
 });

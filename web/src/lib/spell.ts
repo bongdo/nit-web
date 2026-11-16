@@ -239,6 +239,15 @@ function skippable(word: string): boolean {
   return allowedWord(word);
 }
 
+function englishPlural(word: string, en: SpellChecker): boolean {
+  const lower = word.toLowerCase();
+  if (lower.length < 4 || !lower.endsWith("s")) return false;
+  const correct = (value: string) => en.correct(value) || en.correct(value.toLowerCase());
+  if (lower.endsWith("es") && correct(word.slice(0, -2))) return true;
+  if (correct(word.slice(0, -1))) return true;
+  return lower.endsWith("ies") && correct(word.slice(0, -3) + "y");
+}
+
 function checkPart(
   word: string,
   start: number,
@@ -252,6 +261,7 @@ function checkPart(
   if (!language) return [];
   const primary = language === "en" ? en : ru;
   if (primary.correct(word)) return [];
+  if (language === "en" && englishPlural(word, en)) return [];
   if (language === "mixed" && en.correct(word)) return [];
   const suggestions = Array.from(new Set(primary.suggest(word)))
     .filter((item) => item.toLowerCase() !== word.toLowerCase())
@@ -297,6 +307,7 @@ export function unknownWords(
       if (!language) continue;
       const primary = language === "en" ? en : ru;
       if (primary.correct(part)) continue;
+      if (language === "en" && englishPlural(part, en)) continue;
       if (language === "mixed" && (ru.correct(part) || en.correct(part))) continue;
       result.add(lower);
       if (result.size >= 400) return Array.from(result);
@@ -446,5 +457,10 @@ export function keepStale(previous: string, next: string, issues: SpellIssue[]):
   const max = Math.min(previous.length, next.length);
   let prefix = 0;
   while (prefix < max && previous[prefix] === next[prefix]) prefix += 1;
-  return issues.filter((issue) => issue.end <= prefix);
+  const continues =
+    prefix > 0 &&
+    prefix < next.length &&
+    /[\p{L}\p{M}]/u.test(previous[prefix - 1]) &&
+    /[\p{L}\p{M}]/u.test(next[prefix]);
+  return issues.filter((issue) => issue.end < prefix || (issue.end === prefix && !continues));
 }

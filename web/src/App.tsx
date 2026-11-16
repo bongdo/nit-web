@@ -2749,7 +2749,7 @@ export default function App({
         <Header
           session={selectedSession}
           directory={workspace}
-          instance={instance}
+          instance={scope === "everywhere" ? (selectedSession?.instance ?? instance) : undefined}
           contextPercent={shownContext}
           cost={shownCost}
           estimatedCost={sessionCost === 0 && estimated > 0}

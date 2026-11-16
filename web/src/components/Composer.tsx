@@ -171,6 +171,7 @@ export const Composer = memo(function Composer({
   const [formStep, setFormStep] = useState(0);
   const formAnswers = useRef<Record<string, string>>({});
   const [removing, setRemoving] = useState<string[]>([]);
+  const [overflowing, setOverflowing] = useState(false);
   const [cropId, setCropId] = useState<string | null>(null);
   const ref = useRef<HTMLTextAreaElement>(null);
   const highlightRef = useRef<ComposerHighlightsHandle>(null);
@@ -425,7 +426,9 @@ export const Composer = memo(function Composer({
     const area = ref.current;
     if (!area) return;
     area.style.height = "auto";
-    area.style.height = `${Math.min(area.scrollHeight, 200)}px`;
+    const height = Math.min(area.scrollHeight, 200);
+    area.style.height = `${height}px`;
+    setOverflowing(area.scrollHeight > height);
   }, [value]);
 
   useLayoutEffect(() => {
@@ -1052,7 +1055,8 @@ export const Composer = memo(function Composer({
                 }
                 className={cn(
                   COMPOSER_TEXT,
-                  "block scrollbar-none max-h-[200px] min-h-[44px] overflow-y-auto overscroll-none",
+                  "block scrollbar-none max-h-[200px] min-h-[44px] overflow-y-auto",
+                  overflowing && "overscroll-none",
                 )}
                 onChange={(event) => {
                   const next = event.target.value;

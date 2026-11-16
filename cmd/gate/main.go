@@ -30,6 +30,13 @@ func main() {
 		}
 		return
 	}
+	if args := flag.Args(); len(args) > 0 && args[0] == "reset-totp" {
+		if err := resetTOTP(args[1:]); err != nil {
+			fmt.Fprintln(os.Stderr, "gate:", err)
+			os.Exit(1)
+		}
+		return
+	}
 
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelInfo}))
 
@@ -115,6 +122,21 @@ func envOr(name, fallback string) string {
 		return value
 	}
 	return fallback
+}
+
+func resetTOTP(args []string) error {
+	if len(args) != 1 {
+		return errors.New("usage: gate reset-totp <name>")
+	}
+	users, err := gate.OpenStore(gate.DefaultUsersPath())
+	if err != nil {
+		return err
+	}
+	if err := users.ClearTOTP(args[0]); err != nil {
+		return err
+	}
+	fmt.Println("2FA off for", args[0])
+	return nil
 }
 
 func tokenCommand(args []string) error {

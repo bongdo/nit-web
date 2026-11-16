@@ -1,5 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { htmlDocument, isHtmlLanguage, isPureHtml, looksLikeHtml, previewableHtml, withoutCode } from "./html";
+import {
+  htmlArtifactSegments,
+  htmlDocument,
+  isHtmlArtifactPath,
+  isHtmlLanguage,
+  isPureHtml,
+  looksLikeHtml,
+  previewableHtml,
+  stripHtmlArtifacts,
+  withoutCode,
+} from "./html";
 
 describe("looksLikeHtml", () => {
   it("detects a plain html element in a message", () => {
@@ -59,6 +69,44 @@ describe("previewableHtml", () => {
 
   it("does not preview unlabeled plain code", () => {
     expect(previewableHtml("const answer = 42;\nconsole.log(answer);")).toBe(false);
+  });
+});
+
+describe("html artifacts", () => {
+  it("accepts a relative html path", () => {
+    expect(isHtmlArtifactPath("pages/chart.html")).toBe(true);
+    expect(isHtmlArtifactPath("./chart.htm")).toBe(false);
+    expect(isHtmlArtifactPath("/etc/chart.html")).toBe(false);
+    expect(isHtmlArtifactPath("../chart.html")).toBe(false);
+    expect(isHtmlArtifactPath("pages/notes.md")).toBe(false);
+    expect(isHtmlArtifactPath("pages/a b.html")).toBe(false);
+  });
+
+  it("splits a reply around a page marker", () => {
+    const segments = htmlArtifactSegments(
+      "Here is the chart.\n\n[[html:pages/chart.html|Sales chart]]\n\nIt updates live.",
+    );
+    expect(segments.map((segment) => segment.text.trim())).toEqual([
+      "Here is the chart.",
+      "",
+      "It updates live.",
+    ]);
+    expect(segments[1].artifacts).toEqual([
+      { path: "pages/chart.html", title: "Sales chart" },
+    ]);
+  });
+
+  it("leaves a marker inside a code fence alone", () => {
+    const text = "```\n[[html:pages/chart.html]]\n```";
+    const segments = htmlArtifactSegments(text);
+    expect(segments).toEqual([{ text, artifacts: [] }]);
+    expect(stripHtmlArtifacts(text)).toBe(text);
+  });
+
+  it("strips page markers from copyable text", () => {
+    expect(
+      stripHtmlArtifacts("Done.\n\n[[html:pages/chart.html|Chart]]\n"),
+    ).toBe("Done.");
   });
 });
 

@@ -11,12 +11,25 @@
   `~/.local/state/nit-gui/gate/previews` for the root page thumbnails. It needs a
   local chromium; the Playwright cache is found automatically. Run it after
   `bin/gate` when an app's look changes. Without it the cards show a placeholder.
+- `bin/htmlcheck <file.html>` loads a page in headless Chromium and fails on
+  console or page errors. Run it before attaching a page with `[[html:...]]`.
 - `bin/gate` builds and restarts the auth gate on `127.0.0.1:8090`; Caddy
   proxies the domain there, the gate routes `/nit`, `/pero`, `/term`, `/share`.
 - `bin/mount-home <ssh-host>` mounts that machine's home at the same absolute
   path here, through a systemd user unit `sshfs-<host>.service`. It needs `sshfs`
   and fuse3, and the mount point has to exist once (`sudo mkdir -p <home>`).
 - If `bin/` gains or loses a command, update this list in the same change.
+
+## HTML answers
+
+- Do not paste a page into the reply. Write a self-contained `.html` file inside
+  the workspace, run `bin/htmlcheck <file>`, then put
+  `[[html:<relative path>|Title]]` on its own line. nit-gui renders the file
+  inline as part of the answer.
+- The file must start with `<!doctype html>` or `<html>`. The path is relative to
+  the session directory; `..`, absolute paths and files over 2 MiB are rejected.
+- A marker inside a code fence stays text. If the page is broken, the chat shows
+  the error instead of the page, so fix the file before finishing the reply.
 
 ## Drop
 

@@ -219,6 +219,7 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("POST /api/grammar", s.grammarCheck)
 	s.mux.HandleFunc("POST /api/upload", s.upload)
 	s.mux.HandleFunc("GET /api/file", s.file)
+	s.mux.HandleFunc("GET /api/artifact", s.artifact)
 	s.mux.HandleFunc("GET /api/review", s.review)
 	s.mux.HandleFunc("GET /api/doc", s.doc)
 	s.mux.HandleFunc("GET /api/sessions/{id}/form", s.forms)
@@ -1220,6 +1221,102 @@ func (s *Server) file(w http.ResponseWriter, r *http.Request) {
 	if _, err := io.Copy(w, body.Body); err != nil {
 		s.log.Warn("file stream failed", "path", path, "error", err)
 	}
+}
+
+const maxArtifactBody = 2 << 20
+
+func artifactPath(raw string) (string, bool) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" || len(raw) > 300 || strings.ContainsAny(raw, "\\\x00") {
+		return "", false
+	}
+	if !strings.HasSuffix(strings.ToLower(raw), ".html") &&
+		!strings.HasSuffix(strings.ToLower(raw), ".htm") {
+		return "", false
+	}
+	clean := filepath.Clean(filepath.FromSlash(raw))
+	if clean == "." || clean == ".." || filepath.IsAbs(clean) {
+		return "", false
+	}
+	for _, part := range strings.Split(filepath.ToSlash(clean), "/") {
+		if part == "" || part == "." || part == ".." {
+			return "", false
+		}
+	}
+	return filepath.ToSlash(clean), true
+}
+
+func htmlDocumentStart(body []byte) bool {
+	text := strings.TrimSpace(strings.TrimPrefix(string(body), "\ufeff"))
+	for strings.HasPrefix(text, "<!--") {
+		end := strings.Index(text, "-->")
+		if end < 0 {
+			return false
+		}
+		text = strings.TrimSpace(text[end+3:])
+	}
+	text = strings.ToLower(text)
+	return strings.HasPrefix(text, "<!doctype html") || strings.HasPrefix(text, "<html")
+}
+
+func (s *Server) artifact(w http.ResponseWriter, r *http.Request) {
+	sessionID := strings.TrimSpace(r.URL.Query().Get("session"))
+	if !validID(sessionID) {
+		writeError(w, http.StatusBadRequest, "invalid session id")
+		return
+	}
+	rel, ok := artifactPath(r.URL.Query().Get("path"))
+	if !ok {
+		writeError(w, http.StatusBadRequest, "path must be a relative .html file")
+		return
+	}
+	c, ok := s.withClient(w, r)
+	if !ok {
+		return
+	}
+	var info struct {
+		Location struct {
+			Directory string `json:"directory"`
+		} `json:"location"`
+	}
+	if err := c.Do(r.Context(), http.MethodGet, "/api/session/"+url.PathEscape(sessionID), nil, &info); err != nil {
+		s.upstreamError(w, r, err)
+		return
+	}
+	dir := strings.TrimSpace(info.Location.Directory)
+	if !filepath.IsAbs(dir) {
+		writeError(w, http.StatusBadGateway, "session has no directory")
+		return
+	}
+	abs := filepath.Join(dir, filepath.FromSlash(rel))
+	within, err := filepath.Rel(dir, abs)
+	if err != nil || within == ".." || strings.HasPrefix(within, ".."+string(filepath.Separator)) {
+		writeError(w, http.StatusForbidden, "path is outside the session directory")
+		return
+	}
+	body, err := c.ReadFile(r.Context(), abs)
+	if err != nil {
+		s.upstreamError(w, r, err)
+		return
+	}
+	defer body.Body.Close()
+	raw, err := io.ReadAll(io.LimitReader(body.Body, maxArtifactBody+1))
+	if err != nil {
+		writeError(w, http.StatusBadGateway, "could not read page")
+		return
+	}
+	if len(raw) > maxArtifactBody {
+		writeError(w, http.StatusRequestEntityTooLarge, "page is larger than 2 MiB")
+		return
+	}
+	if !htmlDocumentStart(raw) {
+		writeError(w, http.StatusBadRequest, "file is not an HTML document")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"path": rel,
+		"html": c.Redactor().String(string(raw)),
+	})
 }
 
 type reviewItem struct {

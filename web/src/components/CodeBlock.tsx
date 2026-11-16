@@ -10,13 +10,15 @@ export function CodeBlock({
   code,
   language,
   className,
+  streaming = false,
 }: {
   code: string;
   language?: string;
   className?: string;
+  streaming?: boolean;
 }) {
   const [copied, setCopied] = useState(false);
-  const html = previewableHtml(code, language);
+  const html = !streaming && previewableHtml(code, language);
 
   if (html) {
     return <HtmlPreview source={code} autoHeight className={cn("my-3", className)} />;

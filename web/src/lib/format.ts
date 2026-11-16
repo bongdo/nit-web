@@ -9,6 +9,7 @@ import type {
   ToolPart,
   UserFile,
 } from "./types";
+import { stripHtmlArtifacts } from "./html";
 
 export function formatRelative(ms: number, now = Date.now()): string {
   if (!ms) return "";
@@ -102,10 +103,12 @@ export function turnBlocks(content: Part[], hasSteps: boolean): TurnBlock[] {
 }
 
 export function replyText(message: Message): string {
-  return (message.content ?? [])
-    .filter((part) => part.type === "text")
-    .map((part) => part.text)
-    .join("\n\n");
+  return stripHtmlArtifacts(
+    (message.content ?? [])
+      .filter((part) => part.type === "text")
+      .map((part) => part.text)
+      .join("\n\n"),
+  );
 }
 
 export function modelKey(model?: ModelRef | null): string {

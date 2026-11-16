@@ -1,0 +1,61 @@
+import { useEffect, useRef, useState } from "react";
+import { REVEAL_FRAME_MS, revealAdvance } from "../lib/streamText";
+
+export function useSmoothText(text: string, live: boolean): string {
+  const [shown, setShown] = useState(text);
+  const target = useRef(text);
+  const current = useRef(text);
+  const running = useRef(live);
+  const frame = useRef<number | null>(null);
+  const lastAt = useRef(0);
+
+  const stop = () => {
+    if (frame.current !== null) {
+      cancelAnimationFrame(frame.current);
+      frame.current = null;
+    }
+  };
+
+  const settle = () => {
+    stop();
+    current.current = target.current;
+    setShown(target.current);
+  };
+
+  const step = (now: number) => {
+    frame.current = null;
+    if (!running.current) {
+      settle();
+      return;
+    }
+    if (now - lastAt.current < REVEAL_FRAME_MS) {
+      frame.current = requestAnimationFrame(step);
+      return;
+    }
+    lastAt.current = now;
+    const next = revealAdvance(target.current, current.current.length);
+    if (next !== current.current.length) {
+      current.current = target.current.slice(0, next);
+      setShown(current.current);
+    }
+    if (current.current.length < target.current.length) {
+      frame.current = requestAnimationFrame(step);
+    }
+  };
+
+  useEffect(() => {
+    target.current = text;
+    running.current = live;
+    if (!live || !text.startsWith(current.current)) {
+      settle();
+      return;
+    }
+    if (frame.current === null && current.current.length < text.length) {
+      frame.current = requestAnimationFrame(step);
+    }
+  }, [live, text]);
+
+  useEffect(() => stop, []);
+
+  return shown;
+}

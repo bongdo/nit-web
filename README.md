@@ -559,6 +559,7 @@ All `/api` endpoints except `/api/instances*` accept `X-Nit-Instance: <id>` or
 | `POST /api/sessions/{id}/fork` | Fork before `{before?}`; omit `before` to copy the whole session. |
 | `POST /api/sessions/{id}/compact` | Compact the context. |
 | `POST /api/upload?dir=&name=` | Raw file body up to 20 MiB, written through OpenCode `/api/experimental/fs/write`. |
+| `GET /api/artifact?session=&path=` | Read a `.html` page from the session directory for inline rendering. `path` is relative, may not escape the directory, and the file must start with `<!doctype html>` or `<html>`; capped at 2 MiB. |
 | `POST /api/grammar` | `{text}`; optional LanguageTool grammar/punctuation check on the nit-gui host. |
 | `POST /api/sessions/{id}/model` | Switch model `{model: {id, providerID, variant?}}`. |
 | `POST /api/sessions/{id}/agent` | Switch agent `{agent}`. |
@@ -648,6 +649,12 @@ nspell worker. It is not implemented yet.
   `allow-same-origin` is absent, so preview scripts run in an opaque origin and
   cannot read the app, cookies or local storage. Preview code can still make
   network requests, so treat it as untrusted content.
+- An inline page marker (`[[html:<relative path>|Title]]`) is read through
+  `GET /api/artifact`, which resolves the session directory upstream and serves
+  only an `.html`/`.htm` file inside it. The path cannot be absolute or contain
+  `..`, the file must start with `<!doctype html>` or `<html>`, it is capped at
+  2 MiB, and the response is redacted. The page is still rendered in the same
+  sandboxed `iframe srcdoc`; it never enters the app DOM.
 - There is one shared password for nit-gui, pero-gui and term-gui, no per-user
   accounts, database, telemetry or analytics. The signed session cookie survives
   restarts and expires after 7 days.
@@ -664,8 +671,17 @@ nspell worker. It is not implemented yet.
   at 1.5 s) and a cached one paints its chat list before the refresh. Offline and
   boot screens also have `Switch instance`. The menu creates, edits and deletes
   instances; saving writes `instances.json` on the host.
-- Streaming text, reasoning, tool calls collapsed by default, code copy,
-  GFM tables/task lists.
+- Streaming text is revealed at a steady pace instead of jumping by network
+  chunk: the tail advances on an animation frame, the bottom edge fades while
+  the part is live, and the transcript follows it with a short eased chase.
+  Reasoning and tool calls are collapsed by default; code copy, GFM tables and
+  task lists stay. HTML previews and inline pages wait until the streaming part
+  stops, so an iframe is not rebuilt for every token.
+- HTML answers: an agent or user can reference a workspace page as
+  `[[html:pages/chart.html|Title]]` on its own line. The chat reads the file
+  through `/api/artifact` and renders it inline as part of the reply; the marker
+  itself is hidden and left out of copy and TTS. `bin/htmlcheck <file>` loads a
+  page in headless Chromium and fails on console or page errors.
 - Composer: Enter sends, Shift+Enter adds a line, stop while streaming, token
   and cost footer when OpenCode reports them. On a touch screen Enter only adds
   a line and the Send button is the only way to send. While the agent is

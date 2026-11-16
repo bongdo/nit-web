@@ -390,6 +390,94 @@ func TestFileProxy(t *testing.T) {
 	}
 }
 
+func TestArtifactServesHtmlFromSessionDirectory(t *testing.T) {
+	upstream := httptest.NewServer(auth(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/session/ses_1":
+			fmt.Fprint(w, `{"location":{"directory":"/home/ubuntu/work"}}`)
+		case "/api/fs/read/home/ubuntu/work/pages/chart.html":
+			fmt.Fprint(w, `<!doctype html><html><body><h1>Hi</h1></body></html>`)
+		default:
+			t.Errorf("unexpected path %s", r.URL.Path)
+			http.NotFound(w, r)
+		}
+	}))
+	defer upstream.Close()
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet,
+		"http://127.0.0.1:7788/api/artifact?session=ses_1&path=pages/chart.html", nil)
+	newHandler(t, upstream.URL).ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d: %s", rec.Code, rec.Body)
+	}
+	var body struct {
+		Path string `json:"path"`
+		HTML string `json:"html"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if body.Path != "pages/chart.html" || !strings.Contains(body.HTML, "<h1>Hi</h1>") {
+		t.Fatalf("unexpected body: %s", rec.Body)
+	}
+}
+
+func TestArtifactRejectsEscape(t *testing.T) {
+	upstream := httptest.NewServer(auth(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/api/session/ses_1" {
+			fmt.Fprint(w, `{"location":{"directory":"/home/ubuntu/work"}}`)
+			return
+		}
+		t.Errorf("unexpected path %s", r.URL.Path)
+	}))
+	defer upstream.Close()
+
+	for _, path := range []string{"../secret.html", "%2Fetc%2Fpasswd.html", "notes.txt"} {
+		rec := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodGet,
+			"http://127.0.0.1:7788/api/artifact?session=ses_1&path="+path, nil)
+		newHandler(t, upstream.URL).ServeHTTP(rec, req)
+		if rec.Code != http.StatusBadRequest {
+			t.Fatalf("%s: status = %d: %s", path, rec.Code, rec.Body)
+		}
+	}
+}
+
+func TestArtifactRejectsBrokenHtmlAndRedacts(t *testing.T) {
+	upstream := httptest.NewServer(auth(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/session/ses_1":
+			fmt.Fprint(w, `{"location":{"directory":"/home/ubuntu/work"}}`)
+		case "/api/fs/read/home/ubuntu/work/plain.html":
+			fmt.Fprint(w, `not a page`)
+		case "/api/fs/read/home/ubuntu/work/page.html":
+			fmt.Fprintf(w, `<!doctype html><html><body>%s</body></html>`, testPassword)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer upstream.Close()
+
+	bad := httptest.NewRecorder()
+	newHandler(t, upstream.URL).ServeHTTP(bad, httptest.NewRequest(http.MethodGet,
+		"http://127.0.0.1:7788/api/artifact?session=ses_1&path=plain.html", nil))
+	if bad.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d: %s", bad.Code, bad.Body)
+	}
+
+	ok := httptest.NewRecorder()
+	newHandler(t, upstream.URL).ServeHTTP(ok, httptest.NewRequest(http.MethodGet,
+		"http://127.0.0.1:7788/api/artifact?session=ses_1&path=page.html", nil))
+	if ok.Code != http.StatusOK {
+		t.Fatalf("status = %d: %s", ok.Code, ok.Body)
+	}
+	assertNoSecret(t, ok.Body.String(), "artifact")
+	if !strings.Contains(ok.Body.String(), "[redacted]") {
+		t.Fatalf("artifact was not redacted: %s", ok.Body)
+	}
+}
+
 func TestFileProxyRejectsTraversal(t *testing.T) {
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet,

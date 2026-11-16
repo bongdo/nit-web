@@ -149,6 +149,7 @@ export function ChatView({
   const rowsRef = useRef<HTMLDivElement>(null);
   const stick = useRef(true);
   const scrollFrame = useRef<number | null>(null);
+  const chasing = useRef(false);
   const messagesRef = useRef(messages);
   messagesRef.current = messages;
   const anchors = useRef(new Map<string, ScrollAnchor>());
@@ -175,18 +176,28 @@ export function ChatView({
     ready: boolean;
   }>({ session: null, row: null, count: 0, ready: false });
 
+  const stopScroll = useCallback(() => {
+    if (scrollFrame.current !== null) {
+      cancelAnimationFrame(scrollFrame.current);
+      scrollFrame.current = null;
+    }
+    chasing.current = false;
+  }, []);
+
   const scrollToBottom = useCallback(() => {
     const element = scrollRef.current;
     if (!element) return;
+    stopScroll();
     jumping.current = false;
     element.scrollTop = element.scrollHeight;
     stick.current = true;
     setShowJump(false);
-  }, []);
+  }, [stopScroll]);
 
   const jumpToLatest = useCallback(() => {
     const element = scrollRef.current;
     if (!element) return;
+    stopScroll();
     const smooth =
       motion === "animated" &&
       !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -197,15 +208,30 @@ export function ChatView({
       top: element.scrollHeight,
       behavior: smooth ? "smooth" : "auto",
     });
-  }, [motion]);
+  }, [motion, stopScroll]);
 
   const scheduleScroll = useCallback(() => {
-    if (scrollFrame.current !== null) return;
-    scrollFrame.current = requestAnimationFrame(() => {
+    if (scrollFrame.current !== null || !stick.current) return;
+    chasing.current = true;
+    const chase = () => {
       scrollFrame.current = null;
-      scrollToBottom();
-    });
-  }, [scrollToBottom]);
+      const element = scrollRef.current;
+      if (!element || !stick.current) {
+        chasing.current = false;
+        return;
+      }
+      const target = element.scrollHeight - element.clientHeight;
+      const gap = target - element.scrollTop;
+      if (gap <= 1) {
+        chasing.current = false;
+        return;
+      }
+      const step = gap > 160 ? gap : Math.max(1, gap * 0.35);
+      element.scrollTop = Math.min(target, element.scrollTop + step);
+      scrollFrame.current = requestAnimationFrame(chase);
+    };
+    scrollFrame.current = requestAnimationFrame(chase);
+  }, []);
 
   const requestEarlier = useCallback(() => {
     const element = scrollRef.current;
@@ -276,6 +302,7 @@ export function ChatView({
   useEffect(
     () => () => {
       if (scrollFrame.current !== null) cancelAnimationFrame(scrollFrame.current);
+      chasing.current = false;
     },
     [],
   );
@@ -383,10 +410,7 @@ export function ChatView({
     const element = scrollRef.current;
     if (!id || !element || loading || pendingRestore.current !== id) return;
     pendingRestore.current = null;
-    if (scrollFrame.current !== null) {
-      cancelAnimationFrame(scrollFrame.current);
-      scrollFrame.current = null;
-    }
+    stopScroll();
     const anchor = anchors.current.get(id);
     if (anchor && !anchor.bottom && anchor.messageID && applyAnchor(anchor)) {
       stick.current = false;
@@ -397,7 +421,7 @@ export function ChatView({
     settle.current = null;
     settleTop.current = null;
     scrollToBottom();
-  }, [applyAnchor, loading, scrollToBottom, session?.id]);
+  }, [applyAnchor, loading, scrollToBottom, session?.id, stopScroll]);
 
   useEffect(() => {
     if (stick.current) scheduleScroll();
@@ -493,6 +517,8 @@ export function ChatView({
           >
             <AssistantTurn
               messages={group}
+              sessionID={session.id ?? ""}
+              instance={instance}
               models={models}
               agents={agents}
               workspace={workspace}
@@ -535,6 +561,7 @@ export function ChatView({
     agents,
     fresh,
     freshCompaction,
+    instance,
     messages,
     models,
     onFork,
@@ -542,6 +569,7 @@ export function ChatView({
     onRevert,
     peroURL,
     running,
+    session?.id,
     timeFormat,
     showTime,
     workspace,
@@ -638,13 +666,16 @@ export function ChatView({
         className="scrollbar-thin relative min-h-0 flex-1 overflow-y-auto overflow-x-hidden [overflow-anchor:none] [scrollbar-gutter:stable]"
         onWheel={(event) => {
           jumping.current = false;
+          stopScroll();
           if (event.deltaY < 0) pullEarlier();
         }}
         onPointerDown={() => {
           jumping.current = false;
+          stopScroll();
         }}
         onTouchStart={(event) => {
           jumping.current = false;
+          stopScroll();
           touchY.current = event.touches[0]?.clientY ?? null;
         }}
         onTouchMove={(event) => {
@@ -659,11 +690,13 @@ export function ChatView({
         }}
         onKeyDown={(event) => {
           jumping.current = false;
+          stopScroll();
           if (event.key === "ArrowUp" || event.key === "PageUp" || event.key === "Home") {
             pullEarlier();
           }
         }}
         onScroll={(event) => {
+          if (chasing.current) return;
           const element = event.currentTarget;
           const nearBottom =
             element.scrollHeight - element.scrollTop - element.clientHeight < BOTTOM_GAP;

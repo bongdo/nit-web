@@ -214,6 +214,10 @@ export const api = {
         `/api/sessions/${encodeURIComponent(id)}/messages/${encodeURIComponent(messageID)}`,
       )
     ).data,
+  artifact: (sessionID: string, path: string, instance?: string) => {
+    const query = new URLSearchParams({ session: sessionID, path });
+    return request<{ html: string; path: string }>(`/api/artifact?${query}`, { instance });
+  },
   children: async (id: string) =>
     (await request<SessionList>(`/api/sessions/${encodeURIComponent(id)}/children`)).data,
   prompt: (

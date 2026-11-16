@@ -4,10 +4,13 @@ import type { Agent, Message, Model, ReasoningPart, ToolPart } from "../lib/type
 import { activityLine } from "../lib/activity";
 import { turnEditedFiles } from "../lib/diff";
 import { stepMessageIDs } from "../lib/stream";
-import { isPureHtml, looksLikeHtml } from "../lib/html";
+import { htmlArtifactSegments, isPureHtml, looksLikeHtml } from "../lib/html";
 import { modelLabel, replyText, turnBlocks } from "../lib/format";
 import { timeLabel, type TimeFormat } from "../lib/time";
+import { useSmoothText } from "../hooks/useSmoothText";
+import { cn } from "../lib/utils";
 import { ChangedFilesButton, FileList } from "./FileChips";
+import { HtmlArtifact } from "./HtmlArtifact";
 import { HtmlMessagePreview } from "./HtmlMessagePreview";
 import { Markdown } from "./Markdown";
 import { QuestionCard } from "./QuestionCard";
@@ -27,6 +30,8 @@ function durationLabel(messages: Message[]): string {
 
 type AssistantTurnProps = {
   messages: Message[];
+  sessionID: string;
+  instance: string;
   models: Model[];
   agents: Agent[];
   workspace?: string | null;
@@ -39,6 +44,8 @@ type AssistantTurnProps = {
 
 export const AssistantTurn = memo(function AssistantTurn({
   messages,
+  sessionID,
+  instance,
   models,
   agents,
   workspace,
@@ -96,6 +103,8 @@ export const AssistantTurn = memo(function AssistantTurn({
   const hasSteps = shownSteps > 0;
   const blocks = turnBlocks(content, hasSteps);
   const lastText = textParts[textParts.length - 1];
+  const liveText = streaming ? lastText : undefined;
+  const revealed = useSmoothText(liveText?.text ?? "", Boolean(liveText));
   const reply = messages.map(replyText).filter(Boolean).join("\n\n");
   const agent = agents.find((item) => item.id === last?.agent);
   const agentName = agent?.name ?? last?.agent ?? "";
@@ -255,18 +264,43 @@ export const AssistantTurn = memo(function AssistantTurn({
               />
             );
           }
-          const pureHtml = isPureHtml(block.part.text);
+          const live = streaming && block.part === lastText;
+          const text = live ? revealed : block.part.text;
+          const pureHtml = isPureHtml(text);
+          const segments = htmlArtifactSegments(text);
           return (
-            <div key={`text-${index}`} className="min-w-0">
-              {pureHtml ? (
-                <HtmlMessagePreview source={block.part.text} />
+            <div
+              key={`text-${index}`}
+              className={cn("min-w-0", live && text.trim() !== "" && "stream-soft")}
+            >
+              {live && pureHtml ? (
+                <div className="text-muted-foreground flex items-center gap-2 py-2 text-xs">
+                  <Loader2 className="size-3.5 animate-spin" />
+                  Writing page…
+                </div>
               ) : (
-                <>
-                  <Markdown text={block.part.text} />
-                  {looksLikeHtml(block.part.text) && <HtmlMessagePreview source={block.part.text} />}
-                </>
+                segments.map((segment, segmentIndex) => (
+                  <div key={`segment-${segmentIndex}`} className="min-w-0">
+                    {segment.text.trim() !== "" && (
+                      <Markdown text={segment.text} streaming={live} />
+                    )}
+                    {!live &&
+                      segment.artifacts.map((artifact) => (
+                        <HtmlArtifact
+                          key={artifact.path}
+                          sessionID={sessionID}
+                          instance={instance}
+                          path={artifact.path}
+                          title={artifact.title}
+                        />
+                      ))}
+                  </div>
+                ))
               )}
-              {streaming && block.part === lastText && <span className="stream-caret" />}
+              {!live && (pureHtml || looksLikeHtml(text)) && (
+                <HtmlMessagePreview source={text} />
+              )}
+              {live && !pureHtml && <span className="stream-caret" />}
             </div>
           );
         })}
@@ -316,6 +350,8 @@ export const AssistantTurn = memo(function AssistantTurn({
 function sameTurn(left: AssistantTurnProps, right: AssistantTurnProps): boolean {
   return (
     left.streaming === right.streaming &&
+    left.sessionID === right.sessionID &&
+    left.instance === right.instance &&
     left.workspace === right.workspace &&
     left.peroURL === right.peroURL &&
     left.models === right.models &&

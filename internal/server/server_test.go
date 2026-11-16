@@ -46,7 +46,7 @@ type staticProvider struct {
 func (p *staticProvider) Client(context.Context) (*opencode.Client, error) { return p.client, nil }
 func (p *staticProvider) Drop()                                            {}
 
-func newHandler(t *testing.T, upstreamURL string) http.Handler {
+func newHandler(t *testing.T, upstreamURL string) *server.Handler {
 	t.Helper()
 	t.Setenv("NIT_DROP_ROOT", t.TempDir())
 	client := opencode.New(opencode.Endpoint{URL: upstreamURL, Password: testPassword})
@@ -1086,6 +1086,43 @@ func TestEventsProxy(t *testing.T) {
 	}
 	if !strings.Contains(string(body), "server.connected") {
 		t.Fatalf("unexpected event body: %s", body)
+	}
+}
+
+func TestEventsStopOnShutdown(t *testing.T) {
+	release := make(chan struct{})
+	upstream := httptest.NewServer(auth(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		fmt.Fprint(w, "data: {\"type\":\"server.connected\"}\n\n")
+		w.(http.Flusher).Flush()
+		<-release
+	}))
+	defer upstream.Close()
+	defer close(release)
+
+	handler := newHandler(t, upstream.URL)
+	proxy := httptest.NewServer(handler)
+	defer proxy.Close()
+
+	resp, err := http.Get(proxy.URL + "/api/events")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if _, err := resp.Body.Read(make([]byte, 1)); err != nil {
+		t.Fatalf("read first event: %v", err)
+	}
+
+	handler.StopStreams()
+	closed := make(chan struct{})
+	go func() {
+		_, _ = io.Copy(io.Discard, resp.Body)
+		close(closed)
+	}()
+	select {
+	case <-closed:
+	case <-time.After(3 * time.Second):
+		t.Fatal("event stream did not close on shutdown")
 	}
 }
 

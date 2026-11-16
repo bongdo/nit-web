@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+set -uo pipefail
+
+url="${NIT_GUI_UPTIME_URL:-http://127.0.0.1:7791/}"
+interval="${NIT_GUI_UPTIME_INTERVAL:-5}"
+seconds="${1:-0}"
+deadline=$(( $(date +%s) + seconds ))
+
+down_since=0
+downs=0
+total=0
+worst=0
+
+while :; do
+  now=$(date +%s)
+  if [ "$seconds" != "0" ] && [ "$now" -ge "$deadline" ]; then break; fi
+  if curl -s -o /dev/null --max-time 2 "$url"; then
+    if [ "$down_since" != 0 ]; then
+      spent=$((now - down_since))
+      total=$((total + spent))
+      [ "$spent" -gt "$worst" ] && worst=$spent
+      printf 'up   %s after %ss\n' "$(date +%H:%M:%S)" "$spent"
+      down_since=0
+    fi
+  elif [ "$down_since" = 0 ]; then
+    down_since=$now
+    downs=$((downs + 1))
+    printf 'down %s\n' "$(date +%H:%M:%S)"
+  fi
+  sleep "$interval"
+done
+
+printf '%d outages, %ss total, worst %ss\n' "$downs" "$total" "$worst"

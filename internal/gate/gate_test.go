@@ -1359,3 +1359,22 @@ func TestOpenDevicesDropsAutomationRows(t *testing.T) {
 		t.Fatal("automation rows are still on disk")
 	}
 }
+
+func TestUpstreamFailureRateLimit(t *testing.T) {
+	now := time.Unix(1_700_000_000, 0)
+	s := &Server{now: func() time.Time { return now }}
+
+	if got := s.upstreamFailure(); got != 0 {
+		t.Fatalf("first failure = %d, want 0", got)
+	}
+	if got := s.upstreamFailure(); got != -1 {
+		t.Fatalf("second failure = %d, want suppressed", got)
+	}
+	if got := s.upstreamFailure(); got != -1 {
+		t.Fatalf("third failure = %d, want suppressed", got)
+	}
+	now = now.Add(6 * time.Second)
+	if got := s.upstreamFailure(); got != 2 {
+		t.Fatalf("failure after window = %d, want 2 suppressed", got)
+	}
+}

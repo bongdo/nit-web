@@ -48,6 +48,9 @@ type Server struct {
 	blocked map[string]time.Time
 	blocks  map[string]int
 	last    map[string]time.Time
+	upMu    sync.Mutex
+	upLast  time.Time
+	upCount int
 }
 
 func New(routes *Routes, users *Store, secret []byte, log *slog.Logger, devices ...*Devices) *Server {
@@ -316,7 +319,9 @@ func (s *Server) proxy(w http.ResponseWriter, r *http.Request) {
 	}
 	proxy := httputil.NewSingleHostReverseProxy(target)
 	proxy.ErrorHandler = func(w http.ResponseWriter, r *http.Request, err error) {
-		s.log.Warn("upstream failed", "route", route.Prefix, "error", err)
+		if suppressed := s.upstreamFailure(); suppressed >= 0 {
+			s.log.Warn("upstream failed", "route", route.Prefix, "error", err, "suppressed", suppressed)
+		}
 		http.Error(w, "upstream is not running", http.StatusBadGateway)
 	}
 	director := proxy.Director
@@ -336,6 +341,20 @@ func (s *Server) proxy(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	proxy.ServeHTTP(w, r)
+}
+
+func (s *Server) upstreamFailure() int {
+	s.upMu.Lock()
+	defer s.upMu.Unlock()
+	now := s.now()
+	if now.Sub(s.upLast) < 5*time.Second {
+		s.upCount++
+		return -1
+	}
+	suppressed := s.upCount
+	s.upCount = 0
+	s.upLast = now
+	return suppressed
 }
 
 func (s *Server) blockedIP(r *http.Request) (time.Duration, bool) {

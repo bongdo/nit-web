@@ -19,6 +19,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 	"unicode/utf8"
 
@@ -104,9 +105,20 @@ type Server struct {
 	dropManager  http.Handler
 	dropPublic   http.Handler
 	allowedHosts map[string]struct{}
+	done         chan struct{}
+	stopOnce     sync.Once
 }
 
-func New(provider ClientProvider, static fs.FS, log *slog.Logger) http.Handler {
+type Handler struct {
+	http.Handler
+	server *Server
+}
+
+func (h *Handler) StopStreams() {
+	h.server.stopOnce.Do(func() { close(h.server.done) })
+}
+
+func New(provider ClientProvider, static fs.FS, log *slog.Logger) *Handler {
 	if log == nil {
 		log = slog.Default()
 	}
@@ -133,6 +145,7 @@ func New(provider ClientProvider, static fs.FS, log *slog.Logger) http.Handler {
 		peroURL:      appURL("NIT_GUI_PERO_URL", "/pero/"),
 		termURL:      appURL("NIT_GUI_TERM_URL", "/term/"),
 		allowedHosts: map[string]struct{}{},
+		done:         make(chan struct{}),
 	}
 	for _, host := range strings.Split(os.Getenv("NIT_GUI_ALLOWED_HOSTS"), ",") {
 		if host = strings.ToLower(strings.TrimSpace(host)); host != "" {
@@ -150,7 +163,7 @@ func New(provider ClientProvider, static fs.FS, log *slog.Logger) http.Handler {
 	}
 	s.routes()
 	go s.warm()
-	return s.middleware(s.auth.wrap(s.instanceGuard(s.mux)))
+	return &Handler{Handler: s.middleware(s.auth.wrap(s.instanceGuard(s.mux))), server: s}
 }
 
 func (s *Server) instanceGuard(next http.Handler) http.Handler {
@@ -1975,23 +1988,29 @@ func (s *Server) events(w http.ResponseWriter, r *http.Request) {
 	}()
 	ping := time.NewTicker(20 * time.Second)
 	defer ping.Stop()
+	rc := http.NewResponseController(w)
+	write := func(p []byte) bool {
+		_ = rc.SetWriteDeadline(time.Now().Add(30 * time.Second))
+		if _, err := w.Write(p); err != nil {
+			return false
+		}
+		flusher.Flush()
+		return true
+	}
 	for {
 		select {
+		case <-s.done:
+			return
 		case <-ctx.Done():
 			return
 		case line, ok := <-lines:
-			if !ok {
+			if !ok || !write(append(line, '\n')) {
 				return
 			}
-			if _, werr := w.Write(append(line, '\n')); werr != nil {
-				return
-			}
-			flusher.Flush()
 		case <-ping.C:
-			if _, werr := io.WriteString(w, ": ping\n\n"); werr != nil {
+			if !write([]byte(": ping\n\n")) {
 				return
 			}
-			flusher.Flush()
 		}
 	}
 }

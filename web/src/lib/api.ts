@@ -91,7 +91,12 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
   }
   if (response.status === 204) return undefined as T;
   const text = await response.text();
-  return (text ? JSON.parse(text) : undefined) as T;
+  if (!text) return undefined as T;
+  try {
+    return JSON.parse(text) as T;
+  } catch {
+    throw new ApiError("The server response was cut off", response.status);
+  }
 }
 
 export const SESSIONS_PAGE_SIZE = 100;

@@ -30,4 +30,10 @@ while :; do
   sleep "$interval"
 done
 
+if [ "$down_since" != 0 ]; then
+  spent=$(( $(date +%s) - down_since ))
+  total=$((total + spent))
+  [ "$spent" -gt "$worst" ] && worst=$spent
+fi
+
 printf '%d outages, %ss total, worst %ss\n' "$downs" "$total" "$worst"

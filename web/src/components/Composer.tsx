@@ -474,21 +474,22 @@ export const Composer = memo(function Composer({
 
   useEffect(() => {
     if (!customSpell || question || disabled || formBusy || grammarFixes.current > 0) return;
-    if (Date.now() - lastTypedAt.current > 2500) return;
+    if (lastTypedAt.current === 0) return;
     if (answerText.startsWith("/") && !answerText.includes("\n")) return;
     const area = ref.current;
     if (!area || document.activeElement !== area) return;
-    if (area.selectionStart !== answerText.length || area.selectionEnd !== answerText.length) return;
+    const caretNow = area.selectionStart;
+    if (caretNow !== area.selectionEnd) return;
     const issue = issues.find(
       (item) =>
         item.source === "grammar" &&
-        item.end === answerText.length &&
+        caretNow >= item.end &&
         item.suggestions.length === 1 &&
         addsOnlyPunctuation(answerText.slice(item.start, item.end), item.suggestions[0]),
     );
     if (!issue) return;
     const replacement = issue.suggestions[0];
-    const position = issue.start + replacement.length;
+    const position = caretNow + replacement.length - (issue.end - issue.start);
     grammarFixes.current += 1;
     updateValue(applyIssue(answerText, issue, replacement));
     setCaret(position);
@@ -1089,7 +1090,7 @@ export const Composer = memo(function Composer({
                     const end = undoFix.start + undoFix.replacement.length;
                     if (
                       area &&
-                      Math.abs(area.selectionStart - end) <= 1 &&
+                      area.selectionStart >= end &&
                       area.value.slice(undoFix.start, end) === undoFix.replacement
                     ) {
                       event.preventDefault();

@@ -76,9 +76,9 @@ const nodes = [
     not:["не движок чата", "не хранит сообщения"],
     talks:"opencode по Basic auth; ссылки в pero" },
   { id:"pero", label:"pero :7789", sub:"файлы · /pero", x:193, y:196, w:150, h:48,
-    role:"Редактор одного корня: пикер по путям, табы, подсветка, диффы, LSP, превью, грид таблиц.",
+    role:"Редактор одного корня: пикер по путям, табы, подсветка, диффы, LSP, превью, грид таблиц, окно SQL и фильтр логов.",
     owns:["историю сохранений", "заметки ревью", "запуск bin/check"],
-    not:["никакого чата и агента", "второго корня"],
+    not:["никакого чата и агента", "второго корня", "не конвертирует office — это docs"],
     talks:"диск напрямую, LSP по stdio, принимает ?open=" },
   { id:"term", label:"term :7795", sub:"shell · /term", x:361, y:196, w:110, h:48,
     role:"Терминал: то, чего нет в GUI — sqlite3, ffmpeg, git.",
@@ -95,11 +95,6 @@ const nodes = [
     owns:["свои форматы", "конвертацию docx/xlsx"],
     not:["не дублирует pero: код и markdown остаются там"],
     talks:"папка; переход по пути из чата" },
-  { id:"sql", label:"sql", sub:"базы · /sql", x:825, y:196, w:110, h:48, proposed:true,
-    role:"Предложено: схема, запросы, выгрузка. Вместо тупика на бинарной базе.",
-    owns:["соединения к файлам баз"],
-    not:["не редактор sql-файлов — это pero"],
-    talks:"папка; ссылка из чата и из pero" },
   { id:"oc", label:"opencode", sub:"источник правды", x:25, y:300, w:150, h:44,
     role:"Сессии, сообщения, модели, агенты, инструменты. Агент работает в папке.",
     owns:["сессии и транскрипт", "запуск инструментов"],
@@ -272,14 +267,14 @@ function draw() {
   ctx.fillStyle = color();
   ctx.globalAlpha = 1;
 
-  for (const app of ["nit", "pero", "term", "drop", "docs", "sql"]) {
+  for (const app of ["nit", "pero", "term", "drop", "docs"]) {
     busArrow(byId.gate, byId[app], 182);
   }
   straightArrow(byId.browser, byId.caddy);
   straightArrow(byId.caddy, byId.gate);
   verticalArrow(byId.nit, byId.oc, "api + sse");
 
-  for (const app of ["pero", "term", "drop", "docs", "sql"]) {
+  for (const app of ["pero", "term", "drop", "docs"]) {
     verticalArrow(byId[app], byId.ws);
   }
   verticalArrow(byId.oc, byId.ws);

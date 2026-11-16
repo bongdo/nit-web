@@ -311,8 +311,10 @@ export function issueAtCaret(
 export function grammarIssues(text: string, matches: GrammarMatch[]): SpellIssue[] {
   const result: SpellIssue[] = [];
   for (const match of matches) {
-    const start = Math.max(0, match.offset);
-    const end = Math.min(text.length, start + match.length);
+    let start = Math.max(0, match.offset);
+    let end = Math.min(text.length, start + match.length);
+    while (start < end && /\s/.test(text[start])) start += 1;
+    while (end > start && /\s/.test(text[end - 1])) end -= 1;
     if (end <= start) continue;
     const word = text.slice(start, end);
     const suggestions = Array.from(new Set(match.replacements))

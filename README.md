@@ -405,12 +405,12 @@ server, so hiding a chat or continuing a draft works on the next device.
   Dictation) or a browser extension types into it. Audio stays on the device and
   better STT can be added by the client without a server change.
 - Spelling is checked by an nspell worker in the browser for Russian and
-  English today. Misspelled words are red with a wavy underline; put the caret
-  in a word (or click it) and a gray `→ ...` chip shows replacements next to
-  it. Click a suggestion to apply it, or `ignore` to add the word to your
-  dictionary. `Esc` hides the chip, and Settings → Spelling & grammar turns
-  both checks off. On a touch screen the composer skips the custom underline
-  and the chip and leaves spelling to the system keyboard, so there is no
+  English today. Misspelled words are tinted red; put the caret in a word (or
+  click it) and a gray `→ ...` chip shows replacements next to it. Click a
+  suggestion to apply it, or `ignore` to add the word to your dictionary. `Esc`
+  hides the chip, and Settings → Spelling & grammar turns both checks off. On a
+  touch screen the composer skips the custom red tint and the chip and leaves
+  spelling to the system keyboard, so there is no
   overlap with its suggestions. Code blocks, inline code, URLs, paths, file
   names and known
   project terms are skipped. This is the last capability that still runs on
@@ -435,7 +435,7 @@ server, so hiding a chat or continuing a draft works on the next device.
   Settings → Auto-fix typos turns this off.
 - The personal dictionary grows from `ignore`, from undoing an auto-fix, and
   from words you send three times while they are still flagged. This is how
-  project terms and names stop being underlined.
+  project terms and names stop being tinted red.
 - A permission request from the agent appears as a card above the composer:
   `Allow once`, `Always` or `Reject`, with an optional rejection reason. A
   request in a background chat shows the waiting marker and desktop

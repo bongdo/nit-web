@@ -106,12 +106,7 @@ export const ComposerHighlights = forwardRef<
       <span
         key={`${issue.start}:${issue.end}`}
         ref={isActive ? activeRef : undefined}
-        style={{
-          textDecorationLine: "underline",
-          textDecorationStyle: "wavy",
-          textDecorationColor: "var(--destructive)",
-          textDecorationSkipInk: "none",
-        }}
+        style={{ color: "color-mix(in oklab, var(--destructive) 80%, var(--foreground))" }}
       >
         {value.slice(issue.start, issue.end)}
       </span>,

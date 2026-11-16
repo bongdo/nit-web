@@ -175,6 +175,25 @@ describe("spell", () => {
     ]);
   });
 
+  it("drops whitespace around grammar matches and empty ranges", () => {
+    const text = "привет мир \n";
+    const issues = grammarIssues(text, [
+      { offset: 6, length: 5, message: "space", ruleID: "X", replacements: ["мир!"] },
+      { offset: 11, length: 2, message: "blank", ruleID: "X", replacements: ["x"] },
+    ]);
+    expect(issues).toEqual([
+      {
+        start: 7,
+        end: 10,
+        word: "мир",
+        suggestions: ["мир!"],
+        language: "ru",
+        source: "grammar",
+        message: "space",
+      },
+    ]);
+  });
+
   it("prefers spelling issues when grammar matches overlap them", () => {
     const spelling = findIssues("я хочю", ru, en);
     const grammar = grammarIssues("я хочю", [

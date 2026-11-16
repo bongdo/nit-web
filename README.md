@@ -420,8 +420,10 @@ server, so hiding a chat or continuing a draft works on the next device.
   the client; it is scheduled to move behind `/api/spell` on Frankfurt.
 - Grammar is optional: when a LanguageTool sidecar is configured on Frankfurt,
   the same chip also shows punctuation and real-word fixes (`too` → `to`) from
-  the host's Java process. Without it, only spelling runs. The draft goes to
-  that host process, never to a cloud service.
+  the host's Java process. A fix that only inserts punctuation at the end of
+  what you typed (`ситуация где` → `ситуация, где`) is applied as soon as the
+  check returns; Backspace undoes it. Without the sidecar, only spelling runs.
+  The draft goes to that host process, never to a cloud service.
 - Speech output uses the host. The reply `Read` button speaks through the
   host: `piper` streams raw audio sentence by sentence, so the first sound
   arrives in about a second instead of after the whole reply. If piper is

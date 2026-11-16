@@ -33,7 +33,7 @@
 
 <div class="wrap">
   <div>
-    <canvas id="map" width="960" height="470" aria-label="Схема приложений"></canvas>
+    <canvas id="map" width="960" height="560" aria-label="Схема приложений"></canvas>
     <div class="legend">
       <span><i></i>есть</span>
       <span class="dash"><i></i>предложено</span>
@@ -104,14 +104,24 @@ const nodes = [
     role:"Единственный общий канал данных: агент, редактор, терминал и новые приложения видят одни файлы.",
     owns:["код, данные, артефакты"],
     not:["не API"],
-    talks:"все читают и пишут напрямую" }
+    talks:"все читают и пишут напрямую" },
+  { id:"hermes", label:"hermes", sub:"телеграм, cron, память", x:25, y:470, w:300, h:52,
+    role:"Отдельный агент со своим гейтвеем: сообщения, расписания, напоминания. Сейчас установлен, но не запущен.",
+    owns:["свой gateway и каналы", "cron и webhook", "память и скиллы"],
+    not:["не UI и не редактор", "не часть nit и не второй движок чата"],
+    talks:"мессенджер; папка и notify — единственные швы" },
+  { id:"mila", label:"второй nit", sub:"свой профиль, без кода", x:640, y:470, w:250, h:52, proposed:true,
+    role:"Предложено: изолированный профиль для второго человека — свои сессии, папка, модель и агент без терминала.",
+    owns:["свою папку и сессии", "свой агент и модель"],
+    not:["не видит рабочий workspace", "не получает доступ к pero и term"],
+    talks:"папка; вход через отдельный профиль гейта" }
 ];
 
 const byId = Object.fromEntries(nodes.map(n => [n.id, n]));
 const canvas = document.getElementById("map");
 const ctx = canvas.getContext("2d");
 const side = document.getElementById("side");
-const W = 960, H = 470;
+const W = 960, H = 560;
 let hover = null;
 
 const color = () => getComputedStyle(canvas).color;
@@ -239,6 +249,24 @@ function seam(source, target, drop, label) {
   ctx.restore();
 }
 
+function plainLink(source, target) {
+  const sx = source.x + source.w / 2;
+  const sy = source.y + source.h;
+  const tx = target.x + target.w / 2;
+  const ty = target.y;
+  const active = hover === source.id || hover === target.id;
+  ctx.save();
+  ctx.strokeStyle = color();
+  ctx.globalAlpha = active ? 0.7 : 0.28;
+  ctx.lineWidth = active ? 1.6 : 1.1;
+  ctx.setLineDash([4, 4]);
+  ctx.beginPath();
+  ctx.moveTo(sx, sy);
+  ctx.lineTo(tx, ty);
+  ctx.stroke();
+  ctx.restore();
+}
+
 function nodeBox(node) {
   const active = hover === node.id;
   ctx.save();
@@ -280,6 +308,8 @@ function draw() {
   verticalArrow(byId.oc, byId.ws);
 
   seam(byId.nit, byId.pero, 292, "?open=");
+  plainLink(byId.ws, byId.hermes);
+  plainLink(byId.ws, byId.mila);
 
   for (const node of nodes) nodeBox(node);
 }

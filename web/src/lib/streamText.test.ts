@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { revealWords } from "./streamText";
+import { revealChar, revealWords } from "./streamText";
 
 describe("revealWords", () => {
   it("reveals whole words and their trailing space", () => {
@@ -32,5 +32,14 @@ describe("revealWords", () => {
   it("stops at the end", () => {
     expect(revealWords("done.", 5)).toBe(5);
     expect(revealWords("", 0)).toBe(0);
+  });
+});
+
+describe("revealChar", () => {
+  it("advances one character without splitting an emoji", () => {
+    expect(revealChar("a😀b", 0)).toBe(1);
+    expect(revealChar("a😀b", 1)).toBe(3);
+    expect(revealChar("a😀b", 3)).toBe(4);
+    expect(revealChar("done", 4)).toBe(4);
   });
 });

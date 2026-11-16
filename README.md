@@ -689,12 +689,13 @@ nspell worker. It is not implemented yet.
   boot screens also have `Switch instance`. The menu creates, edits and deletes
   instances; saving writes `instances.json` on the host.
 - Streaming text is revealed at a steady pace instead of jumping by network
-  chunk: only whole words are revealed, the newest words blur and rise into
-  place, and the transcript follows with a short eased chase. Only the tail
-  block animates; code blocks and inline code stay still. HTML previews and
-  inline pages wait until the streaming part stops, so an iframe is not rebuilt
-  for every token. Reasoning and tool calls are collapsed by default; code copy,
-  GFM tables and task lists stay.
+  chunk: only whole words are revealed, the tail fades under a soft bottom mask,
+  and the transcript follows with a short eased chase. Completed markdown blocks
+  are memoized, so the whole answer is not re-parsed on every chunk; code blocks
+  and inline code stay still. HTML previews and inline pages wait until the
+  streaming part stops, so an iframe is not rebuilt for every token. Reasoning
+  and tool calls are collapsed by default; code copy, GFM tables and task lists
+  stay.
 - HTML answers: an agent or user can reference a workspace page as
   `[[html:pages/chart.html|Title]]` on its own line. The chat reads the file
   through `/api/artifact` and renders it inline as part of the reply; the marker

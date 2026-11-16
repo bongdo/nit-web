@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { REVEAL_FRAME_MS, revealWords } from "../lib/streamText";
+import { REVEAL_FRAME_MS, revealChar, revealWords } from "../lib/streamText";
 
 export function useSmoothText(text: string, live: boolean): string {
   const [shown, setShown] = useState(text);
@@ -8,6 +8,7 @@ export function useSmoothText(text: string, live: boolean): string {
   const running = useRef(live);
   const frame = useRef<number | null>(null);
   const lastAt = useRef(0);
+  const stalledAt = useRef(0);
 
   const stop = () => {
     if (frame.current !== null) {
@@ -18,6 +19,7 @@ export function useSmoothText(text: string, live: boolean): string {
 
   const settle = () => {
     stop();
+    stalledAt.current = 0;
     current.current = target.current;
     setShown(target.current);
   };
@@ -33,10 +35,19 @@ export function useSmoothText(text: string, live: boolean): string {
       return;
     }
     lastAt.current = now;
-    const next = revealWords(target.current, current.current.length);
+    let next = revealWords(target.current, current.current.length);
+    if (next === current.current.length && current.current.length < target.current.length) {
+      if (stalledAt.current === 0) stalledAt.current = now;
+      else if (now - stalledAt.current > 250) {
+        next = revealChar(target.current, current.current.length);
+      }
+    } else {
+      stalledAt.current = 0;
+    }
     if (next !== current.current.length) {
       current.current = target.current.slice(0, next);
       setShown(current.current);
+      stalledAt.current = 0;
     }
     if (current.current.length < target.current.length) {
       frame.current = requestAnimationFrame(step);

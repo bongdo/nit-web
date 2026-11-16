@@ -10,6 +10,14 @@ function boundary(text: string, at: number): boolean {
   return TERMINAL.test(text[at - 1]) && /\s/.test(text[at]);
 }
 
+export function revealChar(text: string, shown: number): number {
+  if (shown >= text.length) return shown;
+  let next = shown + 1;
+  const code = text.charCodeAt(next - 1);
+  if (next < text.length && code >= 0xd800 && code <= 0xdbff) next += 1;
+  return next;
+}
+
 export function revealWords(text: string, shown: number): number {
   if (shown >= text.length) return shown;
   const gap = text.length - shown;

@@ -35,11 +35,9 @@ const identityKey ctxKey = 1
 type Server struct {
 	routes  *Routes
 	users   *Store
-	agents  *Agents
 	devices *Devices
 	audit   *Audit
 	drops   *drop.Store
-	hub     *agentHub
 	qr      *qrStore
 	health  healthCache
 	secret  []byte
@@ -52,7 +50,7 @@ type Server struct {
 	last    map[string]time.Time
 }
 
-func New(routes *Routes, users *Store, agents *Agents, secret []byte, log *slog.Logger, devices ...*Devices) *Server {
+func New(routes *Routes, users *Store, secret []byte, log *slog.Logger, devices ...*Devices) *Server {
 	if log == nil {
 		log = slog.Default()
 	}
@@ -71,9 +69,7 @@ func New(routes *Routes, users *Store, agents *Agents, secret []byte, log *slog.
 	return &Server{
 		routes:  routes,
 		users:   users,
-		agents:  agents,
 		devices: deviceStore,
-		hub:     newAgentHub(),
 		qr:      newQRStore(),
 		secret:  secret,
 		log:     log,
@@ -119,12 +115,8 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /account/devices/rename", s.accountDeviceRename)
 	mux.HandleFunc("GET /i/{token}", s.invitePage)
 	mux.HandleFunc("POST /i/{token}", s.inviteSubmit)
-	mux.HandleFunc("GET /agent", s.agentSocket)
-	mux.HandleFunc("GET /api/agents", s.machines)
 	mux.HandleFunc("GET /preview/{prefix}", s.previewProxy)
 	mux.HandleFunc("GET /previews/{name}", s.previewImage)
-	mux.HandleFunc("/i/{machine}/{target}", s.instanceProxy)
-	mux.HandleFunc("/i/{machine}/{target}/{rest...}", s.instanceProxy)
 	mux.HandleFunc("/", s.proxy)
 	return s.security(mux)
 }
@@ -168,7 +160,7 @@ func isLoopback(remote string) bool {
 }
 
 func wantsJSON(r *http.Request) bool {
-	if strings.HasPrefix(r.URL.Path, "/i/") || strings.HasPrefix(r.URL.Path, "/api/") {
+	if strings.HasPrefix(r.URL.Path, "/api/") {
 		return true
 	}
 	if strings.Contains(strings.ToLower(r.Header.Get("Accept")), "application/json") {

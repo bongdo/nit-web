@@ -136,9 +136,8 @@ Missing or empty means one auto-discovered local instance named `local`.
   lists the instance's own projects.
 - `peroURL` and `termURL` are that machine's own editor and terminal, opened by
   the editor chips and the terminal link. They are shown for every instance.
-  Empty or missing means `/i/<name>/pero/` and `/i/<name>/term/` for a bridge
-  instance, and the host-wide `NIT_GUI_PERO_URL` / `NIT_GUI_TERM_URL` default for
-  a local or direct-URL instance. Each value is either an absolute `http(s)` URL
+  Empty or missing means the host-wide `NIT_GUI_PERO_URL` /
+  `NIT_GUI_TERM_URL` default. Each value is either an absolute `http(s)` URL
   without credentials or a path starting with `/` on the nit-gui origin.
 - Names must match `^[A-Za-z0-9._-]{1,64}$` and be unique. The first instance is
   the default.

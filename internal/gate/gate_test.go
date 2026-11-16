@@ -84,15 +84,11 @@ func testServerDevices(t *testing.T, seen *http.Header) (*httptest.Server, *Stor
 	}))
 	t.Cleanup(upstream.Close)
 	store := testStore(t)
-	agents, err := OpenAgents(filepath.Join(t.TempDir(), "agents.json"))
-	if err != nil {
-		t.Fatal(err)
-	}
 	devices, err := OpenDevices(filepath.Join(t.TempDir(), "devices.json"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	server := httptest.NewServer(New(testRoutes(t, upstream.URL), store, agents, []byte(testKey), nil, devices).Handler())
+	server := httptest.NewServer(New(testRoutes(t, upstream.URL), store, []byte(testKey), nil, devices).Handler())
 	t.Cleanup(server.Close)
 	return server, store, devices
 }
@@ -395,7 +391,7 @@ func TestServiceIdentityIgnoredOffLoopback(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	}))
 	defer upstream.Close()
-	handler := New(testRoutes(t, upstream.URL), testStore(t), testAgents(t), []byte(testKey), nil).Handler()
+	handler := New(testRoutes(t, upstream.URL), testStore(t), []byte(testKey), nil).Handler()
 
 	id := gateid.Identity{
 		User: "nit-gui",
@@ -921,15 +917,11 @@ func TestLoginWritesAudit(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	}))
 	defer upstream.Close()
-	agents, err := OpenAgents(filepath.Join(t.TempDir(), "agents.json"))
-	if err != nil {
-		t.Fatal(err)
-	}
 	devices, err := OpenDevices(filepath.Join(t.TempDir(), "devices.json"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	gateServer := New(testRoutes(t, upstream.URL), testStore(t), agents, []byte(testKey), nil, devices)
+	gateServer := New(testRoutes(t, upstream.URL), testStore(t), []byte(testKey), nil, devices)
 	audit := OpenAudit(filepath.Join(t.TempDir(), "audit.jsonl"))
 	gateServer.SetAudit(audit)
 	server := httptest.NewServer(gateServer.Handler())

@@ -1,5 +1,30 @@
 # Decisions
 
+## 2026-11-16 — The bridge is deleted; the gate is a door to home apps
+
+Context: the reverse-tunnel rule made a machine an ssh target, but the bridge was
+still running on each machine and the gate still carried its protocol, machine
+registry, tokens, framing proxy and terminal plan.
+
+Decision: delete `cmd/bridge`, `bin/bridge`, `internal/gate/agent*.go`,
+`agents.go`, the `/agent`, `/api/agents` and `/i/<machine>/...` routes, the
+`gate token` command and the gate WebSocket code. The gate keeps users, roles,
+routes and `/nit`, `/pero`, `/term`, `/share`. A machine that runs an opencode
+server is reached by nit-gui's `ssh` instance transport (`ssh <host>` discovers the
+service, reads its password, forwards a port), not through the gate.
+
+Why: ssh already does shell, files and forwarding; every capability the bridge
+grew was a second implementation with its own protocol, updater and token store.
+
+Rejected: keeping the bridge for machines without ssh (nothing here needs it);
+proxying another machine's pero/term through `/i/` (home apps take a URL, a
+machine takes ssh).
+
+Cost: `NIT_GUI_PERO_URL`/`NIT_GUI_TERM_URL` are the only per-machine app links
+left, so a machine's own editor and terminal are not reachable through the gate.
+`~/.config/nit-gui/agents.json` is now dead state. This replaces 2026-11-15
+"The bridge is the gate's agent" and "The terminal lives inside the bridge".
+
 ## 2026-11-16 — A machine is an ssh target; the route is a reverse tunnel
 
 Context: the bridge is the only thing installed on a machine, but it re-implements

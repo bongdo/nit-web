@@ -35,7 +35,7 @@ on every device.
 | OpenCode | one per instance: `127.0.0.1:49374`, URL, or a local SSH forward | Sessions, messages, models, agents, provider credentials | yes |
 | nit-gui | `127.0.0.1:7791` | Go API, embedded web bundle, `/auth` login, instance registry, SSH tunnels, sessions and shared UI state | yes |
 | Caddy | `10.0.0.88:443` | Let's Encrypt TLS, forwards everything to the gate | yes |
-| gate | `127.0.0.1:8090` | Sessions, roles, route table, `/i/<machine>/<target>` for bridges | yes |
+| gate | `127.0.0.1:8090` | Sessions, roles, route table; proxies `/nit`, `/pero`, `/term`, `/share` | yes |
 | LanguageTool | `127.0.0.1:8180` | Grammar and real-word checks | optional |
 | OpenCode TTS plugin | `127.0.0.1:7787` target; currently `0.0.0.0:7787` | Speech text hub for an audio client; nit-gui publishes to it | optional |
 | `piper` | nit-gui host | Warm host voice worker; browser voice is the last fallback | optional |

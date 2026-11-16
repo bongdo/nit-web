@@ -1609,15 +1609,6 @@ func (s *Server) appLinks(name string) (string, string) {
 		if spec.TermURL != "" {
 			term = spec.TermURL
 		}
-		if spec.SSH != "" || strings.Contains(spec.URL, "/i/") {
-			bridge := "/i/" + url.PathEscape(name) + "/"
-			if spec.PeroURL == "" {
-				pero = bridge + "pero/"
-			}
-			if spec.TermURL == "" {
-				term = bridge + "term/"
-			}
-		}
 		break
 	}
 	return pero, term

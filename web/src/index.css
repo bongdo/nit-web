@@ -522,9 +522,7 @@
   }
 
   .markdown :not(pre) > code {
-    @apply rounded px-1.5 py-0.5 font-mono text-[0.85em];
-    color: color-mix(in oklab, var(--spark) 58%, currentColor);
-    background: color-mix(in oklab, var(--spark) 8%, transparent);
+    @apply bg-muted text-foreground rounded px-1.5 py-0.5 font-mono text-[0.85em];
   }
 
   .markdown a.md-file {
@@ -532,6 +530,8 @@
   }
 
   .markdown a.md-file code {
+    color: color-mix(in oklab, var(--spark) 58%, currentColor);
+    background: color-mix(in oklab, var(--spark) 9%, transparent);
     text-decoration: underline dotted;
     text-decoration-color: color-mix(in oklab, var(--spark) 35%, transparent);
     text-underline-offset: 3px;
@@ -539,7 +539,7 @@
   }
 
   .markdown a.md-file:hover code {
-    background: color-mix(in oklab, var(--spark) 16%, transparent);
+    background: color-mix(in oklab, var(--spark) 17%, transparent);
     text-decoration-color: color-mix(in oklab, var(--spark) 70%, transparent);
   }
 

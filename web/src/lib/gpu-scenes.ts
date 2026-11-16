@@ -221,56 +221,72 @@ void scene(vec2 p, vec2 cell, out vec4 color) {
 `;
 
 const BUTTERFLY = `
+float ellipseDist(vec2 p, vec2 r) {
+  return (length(p / r) - 1.0) * min(r.x, r.y);
+}
+
+float segmentDist(vec2 p, vec2 a, vec2 b) {
+  vec2 pa = p - a;
+  vec2 ba = b - a;
+  float h = clamp(dot(pa, ba) / dot(ba, ba), 0.0, 1.0);
+  return length(pa - ba * h);
+}
+
 void scene(vec2 p, vec2 cell, out vec4 color) {
   float t = uT;
-  float flap = 0.35 + 0.65 * abs(sin(t * 1.4));
+  float flap = 0.35 + 0.65 * abs(sin(t * 1.5));
   vec2 q = vec2(abs(p.x), p.y);
-  vec2 upper = q - vec2(0.075 * flap, -0.062);
-  vec2 lower = q - vec2(0.055 * flap, 0.052);
-  float u = length(normalize(upper + vec2(0.0001)) * length(upper) / vec2(0.072 * flap + 0.001, 0.058));
-  float l = length(lower / vec2(0.048 * flap + 0.001, 0.042));
-  float gap = sm((q.x - 0.008) * 90.0);
-  float outline = (smoothstep(0.09, 0.0, abs(u - 1.0)) + smoothstep(0.11, 0.0, abs(l - 1.0))) * gap;
-  float fill = (smoothstep(1.0, 0.1, u) * 0.22 + smoothstep(1.0, 0.1, l) * 0.16) * gap;
-  float ribs = (smoothstep(0.05, 0.0, abs(fract(atan(q.y + 0.06, q.x) * 3.2) - 0.5) - 0.4)
-              * smoothstep(1.0, 0.4, u) * gap) * 0.35;
-  float body = smoothstep(0.01, 0.0, abs(p.x)) * smoothstep(0.1, 0.03, abs(p.y));
+  float upper = ellipseDist(q - vec2(0.12 * flap, -0.085), vec2(0.105 * flap, 0.082));
+  float lower = ellipseDist(q - vec2(0.085 * flap, 0.075), vec2(0.072 * flap, 0.058));
+  float wing = min(upper, lower);
+  float aside = sm((q.x - 0.014) * 120.0);
+  float outline = smoothstep(0.009, 0.0, abs(wing)) * aside;
+  float fill = sm(-wing / 0.08) * 0.1 * aside;
+  float spot = smoothstep(0.012, 0.0, abs(ellipseDist(q - vec2(0.15 * flap, -0.1), vec2(0.03, 0.026)))) * aside;
+  float body = smoothstep(0.011, 0.0, abs(p.x)) * smoothstep(0.17, 0.04, abs(p.y)) * 0.95;
+  float head = smoothstep(0.016, 0.0, length(p - vec2(0.0, -0.145)));
   float antenna = 0.0;
   for (int i = 0; i < 2; i++) {
     float side = i == 0 ? -1.0 : 1.0;
-    float a = smoothstep(0.006, 0.0, abs(p.x - side * 0.06 * (-p.y - 0.1) * 8.0 + side * 0.0))
-            * smoothstep(-0.12, -0.13, p.y) * smoothstep(-0.23, -0.17, p.y);
-    antenna += a;
+    antenna += smoothstep(0.005, 0.0,
+      segmentDist(p, vec2(0.0, -0.15), vec2(side * 0.075, -0.245)));
   }
-  float heat = max(outline, max(fill, max(ribs, max(body, antenna * 0.9))));
+  float heat = max(outline, max(fill, max(spot * 0.8, max(body, max(head, antenna * 0.85)))));
   color = emit(heat, uAccent, hash21(cell) * 12.0);
 }
 `;
 
 const FISH = `
+float segDist(vec2 p, vec2 a, vec2 b) {
+  vec2 pa = p - a;
+  vec2 ba = b - a;
+  float h = clamp(dot(pa, ba) / dot(ba, ba), 0.0, 1.0);
+  return length(pa - ba * h);
+}
+
 void scene(vec2 p, vec2 cell, out vec4 color) {
   float t = uT;
   float heat = 0.0;
   for (int i = 0; i < 3; i++) {
     float fi = float(i);
-    float dir = i == 1 ? -1.0 : 1.0;
-    float scale = 0.7 + 0.3 * fi;
-    float span = uAspect + 0.6;
-    float travel = mod(t * (0.04 + 0.015 * fi) + fi * 0.37, 1.0);
+    float dir = (i == 1 || i == 2) ? -1.0 : 1.0;
+    float depth = 0.75 + 0.18 * fi;
+    float span = uAspect + 0.7;
+    float travel = mod(t * (0.035 + 0.012 * fi) + fi * 0.29, 1.0);
     float x = (dir > 0.0 ? travel : 1.0 - travel) * span - span * 0.5;
-    float y = 0.28 * sin(fi * 2.3 + 1.2) + 0.04 * sin(t * 0.9 + fi);
-    vec2 d = (p - vec2(x, y)) / scale;
+    float y = 0.3 * sin(fi * 1.9 + 0.6) + 0.03 * sin(t * 1.1 + fi * 2.0);
+    vec2 d = (p - vec2(x, y)) / depth;
     d.x *= dir;
-    d.y -= 0.02 * sin(d.x * 22.0 - t * 6.0 + fi) * sm((0.09 - d.x) * 12.0);
-    vec2 b = d / vec2(0.085, 0.032);
-    float outline = smoothstep(0.2, 0.0, abs(length(b) - 1.0));
-    float fill = smoothstep(1.0, 0.15, length(b)) * 0.22;
-    float back = d.x + 0.16;
-    float edge = abs(abs(d.y) - max(back, 0.0) * 0.34);
-    float tail = smoothstep(0.014, 0.0, edge) * step(d.x, -0.05) * step(-0.16, d.x);
-    float eye = smoothstep(0.013, 0.0, length(d - vec2(0.052, -0.002)));
-    float f = max(outline, max(fill, max(tail * 0.85, eye)));
-    heat = max(heat, f * (0.55 + 0.45 * scale));
+    d.y -= 0.014 * sin(d.x * 26.0 - t * 7.0 + fi) * sm((0.06 - d.x) * 14.0);
+    float body = (length(d / vec2(0.115, 0.068)) - 1.0) * 0.068;
+    float outline = smoothstep(0.009, 0.0, abs(body));
+    float fill = sm(-body * 26.0) * 0.5;
+    vec2 root = vec2(-0.095, 0.0);
+    float tail = min(segDist(d, root, vec2(-0.215, 0.062)), segDist(d, root, vec2(-0.215, -0.062)));
+    float tailLine = smoothstep(0.012, 0.0, tail);
+    float eye = smoothstep(0.011, 0.0, length(d - vec2(0.062, -0.008)));
+    float f = max(outline, max(fill, max(tailLine * 0.85, eye)));
+    heat = max(heat, f * (0.55 + 0.45 * depth));
   }
   color = emit(heat, uAccent, hash21(cell) * 12.0);
 }
@@ -285,7 +301,7 @@ float torusSdf(vec3 q) {
 }
 
 vec3 torusNormal(vec3 p) {
-  float e = 0.002;
+  float e = 0.01;
   return normalize(vec3(
     torusSdf(p + vec3(e, 0.0, 0.0)) - torusSdf(p - vec3(e, 0.0, 0.0)),
     torusSdf(p + vec3(0.0, e, 0.0)) - torusSdf(p - vec3(0.0, e, 0.0)),
@@ -443,9 +459,9 @@ void main() {
 
   if (uKind == 7) {
     vec2 d = px - cursor;
-    float ring = smoothstep(300.0, 120.0, length(d)) * uPower * cover;
-    alpha = max(alpha, ring * 0.6);
-    col = mix(col, uAccent, step(0.001, ring));
+    float ring = smoothstep(320.0, 40.0, length(d)) * uPower * cover;
+    alpha = ring * 0.75;
+    col = uAccent;
   } else {
     float base = (bestIndex - 1.0) * gap;
     float near = exp(-sq((base - cursor.y) / 141.0)) * uPower;

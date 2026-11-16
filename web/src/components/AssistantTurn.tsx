@@ -285,24 +285,37 @@ export const AssistantTurn = memo(function AssistantTurn({
                     {segment.text.trim() !== "" && (
                       <Markdown text={segment.text} streaming={live} />
                     )}
-                    {segment.artifacts.map((artifact) =>
-                      "source" in artifact ? (
+                    {segment.artifacts.map((artifact) => {
+                      const key =
+                        "source" in artifact ? `source-${segmentIndex}` : artifact.path;
+                      if (live) {
+                        return (
+                          <div
+                            key={key}
+                            className="text-muted-foreground my-3 flex items-center gap-2 text-xs"
+                          >
+                            <Loader2 className="size-3.5 animate-spin" />
+                            Page appears when the reply finishes…
+                          </div>
+                        );
+                      }
+                      return "source" in artifact ? (
                         <HtmlArtifact
-                          key={`source-${segmentIndex}`}
+                          key={key}
                           source={artifact.source}
                           sessionID={sessionID}
                           instance={instance}
                         />
-                      ) : !live ? (
+                      ) : (
                         <HtmlArtifact
-                          key={artifact.path}
+                          key={key}
                           path={artifact.path}
                           title={artifact.title}
                           sessionID={sessionID}
                           instance={instance}
                         />
-                      ) : null,
-                    )}
+                      );
+                    })}
                   </div>
                 ))
               )}

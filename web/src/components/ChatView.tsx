@@ -17,7 +17,6 @@ import {
 } from "lucide-react";
 import type { Agent, Instance, Message, Model, Project, Session } from "../lib/types";
 import {
-  anchorIndex,
   BOTTOM_GAP,
   isAtTop,
   shouldLoadEarlier,
@@ -75,6 +74,24 @@ function findRow(rows: HTMLDivElement | null, messageID: string): HTMLElement | 
     if (element.dataset.messageId === messageID) return element;
   }
   return null;
+}
+
+function rowAtTop(rows: HTMLDivElement, top: number): { row: HTMLElement; offset: number } | null {
+  let low = 0;
+  let high = rows.children.length - 1;
+  let found: { row: HTMLElement; offset: number } | null = null;
+  while (low <= high) {
+    const middle = (low + high) >> 1;
+    const row = rows.children[middle] as HTMLElement;
+    const rect = row.getBoundingClientRect();
+    if (rect.bottom > top) {
+      found = { row, offset: rect.top - top };
+      high = middle - 1;
+    } else {
+      low = middle + 1;
+    }
+  }
+  return found;
 }
 
 export function ChatView({
@@ -287,19 +304,11 @@ export function ChatView({
     }
     const rows = rowsRef.current;
     if (!rows) return;
-    const viewportTop = element.getBoundingClientRect().top;
-    const tops: number[] = [];
-    const bottoms: number[] = [];
-    for (const row of rows.children) {
-      const rect = row.getBoundingClientRect();
-      tops.push(rect.top);
-      bottoms.push(rect.bottom);
-    }
-    const index = anchorIndex(bottoms, viewportTop);
-    if (index < 0) return;
+    const anchor = rowAtTop(rows, element.getBoundingClientRect().top);
+    if (!anchor) return;
     anchors.current.set(sessionID, {
-      messageID: (rows.children[index] as HTMLElement).dataset.messageId ?? "",
-      offset: tops[index] - viewportTop,
+      messageID: anchor.row.dataset.messageId ?? "",
+      offset: anchor.offset,
       bottom: false,
     });
   };

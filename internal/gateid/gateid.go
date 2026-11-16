@@ -41,6 +41,7 @@ type Identity struct {
 	Caps []string `json:"c"`
 	Exp  int64    `json:"exp"`
 	Dev  string   `json:"d,omitempty"`
+	Temp bool     `json:"t,omitempty"`
 }
 
 func Caps(role string) []string {

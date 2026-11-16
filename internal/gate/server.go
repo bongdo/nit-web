@@ -193,16 +193,20 @@ func (s *Server) session(w http.ResponseWriter, r *http.Request) (gateid.Identit
 			return gateid.Identity{}, false
 		}
 		s.devices.Touch(id.Dev, clientIP(r))
-		s.ensureAppSession(w, r)
+		s.ensureAppSession(w, r, !id.Temp)
+		return id, true
+	}
+	if id.Temp {
+		s.ensureAppSession(w, r, false)
 		return id, true
 	}
 	if device, err := s.deviceFor(w, r, id.User); err == nil {
 		id.Dev = device.ID
-		s.setSession(w, r, id)
+		s.setSession(w, r, id, true)
 	} else {
 		s.log.Warn("gate device add", "error", err)
 	}
-	s.ensureAppSession(w, r)
+	s.ensureAppSession(w, r, true)
 	return id, true
 }
 
@@ -218,21 +222,24 @@ func (s *Server) deviceFor(w http.ResponseWriter, r *http.Request, user string) 
 	return device, nil
 }
 
-func (s *Server) startSession(w http.ResponseWriter, r *http.Request, user User) {
+func (s *Server) startSession(w http.ResponseWriter, r *http.Request, user User, temp bool) {
 	id := gateid.Identity{
 		User: user.Name,
 		Role: user.Role,
 		Caps: gateid.Caps(user.Role),
 		Exp:  s.now().Add(sessionTTL).Unix(),
+		Temp: temp,
 	}
-	device, err := s.deviceFor(w, r, user.Name)
-	if err != nil {
-		s.log.Warn("gate device add", "error", err)
-	} else {
-		id.Dev = device.ID
+	if !temp {
+		device, err := s.deviceFor(w, r, user.Name)
+		if err != nil {
+			s.log.Warn("gate device add", "error", err)
+		} else {
+			id.Dev = device.ID
+		}
 	}
-	s.setSession(w, r, id)
-	s.ensureAppSession(w, r)
+	s.setSession(w, r, id, !temp)
+	s.ensureAppSession(w, r, !temp)
 }
 
 func (s *Server) setDeviceCookie(w http.ResponseWriter, r *http.Request, id string) {
@@ -247,16 +254,19 @@ func (s *Server) setDeviceCookie(w http.ResponseWriter, r *http.Request, id stri
 	})
 }
 
-func (s *Server) setSession(w http.ResponseWriter, r *http.Request, id gateid.Identity) {
-	http.SetCookie(w, &http.Cookie{
+func (s *Server) setSession(w http.ResponseWriter, r *http.Request, id gateid.Identity, persist bool) {
+	cookie := &http.Cookie{
 		Name:     sessionCookie,
 		Value:    gateid.Sign(s.secret, id),
 		Path:     "/",
-		MaxAge:   int(sessionTTL.Seconds()),
 		HttpOnly: true,
 		Secure:   s.secure(r),
 		SameSite: http.SameSiteLaxMode,
-	})
+	}
+	if persist {
+		cookie.MaxAge = int(sessionTTL.Seconds())
+	}
+	http.SetCookie(w, cookie)
 }
 
 func (s *Server) stopSession(w http.ResponseWriter, r *http.Request) {

@@ -2,6 +2,7 @@ package gate
 
 import (
 	"crypto/rand"
+	"crypto/subtle"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -34,12 +35,15 @@ var (
 )
 
 type User struct {
-	Name    string `json:"name"`
-	Role    string `json:"role"`
-	Status  string `json:"status"`
-	Hash    string `json:"hash,omitempty"`
-	Token   string `json:"token,omitempty"`
-	Created int64  `json:"created"`
+	Name     string   `json:"name"`
+	Role     string   `json:"role"`
+	Status   string   `json:"status"`
+	Hash     string   `json:"hash,omitempty"`
+	Token    string   `json:"token,omitempty"`
+	Created  int64    `json:"created"`
+	TOTP     string   `json:"totp,omitempty"`
+	TOTPStep int64    `json:"totp_step,omitempty"`
+	Recovery []string `json:"recovery,omitempty"`
 }
 
 type Store struct {
@@ -234,6 +238,65 @@ func (s *Store) SetPasswordHash(name string, password string) error {
 	user.Hash = hash
 	s.users[user.Name] = user
 	return s.save()
+}
+
+func (s *Store) SetTOTP(name, secret string, recovery []string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	user, ok := s.users[normalizeName(name)]
+	if !ok {
+		return ErrUnknownUser
+	}
+	user.TOTP = secret
+	user.TOTPStep = 0
+	user.Recovery = recovery
+	s.users[user.Name] = user
+	return s.save()
+}
+
+func (s *Store) ClearTOTP(name string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	user, ok := s.users[normalizeName(name)]
+	if !ok {
+		return ErrUnknownUser
+	}
+	user.TOTP = ""
+	user.TOTPStep = 0
+	user.Recovery = nil
+	s.users[user.Name] = user
+	return s.save()
+}
+
+func (s *Store) UseTOTPStep(name string, step int64) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	user, ok := s.users[normalizeName(name)]
+	if !ok {
+		return ErrUnknownUser
+	}
+	user.TOTPStep = step
+	s.users[user.Name] = user
+	return s.save()
+}
+
+func (s *Store) ConsumeRecovery(name, code string) (bool, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	user, ok := s.users[normalizeName(name)]
+	if !ok {
+		return false, ErrUnknownUser
+	}
+	want := hashRecovery(code)
+	for i, stored := range user.Recovery {
+		if subtle.ConstantTimeCompare([]byte(stored), []byte(want)) != 1 {
+			continue
+		}
+		user.Recovery = append(append([]string{}, user.Recovery[:i]...), user.Recovery[i+1:]...)
+		s.users[user.Name] = user
+		return true, s.save()
+	}
+	return false, nil
 }
 
 func (s *Store) Authenticate(name string, password string) (User, bool) {

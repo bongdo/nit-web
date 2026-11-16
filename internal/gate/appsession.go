@@ -51,7 +51,7 @@ func appSessionValid(hash, token string, now time.Time) bool {
 	return hmac.Equal([]byte(parts[2]), []byte(base64.RawURLEncoding.EncodeToString(mac.Sum(nil))))
 }
 
-func (s *Server) ensureAppSession(w http.ResponseWriter, r *http.Request) {
+func (s *Server) ensureAppSession(w http.ResponseWriter, r *http.Request, persist bool) {
 	hash := appPasswordHash()
 	if hash == "" {
 		return
@@ -59,13 +59,16 @@ func (s *Server) ensureAppSession(w http.ResponseWriter, r *http.Request) {
 	if cookie, err := r.Cookie(appSessionCookie); err == nil && appSessionValid(hash, cookie.Value, s.now()) {
 		return
 	}
-	http.SetCookie(w, &http.Cookie{
+	cookie := &http.Cookie{
 		Name:     appSessionCookie,
 		Value:    appSessionToken(hash, s.now().Add(sessionTTL)),
 		Path:     "/",
-		MaxAge:   int(sessionTTL.Seconds()),
 		HttpOnly: true,
 		Secure:   s.secure(r),
 		SameSite: http.SameSiteLaxMode,
-	})
+	}
+	if persist {
+		cookie.MaxAge = int(sessionTTL.Seconds())
+	}
+	http.SetCookie(w, cookie)
 }

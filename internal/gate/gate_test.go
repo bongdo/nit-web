@@ -2,6 +2,7 @@ package gate
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/cookiejar"
@@ -1123,7 +1124,7 @@ func TestTempLoginKeepsNoDevice(t *testing.T) {
 	}
 }
 
-func TestLoginSecondFactor(t *testing.T) {
+func TestLoginByCodeOnly(t *testing.T) {
 	server, store, _ := testServerDevices(t, nil)
 	secret, err := newTOTPSecret()
 	if err != nil {
@@ -1134,35 +1135,23 @@ func TestLoginSecondFactor(t *testing.T) {
 	}
 	client := noRedirect(t)
 
-	resp, err := client.Post(server.URL+"/login", "application/x-www-form-urlencoded",
-		strings.NewReader("name=bongdo&password=secret-pass&next=/account"))
-	if err != nil {
-		t.Fatal(err)
+	passwordOnly := login(t, client, server.URL, "bongdo", "secret-pass")
+	if passwordOnly.StatusCode != http.StatusUnauthorized {
+		t.Fatalf("password without a code = %d, want 401", passwordOnly.StatusCode)
 	}
-	body, err := io.ReadAll(resp.Body)
-	resp.Body.Close()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("password step = %d", resp.StatusCode)
-	}
-	match := regexp.MustCompile(`name="pending" value="([^"]+)"`).FindStringSubmatch(string(body))
-	if match == nil {
-		t.Fatal("no pending token in the second step page")
-	}
+
 	code, err := totpAt(secret, totpStepOf(time.Now()))
 	if err != nil {
 		t.Fatal(err)
 	}
-	second, err := client.Post(server.URL+"/login", "application/x-www-form-urlencoded",
-		strings.NewReader("pending="+url.QueryEscape(match[1])+"&code="+code+"&next=/account"))
+	resp, err := client.Post(server.URL+"/login", "application/x-www-form-urlencoded",
+		strings.NewReader("name=bongdo&code="+code+"&next=/account"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	second.Body.Close()
-	if second.StatusCode != http.StatusSeeOther {
-		t.Fatalf("code step = %d", second.StatusCode)
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusSeeOther {
+		t.Fatalf("code login = %d", resp.StatusCode)
 	}
 	account, err := client.Get(server.URL + "/account")
 	if err != nil {
@@ -1170,7 +1159,63 @@ func TestLoginSecondFactor(t *testing.T) {
 	}
 	account.Body.Close()
 	if account.StatusCode != http.StatusOK {
-		t.Fatalf("account after 2FA = %d", account.StatusCode)
+		t.Fatalf("account after code login = %d", account.StatusCode)
+	}
+
+	replay, err := noRedirect(t).Post(server.URL+"/login", "application/x-www-form-urlencoded",
+		strings.NewReader("name=bongdo&code="+code+"&next=/account"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	replay.Body.Close()
+	if replay.StatusCode != http.StatusUnauthorized {
+		t.Fatalf("replayed code = %d, want 401", replay.StatusCode)
+	}
+}
+
+func TestWrongCodesBlockTheAccount(t *testing.T) {
+	server, store, _ := testServerDevices(t, nil)
+	secret, err := newTOTPSecret()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.SetTOTP("bongdo", secret, nil); err != nil {
+		t.Fatal(err)
+	}
+	client := noRedirect(t)
+	wrong, err := totpAt(secret, totpStepOf(time.Now()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	wrong = wrong[:5] + string("0123456789"[(int(wrong[5]-'0')+1)%10])
+
+	attempt := func(ip, code string) int {
+		req, err := http.NewRequest(http.MethodPost, server.URL+"/login",
+			strings.NewReader("name=bongdo&code="+code+"&next=/"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		req.Header.Set("X-Forwarded-For", ip)
+		resp, err := client.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		resp.Body.Close()
+		return resp.StatusCode
+	}
+
+	for i := 0; i < maxFailures; i++ {
+		if got := attempt(fmt.Sprintf("10.0.0.%d", i+1), wrong); got != http.StatusUnauthorized {
+			t.Fatalf("wrong code %d = %d, want 401", i+1, got)
+		}
+	}
+	right, err := totpAt(secret, totpStepOf(time.Now()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := attempt("10.0.0.99", right); got != http.StatusTooManyRequests {
+		t.Fatalf("correct code after %d wrong ones = %d, want 429", maxFailures, got)
 	}
 }
 

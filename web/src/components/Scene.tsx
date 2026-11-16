@@ -1,5 +1,7 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { cn } from "../lib/utils";
+import { GPU_VARIANTS, isGpuVariant, type GpuVariant } from "../lib/gpu-scenes";
+import { SceneGpu } from "./SceneGpu";
 
 const GAP = 24;
 const STEP = 5;
@@ -29,21 +31,35 @@ export const VARIANTS = [
 ] as const;
 
 export type SceneVariant = (typeof VARIANTS)[number];
-export type SceneSetting = SceneVariant | "random";
+export type SceneSetting = SceneVariant | GpuVariant | "random";
+export const SCENE_IDS: SceneSetting[] = [...VARIANTS, ...GPU_VARIANTS];
 
-export function Scene({
-  variant = "spotlight",
-  motion = "animated",
-  paused = false,
-  preview = false,
-  className,
-}: {
+type SceneProps = {
   variant?: SceneSetting;
   motion?: "animated" | "static";
   paused?: boolean;
   preview?: boolean;
   className?: string;
-}) {
+};
+
+export function Scene(props: SceneProps) {
+  const resolved = useMemo<SceneSetting>(() => {
+    if (props.variant && props.variant !== "random") return props.variant;
+    return SCENE_IDS[Math.floor(Math.random() * SCENE_IDS.length)];
+  }, [props.variant]);
+  if (isGpuVariant(resolved)) {
+    return <SceneGpu {...props} variant={resolved} />;
+  }
+  return <SceneCanvas {...props} variant={resolved as SceneVariant} />;
+}
+
+function SceneCanvas({
+  variant = "spotlight",
+  motion = "animated",
+  paused = false,
+  preview = false,
+  className,
+}: Omit<SceneProps, "variant"> & { variant?: SceneVariant }) {
   const ref = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
@@ -51,8 +67,7 @@ export function Scene({
     const context = canvas?.getContext("2d");
     if (!canvas || !context) return;
 
-    const chosen =
-      variant === "random" ? VARIANTS[Math.floor(Math.random() * VARIANTS.length)] : variant;
+    const chosen = variant ?? "spotlight";
     const still = motion === "static";
     const reduced =
       still || window.matchMedia("(prefers-reduced-motion: reduce)").matches;

@@ -347,55 +347,64 @@ func (s *Server) proxy(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) blockedIP(r *http.Request) (time.Duration, bool) {
-	ip := clientIP(r)
+	return s.blockedKey(clientIP(r))
+}
+
+func (s *Server) blockedKey(key string) (time.Duration, bool) {
 	now := s.now()
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	until, ok := s.blocked[ip]
+	until, ok := s.blocked[key]
 	if !ok {
 		return 0, false
 	}
 	if !now.Before(until) {
-		delete(s.blocked, ip)
-		delete(s.failed, ip)
+		delete(s.blocked, key)
+		delete(s.failed, key)
 		return 0, false
 	}
 	return until.Sub(now), true
 }
 
 func (s *Server) noteFailure(r *http.Request) {
-	ip := clientIP(r)
+	s.noteFailureKey(clientIP(r))
+}
+
+func (s *Server) noteFailureKey(key string) {
 	now := s.now()
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.failed[ip]++
-	if s.failed[ip] < maxFailures {
+	s.failed[key]++
+	if s.failed[key] < maxFailures {
 		return
 	}
-	if last, ok := s.last[ip]; !ok || now.Sub(last) > blockForget {
-		s.blocks[ip] = 0
+	if last, ok := s.last[key]; !ok || now.Sub(last) > blockForget {
+		s.blocks[key] = 0
 	}
 	wait := blockTime
-	for i := 0; i < s.blocks[ip] && wait < blockMax; i++ {
+	for i := 0; i < s.blocks[key] && wait < blockMax; i++ {
 		wait *= 2
 	}
 	if wait > blockMax {
 		wait = blockMax
 	}
-	s.blocks[ip]++
-	s.last[ip] = now
-	s.blocked[ip] = now.Add(wait)
-	s.failed[ip] = 0
+	s.blocks[key]++
+	s.last[key] = now
+	s.blocked[key] = now.Add(wait)
+	s.failed[key] = 0
 }
 
 func (s *Server) resetFailures(r *http.Request) {
-	ip := clientIP(r)
+	s.resetKey(clientIP(r))
+}
+
+func (s *Server) resetKey(key string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	delete(s.failed, ip)
-	delete(s.blocked, ip)
-	delete(s.blocks, ip)
-	delete(s.last, ip)
+	delete(s.failed, key)
+	delete(s.blocked, key)
+	delete(s.blocks, key)
+	delete(s.last, key)
 }
 
 func clientIP(r *http.Request) string {

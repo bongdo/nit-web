@@ -5,13 +5,10 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"net/http"
-	"net/url"
 	"strconv"
 	"strings"
 	"time"
 )
-
-const pendingTTL = 5 * time.Minute
 
 func (s *Server) loginPage(w http.ResponseWriter, r *http.Request) {
 	data := s.newNarrow(r, "вход")
@@ -24,95 +21,82 @@ func (s *Server) loginPage(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) loginSubmit(w http.ResponseWriter, r *http.Request) {
 	next := safeNext(r.PostFormValue("next"))
-	if pending := r.PostFormValue("pending"); pending != "" {
-		s.loginSecondFactor(w, r, pending, next)
-		return
-	}
 	name := r.PostFormValue("name")
+	code := strings.TrimSpace(r.PostFormValue("code"))
 	password := r.PostFormValue("password")
 	temp := r.PostFormValue("temp") != ""
-	user, ok := s.users.Authenticate(name, password)
+
+	account, exists := s.users.Get(name)
+	hasCode := exists && account.Status == StatusActive && account.TOTP != ""
+
+	if hasCode && code != "" {
+		if wait, blocked := s.blockedKey("u:" + account.Name); blocked {
+			s.loginError(w, r, next, name, "слишком много кодов, попробуйте через "+wait.Round(time.Second).String(), http.StatusTooManyRequests)
+			return
+		}
+	}
+
+	var user User
+	ok := false
+	switch {
+	case hasCode:
+		user = account
+		ok = s.consumeCode(account, code)
+		if !ok && code != "" {
+			s.noteFailureKey("u:" + account.Name)
+		}
+	case password != "":
+		user, ok = s.users.Authenticate(name, password)
+	}
+
 	if !ok {
 		s.audit.Add(AuditEvent{User: strings.TrimSpace(name), IP: clientIP(r), Agent: deviceName(r.UserAgent()), Result: "fail"})
 		s.noteFailure(r)
 		if wait, blocked := s.blockedIP(r); blocked {
-			data := s.newNarrow(r, "вход")
-			data.Error = "слишком много попыток, верный пароль пустят сразу, иначе через " + wait.Round(time.Second).String()
-			data.Next = next
-			data.Name = name
-			s.renderStatus(w, "login", data, http.StatusTooManyRequests)
+			s.loginError(w, r, next, name, "слишком много попыток, верный код пустят сразу, иначе через "+wait.Round(time.Second).String(), http.StatusTooManyRequests)
 			return
 		}
-		data := s.newNarrow(r, "вход")
-		data.Error = "неверное имя или пароль"
-		data.Next = next
-		data.Name = name
-		s.renderStatus(w, "login", data, http.StatusUnauthorized)
+		message := "неверное имя, код или пароль"
+		if exists && !hasCode && code != "" {
+			message = "у этого аккаунта нет кода — войдите по паролю"
+		}
+		s.loginError(w, r, next, name, message, http.StatusUnauthorized)
 		return
 	}
-	if user.TOTP != "" {
-		data := s.newNarrow(r, "вход")
-		data.Step = "totp"
-		data.Name = user.Name
-		data.Next = next
-		data.Temp = temp
-		data.PendingToken = s.signPayload("login", []string{user.Name, strconv.FormatBool(temp)}, pendingTTL, s.now())
-		s.render(w, "login", data)
-		return
-	}
+
 	s.resetFailures(r)
+	s.resetKey("u:" + user.Name)
 	s.startSession(w, r, user, temp)
 	s.audit.Add(AuditEvent{User: user.Name, IP: clientIP(r), Agent: deviceName(r.UserAgent()), Result: "ok", Temp: temp})
 	http.Redirect(w, r, next, http.StatusSeeOther)
 }
 
-func (s *Server) loginSecondFactor(w http.ResponseWriter, r *http.Request, pending, next string) {
-	if wait, blocked := s.blockedIP(r); blocked {
-		data := s.newNarrow(r, "вход")
-		data.Error = "слишком много попыток, попробуйте через " + wait.Round(time.Second).String()
-		data.Next = next
-		s.renderStatus(w, "login", data, http.StatusTooManyRequests)
-		return
+func (s *Server) consumeCode(user User, code string) bool {
+	if code == "" {
+		return false
 	}
-	fields, ok := s.readPayload("login", pending, s.now())
-	if !ok || len(fields) != 2 {
-		http.Redirect(w, r, "/login?next="+url.QueryEscape(next), http.StatusSeeOther)
-		return
-	}
-	name := fields[0]
-	temp := fields[1] == "true"
-	user, ok := s.users.Get(name)
-	if !ok || user.Status != StatusActive || user.TOTP == "" {
-		http.Redirect(w, r, "/login?next="+url.QueryEscape(next), http.StatusSeeOther)
-		return
-	}
-	code := strings.TrimSpace(r.PostFormValue("code"))
-	matched := false
 	if step, ok := totpMatch(user.TOTP, code, s.now(), user.TOTPStep); ok {
-		matched = true
 		if err := s.users.UseTOTPStep(user.Name, step); err != nil {
 			s.log.Warn("gate totp step", "error", err)
 		}
-	} else if used, err := s.users.ConsumeRecovery(user.Name, code); err == nil && used {
-		matched = true
+		return true
 	}
-	if !matched {
-		s.audit.Add(AuditEvent{User: user.Name, IP: clientIP(r), Agent: deviceName(r.UserAgent()), Result: "fail"})
-		s.noteFailure(r)
-		data := s.newNarrow(r, "вход")
-		data.Step = "totp"
-		data.Name = user.Name
-		data.Next = next
-		data.Temp = temp
-		data.PendingToken = pending
-		data.Error = "код не подошёл"
-		s.renderStatus(w, "login", data, http.StatusUnauthorized)
-		return
+	used, err := s.users.ConsumeRecovery(user.Name, code)
+	if err != nil {
+		s.log.Warn("gate recovery code", "error", err)
 	}
-	s.resetFailures(r)
-	s.startSession(w, r, user, temp)
-	s.audit.Add(AuditEvent{User: user.Name, IP: clientIP(r), Agent: deviceName(r.UserAgent()), Result: "ok", Temp: temp})
-	http.Redirect(w, r, next, http.StatusSeeOther)
+	return used
+}
+
+func (s *Server) loginError(w http.ResponseWriter, r *http.Request, next, name, message string, status int) {
+	data := s.newNarrow(r, "вход")
+	data.Error = message
+	data.Next = next
+	data.Name = name
+	if card, ok := s.qrCard(w, r); ok {
+		data.QR = card
+	}
+	s.renderStatus(w, "login", data, status)
 }
 
 func (s *Server) logout(w http.ResponseWriter, r *http.Request) {

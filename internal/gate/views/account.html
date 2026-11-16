@@ -19,11 +19,14 @@
   {{end}}
   {{if .TOTPOn}}
   <p class="lede">включена · {{if .RecoveryLeft}}{{.RecoveryLeft}} кодов восстановления{{else}}кодов восстановления нет{{end}}</p>
-  <form class="stack" method="post" action="/account/totp/disable">
-    <label>текущий пароль<input name="current" type="password" autocomplete="current-password"></label>
-    <label>код из приложения<input name="code" inputmode="numeric" autocomplete="one-time-code" placeholder="000000"></label>
-    <button class="bad">отключить</button>
-  </form>
+  <details class="disclosure">
+    <summary>отключить</summary>
+    <form class="stack" method="post" action="/account/totp/disable">
+      <label>текущий пароль<input name="current" type="password" autocomplete="current-password"></label>
+      <label>код из приложения<input name="code" inputmode="numeric" autocomplete="one-time-code" placeholder="000000"></label>
+      <button class="bad">подтвердить</button>
+    </form>
+  </details>
   {{else if .TOTPSecret}}
   <p class="lede">Отсканируйте QR в приложении или введите ключ вручную, затем подтвердите кодом.</p>
   <div class="qr-card">

@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import { Check, Shuffle, X } from "lucide-react";
-import { BACKGROUNDS } from "../lib/backgrounds";
+import { BACKGROUNDS, BACKGROUND_GROUPS } from "../lib/backgrounds";
+import { isGpuVariant } from "../lib/gpu-scenes";
 import { cn } from "../lib/utils";
 import { useModalFocus } from "../hooks/useModalFocus";
 import { Button } from "./ui/button";
@@ -40,9 +41,14 @@ export function BackgroundPicker({
         </div>
 
         <div className="scrollbar-thin grid grid-cols-2 gap-2 overflow-y-auto p-3 sm:grid-cols-3">
-          {BACKGROUNDS.map((item) => (
+          {BACKGROUNDS.map((item, index) => (
+            <Fragment key={item.id}>
+              {(index === 0 || BACKGROUNDS[index - 1].group !== item.group) && (
+                <p className="text-muted-foreground col-span-full mt-1 text-[10px] font-medium uppercase tracking-widest first:mt-0">
+                  {BACKGROUND_GROUPS[item.group] ?? item.group}
+                </p>
+              )}
             <button
-              key={item.id}
               type="button"
               onClick={() => {
                 onPick(item.id);
@@ -62,6 +68,10 @@ export function BackgroundPicker({
                 {item.id === "random" ? (
                   <span className="text-muted-foreground from-primary/25 via-spark/15 to-success/25 grid size-full place-items-center bg-linear-to-br">
                     <Shuffle className="size-6" />
+                  </span>
+                ) : isGpuVariant(item.id) && hovered !== item.id && background !== item.id ? (
+                  <span className="text-muted-foreground/70 from-card via-card to-secondary grid size-full place-items-center bg-linear-to-br text-[10px] font-medium uppercase tracking-widest">
+                    gpu
                   </span>
                 ) : (
                   <Scene
@@ -84,6 +94,7 @@ export function BackgroundPicker({
                 </span>
               )}
             </button>
+            </Fragment>
           ))}
         </div>
       </div>

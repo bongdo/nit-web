@@ -83,9 +83,7 @@ type view struct {
 	Name         string
 	Token        string
 	Origin       string
-	Step         string
 	PendingToken string
-	Temp         bool
 	QR           qrView
 	TOTPOn       bool
 	TOTPSecret   string

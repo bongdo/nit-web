@@ -81,7 +81,7 @@ import { useTheme, type Theme } from "./hooks/useTheme";
 import { useEventStream } from "./hooks/useEventStream";
 import { useSidebarSwipe } from "./hooks/useSidebarSwipe";
 import { ChatView } from "./components/ChatView";
-import { VARIANTS, type SceneSetting } from "./components/Scene";
+import { SCENE_IDS, type SceneSetting } from "./components/Scene";
 import { Composer, type Attachment, type ComposerCommand } from "./components/Composer";
 import { Header } from "./components/Header";
 import { Sidebar } from "./components/Sidebar";
@@ -252,7 +252,7 @@ export default function App({
   }, [motion]);
   const [background, setBackground] = useState<SceneSetting>(() => {
     const stored = localStorage.getItem("nit-gui.background");
-    return stored === "random" || (VARIANTS as readonly string[]).includes(stored ?? "")
+    return stored === "random" || (SCENE_IDS as readonly string[]).includes(stored ?? "")
       ? (stored as SceneSetting)
       : "ripple";
   });

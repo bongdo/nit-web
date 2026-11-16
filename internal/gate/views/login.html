@@ -2,23 +2,18 @@
 <div class="panel">
   <h1>вход</h1>
   {{if .Error}}<p class="err">{{.Error}}</p>{{end}}
-  {{if eq .Step "totp"}}
-  <form class="stack" method="post" action="/login">
-    <input type="hidden" name="next" value="{{.Next}}">
-    <input type="hidden" name="pending" value="{{.PendingToken}}">
-    <p class="lede">код из приложения для <b>{{.Name}}</b></p>
-    <label>шесть цифр<input name="code" inputmode="numeric" autocomplete="one-time-code" autofocus maxlength="14" placeholder="000000" required></label>
-    <button class="primary">войти</button>
-  </form>
-  <p class="hint">Нет телефона под рукой? Вместо шести цифр можно ввести код восстановления.</p>
-  {{else}}
   <form class="stack" method="post" action="/login" id="login-form">
     <input type="hidden" name="next" value="{{.Next}}">
     <label>имя<input name="name" value="{{.Name}}" autocomplete="username" autofocus></label>
-    <label>пароль<input name="password" type="password" autocomplete="current-password"></label>
+    <label>код из приложения<input name="code" inputmode="numeric" autocomplete="one-time-code" maxlength="14" placeholder="000000"></label>
     <label class="check"><input type="checkbox" name="temp" value="1" id="temp" checked><span>не запоминать этот вход</span></label>
     <button class="primary">войти</button>
+    <details class="disclosure">
+      <summary>войти по паролю</summary>
+      <label>пароль<input name="password" type="password" autocomplete="current-password"></label>
+    </details>
   </form>
+  <p class="hint">Шесть цифр из приложения-аутентификатора или один из кодов восстановления.</p>
   {{if .QR.Code}}
   <div class="or"><span>или</span></div>
   <div class="qr-card" data-qr="{{.QR.Code}}" data-next="{{.Next}}">
@@ -30,41 +25,40 @@
     </div>
   </div>
   <p class="qr-mobile"><a href="/scan">открыть камеру и отсканировать QR</a></p>
-  <script>
-  (function () {
-    var temp = document.getElementById("temp");
-    if (temp) {
-      try {
-        if (localStorage.getItem("bongdo.temp") === "0") temp.checked = false;
-        temp.addEventListener("change", function () {
-          try { localStorage.setItem("bongdo.temp", temp.checked ? "1" : "0"); } catch (e) {}
-        });
-      } catch (e) {}
-    }
-    var card = document.querySelector("[data-qr]");
-    if (!card) return;
-    var status = card.querySelector("[data-qr-status]");
-    var code = card.getAttribute("data-qr");
-    var next = card.getAttribute("data-next") || "/";
-    var done = false;
-    function poll() {
-      if (done) return;
-      var url = "/qr/" + encodeURIComponent(code) + "/status?next=" + encodeURIComponent(next) +
-        "&temp=" + (temp && temp.checked ? "1" : "0");
-      fetch(url, { cache: "no-store", credentials: "same-origin" })
-        .then(function (res) { return res.json(); })
-        .then(function (data) {
-          if (data.state === "ok") { done = true; status.textContent = "готово"; location.href = data.next || "/"; return; }
-          if (data.state === "expired") { done = true; status.textContent = "код устарел — обновите страницу"; return; }
-          setTimeout(poll, 1500);
-        })
-        .catch(function () { setTimeout(poll, 2500); });
-    }
-    setTimeout(poll, 600);
-  })();
-  </script>
-  {{end}}
   {{end}}
 </div>
 <p class="lede center">нет аккаунта? <a href="/signup">запросить доступ</a></p>
+<script>
+(function () {
+  var temp = document.getElementById("temp");
+  if (temp) {
+    try {
+      if (localStorage.getItem("bongdo.temp") === "0") temp.checked = false;
+      temp.addEventListener("change", function () {
+        try { localStorage.setItem("bongdo.temp", temp.checked ? "1" : "0"); } catch (e) {}
+      });
+    } catch (e) {}
+  }
+  var card = document.querySelector("[data-qr]");
+  if (!card) return;
+  var status = card.querySelector("[data-qr-status]");
+  var code = card.getAttribute("data-qr");
+  var next = card.getAttribute("data-next") || "/";
+  var done = false;
+  function poll() {
+    if (done) return;
+    var url = "/qr/" + encodeURIComponent(code) + "/status?next=" + encodeURIComponent(next) +
+      "&temp=" + (temp && temp.checked ? "1" : "0");
+    fetch(url, { cache: "no-store", credentials: "same-origin" })
+      .then(function (res) { return res.json(); })
+      .then(function (data) {
+        if (data.state === "ok") { done = true; status.textContent = "готово"; location.href = data.next || "/"; return; }
+        if (data.state === "expired") { done = true; status.textContent = "код устарел — обновите страницу"; return; }
+        setTimeout(poll, 1500);
+      })
+      .catch(function () { setTimeout(poll, 2500); });
+  }
+  setTimeout(poll, 600);
+})();
+</script>
 {{template "foot" .}}{{end}}

@@ -10,11 +10,39 @@ import {
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { attachmentNameFromHref, localFileHref } from "../lib/attachments";
+import { splitMarkdownBlocks } from "../lib/markdown";
 import { AttachmentPreview } from "./Attachment";
 import { CodeBlock } from "./CodeBlock";
 import { cn } from "../lib/utils";
 
 const WORD_STATIC = "data-word-static";
+
+type CodeProps = {
+  node?: { position?: { start: { line: number }; end: { line: number } } };
+  className?: string;
+  children?: ReactNode;
+};
+
+function codeFor(streaming: boolean): Components["code"] {
+  return function MarkdownCode({ node, className, children }: CodeProps) {
+    const text = String(children).replace(/\n$/, "");
+    const language = /language-([\w+-]+)/.exec(className ?? "")?.[1];
+    const multiline =
+      node?.position !== undefined && node.position.start.line !== node.position.end.line;
+    if (language || multiline) {
+      return <CodeBlock code={text} language={language} streaming={streaming} />;
+    }
+    return (
+      <code className={className} data-word-static>
+        {children}
+      </code>
+    );
+  } as Components["code"];
+}
+
+const stableCode = codeFor(false);
+const streamingCode = codeFor(true);
+const staticTypes = new Set<unknown>([stableCode, streamingCode]);
 
 type WordTag =
   | "p"
@@ -81,7 +109,13 @@ function words(children: ReactNode): ReactNode {
   }
   if (isValidElement(children)) {
     const props = children.props as { children?: ReactNode; [key: string]: unknown };
-    if (props[WORD_STATIC] || wordBlockSet.has(children.type)) return children;
+    if (
+      props[WORD_STATIC] ||
+      staticTypes.has(children.type) ||
+      wordBlockSet.has(children.type)
+    ) {
+      return children;
+    }
     return cloneElement(children as ReactElement<{ children?: ReactNode }>, {
       children: words(props.children),
     });
@@ -92,20 +126,7 @@ function words(children: ReactNode): ReactNode {
 function componentsFor(streaming: boolean): Components {
   const components: Components = {
     pre: ({ children }) => <>{children}</>,
-    code({ node, className, children }) {
-      const text = String(children).replace(/\n$/, "");
-      const language = /language-([\w+-]+)/.exec(className ?? "")?.[1];
-      const multiline =
-        node?.position !== undefined && node.position.start.line !== node.position.end.line;
-      if (language || multiline) {
-        return <CodeBlock code={text} language={language} streaming={streaming} />;
-      }
-      return (
-        <code className={className} data-word-static>
-          {children}
-        </code>
-      );
-    },
+    code: streaming ? streamingCode : stableCode,
     a({ href, children, ...props }) {
       const localHref = localFileHref(href);
       if (localHref) {
@@ -143,6 +164,23 @@ function componentsFor(streaming: boolean): Components {
 const stableComponents = componentsFor(false);
 const streamingComponents = componentsFor(true);
 
+const MarkdownBlock = memo(function MarkdownBlock({
+  text,
+  streaming,
+}: {
+  text: string;
+  streaming: boolean;
+}) {
+  return (
+    <ReactMarkdown
+      remarkPlugins={[remarkGfm]}
+      components={streaming ? streamingComponents : stableComponents}
+    >
+      {text}
+    </ReactMarkdown>
+  );
+});
+
 export const Markdown = memo(function Markdown({
   text,
   className,
@@ -152,14 +190,20 @@ export const Markdown = memo(function Markdown({
   className?: string;
   streaming?: boolean;
 }) {
+  const blocks = streaming ? splitMarkdownBlocks(text) : null;
   return (
     <div className={cn("markdown", className)}>
-      <ReactMarkdown
-        remarkPlugins={[remarkGfm]}
-        components={streaming ? streamingComponents : stableComponents}
-      >
-        {text}
-      </ReactMarkdown>
+      {blocks ? (
+        blocks.map((block, index) => (
+          <MarkdownBlock
+            key={index}
+            text={block}
+            streaming={index === blocks.length - 1}
+          />
+        ))
+      ) : (
+        <MarkdownBlock text={text} streaming={streaming} />
+      )}
     </div>
   );
 });

@@ -78,6 +78,11 @@ if (!info?.isFile()) fail(`${input} is not a file`);
 if (info.size > MAX_BYTES) fail(`${input} is larger than 2 MiB`);
 
 const source = await readFile(absolute, "utf8");
+if (/\bbackground(?:-color)?\s*:\s*(?:#fff(?:fff)?|white)\b/i.test(source)) {
+  console.error(
+    "page: warning: hardcoded white background; leave html/body transparent to follow the app theme",
+  );
+}
 const start = source
   .replace(/^\uFEFF/, "")
   .replace(/^\s*<!--[\s\S]*?-->/g, "")

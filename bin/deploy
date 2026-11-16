@@ -84,7 +84,7 @@ fi
 
 term_url="${NIT_GUI_TERM_URL:-/term/}"
 NIT_GUI_TERM_URL="$term_url" \
-  NIT_GUI_ALLOWED_HOSTS="$allowed" NIT_GUI_BASE_PATH="$base_path" NIT_GUI_PUBLIC_HOST="$public_host" setsid "$bin" --addr "127.0.0.1:$port" >"$run_dir/nit-gui.log" 2>&1 < /dev/null &
+  NIT_GUI_ALLOWED_HOSTS="$allowed" NIT_GUI_BASE_PATH="$base_path" NIT_GUI_PUBLIC_HOST="$public_host" setsid "$bin" --addr "127.0.0.1:$port" >"$run_dir/nit-gui.log" 2>&1 < /dev/null 9>&- &
 
 ready=0
 for _ in $(seq 1 40); do
@@ -131,7 +131,7 @@ else
   mv "$caddyfile.next" "$caddyfile"
   caddy validate --config "$caddyfile" --adapter caddyfile >/dev/null
   stop "caddy run --config .*frankfurt\.Caddyfile"
-  setsid caddy run --config "$caddyfile" --adapter caddyfile >"$run_dir/frankfurt-caddy.log" 2>&1 < /dev/null &
+  setsid caddy run --config "$caddyfile" --adapter caddyfile >"$run_dir/frankfurt-caddy.log" 2>&1 < /dev/null 9>&- &
 fi
 
 ready=0

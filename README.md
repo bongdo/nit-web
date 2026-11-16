@@ -684,8 +684,10 @@ nspell worker. It is not implemented yet.
 - HTML answers: an agent or user can reference a workspace page as
   `[[html:pages/chart.html|Title]]` on its own line. The chat reads the file
   through `/api/artifact` and renders it inline as part of the reply; the marker
-  itself is hidden and left out of copy and TTS. `bin/htmlcheck <file>` loads a
-  page in headless Chromium and fails on console or page errors.
+  itself is hidden and left out of copy and TTS. A pure HTML message or a fenced
+  `html` block is rendered at the same place through the same sandboxed page
+  component, with no separate code block or preview button. `bin/htmlcheck
+  <file>` loads a page in headless Chromium and fails on console or page errors.
 - Composer: Enter sends, Shift+Enter adds a line, stop while streaming, token
   and cost footer when OpenCode reports them. On a touch screen Enter only adds
   a line and the Send button is the only way to send. While the agent is

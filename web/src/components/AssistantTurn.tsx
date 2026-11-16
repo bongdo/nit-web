@@ -285,22 +285,32 @@ export const AssistantTurn = memo(function AssistantTurn({
                     {segment.text.trim() !== "" && (
                       <Markdown text={segment.text} streaming={live} />
                     )}
-                    {!live &&
-                      segment.artifacts.map((artifact) => (
+                    {segment.artifacts.map((artifact) =>
+                      "source" in artifact ? (
                         <HtmlArtifact
-                          key={artifact.path}
+                          key={`source-${segmentIndex}`}
+                          source={artifact.source}
                           sessionID={sessionID}
                           instance={instance}
+                        />
+                      ) : !live ? (
+                        <HtmlArtifact
+                          key={artifact.path}
                           path={artifact.path}
                           title={artifact.title}
+                          sessionID={sessionID}
+                          instance={instance}
                         />
-                      ))}
+                      ) : null,
+                    )}
                   </div>
                 ))
               )}
-              {!live && (pureHtml || looksLikeHtml(text)) && (
-                <HtmlMessagePreview source={text} />
-              )}
+              {!live &&
+                !segments.some((segment) =>
+                  segment.artifacts.some((artifact) => "source" in artifact),
+                ) &&
+                (pureHtml || looksLikeHtml(text)) && <HtmlMessagePreview source={text} />}
               {live && !page && <span className="stream-caret" />}
             </div>
           );

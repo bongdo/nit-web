@@ -30,14 +30,19 @@ export function previewableHtml(code: string, language?: string): boolean {
   return isPureHtml(code);
 }
 
-export type HtmlArtifact = {
-  path: string;
-  title: string;
-};
+export type HtmlArtifact =
+  | { path: string; title: string }
+  | { source: string };
 
 export type HtmlArtifactSegment = {
   text: string;
   artifacts: HtmlArtifact[];
+};
+
+type HtmlInsert = {
+  start: number;
+  end: number;
+  artifact: HtmlArtifact;
 };
 
 const HTML_ARTIFACT =
@@ -57,35 +62,94 @@ export function isHtmlArtifactPath(path: string): boolean {
   return !path.split("/").some((part) => part === "" || part === "." || part === "..");
 }
 
-export function htmlArtifactSegments(text: string): HtmlArtifactSegment[] {
-  if (!text.includes("[[html:")) return [{ text, artifacts: [] }];
+function markerInserts(text: string): HtmlInsert[] {
+  if (!text.includes("[[html:")) return [];
   const safe = blankCode(text);
-  const segments: HtmlArtifactSegment[] = [];
-  let cursor = 0;
+  const inserts: HtmlInsert[] = [];
   for (const match of safe.matchAll(HTML_ARTIFACT)) {
     const path = match[1].trim().replace(/^\.\/+/, "");
     if (!isHtmlArtifactPath(path)) continue;
     const start = match.index ?? 0;
-    segments.push({ text: text.slice(cursor, start), artifacts: [] });
-    segments.push({
-      text: "",
-      artifacts: [{ path, title: (match[2] ?? "").trim() }],
+    inserts.push({
+      start,
+      end: start + match[0].length,
+      artifact: { path, title: (match[2] ?? "").trim() },
     });
-    cursor = start + match[0].length;
   }
-  if (segments.length === 0) return [{ text, artifacts: [] }];
+  return inserts;
+}
+
+function fenceInserts(text: string): HtmlInsert[] {
+  const inserts: HtmlInsert[] = [];
+  let open:
+    | { char: string; length: number; language: string; start: number; body: number }
+    | null = null;
+  let offset = 0;
+  for (const line of text.split("\n")) {
+    if (open) {
+      const close = /^ {0,3}(`{3,}|~{3,})[ \t]*$/.exec(line);
+      if (close && close[1][0] === open.char && close[1].length >= open.length) {
+        const body = text.slice(open.body, offset).replace(/\n$/, "");
+        if (isHtmlLanguage(open.language) || (!open.language && isPureHtml(body))) {
+          inserts.push({
+            start: open.start,
+            end: offset + line.length,
+            artifact: { source: body },
+          });
+        }
+        open = null;
+      }
+    } else {
+      const start = /^ {0,3}(`{3,}|~{3,})([^\n]*)$/.exec(line);
+      if (start) {
+        open = {
+          char: start[1][0],
+          length: start[1].length,
+          language: (start[2].trim().split(/\s+/)[0] ?? "").toLowerCase(),
+          start: offset,
+          body: offset + line.length + 1,
+        };
+      }
+    }
+    offset += line.length + 1;
+  }
+  return inserts;
+}
+
+function segmentsFrom(text: string, inserts: HtmlInsert[]): HtmlArtifactSegment[] {
+  const segments: HtmlArtifactSegment[] = [];
+  let cursor = 0;
+  for (const insert of inserts) {
+    if (insert.start < cursor) continue;
+    segments.push({ text: text.slice(cursor, insert.start), artifacts: [] });
+    segments.push({ text: "", artifacts: [insert.artifact] });
+    cursor = insert.end;
+  }
   segments.push({ text: text.slice(cursor), artifacts: [] });
   return segments;
 }
 
+export function htmlArtifactSegments(text: string): HtmlArtifactSegment[] {
+  if (!text.includes("[[html:") && isPureHtml(text)) {
+    return [{ text: "", artifacts: [{ source: text }] }];
+  }
+  const inserts = [...markerInserts(text), ...fenceInserts(text)].sort(
+    (left, right) => left.start - right.start,
+  );
+  if (inserts.length === 0) return [{ text, artifacts: [] }];
+  return segmentsFrom(text, inserts);
+}
+
 export function stripHtmlArtifacts(text: string): string {
-  if (!text.includes("[[html:")) return text;
-  return htmlArtifactSegments(text)
+  const inserts = markerInserts(text);
+  if (inserts.length === 0) return text;
+  return segmentsFrom(text, inserts)
     .map((segment) => segment.text)
     .join("")
     .replace(/\n{3,}/g, "\n\n")
     .trim();
 }
+
 
 
 export function htmlDocument(

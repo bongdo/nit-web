@@ -96,6 +96,33 @@ describe("html artifacts", () => {
     ]);
   });
 
+  it("turns a fenced html block into a page in place", () => {
+    const segments = htmlArtifactSegments(
+      "Before.\n\n```html\n<div class=\"card\">Hi</div>\n```\n\nAfter.",
+    );
+    expect(segments.map((segment) => segment.text.trim())).toEqual(["Before.", "", "After."]);
+    expect(segments[1].artifacts).toEqual([
+      { source: '<div class="card">Hi</div>' },
+    ]);
+  });
+
+  it("turns an unlabeled pure html fence into a page", () => {
+    const segments = htmlArtifactSegments("```\n<!doctype html><html></html>\n```");
+    expect(segments[1].artifacts).toEqual([
+      { source: "<!doctype html><html></html>" },
+    ]);
+  });
+
+  it("keeps a js fence as code", () => {
+    const text = "```js\nconst page = '<div>Hi</div>';\n```";
+    expect(htmlArtifactSegments(text)).toEqual([{ text, artifacts: [] }]);
+  });
+
+  it("turns a pure html message into a page", () => {
+    const text = '<!doctype html><html><body><h1>Hi</h1></body></html>';
+    expect(htmlArtifactSegments(text)).toEqual([{ text: "", artifacts: [{ source: text }] }]);
+  });
+
   it("leaves a marker inside a code fence alone", () => {
     const text = "```\n[[html:pages/chart.html]]\n```";
     const segments = htmlArtifactSegments(text);

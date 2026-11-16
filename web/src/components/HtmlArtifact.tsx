@@ -4,20 +4,19 @@ import { api } from "../lib/api";
 import { basename } from "../lib/format";
 import { HtmlPreview } from "./HtmlPreview";
 
-export function HtmlArtifact({
-  sessionID,
-  instance,
-  path,
-  title,
-}: {
+type HtmlArtifactProps = {
+  source?: string;
+  path?: string;
+  title?: string;
   sessionID: string;
   instance: string;
-  path: string;
-  title: string;
-}) {
+};
+
+export function HtmlArtifact({ source, path, title, sessionID, instance }: HtmlArtifactProps) {
   const [state, setState] = useState<{ html?: string; error?: string }>({});
 
   useEffect(() => {
+    if (source !== undefined || !path) return;
     let cancelled = false;
     setState({});
     api
@@ -33,9 +32,9 @@ export function HtmlArtifact({
     return () => {
       cancelled = true;
     };
-  }, [instance, path, sessionID]);
+  }, [instance, path, sessionID, source]);
 
-  if (state.error) {
+  if (source === undefined && state.error) {
     return (
       <div className="text-destructive border-destructive/30 bg-destructive/5 my-3 flex items-start gap-2 rounded-lg border px-3 py-2 text-xs">
         <CircleAlert className="mt-0.5 size-3.5 shrink-0" />
@@ -46,19 +45,21 @@ export function HtmlArtifact({
     );
   }
 
+  const html = source ?? state.html;
+  if (html === undefined) {
+    return (
+      <div className="text-muted-foreground border-border bg-card/40 my-3 flex h-24 items-center justify-center gap-2 rounded-lg border text-xs">
+        <Loader2 className="size-3.5 animate-spin" />
+        Loading page…
+      </div>
+    );
+  }
+
   return (
-    <figure className="my-3">
-      <figcaption className="text-muted-foreground mb-1.5 truncate text-[11px]">
-        {title || basename(path)}
-      </figcaption>
-      {state.html === undefined ? (
-        <div className="text-muted-foreground border-border bg-card/40 flex h-24 items-center justify-center gap-2 rounded-lg border text-xs">
-          <Loader2 className="size-3.5 animate-spin" />
-          Loading page…
-        </div>
-      ) : (
-        <HtmlPreview source={state.html} title={title || basename(path)} />
-      )}
-    </figure>
+    <HtmlPreview
+      source={html}
+      title={title || (path ? basename(path) : "Sandboxed HTML message")}
+      className="my-3"
+    />
   );
 }

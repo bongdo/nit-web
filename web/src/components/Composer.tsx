@@ -175,6 +175,7 @@ export const Composer = memo(function Composer({
   const highlightRef = useRef<HTMLDivElement>(null);
   const autoCorrectPending = useRef(false);
   const grammarFixes = useRef(0);
+  const lastTypedAt = useRef(0);
   const fileRef = useRef<HTMLInputElement>(null);
   const draftBeforeForm = useRef("");
   const activeForm = useRef<string | null>(null);
@@ -473,6 +474,7 @@ export const Composer = memo(function Composer({
 
   useEffect(() => {
     if (!customSpell || question || disabled || formBusy || grammarFixes.current > 0) return;
+    if (Date.now() - lastTypedAt.current > 2500) return;
     if (answerText.startsWith("/") && !answerText.includes("\n")) return;
     const area = ref.current;
     if (!area || document.activeElement !== area) return;
@@ -1043,6 +1045,7 @@ export const Composer = memo(function Composer({
                   const pending = autoCorrectPending.current;
                   autoCorrectPending.current = false;
                   grammarFixes.current = 0;
+                  lastTypedAt.current = Date.now();
                   updateValue(next);
                   const caretNow = event.target.selectionStart;
                   setCaret(caretNow === event.target.selectionEnd ? caretNow : null);

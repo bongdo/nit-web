@@ -342,7 +342,8 @@ The sidebar has three scopes:
 | `Everywhere` | the same chats from every connected instance, merged and still grouped by directory. |
 
 Settings → Chat views hides any of them; the switcher and `Alt+←`/`Alt+→` skip
-the hidden ones, and the last visible view cannot be switched off.
+the hidden ones, the last visible view cannot be switched off, and once only one
+is left the switcher itself disappears from the sidebar.
 
 In `Everywhere`, groups are keyed by machine and directory, so the same path on
 two machines is two groups and each group header carries its instance name. Rows
@@ -405,11 +406,13 @@ server, so hiding a chat or continuing a draft works on the next device.
   Dictation) or a browser extension types into it. Audio stays on the device and
   better STT can be added by the client without a server change.
 - Spelling is checked by an nspell worker in the browser for Russian and
-  English today. Misspelled words are tinted red; put the caret in a word (or
-  click it) and a gray `→ ...` chip shows replacements next to it. Click a
-  suggestion to apply it, or `ignore` to add the word to your dictionary. `Esc`
-  hides the chip, and Settings → Spelling & grammar turns both checks off. On a
-  touch screen the composer skips the custom red tint and the chip and leaves
+  English today. Misspelled words are tinted red; the word the caret is still
+  inside is left alone until you end it with a space, punctuation or a new line,
+  so a half-typed word never flashes red. Put the caret in a word (or click it)
+  and a gray `→ ...` chip shows replacements next to it. Click a suggestion to
+  apply it, or `ignore` to add the word to your dictionary. `Esc` hides the
+  chip, and Settings → Spelling & grammar turns both checks off. On a touch
+  screen the composer skips the custom red tint and the chip and leaves
   spelling to the system keyboard, so there is no
   overlap with its suggestions. Code blocks, inline code, URLs, paths, file
   names and known
@@ -428,11 +431,11 @@ server, so hiding a chat or continuing a draft works on the next device.
   tts.go в папке internal server”, URLs keep only their host, tables are
   summarized and hashes are skipped. Select text in a reply and press `Read`
   to start from that selection.
-- Obvious lowercase typos are fixed after a space when exactly one suggestion is
-  one edit away. Backspace at the end of the corrected word, or `Ctrl/Cmd+Z`,
-  restores the original and adds it to the ignore list so it is not fixed
-  again. Ambiguous, capitalized, code and path words are never auto-fixed;
-  Settings → Auto-fix typos turns this off.
+- Obvious lowercase typos are fixed after a space, punctuation or a new line
+  when exactly one suggestion is one edit away. Backspace at the end of the
+  corrected word, or `Ctrl/Cmd+Z`, restores the original and adds it to the
+  ignore list so it is not fixed again. Ambiguous, capitalized, code and path
+  words are never auto-fixed; Settings → Auto-fix typos turns this off.
 - The personal dictionary grows from `ignore`, from undoing an auto-fix, and
   from words you send three times while they are still flagged. This is how
   project terms and names stop being tinted red.

@@ -593,16 +593,17 @@ export const Sidebar = memo(function Sidebar({
         </button>
       </div>
 
-      <div className="px-3 pb-2" role="group" aria-label="Chat scope">
-        <div
-          className="relative grid text-[11px] font-medium"
-          style={{ gridTemplateColumns: `repeat(${scopeTabs.length}, minmax(0, 1fr))` }}
-        >
-          <span
-            aria-hidden
-            className={cn(
-              "bg-accent/70 absolute inset-y-0 left-0 rounded-md",
-              animated && "transition-transform duration-300 ease-out",
+      {scopeTabs.length > 1 && (
+        <div className="px-3 pb-2" role="group" aria-label="Chat scope">
+          <div
+            className="relative grid text-[11px] font-medium"
+            style={{ gridTemplateColumns: `repeat(${scopeTabs.length}, minmax(0, 1fr))` }}
+          >
+            <span
+              aria-hidden
+              className={cn(
+                "bg-accent/70 absolute inset-y-0 left-0 rounded-md",
+                animated && "transition-transform duration-300 ease-out",
             )}
             style={{
               width: `${100 / scopeTabs.length}%`,
@@ -643,6 +644,7 @@ export const Sidebar = memo(function Sidebar({
           ))}
         </div>
       </div>
+      )}
 
       {!pool && (
         <div className="px-3 pb-2">

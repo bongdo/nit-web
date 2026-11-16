@@ -199,6 +199,7 @@ export default function App({
   const [boot] = useState(() => readBoot(instance));
   const [health, setHealth] = useState<Health | null>(boot?.health ?? null);
   const healthRef = useRef<Health | null>(boot?.health ?? null);
+  const healthFailures = useRef(0);
   const [config, setConfig] = useState<Config | null>(null);
   const [models, setModels] = useState<Model[]>(boot?.models ?? []);
   const [agents, setAgents] = useState<Agent[]>(boot?.agents ?? []);
@@ -634,18 +635,17 @@ export default function App({
   }, []);
 
   const loadHealth = useCallback(async () => {
+    let result: Health;
     try {
-      const result = await api.health();
-      setHealth(result);
-      healthRef.current = result;
-      if (result.ok) writeBoot(instance, { health: result });
-      return result;
+      result = await api.health();
     } catch (error) {
-      const result: Health = { ok: false, error: messageOf(error) };
-      setHealth(result);
-      healthRef.current = result;
-      return result;
+      result = { ok: false, error: messageOf(error) };
     }
+    healthFailures.current = result.ok ? 0 : healthFailures.current + 1;
+    healthRef.current = result;
+    if (result.ok) writeBoot(instance, { health: result });
+    if (result.ok || healthFailures.current >= 2) setHealth(result);
+    return result;
   }, [instance]);
 
   const applyForeignHidden = useCallback(

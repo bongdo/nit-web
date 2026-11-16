@@ -1952,20 +1952,47 @@ func (s *Server) events(w http.ResponseWriter, r *http.Request) {
 	h.Set("X-Accel-Buffering", "no")
 	w.WriteHeader(http.StatusOK)
 	flusher.Flush()
-	buf := make([]byte, 32<<10)
-	redactor := c.Redactor()
-	scanner := bufio.NewScanner(resp.Body)
-	scanner.Buffer(buf, 64<<20)
-	for scanner.Scan() {
-		line := scanner.Bytes()
-		if payload, ok := bytes.CutPrefix(line, []byte("data:")); ok {
-			payload = bytes.TrimPrefix(payload, []byte(" "))
-			line = append([]byte("data: "), redactor.JSON(payload)...)
+	ctx, cancel := context.WithCancel(r.Context())
+	defer cancel()
+	lines := make(chan []byte, 32)
+	go func() {
+		defer close(lines)
+		scanner := bufio.NewScanner(resp.Body)
+		scanner.Buffer(make([]byte, 32<<10), 64<<20)
+		redactor := c.Redactor()
+		for scanner.Scan() {
+			line := scanner.Bytes()
+			if payload, ok := bytes.CutPrefix(line, []byte("data:")); ok {
+				payload = bytes.TrimPrefix(payload, []byte(" "))
+				line = append([]byte("data: "), redactor.JSON(payload)...)
+			}
+			select {
+			case lines <- append([]byte(nil), line...):
+			case <-ctx.Done():
+				return
+			}
 		}
-		if _, werr := w.Write(append(line, '\n')); werr != nil {
+	}()
+	ping := time.NewTicker(20 * time.Second)
+	defer ping.Stop()
+	for {
+		select {
+		case <-ctx.Done():
 			return
+		case line, ok := <-lines:
+			if !ok {
+				return
+			}
+			if _, werr := w.Write(append(line, '\n')); werr != nil {
+				return
+			}
+			flusher.Flush()
+		case <-ping.C:
+			if _, werr := io.WriteString(w, ": ping\n\n"); werr != nil {
+				return
+			}
+			flusher.Flush()
 		}
-		flusher.Flush()
 	}
 }
 

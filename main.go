@@ -7,6 +7,7 @@ import (
 	"flag"
 	"io/fs"
 	"log/slog"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -32,12 +33,15 @@ func main() {
 	provider := opencode.NewRegistry()
 	defer provider.Close()
 	handler := server.New(provider, dist, log)
+	baseCtx, cancelBase := context.WithCancel(context.Background())
+	defer cancelBase()
 
 	srv := &http.Server{
 		Addr:              *addr,
 		Handler:           handler,
 		ReadHeaderTimeout: 5 * time.Second,
 		IdleTimeout:       60 * time.Second,
+		BaseContext:       func(net.Listener) context.Context { return baseCtx },
 	}
 
 	go func() {
@@ -56,9 +60,11 @@ func main() {
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)
 	<-stop
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	cancelBase()
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 	if err := srv.Shutdown(ctx); err != nil {
-		log.Error("shutdown", "error", err)
+		log.Warn("streams did not close, forcing shutdown", "error", err)
+		_ = srv.Close()
 	}
 }

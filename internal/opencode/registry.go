@@ -24,8 +24,6 @@ var ErrUnknownInstance = errors.New("unknown instance")
 var instanceNameRE = regexp.MustCompile(`^[A-Za-z0-9._-]{1,64}$`)
 var sshHostRE = regexp.MustCompile(`^[A-Za-z0-9._@:\[\]-]{1,255}$`)
 
-const clientTTL = 10 * time.Second
-
 func ValidSSHHost(host string) bool {
 	return sshHostRE.MatchString(host) && !strings.HasPrefix(host, "-")
 }
@@ -65,12 +63,11 @@ func ValidInstanceName(name string) bool {
 }
 
 type instance struct {
-	spec     InstanceSpec
-	mu       sync.Mutex
-	client   *Client
-	resolved time.Time
-	tunnel   io.Closer
-	lastErr  string
+	spec    InstanceSpec
+	mu      sync.Mutex
+	client  *Client
+	tunnel  io.Closer
+	lastErr string
 }
 
 type Registry struct {
@@ -138,7 +135,6 @@ func (r *Registry) Reload() error {
 		in.mu.Lock()
 		in.closeTunnel()
 		in.client = nil
-		in.resolved = time.Time{}
 		in.lastErr = ""
 		in.mu.Unlock()
 	}
@@ -313,14 +309,13 @@ func (r *Registry) DropFor(name string) {
 	defer in.mu.Unlock()
 	in.closeTunnel()
 	in.client = nil
-	in.resolved = time.Time{}
 	in.lastErr = ""
 }
 
 func (r *Registry) client(ctx context.Context, in *instance) (*Client, error) {
 	in.mu.Lock()
 	defer in.mu.Unlock()
-	if in.client != nil && (in.spec.SSH != "" || time.Since(in.resolved) < clientTTL) {
+	if in.client != nil && in.alive() {
 		return in.client, nil
 	}
 	ep, tunnel, err := r.endpoint(ctx, in.spec)
@@ -331,9 +326,16 @@ func (r *Registry) client(ctx context.Context, in *instance) (*Client, error) {
 	in.closeTunnel()
 	in.tunnel = tunnel
 	in.client = New(ep)
-	in.resolved = time.Now()
 	in.lastErr = ""
 	return in.client, nil
+}
+
+func (in *instance) alive() bool {
+	if in.spec.SSH == "" {
+		return true
+	}
+	t, ok := in.tunnel.(*sshTunnel)
+	return ok && t.Alive()
 }
 
 func (r *Registry) endpoint(ctx context.Context, spec InstanceSpec) (Endpoint, io.Closer, error) {
@@ -445,9 +447,9 @@ func (r *Registry) connectSSH(ctx context.Context, spec InstanceSpec) (Endpoint,
 	if err != nil {
 		return Endpoint{}, nil, err
 	}
-	t := &sshTunnel{}
-	t.cmd = exec.CommandContext(r.ctx, "ssh", "-N", "-o", "BatchMode=yes", "-o", "ExitOnForwardFailure=yes",
-		"-L", fmt.Sprintf("127.0.0.1:%d:127.0.0.1:%s", local, port), host)
+	t := newSSHTunnel(exec.CommandContext(r.ctx, "ssh", "-N", "-o", "BatchMode=yes", "-o", "ExitOnForwardFailure=yes",
+		"-o", "ServerAliveInterval=15", "-o", "ServerAliveCountMax=3",
+		"-L", fmt.Sprintf("127.0.0.1:%d:127.0.0.1:%s", local, port), host))
 	if err := t.cmd.Start(); err != nil {
 		return Endpoint{}, nil, fmt.Errorf("ssh %s: tunnel: %w", host, err)
 	}
@@ -508,10 +510,7 @@ func (r *Registry) Connected(name string) bool {
 	}
 	in.mu.Lock()
 	defer in.mu.Unlock()
-	if in.client == nil {
-		return false
-	}
-	return in.spec.SSH != "" || time.Since(in.resolved) < clientTTL
+	return in.client != nil && in.alive()
 }
 
 func (r *Registry) LastError(name string) string {
@@ -572,7 +571,6 @@ func (r *Registry) Close() {
 		in.mu.Lock()
 		in.closeTunnel()
 		in.client = nil
-		in.resolved = time.Time{}
 		in.mu.Unlock()
 	}
 }
@@ -675,16 +673,36 @@ func waitPort(ctx context.Context, port int, timeout time.Duration) error {
 }
 
 type sshTunnel struct {
-	cmd *exec.Cmd
+	cmd  *exec.Cmd
+	done chan struct{}
+}
+
+func newSSHTunnel(cmd *exec.Cmd) *sshTunnel {
+	t := &sshTunnel{cmd: cmd, done: make(chan struct{})}
+	go func() {
+		_ = cmd.Wait()
+		close(t.done)
+	}()
+	return t
+}
+
+func (t *sshTunnel) Alive() bool {
+	if t == nil {
+		return false
+	}
+	select {
+	case <-t.done:
+		return false
+	default:
+		return true
+	}
 }
 
 func (t *sshTunnel) Close() error {
 	if t == nil || t.cmd == nil || t.cmd.Process == nil {
 		return nil
 	}
-	err := t.cmd.Process.Kill()
-	_, _ = t.cmd.Process.Wait()
-	return err
+	return t.cmd.Process.Kill()
 }
 
 func expandHome(p string) string {

@@ -14,6 +14,10 @@ auth_env="${NIT_GUI_AUTH_ENV:-$HOME/.config/nit-gui/auth.env}"
 tailnet_ip=""
 code=""
 
+mkdir -p "$run_dir"
+exec 9>"$run_dir/deploy.lock"
+flock -w 600 9
+
 stop() {
   local pattern="$1" pids pid alive
   pids="$(pgrep -f "$pattern" || true)"
@@ -96,7 +100,7 @@ fi
 listen_addr="$(ip -4 -o addr show scope global 2>/dev/null | awk '$2 != "tailscale0" {print $4}' | cut -d/ -f1 | head -1)"
 listen_addr="${listen_addr:-0.0.0.0}"
 
-cat >"$caddyfile" <<EOF
+cat >"$caddyfile.next" <<EOF
 {
 	admin off
 }
@@ -114,9 +118,14 @@ $domain, www.$domain {
 }
 EOF
 
-caddy validate --config "$caddyfile" --adapter caddyfile >/dev/null
-stop "caddy run --config $caddyfile"
-setsid caddy run --config "$caddyfile" --adapter caddyfile >"$run_dir/frankfurt-caddy.log" 2>&1 < /dev/null &
+if cmp -s "$caddyfile.next" "$caddyfile" && pgrep -f "caddy run --config $caddyfile" >/dev/null; then
+  rm -f "$caddyfile.next"
+else
+  mv "$caddyfile.next" "$caddyfile"
+  caddy validate --config "$caddyfile" --adapter caddyfile >/dev/null
+  stop "caddy run --config $caddyfile"
+  setsid caddy run --config "$caddyfile" --adapter caddyfile >"$run_dir/frankfurt-caddy.log" 2>&1 < /dev/null &
+fi
 
 ready=0
 for _ in $(seq 1 40); do

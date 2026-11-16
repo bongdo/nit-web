@@ -14,8 +14,15 @@ auth_env="${NIT_GUI_AUTH_ENV:-$HOME/.config/nit-gui/auth.env}"
 tailnet_ip=""
 code=""
 
+common="$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null || true)"
+primary="$(dirname "${common:-$PWD}")"
+if [ -z "${NIT_GUI_DEPLOY_ANY:-}" ] && [ -n "$common" ] && [ "$PWD" != "$primary" ]; then
+  echo "deploy: only $primary owns the live service; this is $PWD. Merge into the main worktree to deploy." >&2
+  exit 1
+fi
+
 mkdir -p "$run_dir"
-exec 9>"$run_dir/deploy.lock"
+exec 9>"${TMPDIR:-/tmp}/nit-gui-deploy-$port.lock"
 flock -w 600 9
 
 stop() {
@@ -118,12 +125,12 @@ $domain, www.$domain {
 }
 EOF
 
-if cmp -s "$caddyfile.next" "$caddyfile" && pgrep -f "caddy run --config $caddyfile" >/dev/null; then
+if cmp -s "$caddyfile.next" "$caddyfile" && pgrep -f "caddy run --config .*frankfurt\.Caddyfile" >/dev/null; then
   rm -f "$caddyfile.next"
 else
   mv "$caddyfile.next" "$caddyfile"
   caddy validate --config "$caddyfile" --adapter caddyfile >/dev/null
-  stop "caddy run --config $caddyfile"
+  stop "caddy run --config .*frankfurt\.Caddyfile"
   setsid caddy run --config "$caddyfile" --adapter caddyfile >"$run_dir/frankfurt-caddy.log" 2>&1 < /dev/null &
 fi
 

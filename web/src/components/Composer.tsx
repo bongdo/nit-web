@@ -556,7 +556,7 @@ export const Composer = memo(function Composer({
     if (!autofix || !customSpell) return;
     const started = Date.now();
     const found = await checkSpelling(word, ignored);
-    if (Date.now() - started > 1500 || !autofix || !customSpell) return;
+    if (Date.now() - started > 4000 || !autofix || !customSpell) return;
     const issue = found.find((item) => item.start === 0 && item.end === word.length);
     const fix = issue ? safeAutoFix(word, issue.suggestions) : null;
     if (!fix) return;

@@ -52,13 +52,14 @@ export function useEventStream(
         }
       };
       source.onerror = () => {
+        if (sources.get(id) !== source) return;
         setStatus(id, "offline");
-        if (source.readyState !== EventSource.CLOSED) return;
         source.close();
         sources.delete(id);
         const attempt = retry[id] ?? 0;
         retry[id] = attempt + 1;
-        const delay = Math.min(8_000, 500 * 2 ** attempt);
+        const base = 500 * 2 ** attempt;
+        const delay = Math.min(8_000, Math.round(base * (0.7 + Math.random() * 0.6)));
         const timer = window.setTimeout(() => {
           timers.delete(id);
           connect(id);

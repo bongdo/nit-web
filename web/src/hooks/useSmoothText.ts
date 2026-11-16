@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { REVEAL_FRAME_MS, revealAdvance } from "../lib/streamText";
+import { REVEAL_FRAME_MS, revealWords } from "../lib/streamText";
 
 export function useSmoothText(text: string, live: boolean): string {
   const [shown, setShown] = useState(text);
@@ -33,7 +33,7 @@ export function useSmoothText(text: string, live: boolean): string {
       return;
     }
     lastAt.current = now;
-    const next = revealAdvance(target.current, current.current.length);
+    const next = revealWords(target.current, current.current.length);
     if (next !== current.current.length) {
       current.current = target.current.slice(0, next);
       setShown(current.current);

@@ -1,24 +1,36 @@
 import { describe, expect, it } from "vitest";
-import { revealAdvance } from "./streamText";
+import { revealWords } from "./streamText";
 
-describe("revealAdvance", () => {
-  it("moves at least one character", () => {
-    expect(revealAdvance("abcdef", 5)).toBe(6);
-    expect(revealAdvance("a", 0)).toBe(1);
+describe("revealWords", () => {
+  it("reveals whole words and their trailing space", () => {
+    expect(revealWords("hello world ", 0)).toBe(6);
+    expect(revealWords("hello world ", 6)).toBe(12);
   });
 
-  it("catches up faster when the backlog is large", () => {
-    expect(revealAdvance("x".repeat(200), 0)).toBe(24);
-    expect(revealAdvance("x".repeat(200), 196)).toBe(197);
+  it("does not reveal a half-arrived final word", () => {
+    expect(revealWords("hello wor", 6)).toBe(6);
+    expect(revealWords("hello world", 6)).toBe(6);
   });
 
-  it("does not split a surrogate pair", () => {
-    expect(revealAdvance("a😀", 1)).toBe(3);
-    expect(revealAdvance("a😀😀", 3)).toBe(5);
+  it("reveals a final word once the stream ends with punctuation", () => {
+    expect(revealWords("hello world.", 0)).toBe(6);
+    expect(revealWords("hello world.", 6)).toBe(12);
+  });
+
+  it("catches up when the backlog is large", () => {
+    expect(revealWords(`${"word ".repeat(60)}`, 0)).toBe(25);
+  });
+
+  it("does not split an emoji", () => {
+    expect(revealWords("a 😀 ", 0)).toBe(2);
+  });
+
+  it("keeps a very long unbroken token moving", () => {
+    expect(revealWords("x".repeat(100), 0)).toBe(20);
   });
 
   it("stops at the end", () => {
-    expect(revealAdvance("done", 4)).toBe(4);
-    expect(revealAdvance("", 0)).toBe(0);
+    expect(revealWords("done.", 5)).toBe(5);
+    expect(revealWords("", 0)).toBe(0);
   });
 });

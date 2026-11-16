@@ -46,7 +46,10 @@ export function useSmoothText(text: string, live: boolean): string {
   useEffect(() => {
     target.current = text;
     running.current = live;
-    if (!live || !text.startsWith(current.current)) {
+    const reduced =
+      typeof window !== "undefined" &&
+      window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    if (!live || reduced || !text.startsWith(current.current)) {
       settle();
       return;
     }

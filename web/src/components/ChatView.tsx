@@ -150,6 +150,8 @@ export function ChatView({
   const stick = useRef(true);
   const scrollFrame = useRef<number | null>(null);
   const chasing = useRef(false);
+  const motionRef = useRef(motion);
+  motionRef.current = motion;
   const messagesRef = useRef(messages);
   messagesRef.current = messages;
   const anchors = useRef(new Map<string, ScrollAnchor>());
@@ -212,6 +214,9 @@ export function ChatView({
 
   const scheduleScroll = useCallback(() => {
     if (scrollFrame.current !== null || !stick.current) return;
+    const instant =
+      motionRef.current === "static" ||
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     chasing.current = true;
     const chase = () => {
       scrollFrame.current = null;
@@ -226,7 +231,7 @@ export function ChatView({
         chasing.current = false;
         return;
       }
-      const step = gap > 160 ? gap : Math.max(1, gap * 0.35);
+      const step = instant ? gap : gap > 160 ? gap : Math.max(1, gap * 0.35);
       element.scrollTop = Math.min(target, element.scrollTop + step);
       scrollFrame.current = requestAnimationFrame(chase);
     };

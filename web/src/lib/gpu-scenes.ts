@@ -13,6 +13,7 @@ in vec2 vUV;
 uniform vec2 uRes;
 uniform float uAspect;
 uniform float uT;
+uniform float uScroll;
 uniform vec3 uInk;
 uniform vec3 uAccent;
 uniform float uFill[48];
@@ -356,6 +357,138 @@ void scene(vec2 p, vec2 cell, out vec4 color) {
 
 const ASCII = (body: string) => PRELUDE + body + MAIN;
 
+
+const ANGEL = `
+mat2 spin2(float a) { float c = cos(a), s = sin(a); return mat2(c, -s, s, c); }
+float ball(vec3 p, vec3 r) {
+  float k0 = length(p / r);
+  float k1 = length(p / (r * r));
+  return k0 * (k0 - 1.0) / k1;
+}
+float stick(vec3 p, vec3 a, vec3 b, float r) {
+  vec3 pa = p - a;
+  vec3 ba = b - a;
+  float h = clamp(dot(pa, ba) / dot(ba, ba), 0.0, 1.0);
+  return length(pa - ba * h) - r;
+}
+
+float yaw;
+
+float guardian(vec3 p) {
+  p.xz = spin2(yaw) * p.xz;
+  float up = clamp((p.y + 0.62) / 0.74, 0.0, 1.0);
+  float robe = length(p.xz) - mix(0.245, 0.075, up * up);
+  robe = max(robe, p.y - 0.14);
+  robe = max(robe, -(p.y + 0.63));
+  float torso = ball(p - vec3(0.0, 0.26, 0.0), vec3(0.145, 0.19, 0.105));
+  float chest = ball(p - vec3(0.0, 0.34, 0.02), vec3(0.13, 0.10, 0.10));
+  float neck = stick(p, vec3(0.0, 0.42, 0.0), vec3(0.0, 0.47, -0.005), 0.042);
+  float head = ball(p - vec3(0.0, 0.545, 0.008), vec3(0.072, 0.092, 0.078));
+  float hair = ball(p - vec3(0.0, 0.575, -0.045), vec3(0.085, 0.10, 0.07));
+  vec2 ring = vec2(length(p.xy - vec2(0.0, 0.79)) - 0.135, p.z + 0.10);
+  float halo = length(ring) - 0.011;
+  vec3 arm = p;
+  arm.x = abs(arm.x) - 0.125;
+  float arms = stick(arm, vec3(0.0, 0.36, 0.0), vec3(-0.055, 0.20, 0.075), 0.032);
+
+  vec3 wing = p;
+  wing.x = abs(wing.x);
+  float feathers = 1e9;
+  for (int i = 0; i < 4; i++) {
+    float fi = float(i);
+    float a = 0.55 + 0.17 * fi;
+    vec2 dir = vec2(sin(a), cos(a));
+    vec2 centre = vec2(0.13, 0.30) + dir * (0.17 + 0.02 * fi);
+    vec3 q = vec3(wing.x, wing.y, wing.z + 0.035 * fi) - vec3(centre, -0.09 - 0.03 * fi);
+    q.xy = spin2(a) * q.xy;
+    q.yz = spin2(-0.12) * q.yz;
+    feathers = min(feathers, ball(q, vec3(0.038, 0.32 - 0.025 * fi, 0.016)));
+  }
+
+  float body = min(robe, min(torso, min(chest, min(neck, min(head, hair)))));
+  return min(min(body, arms), min(halo, feathers));
+}
+
+vec3 guardianNormal(vec3 p) {
+  float e = 0.0035;
+  return normalize(vec3(
+    guardian(p + vec3(e, 0.0, 0.0)) - guardian(p - vec3(e, 0.0, 0.0)),
+    guardian(p + vec3(0.0, e, 0.0)) - guardian(p - vec3(0.0, e, 0.0)),
+    guardian(p + vec3(0.0, 0.0, e)) - guardian(p - vec3(0.0, 0.0, e))));
+}
+
+void scene(vec2 p, vec2 cell, out vec4 color) {
+  yaw = -0.55 + uScroll * 1.75 + uT * 0.05;
+  vec3 ro = vec3(0.0, 0.02, 1.32 - 0.22 * uScroll);
+  vec3 rd = normalize(vec3(p.x * 2.3, -p.y * 2.3, -1.45));
+
+  float travel = 0.0;
+  float hit = -1.0;
+  for (int i = 0; i < 80; i++) {
+    float d = guardian(ro + rd * travel);
+    if (d < 0.0015) { hit = travel; break; }
+    travel += d * 0.85;
+    if (travel > 2.6) break;
+  }
+
+  float heat = 0.0;
+  if (hit > 0.0) {
+    vec3 pos = ro + rd * hit;
+    vec3 n = guardianNormal(pos);
+    vec3 key = normalize(vec3(0.30, 0.48, 0.83));
+    vec3 bounce = normalize(vec3(-0.55, -0.25, 0.45));
+    float dif = max(dot(n, key), 0.0);
+    float side = max(dot(n, bounce), 0.0);
+    float rim = pow(1.0 - max(dot(n, -rd), 0.0), 2.4);
+    float lift = 0.42 + 0.58 * smoothstep(-0.62, 0.72, pos.y);
+    heat = (0.30 + 0.80 * pow(dif, 0.75) + 0.28 * side + 0.38 * rim) * lift;
+  }
+
+  color = emit(heat * 1.1, mix(uAccent, uInk, clamp(heat, 0.0, 1.0)), hash21(cell) * 12.0);
+}
+`;
+
+const GYRO = `
+mat2 turn(float a) { float c = cos(a), s = sin(a); return mat2(c, -s, s, c); }
+float ring(vec3 p, vec3 axis, float r, float t) {
+  p.yz = turn(axis.y) * p.yz;
+  p.xz = turn(axis.x) * p.xz;
+  vec2 q = vec2(length(p.xz) - r, p.y);
+  return length(q) - t;
+}
+
+void scene(vec2 p, vec2 cell, out vec4 color) {
+  float t = uT * 0.5 + uScroll * 3.0;
+  vec3 ro = vec3(0.0, 0.0, 1.35);
+  vec3 rd = normalize(vec3(p.x * 2.4, -p.y * 2.4, -1.5));
+  float travel = 0.0;
+  float hit = -1.0;
+  for (int i = 0; i < 64; i++) {
+    vec3 q = ro + rd * travel;
+    float d = min(ring(q, vec3(t, 0.0, 0.0), 0.24, 0.022),
+              min(ring(q, vec3(0.0, t * 1.3, 1.57), 0.30, 0.020),
+                  ring(q, vec3(1.57, t * 0.7, 0.0), 0.36, 0.018)));
+    if (d < 0.0018) { hit = travel; break; }
+    travel += d;
+    if (travel > 2.4) break;
+  }
+  float heat = 0.0;
+  if (hit > 0.0) {
+    vec3 pos = ro + rd * hit;
+    float e = 0.004;
+    vec3 n = normalize(vec3(
+      ring(pos + vec3(e, 0.0, 0.0), vec3(t, 0.0, 0.0), 0.24, 0.022) - ring(pos - vec3(e, 0.0, 0.0), vec3(t, 0.0, 0.0), 0.24, 0.022),
+      ring(pos + vec3(0.0, e, 0.0), vec3(t, 0.0, 0.0), 0.24, 0.022) - ring(pos - vec3(0.0, e, 0.0), vec3(t, 0.0, 0.0), 0.24, 0.022),
+      ring(pos + vec3(0.0, 0.0, e), vec3(t, 0.0, 0.0), 0.24, 0.022) - ring(pos - vec3(0.0, 0.0, e), vec3(t, 0.0, 0.0), 0.24, 0.022)));
+    vec3 light = normalize(vec3(0.4, 0.7, 0.6));
+    float dif = max(dot(n, light), 0.0);
+    float rim = pow(1.0 - max(dot(n, -rd), 0.0), 2.0);
+    heat = 0.18 + 0.8 * dif + 0.45 * rim;
+  }
+  color = emit(heat, mix(uAccent, uInk, clamp(heat, 0.0, 1.0)), hash21(cell) * 12.0);
+}
+`;
+
 export const ASCII_SCENES = {
   "ascii-blackhole": ASCII(BLACK_HOLE),
   "ascii-jelly": ASCII(JELLY),
@@ -363,6 +496,8 @@ export const ASCII_SCENES = {
   "ascii-fish": ASCII(FISH),
   "ascii-torus": ASCII(TORUS),
   "ascii-stars": ASCII(STARS),
+  "ascii-angel": ASCII(ANGEL),
+  "ascii-gyro": ASCII(GYRO),
 };
 
 export type AsciiSceneId = keyof typeof ASCII_SCENES;
@@ -485,6 +620,8 @@ export const GPU_SCENES = {
   "ascii-fish": { mode: "ascii", label: "Fish", hint: "ascii", menu: "ASCII · fish" },
   "ascii-torus": { mode: "ascii", label: "Torus", hint: "ascii", menu: "ASCII · torus" },
   "ascii-stars": { mode: "ascii", label: "Stars", hint: "ascii", menu: "ASCII · stars" },
+  "ascii-angel": { mode: "ascii", label: "Guardian", hint: "ascii", menu: "ASCII · winged guardian" },
+  "ascii-gyro": { mode: "ascii", label: "Gyroscope", hint: "ascii", menu: "ASCII · gyroscope" },
   "gpu-magnetic": { mode: "lines", kind: 0, gap: 24, label: "Magnetic", hint: "gpu", menu: "GPU · magnetic" },
   "gpu-split": { mode: "lines", kind: 1, gap: 24, label: "Split", hint: "gpu", menu: "GPU · split" },
   "gpu-ripple": { mode: "lines", kind: 2, gap: 24, label: "Ripple", hint: "gpu", menu: "GPU · ripple" },

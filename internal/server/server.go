@@ -34,8 +34,8 @@ const (
 	shareBase   = "/share"
 
 	maxTranscriptPages    = 100
-	maxTranscriptMessages = 400
-	maxTranscriptBytes    = 4 << 20
+	maxTranscriptMessages = 100
+	maxTranscriptBytes    = 1 << 20
 )
 
 type MultiProvider interface {
@@ -69,6 +69,8 @@ type Server struct {
 	termURL      string
 	dropManager  http.Handler
 	dropPublic   http.Handler
+	searchMu     sync.Mutex
+	searchIdx    map[string]*contentIndex
 	allowedHosts map[string]struct{}
 	done         chan struct{}
 	stopOnce     sync.Once
@@ -423,26 +425,33 @@ func (s *Server) sessions(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	q := sessionQuery()
-	if r.URL.Query().Get("children") != "true" {
+	children := r.URL.Query().Get("children") == "true"
+	if !children {
 		q.Set("parentID", "null")
 	}
-	if dir := strings.TrimSpace(r.URL.Query().Get("dir")); dir != "" {
+	dir := strings.TrimSpace(r.URL.Query().Get("dir"))
+	if dir != "" {
 		if !filepath.IsAbs(dir) {
 			writeError(w, http.StatusBadRequest, "dir must be absolute")
 			return
 		}
 		q.Set("directory", dir)
 	}
-	if search := strings.TrimSpace(r.URL.Query().Get("search")); search != "" {
+	search := strings.TrimSpace(r.URL.Query().Get("search"))
+	if search != "" {
 		q.Set("search", search)
 	}
-	if cursor := strings.TrimSpace(r.URL.Query().Get("cursor")); cursor != "" {
+	cursor := strings.TrimSpace(r.URL.Query().Get("cursor"))
+	if cursor != "" {
 		q.Set("cursor", cursor)
 	}
 	var raw json.RawMessage
 	if err := c.Do(r.Context(), http.MethodGet, "/api/session?"+q.Encode(), nil, &raw); err != nil {
 		s.upstreamError(w, r, err)
 		return
+	}
+	if search != "" && cursor == "" && !children {
+		raw = s.addContentMatches(r.Context(), c, raw, s.instanceName(r), search, dir)
 	}
 	writeRaw(w, raw, c.Redactor())
 }

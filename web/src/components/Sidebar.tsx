@@ -192,6 +192,11 @@ function SessionRow({
                 : formatRelative(session.time.updated, now)}
           </span>
         </div>
+        {session.snippet && (
+          <div className="text-muted-foreground line-clamp-2 pl-10 text-[10px] leading-4">
+            {session.snippet}
+          </div>
+        )}
         {depth === 0 && showDirectory && (
           <div className="text-muted-foreground flex min-w-0 items-center gap-1 pl-10 text-[10px]">
             <Folder className="size-3 shrink-0" />

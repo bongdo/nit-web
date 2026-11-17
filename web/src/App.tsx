@@ -883,8 +883,10 @@ export default function App({
             const session = queue[next++];
             if (selectedIdRef.current === session.id) continue;
             if (prefetching.current.has(session.id)) continue;
-            const complete = transcriptCache.isComplete(session.id);
-            if (complete && prefetchedAt.current.get(session.id) === session.time.updated) {
+            if (
+              prefetchedAt.current.get(session.id) === session.time.updated &&
+              transcriptCache.get(session.id)
+            ) {
               continue;
             }
             if (runningIdsRef.current[session.id] ?? sessionRunning(session)) continue;

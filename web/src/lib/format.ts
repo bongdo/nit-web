@@ -159,8 +159,10 @@ export function quoteText(text: string): string {
 export function filterSessions(sessions: Session[], query: string): Session[] {
   const q = query.trim().toLowerCase();
   if (!q) return sessions;
-  return sessions.filter((s) =>
-    `${s.title ?? ""} ${s.location?.directory ?? ""} ${s.id}`.toLowerCase().includes(q),
+  return sessions.filter(
+    (s) =>
+      Boolean(s.snippet) ||
+      `${s.title ?? ""} ${s.location?.directory ?? ""} ${s.id}`.toLowerCase().includes(q),
   );
 }
 

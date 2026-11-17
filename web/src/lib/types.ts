@@ -192,6 +192,7 @@ export type Session = {
   };
   location: { directory: string };
   instance?: string;
+  snippet?: string;
 };
 
 export type SessionList = {

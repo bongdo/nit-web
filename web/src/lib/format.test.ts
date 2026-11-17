@@ -189,6 +189,15 @@ describe("format", () => {
     expect(filterSessions(items, "")).toHaveLength(2);
   });
 
+  it("keeps content matches by their snippet", () => {
+    const items = [
+      session({ id: "ses_a", title: "Alpha" }),
+      session({ id: "ses_b", title: "Beta", snippet: "…правили Sheets.kt…" }),
+    ];
+    expect(filterSessions(items, "sheets.kt")).toHaveLength(1);
+    expect(filterSessions(items, "sheets.kt")[0].id).toBe("ses_b");
+  });
+
   it("takes the last path segment", () => {
     expect(basename("/home/ubuntu/project/")).toBe("project");
     expect(basename("/")).toBe("/");

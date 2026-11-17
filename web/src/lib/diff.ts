@@ -73,7 +73,6 @@ export function editedFiles(part: ToolPart): EditedFile[] {
     const lines = patchAddedLines(entry.patch);
     files.push({
       path,
-      status: typeof entry.status === "string" ? entry.status : undefined,
       additions: typeof entry.additions === "number" ? entry.additions : undefined,
       deletions: typeof entry.deletions === "number" ? entry.deletions : undefined,
       lines: lines.length > 0 ? lines : undefined,
@@ -100,7 +99,6 @@ export function mergeFiles(files: EditedFile[]): EditedFile[] {
       left === undefined && right === undefined ? undefined : (left ?? 0) + (right ?? 0);
     seen.set(file.path, {
       path: file.path,
-      status: file.status ?? current.status,
       additions: sum(current.additions, file.additions),
       deletions: sum(current.deletions, file.deletions),
       lines: mergeLines(current.lines, file.lines),

@@ -25,15 +25,15 @@ describe("editedFiles", () => {
         status: "completed",
         metadata: {
           files: [
-            { file: "/src/a.go", status: "modified", additions: 2, deletions: 1 },
-            { file: "/src/b.go", status: "added", additions: 5, deletions: 0 },
+            { file: "/src/a.go", additions: 2, deletions: 1 },
+            { file: "/src/b.go", additions: 5, deletions: 0 },
           ],
         },
       },
     });
     expect(editedFiles(part)).toEqual([
-      { path: "/src/a.go", status: "modified", additions: 2, deletions: 1 },
-      { path: "/src/b.go", status: "added", additions: 5, deletions: 0 },
+      { path: "/src/a.go", additions: 2, deletions: 1 },
+      { path: "/src/b.go", additions: 5, deletions: 0 },
     ]);
   });
 
@@ -123,12 +123,11 @@ describe("mergeFiles", () => {
       mergeFiles([
         { path: "/a", additions: 1, deletions: 0, lines: [{ start: 1, end: 2 }] },
         { path: "/b", additions: 2, deletions: 1 },
-        { path: "/a", additions: 3, deletions: 2, status: "modified", lines: [{ start: 2, end: 3 }, { start: 9, end: 9 }] },
+        { path: "/a", additions: 3, deletions: 2, lines: [{ start: 2, end: 3 }, { start: 9, end: 9 }] },
       ]),
     ).toEqual([
       {
         path: "/a",
-        status: "modified",
         additions: 4,
         deletions: 2,
         lines: [{ start: 1, end: 3 }, { start: 9, end: 9 }],

@@ -1,16 +1,8 @@
 import { useEffect, useRef } from "react";
 import { cn } from "../lib/utils";
 import { compile, drawTriangle, fullscreenBuffer, glyphAtlas, parseColor } from "../lib/gpu";
-import {
-  ASCII_SCENES,
-  CHARS,
-  FILL,
-  GPU_SCENES,
-  LINES,
-  MARKS,
-  TANGENTS,
-  type GpuVariant,
-} from "../lib/gpu-scenes";
+import { ASCII_SCENES, CHARS, FILL, LINES, MARKS, TANGENTS } from "../lib/gpu-scenes";
+import { GPU_SCENES, type GpuVariant } from "../lib/gpu-ids";
 
 const STILL_TIME = 6;
 const scrollProgress = () => {

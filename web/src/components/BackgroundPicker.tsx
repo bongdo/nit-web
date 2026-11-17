@@ -1,7 +1,7 @@
 import { Fragment, useState } from "react";
 import { Check, Shuffle } from "lucide-react";
 import { BACKGROUNDS, BACKGROUND_GROUPS } from "../lib/backgrounds";
-import { isGpuVariant } from "../lib/gpu-scenes";
+import { isGpuVariant } from "../lib/gpu-ids";
 import { cn } from "../lib/utils";
 import { Modal } from "./ui/Modal";
 import { Scene, type SceneSetting } from "./Scene";

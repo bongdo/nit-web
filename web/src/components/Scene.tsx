@@ -1,6 +1,6 @@
 import { Suspense, lazy, useEffect, useMemo, useRef } from "react";
 import { cn } from "../lib/utils";
-import { GPU_VARIANTS, isGpuVariant, type GpuVariant } from "../lib/gpu-scenes";
+import { GPU_VARIANTS, isGpuVariant, type GpuVariant } from "../lib/gpu-ids";
 
 const SceneGpu = lazy(() =>
   import("./SceneGpu").then((module) => ({ default: module.SceneGpu })),

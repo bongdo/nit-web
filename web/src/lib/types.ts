@@ -111,7 +111,6 @@ export type Part = TextPart | ReasoningPart | ToolPart;
 
 export type EditedFile = {
   path: string;
-  status?: string;
   additions?: number;
   deletions?: number;
   lines?: LineRange[];

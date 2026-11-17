@@ -43,6 +43,38 @@ export type HiddenIndex = Record<string, ReadonlySet<string>>;
 
 export const NO_HIDDEN: ReadonlySet<string> = new Set();
 
+export type StatusSets = { done: Set<string>; failed: Set<string> };
+
+export const NO_STATUS: StatusSets = { done: new Set(), failed: new Set() };
+
+export const NO_IDS: ReadonlySet<string> = new Set();
+
+export function withLocalStatus(
+  server: StatusSets,
+  local: StatusSets,
+  pending: ReadonlySet<string>,
+): StatusSets {
+  if (pending.size === 0) return server;
+  const done = new Set(server.done);
+  const failed = new Set(server.failed);
+  for (const id of pending) {
+    if (local.done.has(id)) done.add(id);
+    else done.delete(id);
+    if (local.failed.has(id)) failed.add(id);
+    else failed.delete(id);
+  }
+  return { done, failed };
+}
+
+export function sameStatus(a: StatusSets, b: StatusSets): boolean {
+  return (
+    a.done.size === b.done.size &&
+    a.failed.size === b.failed.size &&
+    [...b.done].every((id) => a.done.has(id)) &&
+    [...b.failed].every((id) => a.failed.has(id))
+  );
+}
+
 export function hiddenIndex(pools: InstanceHidden[]): HiddenIndex {
   const index: HiddenIndex = {};
   for (const pool of pools) {

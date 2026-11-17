@@ -62,13 +62,18 @@ import {
   newlyRunning,
   nextSessionId,
   NO_HIDDEN,
+  NO_IDS,
+  NO_STATUS,
   pollSessionIds,
   parseScopes,
+  sameStatus,
   scopeSessions,
   toggleScope,
+  withLocalStatus,
   type HiddenIndex,
   type InstanceHidden,
   type Scope,
+  type StatusSets,
 } from "./lib/sessions";
 import { shortcutKeys } from "./lib/keys";
 import { cn } from "./lib/utils";
@@ -287,6 +292,7 @@ export default function App({
   }, [statusByInstance]);
   const failedIdsRef = useRef(failedIds);
   failedIdsRef.current = failedIds;
+  const pendingStatus = useRef<Map<string, Set<string>>>(new Map());
   const [notifyOn, setNotifyOn] = useState(() => localStorage.getItem("nit-gui.notify") === "on");
   const [uiReady, setUiReady] = useState(false);
   const [hiddenByInstance, setHiddenByInstance] = useState<HiddenIndex>({});
@@ -408,7 +414,16 @@ export default function App({
       if (status === "done") done.add(id);
       else if (status === "failed") failed.add(id);
     }
-    setStatusByInstance((previous) => ({ ...previous, [instance]: { done, failed } }));
+    setStatusByInstance((previous) => {
+      const local = previous[instance];
+      const status = withLocalStatus(
+        { done, failed },
+        local ?? NO_STATUS,
+        pendingStatus.current.get(instance) ?? NO_IDS,
+      );
+      if (local && sameStatus(local, status)) return previous;
+      return { ...previous, [instance]: status };
+    });
     if (state.model) setPreferredModel(state.model);
     if (state.agent) setPreferredAgent(state.agent);
   }, [instance]);
@@ -553,10 +568,10 @@ export default function App({
     [applyHidden],
   );
   const updateStatus = useCallback(
-    (
-      owner: string,
-      change: (status: { done: Set<string>; failed: Set<string> }) => void,
-    ) => {
+    (owner: string, id: string, change: (status: StatusSets) => void) => {
+      const pending = pendingStatus.current.get(owner) ?? new Set<string>();
+      pending.add(id);
+      pendingStatus.current.set(owner, pending);
       setStatusByInstance((previous) => {
         const current = previous[owner] ?? {
           done: new Set<string>(),
@@ -573,21 +588,21 @@ export default function App({
   const markDone = useCallback(
     (id: string, owner = instance) => {
       if (failedIdsRef.current.has(id)) return;
-      updateStatus(owner, (status) => status.done.add(id));
+      updateStatus(owner, id, (status) => status.done.add(id));
       saveStatus(id, "done", owner);
     },
     [instance, saveStatus, updateStatus],
   );
   const clearDone = useCallback(
     (id: string, owner = instance) => {
-      updateStatus(owner, (status) => status.done.delete(id));
+      updateStatus(owner, id, (status) => status.done.delete(id));
       if (!failedIdsRef.current.has(id)) saveStatus(id, "", owner);
     },
     [saveStatus, updateStatus],
   );
   const markFailed = useCallback(
     (id: string, owner = instance) => {
-      updateStatus(owner, (status) => {
+      updateStatus(owner, id, (status) => {
         status.failed.add(id);
         status.done.delete(id);
       });
@@ -598,7 +613,7 @@ export default function App({
   const clearFailed = useCallback(
     (id: string, owner = instance) => {
       if (!failedIdsRef.current.has(id)) return;
-      updateStatus(owner, (status) => status.failed.delete(id));
+      updateStatus(owner, id, (status) => status.failed.delete(id));
       saveStatus(id, "", owner);
     },
     [saveStatus, updateStatus],
@@ -687,16 +702,13 @@ export default function App({
             else if (status === "failed") failed.add(id);
           }
           const before = previous[pool.instance];
-          if (
-            before &&
-            before.done.size === done.size &&
-            before.failed.size === failed.size &&
-            [...done].every((id) => before.done.has(id)) &&
-            [...failed].every((id) => before.failed.has(id))
-          ) {
-            continue;
-          }
-          next[pool.instance] = { done, failed };
+          const status = withLocalStatus(
+            { done, failed },
+            before ?? NO_STATUS,
+            pendingStatus.current.get(pool.instance) ?? NO_IDS,
+          );
+          if (before && sameStatus(before, status)) continue;
+          next[pool.instance] = status;
           changed = true;
         }
         return changed ? next : previous;
@@ -978,12 +990,6 @@ export default function App({
       return next;
     });
   }, [forms, selectedId]);
-
-  useEffect(() => {
-    if (!selectedId) return;
-    clearFailed(selectedId);
-    clearDone(selectedId);
-  }, [clearDone, clearFailed, selectedId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -1316,7 +1322,10 @@ export default function App({
 
   const selectSession = useCallback((id: string | null) => {
     const current = selectedIdRef.current;
-    if (id !== null && id === current) clearDone(id);
+    if (id !== null) {
+      clearFailed(id);
+      clearDone(id);
+    }
     if (id !== current) {
       saveCurrentTranscript();
       const cached = id ? transcriptCache.get(id) : undefined;
@@ -1335,7 +1344,7 @@ export default function App({
     if (id) localStorage.setItem(sessionKey, id);
     else localStorage.removeItem(sessionKey);
     setSidebarOpen(false);
-  }, [clearDone, saveCurrentTranscript]);
+  }, [clearDone, clearFailed, saveCurrentTranscript]);
 
   const foreignInstance = useCallback(
     (id: string) => {
@@ -1366,12 +1375,16 @@ export default function App({
             })
             .catch(() => {});
         }
+        clearFailed(id, owner);
+        clearDone(id, owner);
         onSwitchInstance(owner);
         return;
       }
       selectSession(id);
     },
     [
+      clearDone,
+      clearFailed,
       defaultInstance,
       foreignInstance,
       onSwitchInstance,
@@ -1649,7 +1662,7 @@ export default function App({
       transcriptCache.deleteFor(owner, id);
       setSessions((current) => current.filter((item) => item.id !== id));
       dropHidden(id);
-      updateStatus(owner, (status) => {
+      updateStatus(owner, id, (status) => {
         status.done.delete(id);
         status.failed.delete(id);
       });
@@ -2003,7 +2016,7 @@ export default function App({
     if (event.type === "session.deleted" && sessionID) {
       transcriptCache.deleteFor(owner, sessionID);
       dropHidden(sessionID);
-      updateStatus(owner, (status) => {
+      updateStatus(owner, sessionID, (status) => {
         status.done.delete(sessionID);
         status.failed.delete(sessionID);
       });

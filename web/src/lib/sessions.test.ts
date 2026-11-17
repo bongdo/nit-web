@@ -15,10 +15,12 @@ import {
   nextSessionId,
   parseScopes,
   pollSessionIds,
+  sameStatus,
   SCOPES,
   scopeSessions,
   toggleScope,
   waitingSessionIds,
+  withLocalStatus,
 } from "./sessions";
 import type { Agent, FormInfo, Session } from "./types";
 
@@ -360,6 +362,18 @@ describe("sessions", () => {
     expect([
       ...mergeWaitingSessionIds("ses_1", [form({ sessionID: "ses_2" })], new Set()),
     ]).toEqual(["ses_2"]);
+  });
+
+  it("keeps statuses changed here over a stale server snapshot", () => {
+    const server = { done: new Set(["a"]), failed: new Set<string>() };
+    const local = { done: new Set(["b"]), failed: new Set(["c"]) };
+
+    expect([...withLocalStatus(server, local, new Set(["b"])).done]).toEqual(["a", "b"]);
+    expect(withLocalStatus(server, local, new Set(["c"])).failed.has("c")).toBe(true);
+    expect(withLocalStatus(server, local, new Set(["a"])).done.has("a")).toBe(false);
+    expect(withLocalStatus(server, local, new Set())).toBe(server);
+    expect(sameStatus(server, { done: new Set(["a"]), failed: new Set() })).toBe(true);
+    expect(sameStatus(server, local)).toBe(false);
   });
 
   it("reports each session only when it starts running", () => {

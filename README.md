@@ -21,7 +21,7 @@ them.
 
 | Capability | Runs on | State |
 | --- | --- | --- |
-| Authentication | nit-gui host, `/auth` + `nit_gate` cookie | one shared password and session for nit-gui, pero-gui and term-gui |
+| Authentication | the gate (`bin/gate`), `/login` + `gate_session` cookie | users, roles, TOTP, device list; nit-gui accepts the gate's signed identity |
 | Sessions, messages, models, agents | each OpenCode instance | source of truth |
 | Instance list, SSH tunnels | nit-gui host, `~/.config/nit-gui/instances.json` | implemented |
 | TTS | nit-gui keeps a warm host `piper` worker and streams its audio; browser voice is the fallback | implemented |
@@ -174,8 +174,7 @@ memory only and is safe to lose.
 Open <http://127.0.0.1:7788>. `bin/run` installs frontend dependencies if
 needed, builds the web bundle when sources are newer, builds the Go binary and
 serves it on loopback. This is local development, not a deployment. Local
-`bin/run` has no login unless `NIT_GATE_PASSWORD` or `NIT_GATE_PASSWORD_HASH` is
-set.
+`bin/run` has no login: the gate and its key exist only in the deployed path.
 
 `bin/page page.html --title "Chart"` loads a page in the same headless Chromium
 the previews use, fails on a console error, a page error or an empty body, and
@@ -191,22 +190,22 @@ bin/deploy      # build and restart the app and Caddy
 ```
 
 `bin/auth` writes `~/.config/nit-gui/auth.env` with mode `0600` and a
-PBKDF2-SHA256 hash, then prints the password once. The same hash is the one
-password and session key for nit-gui, pero-gui and term-gui: `bin/auth` in
-`pero-gui` or `term-gui` rotates the same file. Rotate it with `bin/auth -force`
-and restart the apps.
+PBKDF2-SHA256 hash, then prints the password once. The gate owns login: it keeps
+users, roles and TOTP in `users.json`, sets a signed HttpOnly `gate_session`
+cookie on path `/` for 7 days, and provides `/login`, `/signup`, `/account`,
+`/admin` and `/logout`. nit-gui does not log anyone in; it accepts the gate's
+`gate_session` or a loopback `X-Gate-Identity` header. The hash in `auth.env`
+stays as the fallback password and as the key for the app session cookie that
+pero-gui and term-gui verify.
 
 `bin/deploy` builds the web bundle with base `/nit/`, restarts the app on
 `127.0.0.1:7791`, and reloads Caddy on `10.0.0.88:443` with a Let's Encrypt
 certificate. Caddy only terminates TLS and forwards everything to the gate on
 `127.0.0.1:8090`, which owns sessions and the route table, so the app is exposed
-at `https://bongdo.space/nit/` and nowhere else. The app serves `/auth` and keeps a
-signed HttpOnly SameSite=Lax `nit_gate` cookie on path `/` for 7 days. This is
-the only login page: pero-gui and term-gui have none, verify the same cookie and
-redirect unauthenticated pages to `/nit/auth?next=<absolute URL>`. The cookie is
-not kept in memory, so a restart does not log you out; it is shared with
-pero-gui and term-gui on the same host. Five wrong passwords block an IP for 15
-minutes.
+at `https://bongdo.space/nit/` and nowhere else. A revoked device or a password
+change bumps the user's epoch and invalidates the old cookie everywhere,
+including `/share`. Five wrong codes per account or five wrong passwords per IP
+block the attempt for up to 15 minutes.
 
 ### Where the pages live
 
@@ -263,7 +262,8 @@ Vite proxies `/api` to the backend.
 ## Drop
 
 `/share/` is the private manager inside the nit-gui process. It uses the
-same `nit_gate` login. Published content lives under `/share/`; the manager is
+gate login, and the gate strips session cookies from requests it has already
+refused. Published content lives under `/share/`; the manager is
 linked from the sidebar.
 
 The agent publishes with the `drop` command, which is on `PATH` through
@@ -596,9 +596,9 @@ All `/api` endpoints except `/api/instances*` accept `X-Nit-Instance: <id>` or
 | `DELETE /api/ui/sessions/{id}` | Remove hidden/status/draft state for a deleted chat. |
 | `GET /api/events?instance=` | Server-sent events proxied from the requested OpenCode `/api/event`. |
 
-All `/api` endpoints require the session cookie. `/auth` is the only
-unauthenticated page; `/auth/logout` is a POST that clears the session.
-OpenCode's plural resource paths are singular (`/api/session`, `/api/model`,
+All `/api` endpoints require the gate session. An unauthenticated browser is
+redirected to `/login?next=`, while `/api` answers 401 JSON; `POST /logout` ends
+the session and forgets the device. OpenCode's plural resource paths are singular (`/api/session`, `/api/model`,
 `/api/agent`, `/api/event`); the mapping is deliberate and lives in the backend.
 
 `POST /api/spell` is the planned nit-gui-side replacement for the browser
@@ -612,18 +612,19 @@ nspell worker. It is not implemented yet.
 - The Go listener stays on loopback. `bin/deploy` starts Caddy on
   `127.0.0.1:7792`; Tailscale Funnel terminates public TLS. The app trusts a
   `Host` name only when it is loopback or listed in `NIT_GUI_ALLOWED_HOSTS`.
-- Every route except `/auth` and public drop content under `/d/` requires a
-  session cookie. The login page uses a
-  PBKDF2-SHA256 hash (600k rounds), an HttpOnly Secure SameSite=Lax `nit_gate`
-  cookie on path `/`, no-store and a strict CSP. The cookie is an HMAC-signed
-  expiry, so it survives restarts and is accepted by pero-gui and term-gui on
-  the same hostname; it expires after 7 days. Five wrong passwords block the
-  source IP for 15 minutes; 50 failures across all clients block new logins for
-  5 minutes. Password values are never logged or put in a URL. pero-gui and
-  term-gui have no login page: they verify the same cookie and redirect
-  unauthenticated pages to `/nit/auth?next=<absolute URL>`. The absolute return
-  target is accepted only for http/https URLs on the same hostname with a path
-  under `/nit/`, `/pero/` or `/term/`.
+- Every route except the public drop content under `/d/` requires a gate
+  session. The gate's login page uses a PBKDF2-SHA256 hash (600k rounds) and a
+  signed HttpOnly `gate_session` cookie on path `/`, no-store and a strict CSP.
+  The cookie carries the user's epoch, so a password change, enabling 2FA or
+  removing the device invalidates it; it expires after 7 days. Five wrong codes
+  per account or five wrong passwords per IP block the attempt for up to 15
+  minutes; 50 failures across all clients block new logins for 5 minutes.
+  Password values are never logged or put in a URL. nit-gui does not log anyone
+  in: it accepts `gate_session` or a loopback `X-Gate-Identity` header, and an
+  authenticated request that the gate refuses is forwarded without the session
+  cookies, so a revoked session cannot reach a private drop. The absolute
+  return target is accepted only for http/https URLs on the same hostname with
+  a path under `/nit/`, `/pero/` or `/term/`.
 - Drop's manager and all writes are behind the same cookie. `/share/` is the
   only unauthenticated path: it serves an entry only when that entry was
   explicitly made public; a private entry returns 404. Uploads are written only
@@ -903,10 +904,9 @@ own startup warmup.
   client is closed is not marked unseen later.
 - Drafts are capped at 256 KiB each and saved 700 ms after the last edit. Two
   devices editing the same draft overwrite each other; the newest save wins.
-- Authentication is one shared password, not per-user accounts. Sessions and
-  lockout counters are in memory, so an app restart signs everyone out and
-  clears blocks. The public path is Tailscale Funnel; exposing the app another
-  way requires TLS and the same auth in front.
+- Authentication lives in the gate, not in nit-gui: users, roles, TOTP and
+  devices are in `users.json`, sessions are stateless HMAC cookies with an
+  epoch. `bin/run` stays open on loopback.
 
 ## Decisions
 

@@ -437,3 +437,21 @@ func TestRegistryReloadInvalidKeepsOld(t *testing.T) {
 		t.Fatalf("DefaultInstance() = %q after failed reload", got)
 	}
 }
+
+func TestIsLoopbackURL(t *testing.T) {
+	for _, test := range []struct {
+		url  string
+		want bool
+	}{
+		{"http://127.0.0.1:49374", true},
+		{"http://localhost:4222", true},
+		{"http://[::1]:8080", true},
+		{"http://0.0.0.0:49374", false},
+		{"https://example.com", false},
+		{"not a url", false},
+	} {
+		if got := IsLoopbackURL(test.url); got != test.want {
+			t.Fatalf("IsLoopbackURL(%q) = %v, want %v", test.url, got, test.want)
+		}
+	}
+}

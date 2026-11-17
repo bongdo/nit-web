@@ -185,3 +185,13 @@ describe("htmlDocument", () => {
     expect(isHtmlLanguage(undefined)).toBe(false);
   });
 });
+
+describe("isPureHtml strictness", () => {
+  it("rejects prose after a closing tag", () => {
+    expect(isPureHtml("<h2>Done</h2>\n\nAll green.")).toBe(false);
+  });
+
+  it("rejects a tag mentioned inside prose", () => {
+    expect(isPureHtml("Wrap the cells in <table> please")).toBe(false);
+  });
+});

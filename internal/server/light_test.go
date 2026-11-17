@@ -93,3 +93,21 @@ func TestLightenMessageOmitsEditedWithoutWrites(t *testing.T) {
 		t.Fatalf("edited present without writes: %s", out)
 	}
 }
+
+func TestLightenTranscriptKeepsMalformedMessage(t *testing.T) {
+	data := []byte(`[{"id":"m1","type":"assistant","content":[{"type":"text","text":"ok"}]},{"id":"m2","type":"assistant","content":"unexpected"}]`)
+	out, err := lightenTranscript(data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var messages []map[string]json.RawMessage
+	if err := json.Unmarshal(out, &messages); err != nil {
+		t.Fatal(err)
+	}
+	if len(messages) != 2 {
+		t.Fatalf("messages = %d, want 2", len(messages))
+	}
+	if string(messages[1]["content"]) != `"unexpected"` {
+		t.Fatalf("second message content = %s", messages[1]["content"])
+	}
+}

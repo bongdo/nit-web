@@ -237,6 +237,7 @@ func (s *Store) SetStatus(instance, id, status string) error {
 		} else {
 			delete(state.Status, id)
 		}
+		s.state.Instances[instance] = state
 		return err
 	}
 	return nil
@@ -261,6 +262,7 @@ func (s *Store) SetDraft(instance, key, text string) (Draft, error) {
 		} else {
 			delete(state.Drafts, key)
 		}
+		s.state.Instances[instance] = state
 		return Draft{}, err
 	}
 	return draft, nil
@@ -286,6 +288,7 @@ func (s *Store) SetModel(instance string, model *ModelRef) error {
 	s.state.Instances[instance] = state
 	if err := s.saveLocked(); err != nil {
 		state.Model = previous
+		s.state.Instances[instance] = state
 		return err
 	}
 	return nil
@@ -300,6 +303,7 @@ func (s *Store) SetAgent(instance, agent string) error {
 	s.state.Instances[instance] = state
 	if err := s.saveLocked(); err != nil {
 		state.Agent = previous
+		s.state.Instances[instance] = state
 		return err
 	}
 	return nil

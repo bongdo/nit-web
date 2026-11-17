@@ -384,3 +384,30 @@ func TestDeleteInstanceDropsState(t *testing.T) {
 		t.Fatal("deleted instance came back after reopen")
 	}
 }
+
+func TestWriteFailureKeepsStateInMemory(t *testing.T) {
+	dir := t.TempDir()
+	store, err := Open(filepath.Join(dir, "sub", "ui-state.json"), "local")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "sub"), []byte("not a directory"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.SetStatus("local", "ses_a", "done"); err == nil {
+		t.Fatal("status write succeeded on a broken path")
+	}
+	if draft, err := store.SetDraft("local", "ses_a", "hello"); err == nil || draft.Text != "" {
+		t.Fatalf("draft write = %+v, %v", draft, err)
+	}
+	if err := store.SetModel("local", &ModelRef{ID: "m", ProviderID: "p"}); err == nil {
+		t.Fatal("model write succeeded on a broken path")
+	}
+	if err := store.SetAgent("local", "build"); err == nil {
+		t.Fatal("agent write succeeded on a broken path")
+	}
+	state := store.Snapshot("local")
+	if len(state.Status) != 0 || len(state.Drafts) != 0 || state.Model != nil || state.Agent != "" {
+		t.Fatalf("state after failed writes = %+v", state)
+	}
+}

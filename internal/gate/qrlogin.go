@@ -12,6 +12,8 @@ import (
 	"time"
 
 	qrcode "github.com/skip2/go-qrcode"
+
+	"nitgui/internal/gateid"
 )
 
 const (
@@ -122,7 +124,7 @@ func (s *Server) qrCard(w http.ResponseWriter, r *http.Request) (qrView, bool) {
 		if err != nil {
 			return qrView{}, false
 		}
-		created, ok := s.qr.create(generated, deviceName(r.UserAgent()), clientIP(r), s.now())
+		created, ok := s.qr.create(generated, deviceName(r.UserAgent()), gateid.ClientIP(r), s.now())
 		if !ok {
 			return qrView{}, false
 		}
@@ -201,7 +203,7 @@ func (s *Server) qrConfirm(w http.ResponseWriter, r *http.Request) {
 		s.notFound(w, r)
 		return
 	}
-	s.audit.Add(AuditEvent{User: id.User, IP: clientIP(r), Agent: deviceName(r.UserAgent()), Result: "qr"})
+	s.audit.Add(AuditEvent{User: id.User, IP: gateid.ClientIP(r), Agent: deviceName(r.UserAgent()), Result: "qr"})
 	data := s.newNarrow(r, "вход с телефона")
 	data.QR = qrView{Code: code, Agent: ticket.agent, IP: ticket.ip, User: id.User, Done: true}
 	s.render(w, "qr", data)
@@ -234,9 +236,9 @@ func (s *Server) qrStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	temp := r.URL.Query().Get("temp") == "1"
-	next := safeNext(r.URL.Query().Get("next"))
+	next := gateid.SafeNext(r.URL.Query().Get("next"))
 	s.startSession(w, r, user, temp)
-	s.audit.Add(AuditEvent{User: user.Name, IP: clientIP(r), Agent: deviceName(r.UserAgent()), Result: "qr", Temp: temp})
+	s.audit.Add(AuditEvent{User: user.Name, IP: gateid.ClientIP(r), Agent: deviceName(r.UserAgent()), Result: "qr", Temp: temp})
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-store")
 	_ = json.NewEncoder(w).Encode(map[string]string{"state": "ok", "next": next})

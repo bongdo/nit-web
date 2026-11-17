@@ -39,19 +39,16 @@ func assertNoSecret(t *testing.T, body, where string) {
 	}
 }
 
-type staticProvider struct {
-	client *opencode.Client
-}
-
-func (p *staticProvider) Client(context.Context) (*opencode.Client, error) { return p.client, nil }
-func (p *staticProvider) Drop()                                            {}
-
 func newHandler(t *testing.T, upstreamURL string) *server.Handler {
 	t.Helper()
 	t.Setenv("NIT_DROP_ROOT", t.TempDir())
 	client := opencode.New(opencode.Endpoint{URL: upstreamURL, Password: testPassword})
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
-	return server.New(&staticProvider{client: client}, fstest.MapFS{
+	return server.New(&multiProvider{
+		clients: map[string]*opencode.Client{"local": client},
+		specs:   []opencode.InstanceSpec{{Name: "local", URL: upstreamURL, Password: testPassword}},
+		def:     "local",
+	}, fstest.MapFS{
 		"index.html": &fstest.MapFile{Data: []byte("<html>nit</html>")},
 	}, log)
 }

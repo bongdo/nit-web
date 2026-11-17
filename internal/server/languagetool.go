@@ -66,7 +66,7 @@ func newGrammarChecker(log *slog.Logger) *grammarChecker {
 	}
 }
 
-func (g *grammarChecker) running() bool {
+func (g *grammarChecker) runningLocked() bool {
 	if g.cmd == nil {
 		return false
 	}
@@ -84,7 +84,7 @@ func (g *grammarChecker) ensure(ctx context.Context) error {
 	}
 	g.mu.Lock()
 	defer g.mu.Unlock()
-	if g.running() {
+	if g.runningLocked() {
 		return nil
 	}
 	g.cmd = nil
@@ -119,10 +119,10 @@ func (g *grammarChecker) ensure(ctx context.Context) error {
 	deadline := time.Now().Add(grammarStartupTimeout)
 	for time.Now().Before(deadline) {
 		if ctx.Err() != nil {
-			g.stop()
+			g.stopLocked()
 			return ctx.Err()
 		}
-		if !g.running() {
+		if !g.runningLocked() {
 			return fmt.Errorf("languagetool exited during startup")
 		}
 		if g.health(ctx) == nil {
@@ -134,11 +134,11 @@ func (g *grammarChecker) ensure(ctx context.Context) error {
 		}
 		time.Sleep(200 * time.Millisecond)
 	}
-	g.stop()
+	g.stopLocked()
 	return fmt.Errorf("languagetool did not start")
 }
 
-func (g *grammarChecker) stop() {
+func (g *grammarChecker) stopLocked() {
 	if g.cmd == nil {
 		return
 	}
@@ -173,7 +173,10 @@ func (g *grammarChecker) available(ctx context.Context) (bool, string) {
 		}
 		return false, "LanguageTool is not reachable"
 	}
-	if g.running() {
+	g.mu.Lock()
+	running := g.runningLocked()
+	g.mu.Unlock()
+	if running {
 		if g.health(ctx) == nil {
 			return true, "LanguageTool"
 		}

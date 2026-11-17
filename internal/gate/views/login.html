@@ -6,7 +6,7 @@
     <input type="hidden" name="next" value="{{.Next}}">
     <label>имя<input name="name" value="{{.Name}}" autocomplete="username" autofocus></label>
     <label>код из приложения<input name="code" inputmode="numeric" autocomplete="one-time-code" maxlength="14" placeholder="000000"></label>
-    <label class="check"><input type="checkbox" name="temp" value="1" id="temp" checked><span>не запоминать этот вход</span></label>
+    <label class="check"><input type="checkbox" name="temp" value="1" id="temp"><span>не запоминать этот вход</span></label>
     <button class="primary">войти</button>
     <details class="disclosure">
       <summary>войти по паролю</summary>
@@ -33,7 +33,7 @@
   var temp = document.getElementById("temp");
   if (temp) {
     try {
-      if (localStorage.getItem("bongdo.temp") === "0") temp.checked = false;
+      if (localStorage.getItem("bongdo.temp") === "1") temp.checked = true;
       temp.addEventListener("change", function () {
         try { localStorage.setItem("bongdo.temp", temp.checked ? "1" : "0"); } catch (e) {}
       });

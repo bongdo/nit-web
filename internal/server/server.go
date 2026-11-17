@@ -31,12 +31,11 @@ import (
 const (
 	maxJSONBody = 1 << 20
 	shareBase   = "/share"
-)
 
-type ClientProvider interface {
-	Client(context.Context) (*opencode.Client, error)
-	Drop()
-}
+	maxTranscriptPages    = 100
+	maxTranscriptMessages = 2000
+	maxTranscriptBytes    = 32 << 20
+)
 
 type MultiProvider interface {
 	ClientFor(context.Context, string) (*opencode.Client, error)
@@ -51,41 +50,6 @@ type MultiProvider interface {
 	ConfigPath() string
 	HasInstance(string) bool
 	Replace([]opencode.InstanceSpec) error
-}
-
-type singleProvider struct {
-	provider ClientProvider
-}
-
-func (p singleProvider) ClientFor(ctx context.Context, name string) (*opencode.Client, error) {
-	if name != "local" {
-		return nil, opencode.ErrUnknownInstance
-	}
-	return p.provider.Client(ctx)
-}
-
-func (p singleProvider) DropFor(name string) {
-	if name == "local" {
-		p.provider.Drop()
-	}
-}
-
-func (p singleProvider) Instances() []opencode.InstanceSpec {
-	return []opencode.InstanceSpec{{Name: "local"}}
-}
-
-func (p singleProvider) DefaultInstance() string { return "local" }
-func (p singleProvider) ConfigError() string     { return "" }
-func (p singleProvider) Connected(string) bool   { return true }
-func (p singleProvider) LastError(string) string { return "" }
-func (p singleProvider) Transport(string) string { return "local" }
-func (p singleProvider) Detail(string) string    { return "local" }
-func (p singleProvider) ConfigPath() string      { return "" }
-
-func (p singleProvider) HasInstance(name string) bool { return name == "local" }
-
-func (p singleProvider) Replace([]opencode.InstanceSpec) error {
-	return errors.New("instance editing is not available")
 }
 
 type Server struct {
@@ -115,16 +79,17 @@ type Handler struct {
 }
 
 func (h *Handler) StopStreams() {
-	h.server.stopOnce.Do(func() { close(h.server.done) })
+	h.server.stopOnce.Do(func() {
+		close(h.server.done)
+		if voice := h.server.voice; voice != nil && voice.worker != nil {
+			voice.worker.shutdown()
+		}
+	})
 }
 
-func New(provider ClientProvider, static fs.FS, log *slog.Logger) *Handler {
+func New(multi MultiProvider, static fs.FS, log *slog.Logger) *Handler {
 	if log == nil {
 		log = slog.Default()
-	}
-	multi, ok := provider.(MultiProvider)
-	if !ok {
-		multi = singleProvider{provider: provider}
 	}
 	ui, err := uistate.Open(uistate.DefaultPath(), multi.DefaultInstance())
 	if err != nil {
@@ -185,24 +150,14 @@ func (s *Server) warm() {
 	if os.Getenv("NIT_GUI_WARM") == "0" {
 		return
 	}
-	go func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
-		defer cancel()
-		if err := s.grammar.ensure(ctx); err != nil {
-			s.log.Debug("grammar warmup skipped", "error", err)
-			return
-		}
-		s.log.Info("grammar ready", "url", s.grammar.url)
-	}()
-	if s.voice != nil && s.voice.worker != nil {
-		go func() {
-			if err := s.voice.warm(); err != nil {
-				s.log.Debug("host voice warmup skipped", "error", err)
-				return
-			}
-			s.log.Info("host voice ready", "engine", s.voice.engine, "rate", s.voice.rateHz())
-		}()
+	if s.voice == nil || s.voice.worker == nil {
+		return
 	}
+	if err := s.voice.warm(); err != nil {
+		s.log.Debug("host voice warmup skipped", "error", err)
+		return
+	}
+	s.log.Info("host voice ready", "engine", s.voice.engine, "rate", s.voice.rateHz())
 }
 
 func (s *Server) routes() {
@@ -257,9 +212,6 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("GET /api/events", s.events)
 	s.mux.HandleFunc("/api/", func(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, "not found")
-	})
-	s.mux.HandleFunc("POST /auth/logout", func(w http.ResponseWriter, r *http.Request) {
-		http.Redirect(w, r, "/", http.StatusSeeOther)
 	})
 	unavailable := func(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusServiceUnavailable, "drop is unavailable")
@@ -366,9 +318,6 @@ func (s *Server) allowedOrigin(r *http.Request) bool {
 		return true
 	}
 	if origin == "null" {
-		if r.Method == http.MethodPost && (r.URL.Path == "/auth" || r.URL.Path == s.basePath+"/auth") {
-			return true
-		}
 		return s.auth.authenticated(r)
 	}
 	u, err := url.Parse(origin)
@@ -598,8 +547,6 @@ func (s *Server) messages(w http.ResponseWriter, r *http.Request) {
 	before := r.URL.Query().Get("before")
 	light := r.URL.Query().Get("light") == "1"
 	redactor := c.Redactor()
-	pages := []json.RawMessage{}
-	previous := ""
 	if limit > 0 {
 		query := url.Values{}
 		query.Set("limit", strconv.Itoa(limit))
@@ -618,6 +565,7 @@ func (s *Server) messages(w http.ResponseWriter, r *http.Request) {
 			s.upstreamError(w, r, err)
 			return
 		}
+		previous := ""
 		if len(data) > 0 {
 			if light {
 				data, err = lightenTranscript(data)
@@ -635,72 +583,93 @@ func (s *Server) messages(w http.ResponseWriter, r *http.Request) {
 			if count >= limit {
 				previous = next
 			}
-			pages = append(pages, redactor.JSON(data))
 		}
-	} else {
-		cursor := ""
-		for page := 0; page < 100; page++ {
-			path := fmt.Sprintf("/api/session/%s/message?order=asc&limit=100", url.PathEscape(id))
-			if cursor != "" {
-				path = fmt.Sprintf("/api/session/%s/message?limit=100&cursor=%s", url.PathEscape(id), url.QueryEscape(cursor))
-			}
-			raw, err := c.Raw(r.Context(), http.MethodGet, path)
-			if err != nil {
-				s.upstreamError(w, r, err)
-				return
-			}
-			data, next, _, err := decodeMessagesPage(raw)
-			if err != nil {
-				s.upstreamError(w, r, err)
-				return
-			}
-			if len(data) == 0 {
-				break
-			}
-			if light {
-				data, err = lightenTranscript(data)
-				if err != nil {
-					writeError(w, http.StatusBadGateway, "OpenCode returned an invalid transcript")
-					return
-				}
-			}
-			pages = append(pages, redactor.JSON(data))
-			if next == "" {
-				break
-			}
-			cursor = next
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"data":[`))
+		writeTranscriptPage(w, false, redactor.JSON(data))
+		if previous != "" {
+			encoded, _ := json.Marshal(previous)
+			_, _ = w.Write([]byte(`],"previous":`))
+			_, _ = w.Write(encoded)
+		} else {
+			_, _ = w.Write([]byte(`],"previous":null`))
 		}
+		_, _ = w.Write([]byte(`}`))
+		return
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write([]byte(`{"data":[`))
+	cursor := ""
 	wrote := false
-	for _, page := range pages {
-		body := bytes.TrimSpace(page)
-		if len(body) < 2 || body[0] != '[' || body[len(body)-1] != ']' {
-			continue
+	total := 0
+	size := 0
+	for page := 0; page < maxTranscriptPages; page++ {
+		path := fmt.Sprintf("/api/session/%s/message?order=asc&limit=100", url.PathEscape(id))
+		if cursor != "" {
+			path = fmt.Sprintf("/api/session/%s/message?limit=100&cursor=%s", url.PathEscape(id), url.QueryEscape(cursor))
 		}
-		body = bytes.TrimSpace(body[1 : len(body)-1])
-		if len(body) == 0 {
-			continue
+		raw, err := c.Raw(r.Context(), http.MethodGet, path)
+		if err != nil {
+			if r.Context().Err() == nil {
+				s.log.Warn("transcript page failed", "session", id, "error", err)
+			}
+			break
 		}
-		if wrote {
-			_, _ = w.Write([]byte(","))
+		data, next, _, err := decodeMessagesPage(raw)
+		if err != nil {
+			s.log.Warn("transcript page invalid", "session", id, "error", err)
+			break
 		}
-		wrote = true
-		if _, err := w.Write(body); err != nil {
+		if len(data) == 0 {
+			break
+		}
+		if light {
+			data, err = lightenTranscript(data)
+			if err != nil {
+				s.log.Warn("transcript page invalid", "session", id, "error", err)
+				break
+			}
+		}
+		if !writeTranscriptPage(w, wrote, redactor.JSON(data)) {
 			return
 		}
+		wrote = true
+		total += transcriptCount(data)
+		size += len(data)
+		if next == "" || total >= maxTranscriptMessages || size >= maxTranscriptBytes {
+			break
+		}
+		cursor = next
 	}
-	_, _ = w.Write([]byte(`]`))
-	if previous != "" {
-		encoded, _ := json.Marshal(previous)
-		_, _ = w.Write([]byte(`,"previous":`))
-		_, _ = w.Write(encoded)
-	} else {
-		_, _ = w.Write([]byte(`,"previous":null`))
+	_, _ = w.Write([]byte(`],"previous":null}`))
+}
+
+func writeTranscriptPage(w http.ResponseWriter, wrote bool, page []byte) bool {
+	body := bytes.TrimSpace(page)
+	if len(body) < 2 || body[0] != '[' || body[len(body)-1] != ']' {
+		return true
 	}
-	_, _ = w.Write([]byte(`}`))
+	body = bytes.TrimSpace(body[1 : len(body)-1])
+	if len(body) == 0 {
+		return true
+	}
+	if wrote {
+		if _, err := w.Write([]byte(",")); err != nil {
+			return false
+		}
+	}
+	_, err := w.Write(body)
+	return err == nil
+}
+
+func transcriptCount(data []byte) int {
+	var messages []json.RawMessage
+	if err := json.Unmarshal(data, &messages); err != nil {
+		return 0
+	}
+	return len(messages)
 }
 
 func decodeMessagesPage(raw []byte) (json.RawMessage, string, string, error) {
@@ -1147,6 +1116,8 @@ func inlineFileType(contentType string) bool {
 	return false
 }
 
+var uploadedName = regexp.MustCompile(`^[0-9]+-[A-Za-z0-9._-]+$`)
+
 func uploadedPath(raw string) (string, bool) {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {
@@ -1160,7 +1131,8 @@ func uploadedPath(raw string) (string, bool) {
 		raw = parsed.Path
 	}
 	path := filepath.Clean(raw)
-	if !strings.HasPrefix(path, uploadPrefix()) {
+	rest, ok := strings.CutPrefix(path, uploadPrefix())
+	if !ok || !uploadedName.MatchString(rest) {
 		return "", false
 	}
 	return path, true

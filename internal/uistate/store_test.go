@@ -348,3 +348,39 @@ func TestRenameMovesInstanceState(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestDeleteInstanceDropsState(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "state.json")
+	store, err := Open(path, "local")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.SetDraft("office", "key", "hello"); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.SetAgent("office", "build"); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.SetAgent("local", "plan"); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.DeleteInstance("office"); err != nil {
+		t.Fatal(err)
+	}
+	if store.Has("office") {
+		t.Fatal("deleted instance still has state")
+	}
+	if got := store.Draft("office", "key").Text; got != "" {
+		t.Fatalf("draft survived delete: %q", got)
+	}
+	if !store.Has("local") || store.Snapshot("local").Agent != "plan" {
+		t.Fatalf("sibling instance lost its state: %+v", store.Snapshot("local"))
+	}
+	reopened, err := Open(path, "local")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if reopened.Has("office") {
+		t.Fatal("deleted instance came back after reopen")
+	}
+}

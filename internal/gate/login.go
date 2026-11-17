@@ -8,11 +8,13 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"nitgui/internal/gateid"
 )
 
 func (s *Server) loginPage(w http.ResponseWriter, r *http.Request) {
 	data := s.newNarrow(r, "вход")
-	data.Next = safeNext(r.URL.Query().Get("next"))
+	data.Next = gateid.SafeNext(r.URL.Query().Get("next"))
 	if card, ok := s.qrCard(w, r); ok {
 		data.QR = card
 	}
@@ -20,7 +22,7 @@ func (s *Server) loginPage(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) loginSubmit(w http.ResponseWriter, r *http.Request) {
-	next := safeNext(r.PostFormValue("next"))
+	next := gateid.SafeNext(r.PostFormValue("next"))
 	name := r.PostFormValue("name")
 	code := strings.TrimSpace(r.PostFormValue("code"))
 	password := r.PostFormValue("password")
@@ -29,7 +31,7 @@ func (s *Server) loginSubmit(w http.ResponseWriter, r *http.Request) {
 	account, exists := s.users.Get(name)
 	hasCode := exists && account.Status == StatusActive && account.TOTP != ""
 
-	if hasCode && code != "" {
+	if hasCode && code != "" && password != "" {
 		if wait, blocked := s.blockedKey("u:" + account.Name); blocked {
 			s.loginError(w, r, next, name, "слишком много кодов, попробуйте через "+wait.Round(time.Second).String(), http.StatusTooManyRequests)
 			return
@@ -42,7 +44,7 @@ func (s *Server) loginSubmit(w http.ResponseWriter, r *http.Request) {
 	case hasCode:
 		user = account
 		ok = s.consumeCode(account, code)
-		if !ok && code != "" {
+		if !ok && password != "" {
 			s.noteFailureKey("u:" + account.Name)
 		}
 	case password != "":
@@ -50,14 +52,17 @@ func (s *Server) loginSubmit(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if !ok {
-		s.audit.Add(AuditEvent{User: strings.TrimSpace(name), IP: clientIP(r), Agent: deviceName(r.UserAgent()), Result: "fail"})
+		s.audit.Add(AuditEvent{User: strings.TrimSpace(name), IP: gateid.ClientIP(r), Agent: deviceName(r.UserAgent()), Result: "fail"})
 		s.noteFailure(r)
 		if wait, blocked := s.blockedIP(r); blocked {
 			s.loginError(w, r, next, name, "слишком много попыток, верный код пустят сразу, иначе через "+wait.Round(time.Second).String(), http.StatusTooManyRequests)
 			return
 		}
 		message := "неверное имя, код или пароль"
-		if exists && !hasCode && code != "" {
+		switch {
+		case hasCode && code == "":
+			message = "введите код из приложения"
+		case exists && !hasCode && code != "":
 			message = "у этого аккаунта нет кода — войдите по паролю"
 		}
 		s.loginError(w, r, next, name, message, http.StatusUnauthorized)
@@ -67,7 +72,7 @@ func (s *Server) loginSubmit(w http.ResponseWriter, r *http.Request) {
 	s.resetFailures(r)
 	s.resetKey("u:" + user.Name)
 	s.startSession(w, r, user, temp)
-	s.audit.Add(AuditEvent{User: user.Name, IP: clientIP(r), Agent: deviceName(r.UserAgent()), Result: "ok", Temp: temp})
+	s.audit.Add(AuditEvent{User: user.Name, IP: gateid.ClientIP(r), Agent: deviceName(r.UserAgent()), Result: "ok", Temp: temp})
 	http.Redirect(w, r, next, http.StatusSeeOther)
 }
 

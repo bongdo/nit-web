@@ -50,6 +50,9 @@ func (w *piperWorker) start() error {
 func (w *piperWorker) synthesize(ctx context.Context, text string) ([]byte, error) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	if err := w.ensure(); err != nil {
 		return nil, err
 	}
@@ -176,13 +179,22 @@ func (w *piperWorker) procExited() <-chan struct{} {
 func (w *piperWorker) stop() {
 	proc := w.proc
 	w.proc = nil
-	if proc == nil {
-		return
+	if proc != nil {
+		_ = proc.stdin.Close()
+		if proc.cmd.Process != nil {
+			_ = proc.cmd.Process.Kill()
+		}
 	}
-	_ = proc.stdin.Close()
-	if proc.cmd.Process != nil {
-		_ = proc.cmd.Process.Kill()
+	if w.dir != "" {
+		_ = os.RemoveAll(w.dir)
+		w.dir = ""
 	}
+}
+
+func (w *piperWorker) shutdown() {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	w.stop()
 }
 
 func wavComplete(data []byte) (complete bool, ok bool) {

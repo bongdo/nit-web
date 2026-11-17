@@ -612,13 +612,23 @@ func TestRemovedDeviceBecomesAnonymous(t *testing.T) {
 	}
 }
 
+func userEpoch(t *testing.T, store *Store, name string) string {
+	t.Helper()
+	user, ok := store.Get(name)
+	if !ok {
+		t.Fatalf("user %q not found", name)
+	}
+	return user.Epoch()
+}
+
 func TestSessionWithoutDeviceAdoptsOne(t *testing.T) {
-	server, _, devices := testServerDevices(t, nil)
+	server, store, devices := testServerDevices(t, nil)
 	id := gateid.Identity{
-		User: "friend",
-		Role: gateid.RoleMember,
-		Caps: gateid.Caps(gateid.RoleMember),
-		Exp:  time.Now().Add(time.Hour).Unix(),
+		User:  "friend",
+		Role:  gateid.RoleMember,
+		Caps:  gateid.Caps(gateid.RoleMember),
+		Exp:   time.Now().Add(time.Hour).Unix(),
+		Epoch: userEpoch(t, store, "friend"),
 	}
 	req, err := http.NewRequest(http.MethodGet, server.URL+"/account", nil)
 	if err != nil {
@@ -769,6 +779,38 @@ func getBody(t *testing.T, client *http.Client, url string) string {
 		t.Fatalf("GET %s = %d", url, resp.StatusCode)
 	}
 	return string(body)
+}
+
+func postForm(t *testing.T, client *http.Client, target string, form url.Values) (int, string) {
+	t.Helper()
+	resp, err := client.PostForm(target, form)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return resp.StatusCode, string(body)
+}
+
+func fieldValue(t *testing.T, body, name string) string {
+	t.Helper()
+	match := regexp.MustCompile(`name="` + name + `" value="([^"]*)"`).FindStringSubmatch(body)
+	if match == nil {
+		t.Fatalf("field %q not found", name)
+	}
+	return match[1]
+}
+
+func secretField(t *testing.T, body string) string {
+	t.Helper()
+	match := regexp.MustCompile(`class="mono secret">([^<]+)<`).FindStringSubmatch(body)
+	if match == nil {
+		t.Fatal("secret not found")
+	}
+	return strings.ReplaceAll(match[1], " ", "")
 }
 
 func TestActiveAccountCannotBeRejected(t *testing.T) {
@@ -940,6 +982,194 @@ func TestLoginWritesAudit(t *testing.T) {
 	}
 }
 
+func assertSessionStatus(t *testing.T, client *http.Client, target string, want int) {
+	t.Helper()
+	resp, err := client.Get(target)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != want {
+		t.Fatalf("GET %s = %d, want %d", target, resp.StatusCode, want)
+	}
+}
+
+func assertLoggedOut(t *testing.T, client *http.Client, target string) {
+	t.Helper()
+	resp, err := client.Get(target)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusSeeOther || !strings.HasPrefix(resp.Header.Get("Location"), "/login") {
+		t.Fatalf("stale session = %d %q, want 303 to /login", resp.StatusCode, resp.Header.Get("Location"))
+	}
+}
+
+func TestCredentialChangeEndsSessions(t *testing.T) {
+	server, store, _ := testServerDevices(t, nil)
+	client := noRedirect(t)
+	if resp := login(t, client, server.URL, "friend", "member-pass"); resp.StatusCode != http.StatusSeeOther {
+		t.Fatalf("login = %d", resp.StatusCode)
+	}
+	assertSessionStatus(t, client, server.URL+"/account", http.StatusOK)
+
+	if err := store.SetPasswordHash("friend", "another-pass"); err != nil {
+		t.Fatal(err)
+	}
+	assertLoggedOut(t, client, server.URL+"/account")
+
+	fresh := noRedirect(t)
+	if resp := login(t, fresh, server.URL, "friend", "another-pass"); resp.StatusCode != http.StatusSeeOther {
+		t.Fatalf("login after password change = %d", resp.StatusCode)
+	}
+
+	const secret = "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ"
+	if err := store.SetTOTP("friend", secret, nil); err != nil {
+		t.Fatal(err)
+	}
+	assertLoggedOut(t, fresh, server.URL+"/account")
+
+	coded := noRedirect(t)
+	code, err := totpAt(secret, totpStepOf(time.Now()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp, err := coded.PostForm(server.URL+"/login", url.Values{"name": {"friend"}, "code": {code}, "next": {"/"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusSeeOther {
+		t.Fatalf("code login = %d", resp.StatusCode)
+	}
+	assertSessionStatus(t, coded, server.URL+"/account", http.StatusOK)
+
+	if err := store.ClearTOTP("friend"); err != nil {
+		t.Fatal(err)
+	}
+	assertLoggedOut(t, coded, server.URL+"/account")
+}
+
+func TestTOTPEnableNeedsPassword(t *testing.T) {
+	server, store, _ := testServerDevices(t, nil)
+	client := noRedirect(t)
+	if resp := login(t, client, server.URL, "bongdo", "secret-pass"); resp.StatusCode != http.StatusSeeOther {
+		t.Fatalf("login = %d", resp.StatusCode)
+	}
+
+	for _, current := range []string{"", "wrong"} {
+		status, _ := postForm(t, client, server.URL+"/account/totp/start", url.Values{"current": {current}})
+		if status != http.StatusUnauthorized {
+			t.Fatalf("start with current=%q = %d, want 401", current, status)
+		}
+		if user, _ := store.Get("bongdo"); user.TOTP != "" {
+			t.Fatal("secret stored without the current password")
+		}
+	}
+
+	status, body := postForm(t, client, server.URL+"/account/totp/start", url.Values{"current": {"secret-pass"}})
+	if status != http.StatusOK {
+		t.Fatalf("start = %d, want 200", status)
+	}
+	secret := secretField(t, body)
+	pending := fieldValue(t, body, "pending")
+	code, err := totpAt(secret, totpStepOf(time.Now()))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	status, _ = postForm(t, client, server.URL+"/account/totp/enable", url.Values{"pending": {pending}, "code": {code}, "current": {"wrong"}})
+	if status != http.StatusUnauthorized {
+		t.Fatalf("enable with a wrong password = %d, want 401", status)
+	}
+	if user, _ := store.Get("bongdo"); user.TOTP != "" {
+		t.Fatal("totp enabled without the current password")
+	}
+
+	status, _ = postForm(t, client, server.URL+"/account/totp/enable", url.Values{"pending": {pending}, "code": {code}, "current": {"secret-pass"}})
+	if status != http.StatusOK {
+		t.Fatalf("enable = %d, want 200", status)
+	}
+	if user, _ := store.Get("bongdo"); user.TOTP != secret {
+		t.Fatalf("stored secret = %q, want %q", user.TOTP, secret)
+	}
+}
+
+func TestTOTPEnableRefusesSecondSecret(t *testing.T) {
+	server, store, _ := testServerDevices(t, nil)
+	const secret = "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ"
+	if err := store.SetTOTP("bongdo", secret, nil); err != nil {
+		t.Fatal(err)
+	}
+	client := noRedirect(t)
+	code, err := totpAt(secret, totpStepOf(time.Now()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp, err := client.PostForm(server.URL+"/login", url.Values{"name": {"bongdo"}, "code": {code}, "next": {"/"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusSeeOther {
+		t.Fatalf("code login = %d", resp.StatusCode)
+	}
+
+	status, body := postForm(t, client, server.URL+"/account/totp/start", url.Values{"current": {"secret-pass"}})
+	if status != http.StatusBadRequest {
+		t.Fatalf("start with 2FA on = %d, want 400", status)
+	}
+	if !strings.Contains(body, "уже включена") {
+		t.Fatal("no message about the enabled 2FA")
+	}
+	if user, _ := store.Get("bongdo"); user.TOTP != secret {
+		t.Fatal("existing secret was overwritten")
+	}
+}
+
+func TestTOTPDisableNeedsPassword(t *testing.T) {
+	server, store, _ := testServerDevices(t, nil)
+	const secret = "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ"
+	if err := store.SetTOTP("bongdo", secret, nil); err != nil {
+		t.Fatal(err)
+	}
+	client := noRedirect(t)
+	step := totpStepOf(time.Now())
+	code, err := totpAt(secret, step)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp, err := client.PostForm(server.URL+"/login", url.Values{"name": {"bongdo"}, "code": {code}, "next": {"/"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusSeeOther {
+		t.Fatalf("code login = %d", resp.StatusCode)
+	}
+
+	next, err := totpAt(secret, step+1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	status, _ := postForm(t, client, server.URL+"/account/totp/disable", url.Values{"current": {"wrong"}, "code": {next}})
+	if status != http.StatusUnauthorized {
+		t.Fatalf("disable with a wrong password = %d, want 401", status)
+	}
+	if user, _ := store.Get("bongdo"); user.TOTP != secret {
+		t.Fatal("totp disabled without the current password")
+	}
+
+	status, _ = postForm(t, client, server.URL+"/account/totp/disable", url.Values{"current": {"secret-pass"}, "code": {next}})
+	if status != http.StatusOK {
+		t.Fatalf("disable = %d, want 200", status)
+	}
+	if user, _ := store.Get("bongdo"); user.TOTP != "" {
+		t.Fatal("totp still on")
+	}
+}
+
 func TestAppSessionToken(t *testing.T) {
 	t.Setenv("NIT_GATE_PASSWORD_HASH", "hash-one")
 	now := time.Unix(1700000000, 0)
@@ -976,16 +1206,17 @@ func TestLoginSetsAppSession(t *testing.T) {
 
 func TestSessionRestoresAppSession(t *testing.T) {
 	t.Setenv("NIT_GATE_PASSWORD_HASH", "hash-one")
-	server, _, devices := testServerDevices(t, nil)
+	server, store, devices := testServerDevices(t, nil)
 	login(t, noRedirect(t), server.URL, "friend", "member-pass")
 	device := devices.ListFor("friend")[0]
 
 	id := gateid.Identity{
-		User: "friend",
-		Role: gateid.RoleMember,
-		Caps: gateid.Caps(gateid.RoleMember),
-		Dev:  device.ID,
-		Exp:  time.Now().Add(time.Hour).Unix(),
+		User:  "friend",
+		Role:  gateid.RoleMember,
+		Caps:  gateid.Caps(gateid.RoleMember),
+		Dev:   device.ID,
+		Exp:   time.Now().Add(time.Hour).Unix(),
+		Epoch: userEpoch(t, store, "friend"),
 	}
 	req, err := http.NewRequest(http.MethodGet, server.URL+"/account", nil)
 	if err != nil {
@@ -1079,7 +1310,7 @@ func TestRecoveryCodeIsSingleUse(t *testing.T) {
 	}
 }
 
-func TestTempLoginKeepsNoDevice(t *testing.T) {
+func TestTempLoginKeepsNoPersistentCookie(t *testing.T) {
 	server, _, devices := testServerDevices(t, nil)
 	client := noRedirect(t)
 	form := strings.NewReader("name=bongdo&password=secret-pass&temp=1&next=/account")
@@ -1091,8 +1322,8 @@ func TestTempLoginKeepsNoDevice(t *testing.T) {
 	if resp.StatusCode != http.StatusSeeOther {
 		t.Fatalf("login = %d", resp.StatusCode)
 	}
-	if got := len(devices.List()); got != 0 {
-		t.Fatalf("devices after temp login = %d, want 0", got)
+	if got := len(devices.List()); got != 1 {
+		t.Fatalf("devices after temp login = %d, want 1", got)
 	}
 	var session *http.Cookie
 	for _, cookie := range resp.Cookies() {
@@ -1103,6 +1334,16 @@ func TestTempLoginKeepsNoDevice(t *testing.T) {
 	if session == nil || session.MaxAge != 0 {
 		t.Fatalf("temp session cookie = %+v, want a cookie without Max-Age", session)
 	}
+	id, err := gateid.Verify([]byte(testKey), session.Value, time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !id.Temp || id.Dev == "" {
+		t.Fatalf("temp identity = %+v", id)
+	}
+	if ttl := time.Until(time.Unix(id.Exp, 0)); ttl > 12*time.Hour || ttl < 11*time.Hour {
+		t.Fatalf("temp session ttl = %v, want 12h", ttl)
+	}
 	account, err := client.Get(server.URL + "/account")
 	if err != nil {
 		t.Fatal(err)
@@ -1111,8 +1352,8 @@ func TestTempLoginKeepsNoDevice(t *testing.T) {
 	if account.StatusCode != http.StatusOK {
 		t.Fatalf("account = %d", account.StatusCode)
 	}
-	if got := len(devices.List()); got != 0 {
-		t.Fatalf("devices after visiting account = %d, want 0", got)
+	if got := len(devices.List()); got != 1 {
+		t.Fatalf("devices after visiting account = %d, want 1", got)
 	}
 }
 
@@ -1165,7 +1406,7 @@ func TestLoginByCodeOnly(t *testing.T) {
 	}
 }
 
-func TestWrongCodesBlockTheAccount(t *testing.T) {
+func TestWrongCodesDoNotLockTheAccount(t *testing.T) {
 	server, store, _ := testServerDevices(t, nil)
 	secret, err := newTOTPSecret()
 	if err != nil {
@@ -1206,8 +1447,70 @@ func TestWrongCodesBlockTheAccount(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := attempt("10.0.0.99", right); got != http.StatusTooManyRequests {
-		t.Fatalf("correct code after %d wrong ones = %d, want 429", maxFailures, got)
+	if got := attempt("10.0.0.99", right); got != http.StatusSeeOther {
+		t.Fatalf("correct code after %d wrong ones from other IPs = %d, want 303", maxFailures, got)
+	}
+}
+
+func TestWrongCodesBlockOneIP(t *testing.T) {
+	server, store, _ := testServerDevices(t, nil)
+	secret, err := newTOTPSecret()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.SetTOTP("bongdo", secret, nil); err != nil {
+		t.Fatal(err)
+	}
+	client := noRedirect(t)
+	wrong, err := totpAt(secret, totpStepOf(time.Now()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	wrong = wrong[:5] + string("0123456789"[(int(wrong[5]-'0')+1)%10])
+
+	attempt := func(code string) int {
+		req, err := http.NewRequest(http.MethodPost, server.URL+"/login",
+			strings.NewReader("name=bongdo&code="+code+"&next=/"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		req.Header.Set("X-Forwarded-For", "10.0.0.7")
+		resp, err := client.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		resp.Body.Close()
+		return resp.StatusCode
+	}
+
+	for i := 0; i < maxFailures; i++ {
+		attempt(wrong)
+	}
+	if got := attempt(wrong); got != http.StatusTooManyRequests {
+		t.Fatalf("wrong code after %d failures from one IP = %d, want 429", maxFailures, got)
+	}
+}
+
+func TestEmptyCodeIsRefused(t *testing.T) {
+	server, store, _ := testServerDevices(t, nil)
+	secret, err := newTOTPSecret()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.SetTOTP("bongdo", secret, nil); err != nil {
+		t.Fatal(err)
+	}
+	client := noRedirect(t)
+	status, body := postForm(t, client, server.URL+"/login", url.Values{"name": {"bongdo"}, "code": {""}, "next": {"/"}})
+	if status != http.StatusUnauthorized {
+		t.Fatalf("empty code = %d, want 401", status)
+	}
+	if !strings.Contains(body, "введите код") {
+		t.Fatalf("no hint about the missing code: %q", body)
+	}
+	if user, _ := store.Get("bongdo"); user.TOTPStep != 0 {
+		t.Fatalf("empty code moved the step to %d", user.TOTPStep)
 	}
 }
 

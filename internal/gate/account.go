@@ -3,6 +3,8 @@ package gate
 import (
 	"net/http"
 	"time"
+
+	"nitgui/internal/gateid"
 )
 
 func (s *Server) accountPage(w http.ResponseWriter, r *http.Request) {
@@ -54,6 +56,16 @@ func (s *Server) accountTOTPStart(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	data := s.accountView(r)
+	if user, ok := s.users.Get(id.User); ok && user.TOTP != "" {
+		data.Error = "двухфакторная защита уже включена — сначала отключите"
+		s.renderStatus(w, "account", data, http.StatusBadRequest)
+		return
+	}
+	if _, ok := s.users.Authenticate(id.User, r.PostFormValue("current")); !ok {
+		data.Error = "текущий пароль неверный"
+		s.renderStatus(w, "account", data, http.StatusUnauthorized)
+		return
+	}
 	secret, err := newTOTPSecret()
 	if err != nil {
 		data.Error = "не удалось создать секрет"
@@ -79,6 +91,16 @@ func (s *Server) accountTOTPEnable(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	data := s.accountView(r)
+	if user, ok := s.users.Get(id.User); ok && user.TOTP != "" {
+		data.Error = "двухфакторная защита уже включена — сначала отключите"
+		s.renderStatus(w, "account", data, http.StatusBadRequest)
+		return
+	}
+	if _, ok := s.users.Authenticate(id.User, r.PostFormValue("current")); !ok {
+		data.Error = "текущий пароль неверный"
+		s.renderStatus(w, "account", data, http.StatusUnauthorized)
+		return
+	}
 	pending := r.PostFormValue("pending")
 	fields, ok := s.readPayload("totp", pending, s.now())
 	if !ok || len(fields) != 2 || fields[0] != id.User {
@@ -117,7 +139,7 @@ func (s *Server) accountTOTPEnable(w http.ResponseWriter, r *http.Request) {
 	data = s.accountView(r)
 	data.Message = "двухфакторная защита включена"
 	data.Recovery = plain
-	s.audit.Add(AuditEvent{User: id.User, IP: clientIP(r), Agent: deviceName(r.UserAgent()), Result: "totp-on"})
+	s.audit.Add(AuditEvent{User: id.User, IP: gateid.ClientIP(r), Agent: deviceName(r.UserAgent()), Result: "totp-on"})
 	s.render(w, "account", data)
 }
 
@@ -154,7 +176,7 @@ func (s *Server) accountTOTPDisable(w http.ResponseWriter, r *http.Request) {
 	}
 	data = s.accountView(r)
 	data.Message = "двухфакторная защита отключена"
-	s.audit.Add(AuditEvent{User: id.User, IP: clientIP(r), Agent: deviceName(r.UserAgent()), Result: "totp-off"})
+	s.audit.Add(AuditEvent{User: id.User, IP: gateid.ClientIP(r), Agent: deviceName(r.UserAgent()), Result: "totp-off"})
 	s.render(w, "account", data)
 }
 

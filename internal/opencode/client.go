@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -137,33 +136,25 @@ func (c *Client) Raw(ctx context.Context, method, path string) ([]byte, error) {
 }
 
 func (c *Client) doRaw(ctx context.Context, method, path string, body any, identity bool) ([]byte, error) {
-	req, err := c.newRequest(ctx, method, path, body)
-	if err != nil {
-		return nil, err
-	}
-	if identity {
-		req.Header.Set("Accept-Encoding", "identity")
-	}
-	resp, err := c.HTTP.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode == http.StatusUnauthorized && c.refreshPassword() {
-		req, err = c.newRequest(ctx, method, path, body)
+	send := func() (*http.Response, error) {
+		req, err := c.newRequest(ctx, method, path, body)
 		if err != nil {
 			return nil, err
 		}
 		if identity {
 			req.Header.Set("Accept-Encoding", "identity")
 		}
-		resp.Body.Close()
-		resp, err = c.HTTP.Do(req)
-		if err != nil {
-			return nil, err
-		}
-		defer resp.Body.Close()
+		return c.HTTP.Do(req)
 	}
+	resp, err := send()
+	if err != nil {
+		return nil, err
+	}
+	resp, err = c.retryUnauthorized(send, resp)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
 	raw, err := io.ReadAll(io.LimitReader(resp.Body, maxUpstreamBody))
 	if err != nil {
 		return nil, err
@@ -172,6 +163,14 @@ func (c *Client) doRaw(ctx context.Context, method, path string, body any, ident
 		return nil, &HTTPError{Status: resp.StatusCode, Body: c.redact(raw)}
 	}
 	return raw, nil
+}
+
+func (c *Client) retryUnauthorized(send func() (*http.Response, error), resp *http.Response) (*http.Response, error) {
+	if resp.StatusCode != http.StatusUnauthorized || !c.refreshPassword() {
+		return resp, nil
+	}
+	resp.Body.Close()
+	return send()
 }
 
 func (c *Client) WriteFile(ctx context.Context, dir, path string, data []byte) (string, error) {
@@ -197,12 +196,9 @@ func (c *Client) WriteFile(ctx context.Context, dir, path string, data []byte) (
 	if err != nil {
 		return "", err
 	}
-	if resp.StatusCode == http.StatusUnauthorized && c.refreshPassword() {
-		resp.Body.Close()
-		resp, err = send()
-		if err != nil {
-			return "", err
-		}
+	resp, err = c.retryUnauthorized(send, resp)
+	if err != nil {
+		return "", err
 	}
 	defer resp.Body.Close()
 	raw, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
@@ -245,12 +241,9 @@ func (c *Client) ReadFile(ctx context.Context, path string) (*http.Response, err
 	if err != nil {
 		return nil, err
 	}
-	if resp.StatusCode == http.StatusUnauthorized && c.refreshPassword() {
-		resp.Body.Close()
-		resp, err = send()
-		if err != nil {
-			return nil, err
-		}
+	resp, err = c.retryUnauthorized(send, resp)
+	if err != nil {
+		return nil, err
 	}
 	if resp.StatusCode >= 400 {
 		raw, _ := io.ReadAll(io.LimitReader(resp.Body, 64<<10))
@@ -261,29 +254,22 @@ func (c *Client) ReadFile(ctx context.Context, path string) (*http.Response, err
 }
 
 func (c *Client) Stream(ctx context.Context, path string) (*http.Response, error) {
-	req, err := c.newRequest(ctx, http.MethodGet, path, nil)
-	if err != nil {
-		return nil, err
-	}
-	req.Header.Set("Accept", "text/event-stream")
-	req.Header.Set("Cache-Control", "no-cache")
-	resp, err := c.StreamHTTP.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	if resp.StatusCode == http.StatusUnauthorized && c.refreshPassword() {
-		req, err = c.newRequest(ctx, http.MethodGet, path, nil)
+	send := func() (*http.Response, error) {
+		req, err := c.newRequest(ctx, http.MethodGet, path, nil)
 		if err != nil {
-			resp.Body.Close()
 			return nil, err
 		}
 		req.Header.Set("Accept", "text/event-stream")
 		req.Header.Set("Cache-Control", "no-cache")
-		resp.Body.Close()
-		resp, err = c.StreamHTTP.Do(req)
-		if err != nil {
-			return nil, err
-		}
+		return c.StreamHTTP.Do(req)
+	}
+	resp, err := send()
+	if err != nil {
+		return nil, err
+	}
+	resp, err = c.retryUnauthorized(send, resp)
+	if err != nil {
+		return nil, err
 	}
 	if resp.StatusCode != http.StatusOK {
 		raw, _ := io.ReadAll(io.LimitReader(resp.Body, 64<<10))
@@ -295,9 +281,4 @@ func (c *Client) Stream(ctx context.Context, path string) (*http.Response, error
 
 func (c *Client) redact(body []byte) []byte {
 	return c.Redactor().Bytes(body)
-}
-
-func IsNotFound(err error) bool {
-	var e *HTTPError
-	return errors.As(err, &e) && e.Status == http.StatusNotFound
 }

@@ -38,12 +38,14 @@
   </div>
   <form class="stack" method="post" action="/account/totp/enable">
     <input type="hidden" name="pending" value="{{.TOTPPending}}">
+    <label>текущий пароль<input name="current" type="password" autocomplete="current-password"></label>
     <label>код из приложения<input name="code" inputmode="numeric" autocomplete="one-time-code" placeholder="000000" required></label>
     <button class="primary">включить</button>
   </form>
   {{else}}
   <p class="lede">Пароль — единственный фактор. Добавьте код из Google Authenticator, 1Password или другого приложения.</p>
   <form class="stack" method="post" action="/account/totp/start">
+    <label>текущий пароль<input name="current" type="password" autocomplete="current-password"></label>
     <button class="ghost">включить</button>
   </form>
   {{end}}

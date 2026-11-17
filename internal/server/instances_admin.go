@@ -121,6 +121,7 @@ func (s *Server) saveInstance(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "term url must be an http(s) url or a path starting with /")
 		return
 	}
+	passwordPath := ""
 	if in.PasswordFile != "" {
 		path, err := s.confinedPasswordPath(in.PasswordFile)
 		if err != nil {
@@ -139,11 +140,7 @@ func (s *Server) saveInstance(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 		}
-		if err := writePasswordFile(path, in.Password); err != nil {
-			s.log.Error("instance password write failed", "error", err)
-			writeError(w, http.StatusInternalServerError, "could not write password file")
-			return
-		}
+		passwordPath = path
 		spec.PasswordFile = path
 		spec.Password = ""
 	}
@@ -162,6 +159,13 @@ func (s *Server) saveInstance(w http.ResponseWriter, r *http.Request) {
 		s.log.Error("instance config save failed", "error", err)
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
+	}
+	if passwordPath != "" {
+		if err := writePasswordFile(passwordPath, in.Password); err != nil {
+			s.log.Error("instance password write failed", "error", err)
+			writeError(w, http.StatusInternalServerError, "could not write password file")
+			return
+		}
 	}
 	if in.Original != "" && in.Original != in.Name && s.ui != nil {
 		if err := s.ui.Rename(in.Original, in.Name); err != nil {
@@ -199,6 +203,13 @@ func (s *Server) deleteInstance(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	removePasswordFile(s.multi.ConfigPath(), removed.PasswordFile, specs)
+	if s.ui != nil {
+		if err := s.ui.DeleteInstance(id); err != nil {
+			s.log.Error("instance ui state delete failed", "error", err)
+			writeError(w, http.StatusInternalServerError, "instance deleted, but its UI state could not be removed")
+			return
+		}
+	}
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 }
 
@@ -231,7 +242,7 @@ func (s *Server) defaultPasswordPath(name string) (string, error) {
 }
 
 func (s *Server) confinedPasswordPath(raw string) (string, error) {
-	path := expandUser(strings.TrimSpace(raw))
+	path := expandHome(strings.TrimSpace(raw))
 	if path == "" || !filepath.IsAbs(path) {
 		return "", errors.New("password file must be an absolute path")
 	}
@@ -261,7 +272,7 @@ func (s *Server) confinedPasswordPath(raw string) (string, error) {
 }
 
 func writePasswordFile(path, password string) error {
-	path = expandUser(path)
+	path = expandHome(path)
 	if info, err := os.Lstat(path); err == nil {
 		if info.Mode()&os.ModeSymlink != 0 || !info.Mode().IsRegular() {
 			return errors.New("password file must be a regular file, not a link")
@@ -291,15 +302,6 @@ func writePasswordFile(path, password string) error {
 		return err
 	}
 	return os.Rename(name, path)
-}
-
-func expandUser(path string) string {
-	if strings.HasPrefix(path, "~/") {
-		if home, err := os.UserHomeDir(); err == nil {
-			return filepath.Join(home, path[2:])
-		}
-	}
-	return path
 }
 
 func isLoopbackURL(raw string) bool {

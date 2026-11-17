@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"encoding/json"
 	"io"
 	"log/slog"
@@ -11,6 +12,7 @@ import (
 	"strings"
 	"testing"
 
+	"nitgui/internal/opencode"
 	"nitgui/internal/uistate"
 )
 
@@ -20,8 +22,32 @@ func uiTestServer(t *testing.T) *Server {
 	if err != nil {
 		t.Fatal(err)
 	}
-	return &Server{ui: store, multi: singleProvider{}, log: slog.New(slog.NewTextHandler(io.Discard, nil))}
+	return &Server{ui: store, multi: testProvider{}, log: slog.New(slog.NewTextHandler(io.Discard, nil))}
 }
+
+type testProvider struct{}
+
+func (testProvider) ClientFor(context.Context, string) (*opencode.Client, error) {
+	return nil, opencode.ErrUnknownInstance
+}
+
+func (testProvider) DropFor(string) {}
+
+func (testProvider) Instances() []opencode.InstanceSpec {
+	return []opencode.InstanceSpec{{Name: "local"}}
+}
+
+func (testProvider) DefaultInstance() string { return "local" }
+func (testProvider) ConfigError() string     { return "" }
+func (testProvider) Connected(string) bool   { return true }
+func (testProvider) LastError(string) string { return "" }
+func (testProvider) Transport(string) string { return "local" }
+func (testProvider) Detail(string) string    { return "local" }
+func (testProvider) ConfigPath() string      { return "" }
+
+func (testProvider) HasInstance(name string) bool { return name == "local" }
+
+func (testProvider) Replace([]opencode.InstanceSpec) error { return nil }
 
 func jsonRequest(method, target, body string) *http.Request {
 	request := httptest.NewRequest(method, target, strings.NewReader(body))
@@ -185,7 +211,7 @@ func TestUIHiddenWriteFailureLeavesStateUnchanged(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(dir, "sub"), []byte("not a directory"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	s := &Server{ui: store, multi: singleProvider{}, log: slog.New(slog.NewTextHandler(io.Discard, nil))}
+	s := &Server{ui: store, multi: testProvider{}, log: slog.New(slog.NewTextHandler(io.Discard, nil))}
 
 	for _, call := range []struct {
 		name    string

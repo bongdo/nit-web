@@ -36,12 +36,13 @@ var roleCaps = map[string][]string{
 }
 
 type Identity struct {
-	User string   `json:"u"`
-	Role string   `json:"r"`
-	Caps []string `json:"c"`
-	Exp  int64    `json:"exp"`
-	Dev  string   `json:"d,omitempty"`
-	Temp bool     `json:"t,omitempty"`
+	User  string   `json:"u"`
+	Role  string   `json:"r"`
+	Caps  []string `json:"c"`
+	Exp   int64    `json:"exp"`
+	Dev   string   `json:"d,omitempty"`
+	Temp  bool     `json:"t,omitempty"`
+	Epoch string   `json:"e,omitempty"`
 }
 
 func Caps(role string) []string {

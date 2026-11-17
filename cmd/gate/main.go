@@ -126,4 +126,3 @@ func resetTOTP(args []string) error {
 	fmt.Println("2FA off for", args[0])
 	return nil
 }
-

@@ -88,6 +88,43 @@ func TestFromRequest(t *testing.T) {
 	}
 }
 
+func TestClientIP(t *testing.T) {
+	direct := httptest.NewRequest("GET", "/", nil)
+	direct.RemoteAddr = "203.0.113.9:5555"
+	if got := ClientIP(direct); got != "203.0.113.9" {
+		t.Fatalf("direct ip = %q", got)
+	}
+
+	proxied := httptest.NewRequest("GET", "/", nil)
+	proxied.RemoteAddr = "127.0.0.1:5555"
+	proxied.Header.Set("X-Forwarded-For", "198.51.100.4, 10.0.0.1")
+	if got := ClientIP(proxied); got != "198.51.100.4" {
+		t.Fatalf("proxied ip = %q", got)
+	}
+
+	loopback := httptest.NewRequest("GET", "/", nil)
+	loopback.RemoteAddr = "[::1]:5555"
+	if got := ClientIP(loopback); got != "::1" {
+		t.Fatalf("loopback ip = %q", got)
+	}
+}
+
+func TestSafeNext(t *testing.T) {
+	cases := map[string]string{
+		"":                 "/",
+		"//evil.com":       "/",
+		"/\\evil.com":      "/",
+		"https://evil.com": "/",
+		"\x01/x":           "/",
+		"/nit/files/":      "/nit/files/",
+	}
+	for raw, want := range cases {
+		if got := SafeNext(raw); got != want {
+			t.Fatalf("SafeNext(%q) = %q, want %q", raw, got, want)
+		}
+	}
+}
+
 func TestLoadSecretCreatesOnce(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "gate.key")
 	first, err := LoadSecret(path)

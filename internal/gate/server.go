@@ -20,6 +20,7 @@ const (
 	sessionCookie = "gate_session"
 	deviceCookie  = "gate_device"
 	sessionTTL    = 7 * 24 * time.Hour
+	tempTTL       = 12 * time.Hour
 	deviceTTL     = 365 * 24 * time.Hour
 	forwardTTL    = 60 * time.Second
 	maxFailures   = 5
@@ -192,11 +193,15 @@ func (s *Server) session(w http.ResponseWriter, r *http.Request) (gateid.Identit
 	if err != nil || id.Anonymous() {
 		return gateid.Identity{}, false
 	}
+	user, ok := s.users.Get(id.User)
+	if !ok || id.Epoch != user.Epoch() {
+		return gateid.Identity{}, false
+	}
 	if id.Dev != "" {
 		if !s.devices.Has(id.User, id.Dev) {
 			return gateid.Identity{}, false
 		}
-		s.devices.Touch(id.Dev, clientIP(r))
+		s.devices.Touch(id.Dev, gateid.ClientIP(r))
 		s.ensureAppSession(w, r, !id.Temp)
 		return id, true
 	}
@@ -219,9 +224,9 @@ func (s *Server) deviceFor(w http.ResponseWriter, r *http.Request, user string) 
 		return Device{}, nil
 	}
 	if cookie, err := r.Cookie(deviceCookie); err == nil && cookie.Value != "" && s.devices.Has(user, cookie.Value) {
-		return s.devices.Refresh(cookie.Value, deviceName(r.UserAgent()), clientIP(r))
+		return s.devices.Refresh(cookie.Value, deviceName(r.UserAgent()), gateid.ClientIP(r))
 	}
-	device, err := s.devices.Add(user, deviceName(r.UserAgent()), clientIP(r))
+	device, err := s.devices.Add(user, deviceName(r.UserAgent()), gateid.ClientIP(r))
 	if err != nil {
 		return Device{}, err
 	}
@@ -231,19 +236,21 @@ func (s *Server) deviceFor(w http.ResponseWriter, r *http.Request, user string) 
 
 func (s *Server) startSession(w http.ResponseWriter, r *http.Request, user User, temp bool) {
 	id := gateid.Identity{
-		User: user.Name,
-		Role: user.Role,
-		Caps: gateid.Caps(user.Role),
-		Exp:  s.now().Add(sessionTTL).Unix(),
-		Temp: temp,
+		User:  user.Name,
+		Role:  user.Role,
+		Caps:  gateid.Caps(user.Role),
+		Exp:   s.now().Add(sessionTTL).Unix(),
+		Temp:  temp,
+		Epoch: user.Epoch(),
 	}
-	if !temp {
-		device, err := s.deviceFor(w, r, user.Name)
-		if err != nil {
-			s.log.Warn("gate device add", "error", err)
-		} else {
-			id.Dev = device.ID
-		}
+	if temp {
+		id.Exp = s.now().Add(tempTTL).Unix()
+	}
+	device, err := s.deviceFor(w, r, user.Name)
+	if err != nil {
+		s.log.Warn("gate device add", "error", err)
+	} else {
+		id.Dev = device.ID
 	}
 	s.setSession(w, r, id, !temp)
 	s.ensureAppSession(w, r, !temp)
@@ -358,7 +365,7 @@ func (s *Server) upstreamFailure() int {
 }
 
 func (s *Server) blockedIP(r *http.Request) (time.Duration, bool) {
-	return s.blockedKey(clientIP(r))
+	return s.blockedKey(gateid.ClientIP(r))
 }
 
 func (s *Server) blockedKey(key string) (time.Duration, bool) {
@@ -378,7 +385,7 @@ func (s *Server) blockedKey(key string) (time.Duration, bool) {
 }
 
 func (s *Server) noteFailure(r *http.Request) {
-	s.noteFailureKey(clientIP(r))
+	s.noteFailureKey(gateid.ClientIP(r))
 }
 
 func (s *Server) noteFailureKey(key string) {
@@ -406,7 +413,7 @@ func (s *Server) noteFailureKey(key string) {
 }
 
 func (s *Server) resetFailures(r *http.Request) {
-	s.resetKey(clientIP(r))
+	s.resetKey(gateid.ClientIP(r))
 }
 
 func (s *Server) resetKey(key string) {
@@ -416,33 +423,4 @@ func (s *Server) resetKey(key string) {
 	delete(s.blocked, key)
 	delete(s.blocks, key)
 	delete(s.last, key)
-}
-
-func clientIP(r *http.Request) string {
-	host, _, err := net.SplitHostPort(r.RemoteAddr)
-	if err != nil {
-		host = r.RemoteAddr
-	}
-	if host == "127.0.0.1" || host == "::1" {
-		if forwarded := r.Header.Get("X-Forwarded-For"); forwarded != "" {
-			for _, part := range strings.Split(forwarded, ",") {
-				if ip := strings.TrimSpace(part); ip != "" {
-					return ip
-				}
-			}
-		}
-	}
-	return host
-}
-
-func safeNext(raw string) string {
-	if raw == "" || !strings.HasPrefix(raw, "/") || strings.HasPrefix(raw, "//") || strings.HasPrefix(raw, "/\\") {
-		return "/"
-	}
-	for _, r := range raw {
-		if r < 0x20 || r == 0x7f || r == '\\' {
-			return "/"
-		}
-	}
-	return raw
 }

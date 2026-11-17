@@ -441,7 +441,12 @@ func (h *Manager) static(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	w.Header().Set("Content-Type", mime.TypeByExtension(path.Ext(name)))
+	contentType := mime.TypeByExtension(path.Ext(name))
+	if strings.Contains(contentType, "html") {
+		contentType = "text/html; charset=utf-8"
+		w.Header().Set("Content-Security-Policy", appCSP)
+	}
+	w.Header().Set("Content-Type", contentType)
 	w.Header().Set("Cache-Control", "no-store")
 	_, _ = w.Write(data)
 }
@@ -733,7 +738,8 @@ func (h *Public) file(w http.ResponseWriter, r *http.Request, entry Entry, rel s
 			}
 		}
 	}
-	if isHTMLPath(rel) {
+	html := strings.Contains(contentType, "html") || isHTMLPath(rel)
+	if html {
 		contentType = "text/html; charset=utf-8"
 		w.Header().Set("Content-Security-Policy", appCSP)
 	}
@@ -742,7 +748,7 @@ func (h *Public) file(w http.ResponseWriter, r *http.Request, entry Entry, rel s
 	}
 	w.Header().Set("Content-Type", contentType)
 	w.Header().Set("Cross-Origin-Resource-Policy", "cross-origin")
-	if isHTMLPath(rel) || ext == ".md" || ext == ".markdown" || ext == ".txt" {
+	if html || ext == ".md" || ext == ".markdown" || ext == ".txt" {
 		w.Header().Set("Cache-Control", "no-store")
 	} else {
 		w.Header().Set("Cache-Control", "private, max-age=60")

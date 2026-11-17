@@ -14,12 +14,14 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 )
 
 const (
 	ShortExpiry = 14 * 24 * time.Hour
 	MetaName    = "entry.json"
+	lockName    = ".lock"
 )
 
 var (
@@ -175,11 +177,48 @@ func (s *Store) SetDeleteHook(fn func(Entry)) {
 	s.onDelete = fn
 }
 
-func (s *Store) deleteLocked(entry Entry) error {
-	if s.onDelete != nil {
-		s.onDelete(entry)
+func (s *Store) remove(entry Entry) error {
+	s.mu.Lock()
+	hook := s.onDelete
+	s.mu.Unlock()
+	if hook != nil {
+		hook(entry)
 	}
 	return os.RemoveAll(filepath.Join(s.root, entry.ID))
+}
+
+func (s *Store) expire(entries []Entry) {
+	for _, entry := range entries {
+		s.mu.Lock()
+		current, err := s.read(entry.ID)
+		stale := err == nil && current.Expired(s.now())
+		hook := s.onDelete
+		s.mu.Unlock()
+		if !stale {
+			continue
+		}
+		if err := os.RemoveAll(filepath.Join(s.root, entry.ID)); err == nil && hook != nil {
+			hook(current)
+		}
+	}
+}
+
+func (s *Store) lockRoot() (func(), error) {
+	if s.readOnly {
+		return func() {}, nil
+	}
+	file, err := os.OpenFile(filepath.Join(s.root, lockName), os.O_CREATE|os.O_RDWR, 0o600)
+	if err != nil {
+		return nil, err
+	}
+	if err := syscall.Flock(int(file.Fd()), syscall.LOCK_EX); err != nil {
+		file.Close()
+		return nil, err
+	}
+	return func() {
+		_ = syscall.Flock(int(file.Fd()), syscall.LOCK_UN)
+		_ = file.Close()
+	}, nil
 }
 
 func (s *Store) List() ([]Entry, error) {
@@ -195,25 +234,26 @@ func (s *Store) listLocked() ([]Entry, error) {
 	}
 	now := s.now()
 	entries := make([]Entry, 0, len(items))
+	expired := make([]Entry, 0)
 	for _, item := range items {
 		if !item.IsDir() {
 			continue
 		}
 		entry, err := s.read(item.Name())
 		if err != nil {
-			if !s.readOnly {
+			if !s.readOnly && errors.Is(err, fs.ErrNotExist) {
 				s.cleanOrphan(item.Name(), now)
 			}
 			continue
 		}
 		if entry.Expired(now) {
-			if s.readOnly {
-				continue
-			}
-			_ = s.deleteLocked(entry)
+			expired = append(expired, entry)
 			continue
 		}
 		entries = append(entries, entry)
+	}
+	if len(expired) > 0 && !s.readOnly {
+		go s.expire(expired)
 	}
 	sort.Slice(entries, func(i, j int) bool {
 		return entries[i].Created.After(entries[j].Created)
@@ -269,23 +309,35 @@ func (s *Store) bySlugLocked(slug string) (Entry, error) {
 
 func (s *Store) liveLocked(entry Entry) (Entry, error) {
 	if entry.Expired(s.now()) {
-		_ = s.deleteLocked(entry)
+		if !s.readOnly {
+			go s.expire([]Entry{entry})
+		}
 		return Entry{}, ErrNotFound
 	}
 	return entry, nil
 }
 
 func (s *Store) Delete(ref string) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	entry, err := s.resolveLocked(ref)
+	unlock, err := s.lockRoot()
 	if err != nil {
 		return err
 	}
-	return s.deleteLocked(entry)
+	defer unlock()
+	s.mu.Lock()
+	entry, err := s.resolveLocked(ref)
+	s.mu.Unlock()
+	if err != nil {
+		return err
+	}
+	return s.remove(entry)
 }
 
 func (s *Store) SetSlug(ref, slug string) (Entry, error) {
+	unlock, err := s.lockRoot()
+	if err != nil {
+		return Entry{}, err
+	}
+	defer unlock()
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	entry, err := s.resolveLocked(ref)
@@ -316,6 +368,11 @@ func (s *Store) SetSlug(ref, slug string) (Entry, error) {
 }
 
 func (s *Store) SetPublic(ref string, public bool) (Entry, error) {
+	unlock, err := s.lockRoot()
+	if err != nil {
+		return Entry{}, err
+	}
+	defer unlock()
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	entry, err := s.resolveLocked(ref)
@@ -330,6 +387,11 @@ func (s *Store) SetPublic(ref string, public bool) (Entry, error) {
 }
 
 func (s *Store) SetForever(ref string, forever bool) (Entry, error) {
+	unlock, err := s.lockRoot()
+	if err != nil {
+		return Entry{}, err
+	}
+	defer unlock()
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	entry, err := s.resolveLocked(ref)
@@ -349,6 +411,11 @@ func (s *Store) SetForever(ref string, forever bool) (Entry, error) {
 }
 
 func (s *Store) Update(ref string, edit func(*Entry)) (Entry, error) {
+	unlock, err := s.lockRoot()
+	if err != nil {
+		return Entry{}, err
+	}
+	defer unlock()
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	entry, err := s.resolveLocked(ref)
@@ -363,6 +430,11 @@ func (s *Store) Update(ref string, edit func(*Entry)) (Entry, error) {
 }
 
 func (s *Store) CreateService(dir, name string, opts PublishOptions, service Service) (Entry, error) {
+	unlock, err := s.lockRoot()
+	if err != nil {
+		return Entry{}, err
+	}
+	defer unlock()
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if name == "" {
@@ -523,7 +595,7 @@ func (s *Store) read(id string) (Entry, error) {
 	data, err := os.ReadFile(filepath.Join(s.root, id, MetaName))
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
-			return Entry{}, ErrNotFound
+			return Entry{}, fmt.Errorf("%w: %w", ErrNotFound, err)
 		}
 		return Entry{}, err
 	}
@@ -545,10 +617,34 @@ func (s *Store) writeEntry(entry Entry) error {
 	}
 	dir := filepath.Join(s.root, entry.ID)
 	tmp := filepath.Join(dir, ".entry.tmp")
-	if err := os.WriteFile(tmp, data, 0o600); err != nil {
+	file, err := os.OpenFile(tmp, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0o600)
+	if err != nil {
 		return err
 	}
-	return os.Rename(tmp, filepath.Join(dir, MetaName))
+	if _, err := file.Write(data); err != nil {
+		file.Close()
+		return err
+	}
+	if err := file.Sync(); err != nil {
+		file.Close()
+		return err
+	}
+	if err := file.Close(); err != nil {
+		return err
+	}
+	if err := os.Rename(tmp, filepath.Join(dir, MetaName)); err != nil {
+		return err
+	}
+	return syncDir(dir)
+}
+
+func syncDir(dir string) error {
+	file, err := os.Open(dir)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+	return file.Sync()
 }
 
 func (s *Store) migrate() error {
@@ -872,10 +968,18 @@ func (b *Builder) AddFile(rel string, src io.Reader) error {
 		return err
 	}
 	size, copyErr := io.Copy(file, src)
+	var syncErr error
+	if copyErr == nil {
+		syncErr = file.Sync()
+	}
 	closeErr := file.Close()
 	if copyErr != nil {
 		_ = os.Remove(dest)
 		return copyErr
+	}
+	if syncErr != nil {
+		_ = os.Remove(dest)
+		return syncErr
 	}
 	if closeErr != nil {
 		_ = os.Remove(dest)
@@ -907,6 +1011,16 @@ func (b *Builder) Commit() (Entry, error) {
 		expires := b.entry.Created.Add(b.ttl)
 		b.entry.Expires = &expires
 	}
+	if err := syncDir(b.dir); err != nil {
+		b.Abort()
+		return Entry{}, err
+	}
+	unlock, err := b.store.lockRoot()
+	if err != nil {
+		b.Abort()
+		return Entry{}, err
+	}
+	defer unlock()
 	b.store.mu.Lock()
 	defer b.store.mu.Unlock()
 	if b.slugSet {
@@ -1015,7 +1129,7 @@ func isDocPath(name string) bool {
 
 func isHTMLPath(name string) bool {
 	switch strings.ToLower(path.Ext(name)) {
-	case ".html", ".htm":
+	case ".html", ".htm", ".xhtml", ".xht", ".shtml", ".shtm":
 		return true
 	}
 	return false

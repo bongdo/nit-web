@@ -20,7 +20,7 @@ func DefaultPreviewDir() string {
 }
 
 func (s *Server) previewProxy(w http.ResponseWriter, r *http.Request) {
-	if !isLoopback(clientIP(r)) {
+	if !isLoopback(gateid.ClientIP(r)) {
 		s.notFound(w, r)
 		return
 	}

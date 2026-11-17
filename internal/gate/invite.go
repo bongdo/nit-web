@@ -3,6 +3,8 @@ package gate
 import (
 	"net/http"
 	"net/url"
+
+	"nitgui/internal/gateid"
 )
 
 func (s *Server) invitePage(w http.ResponseWriter, r *http.Request) {
@@ -39,6 +41,6 @@ func (s *Server) inviteSubmit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.startSession(w, r, user, false)
-	s.audit.Add(AuditEvent{User: user.Name, IP: clientIP(r), Agent: deviceName(r.UserAgent()), Result: "invite"})
+	s.audit.Add(AuditEvent{User: user.Name, IP: gateid.ClientIP(r), Agent: deviceName(r.UserAgent()), Result: "invite"})
 	http.Redirect(w, r, "/?ok="+url.QueryEscape("добро пожаловать, "+user.Name), http.StatusSeeOther)
 }

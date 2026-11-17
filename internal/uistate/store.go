@@ -314,6 +314,16 @@ func (s *Store) Rename(old, next string) error {
 	return s.saveLocked()
 }
 
+func (s *Store) DeleteInstance(instance string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, ok := s.state.Instances[instance]; !ok {
+		return nil
+	}
+	delete(s.state.Instances, instance)
+	return s.saveLocked()
+}
+
 func (s *Store) Remove(instance, id string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()

@@ -2,8 +2,10 @@ package gate
 
 import (
 	"crypto/rand"
+	"crypto/sha256"
 	"crypto/subtle"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -44,6 +46,11 @@ type User struct {
 	TOTP     string   `json:"totp,omitempty"`
 	TOTPStep int64    `json:"totp_step,omitempty"`
 	Recovery []string `json:"recovery,omitempty"`
+}
+
+func (u User) Epoch() string {
+	sum := sha256.Sum256([]byte(u.Hash + u.TOTP))
+	return hex.EncodeToString(sum[:8])
 }
 
 type Store struct {

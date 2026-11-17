@@ -4,9 +4,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
+	"sync/atomic"
+	"syscall"
 	"testing"
 	"time"
 )
@@ -119,8 +123,193 @@ func TestExpiredEntriesArePruned(t *testing.T) {
 	if len(items) != 0 {
 		t.Fatalf("expired entry survived: %+v", items)
 	}
-	if _, err := os.Stat(filepath.Join(store.Root(), entry.ID)); !errors.Is(err, os.ErrNotExist) {
-		t.Fatal("expired entry directory was not removed")
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		if _, err := os.Stat(filepath.Join(store.Root(), entry.ID)); errors.Is(err, os.ErrNotExist) {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("expired entry directory was not removed")
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+}
+
+func TestUnreadableEntryIsNotDeleted(t *testing.T) {
+	store := testStore(t)
+	dir := filepath.Join(store.Root(), "d-0123456789abcdef")
+	writeFile(t, filepath.Join(dir, MetaName), `{"id": "d-0123456789abcdef"`)
+	store.now = func() time.Time { return time.Now().Add(2 * time.Hour) }
+	for round := range 2 {
+		items, err := store.List()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(items) != 0 {
+			t.Fatalf("round %d listed a broken entry: %+v", round, items)
+		}
+	}
+	if _, err := os.Stat(dir); err != nil {
+		t.Fatalf("unreadable entry was deleted: %v", err)
+	}
+}
+
+func TestMissingEntryFileIsCleaned(t *testing.T) {
+	store := testStore(t)
+	dir := filepath.Join(store.Root(), "d-0123456789abcdef")
+	if err := os.Mkdir(dir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	old := time.Now().Add(-2 * time.Hour)
+	if err := os.Chtimes(dir, old, old); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.List(); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(dir); !errors.Is(err, fs.ErrNotExist) {
+		t.Fatalf("orphan directory survived: %v", err)
+	}
+}
+
+func TestExpiredLookupDoesNotBlock(t *testing.T) {
+	store := testStore(t)
+	id := "d-0123456789abcdef"
+	past := time.Now().Add(-time.Hour)
+	body, err := json.Marshal(Entry{ID: id, Slug: "gone", Name: "gone", Kind: "site", Expires: &past})
+	if err != nil {
+		t.Fatal(err)
+	}
+	dir := filepath.Join(store.Root(), id)
+	writeFile(t, filepath.Join(dir, MetaName), string(body))
+	release := make(chan struct{})
+	store.SetDeleteHook(func(Entry) { <-release })
+	done := make(chan error, 1)
+	go func() {
+		_, err := store.GetBySlug("gone")
+		done <- err
+	}()
+	select {
+	case err := <-done:
+		if !errors.Is(err, ErrNotFound) {
+			t.Fatalf("expired lookup = %v, want ErrNotFound", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("expired lookup blocked on the delete hook")
+	}
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		if _, err := os.Stat(dir); errors.Is(err, fs.ErrNotExist) {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("expired entry directory was not removed")
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	close(release)
+}
+
+func TestStoreLockBlocksSecondDescriptor(t *testing.T) {
+	store := testStore(t)
+	other, err := os.OpenFile(filepath.Join(store.Root(), lockName), os.O_CREATE|os.O_RDWR, 0o600)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer other.Close()
+	if err := syscall.Flock(int(other.Fd()), syscall.LOCK_EX); err != nil {
+		t.Fatal(err)
+	}
+	acquired := make(chan struct{})
+	go func() {
+		unlock, err := store.lockRoot()
+		if err != nil {
+			t.Error(err)
+			close(acquired)
+			return
+		}
+		close(acquired)
+		unlock()
+	}()
+	select {
+	case <-acquired:
+		t.Fatal("lock acquired while another descriptor held it")
+	case <-time.After(100 * time.Millisecond):
+	}
+	if err := syscall.Flock(int(other.Fd()), syscall.LOCK_UN); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case <-acquired:
+	case <-time.After(5 * time.Second):
+		t.Fatal("lock was not acquired after release")
+	}
+}
+
+func TestStoreLockSerializesGoroutines(t *testing.T) {
+	store := testStore(t)
+	var held, overlaps atomic.Int32
+	var wg sync.WaitGroup
+	for range 2 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			unlock, err := store.lockRoot()
+			if err != nil {
+				t.Error(err)
+				return
+			}
+			if held.Add(1) != 1 {
+				overlaps.Add(1)
+			}
+			time.Sleep(20 * time.Millisecond)
+			held.Add(-1)
+			unlock()
+		}()
+	}
+	wg.Wait()
+	if overlaps.Load() != 0 {
+		t.Fatalf("two writers held the store lock: %d", overlaps.Load())
+	}
+}
+
+func TestPublishWaitsForRootLock(t *testing.T) {
+	root := t.TempDir()
+	holder, err := Open(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	writer, err := Open(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	src := filepath.Join(t.TempDir(), "same.txt")
+	writeFile(t, src, "x")
+	unlock, err := holder.lockRoot()
+	if err != nil {
+		t.Fatal(err)
+	}
+	done := make(chan error, 1)
+	go func() {
+		_, err := writer.PublishPath(src, "same", PublishOptions{Slug: "same"})
+		done <- err
+	}()
+	select {
+	case <-done:
+		t.Fatal("publish ignored the root lock")
+	case <-time.After(100 * time.Millisecond):
+	}
+	unlock()
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatal(err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("publish did not finish after the root lock was released")
+	}
+	if _, err := writer.GetBySlug("same"); err != nil {
+		t.Fatalf("published entry is missing: %v", err)
 	}
 }
 

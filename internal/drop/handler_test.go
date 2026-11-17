@@ -212,6 +212,40 @@ func TestHTMLFrameableByManager(t *testing.T) {
 	}
 }
 
+func TestHTMLExtensionsAreSandboxed(t *testing.T) {
+	cases := []struct {
+		name        string
+		contentType string
+		csp         string
+	}{
+		{"page.html", "text/html", appCSP},
+		{"page.shtml", "text/html", appCSP},
+		{"page.xhtml", "text/html", appCSP},
+		{"logo.svg", "image/svg+xml", svgCSP},
+	}
+	for _, item := range cases {
+		t.Run(item.name, func(t *testing.T) {
+			store := testStore(t)
+			entry := publishFile(t, store, item.name, "<h1>x</h1>", PublishOptions{Public: true})
+			server := testDropServer(t, store, nil)
+			resp, err := http.Get(server.URL + "/d/" + entry.Slug + "/" + url.PathEscape(item.name))
+			if err != nil {
+				t.Fatal(err)
+			}
+			resp.Body.Close()
+			if resp.StatusCode != http.StatusOK {
+				t.Fatalf("status = %d", resp.StatusCode)
+			}
+			if got := resp.Header.Get("Content-Type"); !strings.HasPrefix(got, item.contentType) {
+				t.Fatalf("content type = %q, want %q", got, item.contentType)
+			}
+			if got := resp.Header.Get("Content-Security-Policy"); got != item.csp {
+				t.Fatalf("CSP = %q, want %q", got, item.csp)
+			}
+		})
+	}
+}
+
 func TestUploadUpdateAliasAndDelete(t *testing.T) {
 	store := testStore(t)
 	server := testDropServer(t, store, nil)

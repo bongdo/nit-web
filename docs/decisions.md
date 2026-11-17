@@ -1,5 +1,23 @@
 # Decisions
 
+## 2026-11-17 — A file link opens the plain viewer; Shift-click opens pero
+
+Context: every file link in a transcript opened pero, but most clicks are a
+read, not an edit.
+
+Decision: `GET /api/view?path=` streams the file — images, PDF, audio and video
+inline, text as `text/plain`, other files as a download. A transcript file link
+points there and Shift-click posts to pero; selecting a file link adds a pero
+button next to Quote.
+
+Why: reading is the common case and needs no editor tab; pero stays one
+modifier away.
+
+Rejected: rendering HTML and SVG as their own type (same-origin scripts on the
+gate), a markdown or code reader inside the viewer (more UI for a read).
+
+Cost: HTML opens as source, and binaries download instead of previewing.
+
 ## 2026-11-16 — A machine's home is mounted at the same absolute path
 
 Context: a chat on a machine carries paths like `/home/bongdo/Projects/x`, and the

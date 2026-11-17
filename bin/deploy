@@ -22,7 +22,9 @@ if [ -z "${NIT_GUI_DEPLOY_ANY:-}" ] && [ -n "$common" ] && [ "$PWD" != "$primary
 fi
 
 mkdir -p "$run_dir"
-exec 9>"${TMPDIR:-/tmp}/nit-gui-deploy-$port.lock"
+lock_dir="${XDG_CACHE_HOME:-$HOME/.cache}/nit-gui"
+mkdir -p "$lock_dir"
+exec 9>"$lock_dir/deploy-$port.lock"
 flock -w 600 9
 
 stop() {
@@ -63,6 +65,7 @@ fi
 
 NIT_GUI_BASE="$base_path/" npm --prefix web run build
 mkdir -p "$run_dir"
+if [ -f "$bin" ]; then cp -f "$bin" "$bin.prev"; fi
 go build -trimpath -o "$bin" .
 
 if [ -z "$domain" ]; then
@@ -182,8 +185,16 @@ reload_gate() {
 }
 
 public_code() {
+  curl -s -o /dev/null -w '%{http_code}' --resolve "$domain:443:$listen_addr" "https://$domain$1" || true
+}
+
+public_check() {
+  local code
+  code="$(public_code "/nit/")"
+  [ "$code" = "303" ] || [ "$code" = "200" ] || { echo "/nit responded $code"; return 1; }
   [ -n "$share_route" ] || return 0
-  curl -s -o /dev/null -w '%{http_code}' --resolve "$domain:443:$listen_addr" "https://$domain/share/" || true
+  code="$(public_code "/share/")"
+  [ "$code" = "303" ] || [ "$code" = "200" ] || { echo "/share responded $code"; return 1; }
 }
 
 keep_old() {
@@ -196,20 +207,14 @@ keep_old() {
 
 switch_routes "$next_port"
 reload_gate || keep_old "the gate did not reload routes"
-if [ -n "$share_route" ]; then
-  code="$(public_code)"
-  [ "$code" = "303" ] || [ "$code" = "200" ] || keep_old "the switched route answered $code"
-fi
+public_check || keep_old "the switched route failed its health check"
 
 stop "(^|/)nit-gui --addr 127\.0\.0\.1:$live_port$"
-if [ -n "$share_route" ]; then
-  code="$(public_code)"
-  if [ "$code" != "303" ] && [ "$code" != "200" ]; then
-    echo "deploy: the public route answered $code after stopping the old build" >&2
-    tail -20 "$run_dir/nit-gui.log" >&2
-    exit 1
-  fi
-fi
+public_check || {
+  echo "deploy: the public route failed after stopping the old build" >&2
+  tail -20 "$run_dir/nit-gui.log" >&2
+  exit 1
+}
 
 cat >"$caddyfile.next" <<EOF
 {

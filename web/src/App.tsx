@@ -83,6 +83,7 @@ import { cachedSessions, readBoot, seedBootSession, writeBoot } from "./lib/boot
 import { instanceScopedKey } from "./lib/instances";
 import { saveDraftFiles } from "./lib/draft-files";
 import { messageOf } from "./lib/errors";
+import { addRecent, readRecent } from "./lib/recent";
 import { parseSnooze, pendingCount, snoozeItem, type SnoozeMap } from "./lib/review";
 import type { TimeFormat } from "./lib/time";
 import { useAttention } from "./hooks/useAttention";
@@ -197,7 +198,7 @@ export default function App({
 }) {
   const workspaceKey = instanceScopedKey("nit-gui.workspace", instance, defaultInstance);
   const sessionKey = instanceScopedKey("nit-gui.session", instance, defaultInstance);
-  const recentKey = instanceScopedKey("nit-gui.recent", instance, defaultInstance);
+
   const { theme, setTheme } = useTheme();
   const [boot] = useState(() => readBoot(instance));
   const [health, setHealth] = useState<Health | null>(boot?.health ?? null);
@@ -214,14 +215,7 @@ export default function App({
   });
   const workspaceRef = useRef(workspace);
   workspaceRef.current = workspace;
-  const [recent, setRecent] = useState<string[]>(() => {
-    try {
-      const value = JSON.parse(localStorage.getItem(recentKey) ?? "[]");
-      return Array.isArray(value) ? value.filter((item) => typeof item === "string") : [];
-    } catch {
-      return [];
-    }
-  });
+  const [recent, setRecent] = useState<string[]>(() => readRecent(instance, defaultInstance));
   const [scopes, setScopes] = useState<Scope[]>(() =>
     parseScopes(localStorage.getItem("nit-gui.scopes")),
   );
@@ -1292,27 +1286,15 @@ export default function App({
   const rememberWorkspaceFor = useCallback((owner: string, directory: string) => {
     const value = directory.trim().replace(/\/+$/, "") || "/";
     localStorage.setItem(instanceScopedKey("nit-gui.workspace", owner, defaultInstance), value);
-    try {
-      const key = instanceScopedKey("nit-gui.recent", owner, defaultInstance);
-      const parsed = JSON.parse(localStorage.getItem(key) ?? "[]");
-      const previous = Array.isArray(parsed)
-        ? parsed.filter((item): item is string => typeof item === "string")
-        : [];
-      localStorage.setItem(
-        key,
-        JSON.stringify([value, ...previous.filter((item) => item !== value)].slice(0, 8)),
-      );
-    } catch {}
+    addRecent(owner, defaultInstance, value);
     return value;
   }, [defaultInstance]);
 
   const rememberWorkspace = useCallback((directory: string) => {
     const value = rememberWorkspaceFor(instance, directory);
     setWorkspaceState(value);
-    setRecent((previous) =>
-      [value, ...previous.filter((item) => item !== value)].slice(0, 8),
-    );
-  }, [instance, rememberWorkspaceFor]);
+    setRecent(addRecent(instance, defaultInstance, value));
+  }, [instance, defaultInstance, rememberWorkspaceFor]);
 
   const selectedDirectory = selectedSession?.location?.directory ?? null;
 
@@ -2862,7 +2844,9 @@ export default function App({
               disabled={health?.ok === false}
               running={running}
               focusKey={selectedId}
-              typingBlocked={settingsOpen || pickerOpen || themeOpen}
+              typingBlocked={
+                settingsOpen || pickerOpen || themeOpen || backgroundOpen || reviewOpen
+              }
               drawerOpen={sidebarOpen}
               draft={composerDraft}
               insert={composerInsert}

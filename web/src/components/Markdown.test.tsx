@@ -37,6 +37,24 @@ describe("Markdown values", () => {
     expect(html).not.toContain("md-file");
   });
 
+  it("puts a file icon before a linked mention", () => {
+    const html = renderToStaticMarkup(
+      <Markdown text={"Открой `src/main.c3`."} directory="/work/app" peroURL="/pero/" />,
+    );
+    expect(html).toMatch(/class="md-file"[^>]*>\s*<svg/);
+  });
+
+  it("dims brackets in plain inline code", () => {
+    const html = render("Вызови `foo(1)`.");
+    expect(html).toContain('class="md-punct"');
+  });
+
+  it("highlights a fenced block with the shared tokenizer", () => {
+    const html = render("```c3\nmodule main;\n```");
+    expect(html).toContain('class="syn-keyword">module</span>');
+    expect(html).toContain('class="syn-punctuation">;</span>');
+  });
+
   it("keeps mixed columns left-aligned", () => {
     const html = render("| случай | цена |\n| --- | --- |\n| a | ~1 день |\n| b | недели |");
     expect(html).not.toContain("md-num");

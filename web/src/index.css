@@ -26,6 +26,18 @@
   --attention: oklch(0.74 0.15 85);
   --success: oklch(0.64 0.15 155);
   --radius: 0.625rem;
+  --syntax-keyword: var(--primary);
+  --syntax-string: var(--success);
+  --syntax-number: var(--spark);
+  --syntax-comment: color-mix(in oklab, var(--muted-foreground) 88%, transparent);
+  --syntax-operator: var(--muted-foreground);
+  --syntax-path: var(--primary);
+  --syntax-bracket-1: var(--primary);
+  --syntax-bracket-2: var(--success);
+  --syntax-bracket-3: var(--spark);
+  --syntax-bracket-4: var(--attention);
+  --syntax-bracket-5: color-mix(in oklab, var(--primary) 65%, var(--success));
+  --syntax-bracket-6: color-mix(in oklab, var(--spark) 65%, var(--primary));
 }
 
 .dark {
@@ -541,6 +553,60 @@
   .markdown a.md-file:hover code {
     background: color-mix(in oklab, var(--spark) 17%, transparent);
     text-decoration-color: color-mix(in oklab, var(--spark) 70%, transparent);
+  }
+
+  .markdown .md-punct {
+    opacity: 0.45;
+  }
+
+  .syn-keyword {
+    color: var(--syntax-keyword);
+  }
+
+  .syn-string {
+    color: var(--syntax-string);
+  }
+
+  .syn-number {
+    color: var(--syntax-number);
+  }
+
+  .syn-comment {
+    color: var(--syntax-comment);
+    font-style: italic;
+  }
+
+  .syn-path,
+  .syn-url {
+    color: var(--syntax-path);
+  }
+
+  .syn-punctuation {
+    color: var(--syntax-operator);
+  }
+
+  .syn-bracket-1 {
+    color: var(--syntax-bracket-1);
+  }
+
+  .syn-bracket-2 {
+    color: var(--syntax-bracket-2);
+  }
+
+  .syn-bracket-3 {
+    color: var(--syntax-bracket-3);
+  }
+
+  .syn-bracket-4 {
+    color: var(--syntax-bracket-4);
+  }
+
+  .syn-bracket-5 {
+    color: var(--syntax-bracket-5);
+  }
+
+  .syn-bracket-6 {
+    color: var(--syntax-bracket-6);
   }
 
   .compaction-summary.markdown {

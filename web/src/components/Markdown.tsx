@@ -14,9 +14,25 @@ import { peroHref, resolveFilePath } from "../lib/diff";
 import { fileTarget } from "../lib/fileLink";
 import { splitMarkdownBlocks } from "../lib/markdown";
 import { splitValues } from "../lib/values";
-import { AttachmentPreview } from "./Attachment";
+import { AttachmentPreview, FileTypeIcon } from "./Attachment";
 import { CodeBlock } from "./CodeBlock";
 import { cn } from "../lib/utils";
+
+const BRACKET = /([()[\]{}])/;
+
+function dimBrackets(text: string): ReactNode {
+  return text
+    .split(BRACKET)
+    .map((part, index) =>
+      index % 2 ? (
+        <span key={index} className="md-punct">
+          {part}
+        </span>
+      ) : (
+        part
+      ),
+    );
+}
 
 function valuesIn(children: ReactNode): ReactNode {
   return Children.map(children, (child) => {
@@ -156,11 +172,15 @@ function codeFor(
           className="md-file"
           onClick={appLinkClick({ app: "pero", path, lines: target.lines }, href)}
         >
+          <FileTypeIcon
+            name={target.path}
+            className="mr-1 inline size-[0.95em] align-[-0.12em] opacity-60"
+          />
           <code className={className}>{children}</code>
         </a>
       );
     }
-    return <code className={className}>{children}</code>;
+    return <code className={className}>{dimBrackets(text)}</code>;
   } as Components["code"];
 }
 

@@ -3,7 +3,7 @@ import type { LineRange } from "./types";
 export type FileTarget = { path: string; lines?: LineRange[] };
 
 const KNOWN_EXT =
-  /\.(md|markdown|txt|ts|tsx|js|jsx|mjs|cjs|go|py|json|jsonl|ya?ml|toml|css|scss|html?|sh|bash|zsh|sql|rs|java|kt|kts|c|h|cpp|hpp|cs|rb|php|swift|xml|ini|conf|lock|mod|sum|env|svg)$/i;
+  /\.(md|markdown|txt|ts|tsx|js|jsx|mjs|cjs|go|py|json|jsonl|ya?ml|toml|css|scss|html?|sh|bash|zsh|sql|rs|java|kt|kts|c|h|cpp|hpp|cs|rb|php|swift|xml|ini|conf|lock|mod|sum|env|svg|c3|zig|nim|str|dart|nix|lua|hs|ex|exs|erl|clj|scala|sol|vue|svelte)$/i;
 
 const PATH_CHARS = /^[A-Za-z0-9_.@+-]+$/;
 const LINE_SUFFIX = /^(.*):(\d{1,6})(?:-(\d{1,6}))?$/;

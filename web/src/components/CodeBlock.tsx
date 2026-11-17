@@ -1,10 +1,27 @@
-import { useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { Check, Copy } from "lucide-react";
 import { copyText } from "../lib/clipboard";
 import { previewableHtml } from "../lib/html";
+import { tokenize, type SyntaxSpan } from "../lib/syntax";
 import { cn } from "../lib/utils";
 import { HtmlPreview } from "./HtmlPreview";
 import { Button } from "./ui/button";
+
+function highlight(code: string, spans: SyntaxSpan[]): ReactNode[] {
+  const parts: ReactNode[] = [];
+  let at = 0;
+  for (const span of spans) {
+    if (span.start > at) parts.push(code.slice(at, span.start));
+    parts.push(
+      <span key={span.start} className={`syn-${span.kind}`}>
+        {code.slice(span.start, span.end)}
+      </span>,
+    );
+    at = span.end;
+  }
+  if (at < code.length) parts.push(code.slice(at));
+  return parts;
+}
 
 export function CodeBlock({
   code,
@@ -18,6 +35,7 @@ export function CodeBlock({
   streaming?: boolean;
 }) {
   const [copied, setCopied] = useState(false);
+  const spans = useMemo(() => (streaming ? null : tokenize(code)), [code, streaming]);
   const html = !streaming && previewableHtml(code, language);
 
   if (html) {
@@ -51,7 +69,7 @@ export function CodeBlock({
         </Button>
       </div>
       <pre className="scrollbar-thin max-h-[32rem] overflow-auto p-3 font-mono text-[12.5px] leading-5">
-        <code>{code}</code>
+        <code>{spans ? highlight(code, spans) : code}</code>
       </pre>
     </div>
   );

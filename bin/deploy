@@ -43,6 +43,27 @@ stop() {
   kill -9 $pids 2>/dev/null || true
 }
 
+next_port=""
+rollback=0
+handled=0
+cleanup() {
+  local code=$?
+  trap - EXIT INT TERM
+  if [ "$handled" = 0 ]; then
+    [ "$code" -ne 0 ] || code=1
+    if [ "$rollback" = 1 ]; then
+      echo "deploy: rolled back to the old build" >&2
+      cp -f "$run_dir/routes.json.bak" "$routes_file"
+      declare -F reload_gate >/dev/null && reload_gate || true
+    fi
+    if [ -n "$next_port" ]; then
+      stop "(^|/)nit-gui --addr 127\.0\.0\.1:$next_port$"
+    fi
+  fi
+  exit "$code"
+}
+trap cleanup EXIT INT TERM
+
 if [ -r "$auth_env" ]; then
   set -a
   . "$auth_env"
@@ -106,9 +127,7 @@ print("yes" if any(route.get("prefix") == "/share" for route in data["routes"]) 
 PY
 )"
 
-next_port=""
-for candidate in 7791 7792 7794 7797 7798 7804 7805 7806; do
-  [ "$candidate" = "$live_port" ] && continue
+for candidate in 7791 7792 7794 7797 7798 7804 7805 7806; do  [ "$candidate" = "$live_port" ] && continue
   if ! ss -ltn "sport = :$candidate" | grep -q LISTEN; then
     next_port="$candidate"
     break
@@ -147,12 +166,12 @@ done
 if [ "$ready" = 0 ]; then
   echo "deploy: the new build did not start" >&2
   tail -20 "$run_dir/nit-gui.log" >&2
-  stop "(^|/)nit-gui --addr 127\.0\.0\.1:$next_port$"
   exit 1
 fi
 
 gate_log="$run_dir/gate.log"
 cp -f "$routes_file" "$run_dir/routes.json.bak"
+rollback=1
 
 switch_routes() {
   python3 - "$routes_file" "$1" <<'PY'
@@ -198,10 +217,7 @@ public_check() {
 }
 
 keep_old() {
-  echo "deploy: $1; keeping the old build" >&2
-  cp -f "$run_dir/routes.json.bak" "$routes_file"
-  reload_gate || true
-  stop "(^|/)nit-gui --addr 127\.0\.0\.1:$next_port$"
+  echo "deploy: $1" >&2
   exit 1
 }
 
@@ -209,6 +225,7 @@ switch_routes "$next_port"
 reload_gate || keep_old "the gate did not reload routes"
 public_check || keep_old "the switched route failed its health check"
 
+handled=1
 stop "(^|/)nit-gui --addr 127\.0\.0\.1:$live_port$"
 public_check || {
   echo "deploy: the public route failed after stopping the old build" >&2

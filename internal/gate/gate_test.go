@@ -281,6 +281,8 @@ func TestRoutesValidate(t *testing.T) {
 		{{Prefix: "", Cap: gateid.AdminHost, Upstream: "http://127.0.0.1:1"}},
 		{{Prefix: "/x", Cap: "nope", Upstream: "http://127.0.0.1:1"}},
 		{{Prefix: "/x", Cap: "", Upstream: ""}},
+		{{Prefix: "/x", Cap: gateid.ReadPublic, Upstream: "127.0.0.1:1"}},
+		{{Prefix: "/x", Cap: gateid.ReadPublic, Upstream: "ftp://127.0.0.1:1"}},
 		{{Prefix: "/x", Cap: gateid.ReadPublic, Optional: true, Upstream: "http://127.0.0.1:1"}},
 	} {
 		if err := validate(bad); err == nil {

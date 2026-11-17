@@ -3,6 +3,7 @@ package gate
 import (
 	"encoding/json"
 	"errors"
+	"net/url"
 	"os"
 	"path/filepath"
 	"sort"
@@ -99,6 +100,10 @@ func validate(list []Route) error {
 		}
 		if route.Upstream == "" {
 			return errors.New("gate: route has no upstream: " + route.Prefix)
+		}
+		upstream, err := url.Parse(route.Upstream)
+		if err != nil || upstream.Host == "" || (upstream.Scheme != "http" && upstream.Scheme != "https") {
+			return errors.New("gate: route has a bad upstream URL: " + route.Prefix + ": " + route.Upstream)
 		}
 		if route.Optional && route.Cap != "" {
 			return errors.New("gate: route is both optional and gated: " + route.Prefix)

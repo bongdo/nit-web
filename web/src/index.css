@@ -26,18 +26,18 @@
   --attention: oklch(0.74 0.15 85);
   --success: oklch(0.64 0.15 155);
   --radius: 0.625rem;
-  --syntax-keyword: var(--primary);
-  --syntax-string: var(--success);
-  --syntax-number: var(--spark);
-  --syntax-comment: color-mix(in oklab, var(--muted-foreground) 88%, transparent);
-  --syntax-operator: var(--muted-foreground);
-  --syntax-path: var(--primary);
-  --syntax-bracket-1: var(--primary);
-  --syntax-bracket-2: var(--success);
-  --syntax-bracket-3: var(--spark);
-  --syntax-bracket-4: var(--attention);
-  --syntax-bracket-5: color-mix(in oklab, var(--primary) 65%, var(--success));
-  --syntax-bracket-6: color-mix(in oklab, var(--spark) 65%, var(--primary));
+  --syntax-keyword: #9d174d;
+  --syntax-string: #15803d;
+  --syntax-number: #b45309;
+  --syntax-comment: #6b7280;
+  --syntax-operator: #6b7280;
+  --syntax-path: #1d4ed8;
+  --syntax-bracket-1: #be123c;
+  --syntax-bracket-2: #0369a1;
+  --syntax-bracket-3: #4d7c0f;
+  --syntax-bracket-4: #b45309;
+  --syntax-bracket-5: #7c3aed;
+  --syntax-bracket-6: #0f766e;
 }
 
 .dark {
@@ -63,6 +63,18 @@
   --spark: oklch(0.78 0.14 55);
   --attention: oklch(0.84 0.14 90);
   --success: oklch(0.75 0.16 155);
+  --syntax-keyword: #f9a8d4;
+  --syntax-string: #86efac;
+  --syntax-number: #fdba74;
+  --syntax-comment: #8b949e;
+  --syntax-operator: #9ca3af;
+  --syntax-path: #93c5fd;
+  --syntax-bracket-1: #fb7185;
+  --syntax-bracket-2: #7dd3fc;
+  --syntax-bracket-3: #bef264;
+  --syntax-bracket-4: #fcd34d;
+  --syntax-bracket-5: #c4b5fd;
+  --syntax-bracket-6: #5eead4;
 }
 
 [data-theme="nord"] {
@@ -338,6 +350,31 @@
   --spark: #8ab6d6;
   --attention: #e0c06a;
   --success: #8fbf87;
+}
+
+[data-theme="nord"],
+[data-theme="solarized"],
+[data-theme="gruvbox"],
+[data-theme="dracula"],
+[data-theme="paper"],
+[data-theme="ember"],
+[data-theme="paper-dark"],
+[data-theme="kiln"],
+[data-theme="mist"],
+[data-theme="ash"],
+[data-theme="ash-dark"] {
+  --syntax-keyword: var(--primary);
+  --syntax-string: var(--success);
+  --syntax-number: var(--spark);
+  --syntax-comment: var(--muted-foreground);
+  --syntax-operator: var(--muted-foreground);
+  --syntax-path: var(--primary);
+  --syntax-bracket-1: var(--primary);
+  --syntax-bracket-2: var(--success);
+  --syntax-bracket-3: var(--spark);
+  --syntax-bracket-4: var(--attention);
+  --syntax-bracket-5: color-mix(in oklab, var(--primary) 65%, var(--success));
+  --syntax-bracket-6: color-mix(in oklab, var(--spark) 65%, var(--primary));
 }
 
 @theme inline {

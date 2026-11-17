@@ -1,7 +1,16 @@
 #!/usr/bin/env bash
 set -uo pipefail
 
-url="${NIT_GUI_UPTIME_URL:-http://127.0.0.1:7791/}"
+routes="${NIT_GATE_ROUTES:-${XDG_CONFIG_HOME:-$HOME/.config}/nit-gui/routes.json}"
+port="$(python3 - "$routes" <<'PY' 2>/dev/null
+import json, sys
+for route in json.load(open(sys.argv[1]))["routes"]:
+    if route.get("prefix") == "/nit":
+        print(route["upstream"].rsplit(":", 1)[-1])
+        break
+PY
+)"
+url="${NIT_GUI_UPTIME_URL:-http://127.0.0.1:${port:-7791}/}"
 interval="${NIT_GUI_UPTIME_INTERVAL:-5}"
 seconds="${1:-0}"
 deadline=$(( $(date +%s) + seconds ))

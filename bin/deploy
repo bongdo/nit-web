@@ -64,9 +64,55 @@ fi
 NIT_GUI_BASE="$base_path/" npm --prefix web run build
 mkdir -p "$run_dir"
 go build -trimpath -o "$bin" .
-stop "(^|/)nit-gui --addr 127\.0\.0\.1:$port$"
-if pgrep -f "(^|/)nit-gui --addr 127\.0\.0\.1:$port$" >/dev/null; then
-  echo "deploy: port $port is still held by nit-gui" >&2
+
+if [ -z "$domain" ]; then
+  echo "deploy: NIT_GUI_DOMAIN is required; the ts.net entry is gone" >&2
+  exit 1
+fi
+listen_addr="$(ip -4 -o addr show scope global 2>/dev/null | awk '$2 != "tailscale0" {print $4}' | cut -d/ -f1 | head -1)"
+listen_addr="${listen_addr:-0.0.0.0}"
+
+routes_file="${NIT_GATE_ROUTES:-${XDG_CONFIG_HOME:-$HOME/.config}/nit-gui/routes.json}"
+if [ ! -r "$routes_file" ]; then
+  echo "deploy: gate routes not found at $routes_file" >&2
+  exit 1
+fi
+gate_pid="$(pgrep -f '(^|/)\.cache/gate --addr' | head -1 || true)"
+if [ -z "$gate_pid" ]; then
+  echo "deploy: the gate is not running; start it with bin/gate" >&2
+  exit 1
+fi
+
+live_port="$(python3 - "$routes_file" <<'PY'
+import json, sys
+try:
+    routes = json.load(open(sys.argv[1]))["routes"]
+except Exception:
+    sys.exit(0)
+for route in routes:
+    if route.get("prefix") == "/nit":
+        print(route["upstream"].rsplit(":", 1)[-1])
+        break
+PY
+)"
+live_port="${live_port:-$port}"
+share_route="$(python3 - "$routes_file" <<'PY'
+import json, sys
+data = json.load(open(sys.argv[1]))
+print("yes" if any(route.get("prefix") == "/share" for route in data["routes"]) else "")
+PY
+)"
+
+next_port=""
+for candidate in 7791 7792 7794 7797 7798 7804 7805 7806; do
+  [ "$candidate" = "$live_port" ] && continue
+  if ! ss -ltn "sport = :$candidate" | grep -q LISTEN; then
+    next_port="$candidate"
+    break
+  fi
+done
+if [ -z "$next_port" ]; then
+  echo "deploy: no free loopback port for the new build" >&2
   exit 1
 fi
 
@@ -84,28 +130,86 @@ fi
 
 term_url="${NIT_GUI_TERM_URL:-/term/}"
 NIT_GUI_TERM_URL="$term_url" \
-  NIT_GUI_ALLOWED_HOSTS="$allowed" NIT_GUI_BASE_PATH="$base_path" NIT_GUI_PUBLIC_HOST="$public_host" setsid "$bin" --addr "127.0.0.1:$port" >"$run_dir/nit-gui.log" 2>&1 < /dev/null 9>&- &
+  NIT_GUI_ALLOWED_HOSTS="$allowed" NIT_GUI_BASE_PATH="$base_path" NIT_GUI_PUBLIC_HOST="$public_host" \
+  setsid "$bin" --addr "127.0.0.1:$next_port" >"$run_dir/nit-gui.log" 2>&1 < /dev/null 9>&- &
 
 ready=0
 for _ in $(seq 1 40); do
-  if curl -fsS "http://127.0.0.1:$port/" >/dev/null 2>&1; then
+  if curl -fsS "http://127.0.0.1:$next_port/" >/dev/null 2>&1; then
     ready=1
     break
   fi
   sleep 0.2
 done
 if [ "$ready" = 0 ]; then
-  echo "deploy: nit-gui did not start" >&2
+  echo "deploy: the new build did not start" >&2
   tail -20 "$run_dir/nit-gui.log" >&2
+  stop "(^|/)nit-gui --addr 127\.0\.0\.1:$next_port$"
   exit 1
 fi
 
-if [ -z "$domain" ]; then
-  echo "deploy: NIT_GUI_DOMAIN is required; the ts.net entry is gone" >&2
+gate_log="$run_dir/gate.log"
+cp -f "$routes_file" "$run_dir/routes.json.bak"
+
+switch_routes() {
+  python3 - "$routes_file" "$1" <<'PY'
+import json, sys
+path, port = sys.argv[1], sys.argv[2]
+with open(path) as handle:
+    data = json.load(handle)
+for route in data["routes"]:
+    if route.get("prefix") in ("/nit", "/share"):
+        route["upstream"] = "http://127.0.0.1:" + port
+with open(path + ".tmp", "w") as handle:
+    json.dump(data, handle, ensure_ascii=False, indent=2)
+    handle.write("\n")
+PY
+  mv "$routes_file.tmp" "$routes_file"
+}
+
+reload_gate() {
+  local before=0
+  [ -r "$gate_log" ] && before="$(grep -c "" "$gate_log" || true)"
+  kill -HUP "$gate_pid" 2>/dev/null || return 1
+  [ -r "$gate_log" ] || { sleep 0.3; return 0; }
+  for _ in $(seq 1 20); do
+    if [ "$(grep -c "" "$gate_log" || true)" -gt "$before" ] && tail -5 "$gate_log" | grep -q "routes reloaded"; then
+      return 0
+    fi
+    sleep 0.1
+  done
+  return 1
+}
+
+public_code() {
+  [ -n "$share_route" ] || return 0
+  curl -s -o /dev/null -w '%{http_code}' --resolve "$domain:443:$listen_addr" "https://$domain/share/" || true
+}
+
+keep_old() {
+  echo "deploy: $1; keeping the old build" >&2
+  cp -f "$run_dir/routes.json.bak" "$routes_file"
+  reload_gate || true
+  stop "(^|/)nit-gui --addr 127\.0\.0\.1:$next_port$"
   exit 1
+}
+
+switch_routes "$next_port"
+reload_gate || keep_old "the gate did not reload routes"
+if [ -n "$share_route" ]; then
+  code="$(public_code)"
+  [ "$code" = "303" ] || [ "$code" = "200" ] || keep_old "the switched route answered $code"
 fi
-listen_addr="$(ip -4 -o addr show scope global 2>/dev/null | awk '$2 != "tailscale0" {print $4}' | cut -d/ -f1 | head -1)"
-listen_addr="${listen_addr:-0.0.0.0}"
+
+stop "(^|/)nit-gui --addr 127\.0\.0\.1:$live_port$"
+if [ -n "$share_route" ]; then
+  code="$(public_code)"
+  if [ "$code" != "303" ] && [ "$code" != "200" ]; then
+    echo "deploy: the public route answered $code after stopping the old build" >&2
+    tail -20 "$run_dir/nit-gui.log" >&2
+    exit 1
+  fi
+fi
 
 cat >"$caddyfile.next" <<EOF
 {

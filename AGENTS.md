@@ -1,7 +1,7 @@
 # nit-gui
 
 - `bin/check` — typecheck, unit tests, production build, `gofmt`, `go vet`, Go tests and build. The only build and test command; it must be green before you report or deploy.
-- `bin/deploy` — the only publish command: builds the web bundle with base `/nit/`, builds the Go binary, restarts it on `127.0.0.1:7791` and reloads Caddy on `10.0.0.88:443`, which proxies to the gate on `127.0.0.1:8090`. Public at `https://bongdo.space/nit/`; the old ts.net entry is gone. Only the main worktree may deploy: it takes a global lock and refuses to run from a linked worktree, so parallel agents do not restart the live server under each other.
+- `bin/deploy` — the only publish command: builds the web bundle with base `/nit/`, builds the Go binary, starts it on the second loopback port, flips `/nit` and `/share` in `~/.config/nit-gui/routes.json` (backup in `.cache/routes.json.bak`), reloads the gate with SIGHUP, waits until the public route answers, and only then stops the old process. No refused connections; Caddy restarts only when its config changed. Public at `https://bongdo.space/nit/`; the old ts.net entry is gone. Only the main worktree may deploy: it takes a global lock and refuses to run from a linked worktree, so parallel agents do not restart the live server under each other.
 - Cycle: green `bin/check` → `save "<what changed>"` → `bin/deploy` → report `https://bongdo.space/nit/` and what to look at.
 - A UI or behavior change is not done until it is deployed: the user sees the old build.
 - `bin/auth` prints the password once and stores only its hash. If you rotate it,

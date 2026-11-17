@@ -480,7 +480,7 @@ float angelProp(vec3 p) {
 float map(vec3 q) {
   q.y = -q.y;
   q *= 1.75;
-  q.xz = rot2(q.xz, -0.5 + uScroll * 1.9 + uT * 0.25);
+  q.xz = rot2(q.xz, -0.35 + 0.80 * sin(uT * 0.5 + uScroll * 3.2));
   q.y -= 0.16;
   return min(min(angelBody(q), angelWing(q)), angelProp(q)) / 1.75;
 }

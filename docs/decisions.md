@@ -1,5 +1,29 @@
 # Decisions
 
+## 2026-11-17 — Chat search reads message text from the local OpenCode database
+
+Context: the sidebar searched session titles only, and a title is a generated
+summary; finding a chat by what was said inside it was impossible.
+
+Decision: when `GET /api/sessions` carries a `search` and no cursor, nit-gui
+reads `~/.local/share/opencode/opencode.db` read-only through the `sqlite3`
+CLI, keeps the text of user messages and assistant text parts in memory,
+rebuilds that index in the background at most every five seconds, and appends
+matching sessions with a `snippet` field to the first page.
+
+Why: OpenCode has no content-search endpoint, and pulling every transcript over
+HTTP would move hundreds of megabytes per query. The database is local, the
+text needed is a few megabytes, and SQLite's `LIKE` cannot fold Cyrillic case
+while Go can.
+
+Rejected: an FTS5 side index (sync and migration cost for one short scan),
+searching reasoning and tool output (noise: every session touches many files),
+remote instances (their database is not on this host).
+
+Cost: the scan depends on OpenCode's internal schema (`session_message`,
+`session_v2`) and on the `sqlite3` binary; if either moves, content search
+silently falls back to titles.
+
 ## 2026-11-17 — A file link opens the plain viewer; Shift-click opens pero
 
 Context: every file link in a transcript opened pero, but most clicks are a

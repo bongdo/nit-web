@@ -565,7 +565,7 @@ All `/api` endpoints except `/api/instances*` accept `X-Nit-Instance: <id>` or
 | `GET /api/projects` | Known projects from OpenCode `/api/project`, for the workspace picker. |
 | `GET /api/fs?path=` | Immediate subfolders of an absolute path (default: OpenCode's working directory), via OpenCode `/api/fs/list`. `404` when the folder does not exist. |
 | `POST /api/fs` | `{dir, name}`; create a folder through OpenCode `/api/experimental/fs/write` (a `.keep` marker creates it). |
-| `GET /api/sessions?dir=&children=true&search=&cursor=` | Newest sessions; `children=true` includes subagent sessions; `search` and `cursor` go upstream; the response keeps OpenCode's `cursor`. |
+| `GET /api/sessions?dir=&children=true&search=&cursor=` | Newest sessions; `children=true` includes subagent sessions; `search` and `cursor` go upstream; the response keeps OpenCode's `cursor`. With `search` and no cursor, sessions whose message text matches are also appended, each with a `snippet` (local instances only). |
 | `POST /api/sessions` | Create `{directory, title?, agent?, model?}`. |
 | `DELETE /api/sessions/{id}` | Delete a session and its child sessions. |
 | `GET /api/sessions/{id}` | One session, used to restore a selected subagent after reload. |
@@ -837,6 +837,11 @@ own startup warmup.
 - The sidebar loads all upstream session pages (100 each, capped at 10,000) on
   every refresh, so a large instance costs several requests per reload. A
   search query goes upstream instead of filtering that window client-side.
+- Content search reads OpenCode's local database: it covers the instance on this
+  host, not ssh instances, and only user messages and assistant text — not tool
+  output or reasoning. The index is rebuilt in the background every five
+  seconds, so the newest messages may be missing for that long, and the first
+  search after start waits for one scan (~2 s on a 500 MB database).
 - The UI opens the full visible transcript; tool and reasoning payloads load
   when a steps block is opened. The full endpoint is assembled from at most 100
   upstream pages (100 messages each); longer sessions are truncated at 10,000

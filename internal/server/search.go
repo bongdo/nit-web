@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"os"
@@ -21,8 +22,7 @@ import (
 
 const (
 	maxContentMatches = 30
-	contentSnippet    = 180
-	contentIndexTTL   = 3 * time.Second
+	contentIndexTTL   = 5 * time.Second
 )
 
 const contentRowsSQL = `
@@ -46,10 +46,6 @@ WHERE m.type IN ('user', 'assistant')
                   WHERE json_extract(c.value, '$.type') = 'text'
                     AND json_extract(c.value, '$.text') IS NOT NULL))`
 
-const contentStampSQL = `
-SELECT COALESCE(max(time_updated), 0) + (SELECT COALESCE(max(time_updated), 0) FROM session_v2) AS stamp
-FROM session_message`
-
 type textMessage struct {
 	created int64
 	text    string
@@ -66,8 +62,8 @@ type sessionText struct {
 
 type contentIndex struct {
 	mu       sync.Mutex
-	stamp    int64
 	rebuilt  time.Time
+	loading  bool
 	sessions map[string]*sessionText
 }
 
@@ -156,10 +152,7 @@ func (s *Server) contentMatches(ctx context.Context, instance, query, dir string
 		return nil
 	}
 	idx := s.contentIndexFor(instance)
-	if err := idx.refresh(ctx, db); err != nil {
-		s.log.Debug("content search unavailable", "instance", instance, "error", err)
-		return nil
-	}
+	idx.refresh(ctx, db, s.log)
 	return idx.find(query, dir)
 }
 
@@ -189,7 +182,7 @@ func (s *Server) localDatabase(instance string) string {
 		if dir == "" {
 			return ""
 		}
-		path := filepath.Join(dir, "opencode.db")
+		path := filepath.Join(dir, "opencode", "opencode.db")
 		if _, err := os.Stat(path); err != nil {
 			return ""
 		}
@@ -209,30 +202,52 @@ func opencodeDataDir() string {
 	return filepath.Join(home, ".local", "share")
 }
 
-func (i *contentIndex) refresh(ctx context.Context, db string) error {
+// shortcut: full rescan every few seconds while searching, go incremental when the scan outgrows a second and a half.
+func (i *contentIndex) refresh(ctx context.Context, db string, log *slog.Logger) {
 	i.mu.Lock()
-	defer i.mu.Unlock()
-	out, err := runSQLite(ctx, db, contentStampSQL)
-	if err != nil {
-		return err
+	if i.loading {
+		i.mu.Unlock()
+		return
 	}
-	var stamp struct {
-		Stamp int64 `json:"stamp"`
+	sessions := i.sessions
+	fresh := time.Since(i.rebuilt) < contentIndexTTL
+	if sessions != nil && fresh {
+		i.mu.Unlock()
+		return
 	}
-	if err := json.Unmarshal(out, &stamp); err != nil {
-		return err
+	i.loading = true
+	i.mu.Unlock()
+	if sessions == nil {
+		if err := i.reload(ctx, db); err != nil {
+			i.failed(log, err)
+		}
+		return
 	}
-	if i.sessions != nil && (stamp.Stamp == i.stamp || time.Since(i.rebuilt) < contentIndexTTL) {
-		return nil
-	}
+	go func() {
+		if err := i.reload(context.Background(), db); err != nil {
+			i.failed(log, err)
+		}
+	}()
+}
+
+func (i *contentIndex) reload(ctx context.Context, db string) error {
 	sessions, err := readSessionTexts(ctx, db)
 	if err != nil {
 		return err
 	}
+	i.mu.Lock()
 	i.sessions = sessions
-	i.stamp = stamp.Stamp
 	i.rebuilt = time.Now()
+	i.loading = false
+	i.mu.Unlock()
 	return nil
+}
+
+func (i *contentIndex) failed(log *slog.Logger, err error) {
+	i.mu.Lock()
+	i.loading = false
+	i.mu.Unlock()
+	log.Debug("content search unavailable", "error", err)
 }
 
 func readSessionTexts(ctx context.Context, db string) (map[string]*sessionText, error) {
@@ -247,7 +262,7 @@ func readSessionTexts(ctx context.Context, db string) (map[string]*sessionText, 
 		ID        string `json:"id"`
 		Directory string `json:"directory"`
 		Parent    string `json:"parent"`
-		Archived  bool   `json:"archived"`
+		Archived  int64  `json:"archived"`
 		Updated   int64  `json:"updated"`
 		Created   int64  `json:"created"`
 		Text      string `json:"text"`
@@ -267,7 +282,7 @@ func readSessionTexts(ctx context.Context, db string) (map[string]*sessionText, 
 			entry = &sessionText{
 				directory: row.Directory,
 				parentID:  row.Parent,
-				archived:  row.Archived,
+				archived:  row.Archived != 0,
 				updated:   row.Updated,
 			}
 			sessions[row.ID] = entry

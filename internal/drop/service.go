@@ -599,14 +599,6 @@ func (s *Services) Update(ctx context.Context, entry Entry) (Entry, error) {
 	return entry, nil
 }
 
-func (s *Services) Remove(ctx context.Context, entry Entry) error {
-	if err := s.removeContainer(ctx, &entry, true); err != nil {
-		return err
-	}
-	s.forget(entry.ID)
-	return nil
-}
-
 func (s *Services) removeEntry(entry Entry) {
 	if entry.Kind != "service" || entry.Service == nil {
 		return

@@ -13,9 +13,9 @@ func (s *Server) home(w http.ResponseWriter, r *http.Request) {
 	routes := s.routes.sorted()
 	data.Services = plural(len(routes), "сервис", "сервиса", "сервисов")
 	snapshot := s.health.get(s.now())
-	data.Health = snapshot.Server
+	data.Health = snapshot
 	if !data.User.Anonymous() {
-		data.HasHealth = snapshot.Server.ok
+		data.HasHealth = snapshot.ok
 	}
 	for i, route := range routes {
 		entry := routeView{Prefix: route.Prefix, Note: route.Note, Key: i + 1}

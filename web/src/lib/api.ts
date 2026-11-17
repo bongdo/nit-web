@@ -49,11 +49,11 @@ export function getInstance(): string {
 }
 
 async function errorText(response: Response): Promise<string> {
+  const text = await response.text().catch(() => "");
   try {
-    const data = (await response.json()) as { error?: string; message?: string };
-    return data.error || data.message || `Request failed (${response.status})`;
+    const data = JSON.parse(text) as { error?: string; message?: string };
+    return data.error || data.message || text.trim().slice(0, 500) || `Request failed (${response.status})`;
   } catch {
-    const text = await response.text().catch(() => "");
     return text.trim().slice(0, 500) || `Request failed (${response.status})`;
   }
 }
@@ -79,15 +79,7 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
   });
   if (!response.ok) {
     if (response.status === 401) redirectToLogin();
-    let message = `Request failed (${response.status})`;
-    try {
-      const data = (await response.json()) as { error?: string; message?: string };
-      message = data.error || data.message || message;
-    } catch {
-      const text = await response.text().catch(() => "");
-      if (text.trim()) message = text.trim().slice(0, 500);
-    }
-    throw new ApiError(message, response.status);
+    throw new ApiError(await errorText(response), response.status);
   }
   if (response.status === 204) return undefined as T;
   const text = await response.text();

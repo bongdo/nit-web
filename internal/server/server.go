@@ -613,8 +613,9 @@ func (s *Server) messages(w http.ResponseWriter, r *http.Request) {
 	for page := 0; page < maxTranscriptPages; page++ {
 		query := url.Values{}
 		query.Set("limit", "100")
-		query.Set("order", "desc")
-		if cursor != "" {
+		if cursor == "" {
+			query.Set("order", "desc")
+		} else {
 			query.Set("cursor", cursor)
 		}
 		raw, err := c.Raw(r.Context(), http.MethodGet, fmt.Sprintf("/api/session/%s/message?%s", url.PathEscape(id), query.Encode()))

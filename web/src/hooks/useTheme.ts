@@ -1,4 +1,5 @@
 import { useCallback, useLayoutEffect, useState } from "react";
+import { readStored, writeStored } from "../lib/storage";
 import { THEMES, themeIsDark, type Theme } from "../lib/themes";
 
 export type { Theme } from "../lib/themes";
@@ -7,7 +8,7 @@ const STORAGE_KEY = "nit-gui.theme";
 const DARK_QUERY = "(prefers-color-scheme: dark)";
 
 function readTheme(): Theme {
-  const value = localStorage.getItem(STORAGE_KEY);
+  const value = readStored(STORAGE_KEY);
   return THEMES.some((item) => item.id === value) ? (value as Theme) : "system";
 }
 
@@ -23,7 +24,7 @@ export function useTheme() {
 
   useLayoutEffect(() => {
     applyTheme(theme);
-    localStorage.setItem(STORAGE_KEY, theme);
+    writeStored(STORAGE_KEY, theme);
     if (theme !== "system") return;
     const media = window.matchMedia(DARK_QUERY);
     const onChange = () => applyTheme("system");

@@ -1,7 +1,10 @@
 package opencode
 
 import (
+	"net"
+	"net/url"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -15,6 +18,18 @@ var (
 	gateID   string
 	gateExp  time.Time
 )
+
+func gateHeaderFor(baseURL string) string {
+	parsed, err := url.Parse(baseURL)
+	if err != nil {
+		return ""
+	}
+	ip := net.ParseIP(strings.Trim(parsed.Hostname(), "[]"))
+	if ip == nil || !ip.IsLoopback() {
+		return ""
+	}
+	return gateHeader()
+}
 
 func gateHeader() string {
 	gateOnce.Do(func() {

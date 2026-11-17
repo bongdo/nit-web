@@ -74,7 +74,7 @@ func defaultTransport() *http.Transport {
 
 func (c *Client) attach(req *http.Request) {
 	req.SetBasicAuth("opencode", c.password())
-	if header := gateHeader(); header != "" {
+	if header := gateHeaderFor(c.BaseURL); header != "" {
 		req.Header.Set(gateid.Header, header)
 	}
 }

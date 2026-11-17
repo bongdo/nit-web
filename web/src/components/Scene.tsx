@@ -54,6 +54,7 @@ export function Scene(props: SceneProps) {
     return SCENE_IDS[Math.floor(Math.random() * SCENE_IDS.length)];
   }, [props.variant]);
   if (isGpuVariant(resolved)) {
+    if (props.paused) return <Placeholder className={props.className} />;
     return (
       <Suspense fallback={<Placeholder className={props.className} />}>
         <SceneGpu {...props} variant={resolved} />

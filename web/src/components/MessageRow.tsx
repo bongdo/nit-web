@@ -1,21 +1,14 @@
 import { memo, useState, type ReactNode } from "react";
-import { Bot, CircleAlert, Copy, GitFork, Loader2, Terminal, Undo2 } from "lucide-react";
-import type { Agent, Message, Model, UserFile } from "../lib/types";
+import { CircleAlert, Copy, GitFork, Loader2, Terminal, Undo2 } from "lucide-react";
+import type { Message, UserFile } from "../lib/types";
 import { attachmentHref } from "../lib/attachments";
 import { copyText } from "../lib/clipboard";
-import { isPureHtml, looksLikeHtml } from "../lib/html";
-import { modelLabel, replyText } from "../lib/format";
 import { timeLabel, type TimeFormat } from "../lib/time";
 import { AttachmentPreview } from "./Attachment";
 import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
 import { CompactionRow } from "./Compaction";
-import { HtmlMessagePreview } from "./HtmlMessagePreview";
 import { MarkdownLazy } from "./MarkdownLazy";
-import { QuestionCard } from "./QuestionCard";
-import { Reasoning } from "./Reasoning";
-import { ReplyActions } from "./ReplyActions";
-import { ToolCall } from "./ToolCall";
 
 function FilePreview({ file }: { file: UserFile }) {
   const href = attachmentHref(file);
@@ -36,9 +29,6 @@ function Note({ children }: { children: ReactNode }) {
 
 export const MessageRow = memo(function MessageRow({
   message,
-  models,
-  agents,
-  streaming,
   running,
   alwaysShowActions,
   autoOpen,
@@ -48,12 +38,8 @@ export const MessageRow = memo(function MessageRow({
   showTime,
   onRevert,
   onFork,
-  onLoadMessage,
 }: {
   message: Message;
-  models: Model[];
-  agents: Agent[];
-  streaming: boolean;
   running?: boolean;
   alwaysShowActions?: boolean;
   autoOpen?: boolean;
@@ -63,7 +49,6 @@ export const MessageRow = memo(function MessageRow({
   showTime: boolean;
   onRevert: (message: Message) => Promise<void>;
   onFork: (message: Message) => Promise<void>;
-  onLoadMessage?: (messageID: string) => void | Promise<void>;
 }) {
   const [busy, setBusy] = useState<"revert" | "fork" | null>(null);
 
@@ -210,94 +195,5 @@ export const MessageRow = memo(function MessageRow({
     return label ? <Note>{label}</Note> : null;
   }
 
-  if (message.type !== "assistant") {
-    return null;
-  }
-
-  const content = message.content ?? [];
-  const lastIndex = content.length - 1;
-  const agent = agents.find((item) => item.id === message.agent);
-  const model = modelLabel(message.model, models);
-  const reply = replyText(message);
-
-  return (
-    <div className="px-1 py-3">
-      <div className="mb-1.5 flex min-w-0 items-center gap-2 text-xs">
-        <span className="bg-secondary text-secondary-foreground flex size-6 items-center justify-center rounded-full">
-          <Bot className="size-3.5" />
-        </span>
-        <span className="font-medium">{agent?.name ?? message.agent ?? "Assistant"}</span>
-        {model && <span className="text-muted-foreground truncate">{model}</span>}
-        {(streaming || showTime) && (
-          <span className="text-muted-foreground ml-auto shrink-0 text-[10px]">
-            {streaming ? "streaming" : timeLabel(message.time.created, timeFormat)}
-          </span>
-        )}
-      </div>
-      <div className="min-w-0 pl-8">
-        {content.map((part, index) => {
-          const onLoad =
-            onLoadMessage && !streaming && "light" in part && part.light
-              ? () => onLoadMessage(message.id)
-              : undefined;
-          if (part.type === "reasoning") {
-            return (
-              <Reasoning
-                key={`reasoning-${part.ordinal ?? index}`}
-                part={part}
-                streaming={streaming && index === lastIndex}
-                onLoad={onLoad}
-              />
-            );
-          }
-          if (part.type === "tool" && part.name === "question") {
-            return (
-              <QuestionCard
-                key={`question-${part.id}`}
-                part={part}
-                timeFormat={timeFormat}
-                showTime={showTime}
-              />
-            );
-          }
-          if (part.type === "tool") {
-            return (
-              <ToolCall
-                key={`tool-${part.id}`}
-                part={part}
-                peroURL={peroURL}
-                onLoad={onLoad}
-              />
-            );
-          }
-          const pureHtml = isPureHtml(part.text);
-          return (
-            <div key={`text-${part.ordinal ?? index}`}>
-              {pureHtml ? (
-                <HtmlMessagePreview source={part.text} />
-              ) : (
-                <>
-                  <MarkdownLazy text={part.text} directory={directory} peroURL={peroURL} />
-                  {looksLikeHtml(part.text) && <HtmlMessagePreview source={part.text} />}
-                </>
-              )}
-              {streaming && index === lastIndex && <span className="stream-caret" />}
-            </div>
-          );
-        })}
-        {content.length === 0 && streaming && (
-          <div className="text-muted-foreground py-2 text-xs">Waiting for the first token…</div>
-        )}
-        {message.error && (
-          <div className="text-destructive border-destructive/30 bg-destructive/5 mt-2 flex items-start gap-2 rounded-md border px-3 py-2 text-xs">
-            <CircleAlert className="mt-0.5 size-3.5 shrink-0" />
-            <span className="whitespace-pre-wrap">
-              {message.error.message ?? "The assistant failed."}
-            </span>
-          </div>
-        )}
-        {!streaming && reply.trim() !== "" && <ReplyActions text={reply} className="mt-2" />}
-      </div>
-    </div>
-  );
+  return null;
 });

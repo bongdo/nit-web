@@ -19,9 +19,6 @@ export type FileType =
   | "key"
   | "other";
 
-const textExtensions =
-  /\.(txt|md|markdown|csv|tsv|json|jsonl|xml|html?|css|jsx?|tsx?|go|py|sh|bash|zsh|ya?ml|toml|log|ini|conf|sql|rs|java|c|cpp|h|hpp)$/i;
-
 const fileTypes: [FileType, RegExp][] = [
   ["image", /\.(png|jpe?g|gif|webp|svg|avif|bmp|heic|heif)$/i],
   ["pdf", /\.pdf$/i],
@@ -67,7 +64,7 @@ export function attachmentKind(file: { name?: string; mime?: string }): Attachme
   const type = fileType(file);
   if (type === "image") return "image";
   if (type === "pdf") return "pdf";
-  if (textExtensions.test(file.name ?? "") || file.mime?.toLowerCase().startsWith("text/")) {
+  if (type === "code" || type === "document" || type === "json" || type === "spreadsheet") {
     return "text";
   }
   return "other";

@@ -16,6 +16,7 @@ describe("attachments", () => {
     expect(attachmentKind({ mime: "text/markdown", name: "x" })).toBe("text");
     expect(attachmentKind({ name: "shot.PDF" })).toBe("pdf");
     expect(attachmentKind({ name: "notes.md" })).toBe("text");
+    expect(attachmentKind({ name: "main.zig" })).toBe("text");
     expect(attachmentKind({ name: "archive.zip" })).toBe("other");
   });
 

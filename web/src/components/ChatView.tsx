@@ -507,6 +507,15 @@ export function ChatView({
   const fresh =
     motion === "animated" && freshRow && freshRow.session === session?.id ? freshRow.id : null;
 
+  const wasRunning = useRef(running);
+  const [announcement, setAnnouncement] = useState("");
+  useEffect(() => {
+    if (wasRunning.current && !running) {
+      setAnnouncement(error ? "Run failed" : "Reply finished");
+    }
+    wasRunning.current = running;
+  }, [running, error]);
+
   const rows = useMemo(() => {
     const items: ReactNode[] = [];
     const lastUserID = [...messages].reverse().find((message) => message.type === "user")?.id;
@@ -556,8 +565,6 @@ export function ChatView({
         >
           <MessageRow
             message={message}
-            models={models}
-            agents={agents}
             running={running}
             alwaysShowActions={message.id === lastUserID}
             autoOpen={freshCompaction && message.id === lastCompactionId}
@@ -567,8 +574,6 @@ export function ChatView({
             showTime={showTime}
             onRevert={onRevert}
             onFork={onFork}
-            streaming={false}
-            onLoadMessage={onLoadMessage}
           />
         </div>,
       );
@@ -747,6 +752,9 @@ export function ChatView({
         }}
       >
         <div ref={contentRef} className="mx-auto w-full max-w-3xl px-4 pt-16 pb-6">
+          <span className="sr-only" role="status" aria-live="polite">
+            {announcement}
+          </span>
           {error && <ErrorBanner key={error} error={error} onRetry={onRetry} />}
 
           {messages.length === 0 && !error ? (

@@ -42,9 +42,10 @@ type grammarChecker struct {
 	external bool
 	port     string
 
-	mu   sync.Mutex
-	cmd  *exec.Cmd
-	done chan struct{}
+	mu       sync.Mutex
+	cmd      *exec.Cmd
+	done     chan struct{}
+	starting chan struct{}
 }
 
 func newGrammarChecker(log *slog.Logger) *grammarChecker {
@@ -83,12 +84,42 @@ func (g *grammarChecker) ensure(ctx context.Context) error {
 		return g.health(ctx)
 	}
 	g.mu.Lock()
-	defer g.mu.Unlock()
 	if g.runningLocked() {
+		g.mu.Unlock()
 		return nil
 	}
+	if g.starting != nil {
+		started := g.starting
+		g.mu.Unlock()
+		select {
+		case <-started:
+			g.mu.Lock()
+			running := g.runningLocked()
+			g.mu.Unlock()
+			if running {
+				return nil
+			}
+			return fmt.Errorf("languagetool did not start")
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
+	started := make(chan struct{})
+	g.starting = started
 	g.cmd = nil
 	g.done = nil
+	g.mu.Unlock()
+
+	err := g.spawn(ctx)
+
+	g.mu.Lock()
+	g.starting = nil
+	close(started)
+	g.mu.Unlock()
+	return err
+}
+
+func (g *grammarChecker) spawn(ctx context.Context) error {
 	bin := strings.TrimSpace(os.Getenv("NIT_GUI_LANGUAGETOOL"))
 	if bin == "" {
 		var err error
@@ -110,8 +141,10 @@ func (g *grammarChecker) ensure(ctx context.Context) error {
 		return err
 	}
 	done := make(chan struct{})
+	g.mu.Lock()
 	g.cmd = cmd
 	g.done = done
+	g.mu.Unlock()
 	go func() {
 		_ = cmd.Wait()
 		close(done)
@@ -119,10 +152,13 @@ func (g *grammarChecker) ensure(ctx context.Context) error {
 	deadline := time.Now().Add(grammarStartupTimeout)
 	for time.Now().Before(deadline) {
 		if ctx.Err() != nil {
-			g.stopLocked()
+			g.stop()
 			return ctx.Err()
 		}
-		if !g.runningLocked() {
+		g.mu.Lock()
+		running := g.runningLocked()
+		g.mu.Unlock()
+		if !running {
 			return fmt.Errorf("languagetool exited during startup")
 		}
 		if g.health(ctx) == nil {
@@ -134,8 +170,14 @@ func (g *grammarChecker) ensure(ctx context.Context) error {
 		}
 		time.Sleep(200 * time.Millisecond)
 	}
-	g.stopLocked()
+	g.stop()
 	return fmt.Errorf("languagetool did not start")
+}
+
+func (g *grammarChecker) stop() {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	g.stopLocked()
 }
 
 func (g *grammarChecker) stopLocked() {

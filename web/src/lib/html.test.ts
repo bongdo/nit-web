@@ -130,6 +130,13 @@ describe("html artifacts", () => {
     expect(stripHtmlArtifacts(text)).toBe(text);
   });
 
+  it("leaves a marker inside a tilde fence alone", () => {
+    const text = "~~~\n[[html:pages/chart.html]]\n~~~";
+    const segments = htmlArtifactSegments(text);
+    expect(segments).toEqual([{ text, artifacts: [] }]);
+    expect(stripHtmlArtifacts(text)).toBe(text);
+  });
+
   it("strips page markers from copyable text", () => {
     expect(
       stripHtmlArtifacts("Done.\n\n[[html:pages/chart.html|Chart]]\n"),

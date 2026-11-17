@@ -96,6 +96,40 @@ func TestPublicAndPrivate(t *testing.T) {
 	}
 }
 
+func TestPublicHidesDotfiles(t *testing.T) {
+	store := testStore(t)
+	src := t.TempDir()
+	writeFile(t, filepath.Join(src, "index.html"), "<h1>ok</h1>")
+	writeFile(t, filepath.Join(src, ".env"), "SECRET=1")
+	writeFile(t, filepath.Join(src, "sub", ".git", "config"), "[core]")
+	entry, err := store.PublishPath(src, "dotfiles", PublishOptions{Public: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	server := testDropServer(t, store, nil)
+
+	for _, target := range []string{"/d/" + entry.Slug + "/.env", "/d/" + entry.Slug + "/sub/.git/config"} {
+		resp, err := http.Get(server.URL + target)
+		if err != nil {
+			t.Fatal(err)
+		}
+		resp.Body.Close()
+		if resp.StatusCode != http.StatusNotFound {
+			t.Fatalf("%s status = %d, want 404", target, resp.StatusCode)
+		}
+	}
+
+	resp, err := http.Get(server.URL + "/d/" + entry.Slug + "/")
+	if err != nil {
+		t.Fatal(err)
+	}
+	body, _ := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusOK || !strings.Contains(string(body), "<h1>ok</h1>") {
+		t.Fatalf("index status = %d body = %q", resp.StatusCode, body)
+	}
+}
+
 func TestOldURLRedirects(t *testing.T) {
 	store := testStore(t)
 	entry := publishFile(t, store, "report.md", "# hi", PublishOptions{})

@@ -4,6 +4,7 @@ import { api } from "./lib/api";
 import { prefetchBoot } from "./lib/bootCache";
 import { messageOf } from "./lib/errors";
 import { appLabel } from "./lib/instances";
+import { readStored, writeStored } from "./lib/storage";
 import type { InstancesResponse } from "./lib/types";
 import { InstancesMenu } from "./components/InstancesMenu";
 import { preloadMarkdown } from "./components/MarkdownLazy";
@@ -12,7 +13,7 @@ const CACHE_KEY = "nit-gui.instances.v1";
 
 function readCached(): InstancesResponse | null {
   try {
-    const raw = localStorage.getItem(CACHE_KEY);
+    const raw = readStored(CACHE_KEY);
     if (!raw) return null;
     const value = JSON.parse(raw) as InstancesResponse;
     if (!value || !Array.isArray(value.instances) || value.instances.length === 0) return null;
@@ -25,13 +26,13 @@ function readCached(): InstancesResponse | null {
 
 function writeCached(value: InstancesResponse) {
   try {
-    localStorage.setItem(CACHE_KEY, JSON.stringify(value));
+    writeStored(CACHE_KEY, JSON.stringify(value));
   } catch {}
 }
 
 export default function Root() {
   const [data, setData] = useState<InstancesResponse | null>(() => readCached());
-  const [active, setActive] = useState(() => localStorage.getItem("nit-gui.instance") || "");
+  const [active, setActive] = useState(() => readStored("nit-gui.instance") || "");
   const [error, setError] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
 
@@ -41,11 +42,11 @@ export default function Root() {
       const result = await api.instances("none");
       setData(result);
       writeCached(result);
-      const stored = localStorage.getItem("nit-gui.instance");
+      const stored = readStored("nit-gui.instance");
       const next =
         stored && result.instances.some((item) => item.id === stored) ? stored : result.default;
       setActive(next);
-      localStorage.setItem("nit-gui.instance", next);
+      writeStored("nit-gui.instance", next);
     } catch (cause) {
       setError(messageOf(cause, "Could not load instances"));
     }
@@ -78,10 +79,10 @@ export default function Root() {
     }
   }, []);
 
-  const seed = active || localStorage.getItem("nit-gui.instance") || "local";
+  const seed = active || readStored("nit-gui.instance") || "local";
   const seedWorkspace =
-    localStorage.getItem("nit-gui.workspace") ||
-    localStorage.getItem(`nit-gui.workspace:${seed}`) ||
+    readStored("nit-gui.workspace") ||
+    readStored(`nit-gui.workspace:${seed}`) ||
     undefined;
   const current: InstancesResponse = data ?? {
     app: { name: "nit-gui", host: "", version: "dev" },
@@ -107,7 +108,7 @@ export default function Root() {
         void prefetchBoot(id);
       }
       setActive(id);
-      localStorage.setItem("nit-gui.instance", id);
+      writeStored("nit-gui.instance", id);
     },
     [active, current.instances],
   );
@@ -122,7 +123,9 @@ export default function Root() {
     current.instances.find((item) => item.id === current.default) ??
     current.instances[0];
 
-  api.setInstance(info.id);
+  useEffect(() => {
+    if (info) api.setInstance(info.id);
+  }, [info?.id]);
 
   return (
     <>

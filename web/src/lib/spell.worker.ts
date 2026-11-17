@@ -59,21 +59,24 @@ async function load(language: "ru" | "en"): Promise<Loaded> {
   return { language, checker: nspell(aff, dic), words: dictionaryWords(dic) };
 }
 
-let language: "ru" | "en" | null = null;
-let loaded: Promise<Loaded> | null = null;
+const dictionaries = new Map<"ru" | "en", Promise<Loaded>>();
 const suggestions = new Map<string, string[]>();
 let cachedText = "";
 let cachedIgnore = "";
+let cachedLanguage: "ru" | "en" | null = null;
 let cachedIssues: SpellIssue[] = [];
 
 function dictionary(text: string): Promise<Loaded> {
-  language ??= primaryLanguage(text);
-  loaded ??= load(language).catch((error: unknown) => {
-    loaded = null;
-    language = null;
-    throw error;
-  });
-  return loaded;
+  const language = primaryLanguage(text);
+  let entry = dictionaries.get(language);
+  if (!entry) {
+    entry = load(language).catch((error: unknown) => {
+      dictionaries.delete(language);
+      throw error;
+    });
+    dictionaries.set(language, entry);
+  }
+  return entry;
 }
 
 scope.postMessage({ type: "ready" });
@@ -83,10 +86,11 @@ function wrap(checker: ReturnType<typeof nspell>, language: "ru" | "en"): SpellC
     {
       correct: (word: string) => checker.correct(word),
       suggest: (word: string) => {
-        let list = suggestions.get(word);
+        const key = `${language}:${word}`;
+        let list = suggestions.get(key);
         if (!list) {
           list = checker.suggest(word);
-          suggestions.set(word, list);
+          suggestions.set(key, list);
         }
         return list;
       },
@@ -141,7 +145,8 @@ scope.onmessage = (event) => {
     return;
   }
   const ignoreKey = request.ignore.join("\u0000");
-  if (request.text === cachedText && ignoreKey === cachedIgnore) {
+  const language = primaryLanguage(request.text);
+  if (request.text === cachedText && ignoreKey === cachedIgnore && language === cachedLanguage) {
     scope.postMessage({ type: "issues", id: request.id, issues: cachedIssues });
     return;
   }
@@ -151,6 +156,7 @@ scope.onmessage = (event) => {
       const issues = findIssues(request.text, checker, checker, new Set(request.ignore));
       cachedText = request.text;
       cachedIgnore = ignoreKey;
+      cachedLanguage = loaded.language;
       cachedIssues = issues;
       scope.postMessage({ type: "issues", id: request.id, issues });
     })

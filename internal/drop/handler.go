@@ -11,6 +11,7 @@ import (
 	"io/fs"
 	"log/slog"
 	"mime"
+	"mime/multipart"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
@@ -247,6 +248,14 @@ func (h *Manager) redirectOld(w http.ResponseWriter, r *http.Request, file strin
 	http.Redirect(w, r, target, http.StatusMovedPermanently)
 }
 
+func readField(part *multipart.Part, limit int64) (string, bool) {
+	value, err := io.ReadAll(io.LimitReader(part, limit+1))
+	if err != nil || int64(len(value)) > limit {
+		return "", false
+	}
+	return string(value), true
+}
+
 func (h *Manager) upload(w http.ResponseWriter, r *http.Request) {
 	if h.guard != nil && !h.guard(r) {
 		writeJSON(w, http.StatusForbidden, map[string]string{"error": "forbidden"})
@@ -291,11 +300,19 @@ func (h *Manager) upload(w http.ResponseWriter, r *http.Request) {
 			value, _ := io.ReadAll(io.LimitReader(part, 16))
 			forever = !(string(value) == "0" || strings.EqualFold(string(value), "false"))
 		case part.FormName() == "slug":
-			value, _ := io.ReadAll(io.LimitReader(part, 64))
-			slug = string(value)
+			value, ok := readField(part, 64)
+			if !ok {
+				fail(http.StatusBadRequest, "slug is too long")
+				return
+			}
+			slug = value
 		case part.FormName() == "name":
-			value, _ := io.ReadAll(io.LimitReader(part, 256))
-			name = string(value)
+			value, ok := readField(part, 256)
+			if !ok {
+				fail(http.StatusBadRequest, "name is too long")
+				return
+			}
+			name = value
 		case part.FileName() != "":
 			if builder == nil {
 				builder, err = h.store.NewEntry(nameOr(name, part.FileName()))

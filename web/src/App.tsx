@@ -81,6 +81,7 @@ import { shortcutKeys } from "./lib/keys";
 import { cn } from "./lib/utils";
 import { cachedSessions, readBoot, seedBootSession, writeBoot } from "./lib/bootCache";
 import { instanceScopedKey } from "./lib/instances";
+import { readStored, removeStored, writeStored } from "./lib/storage";
 import { saveDraftFiles } from "./lib/draft-files";
 import { messageOf } from "./lib/errors";
 import { addRecent, readRecent } from "./lib/recent";
@@ -104,6 +105,7 @@ import { FormCard } from "./components/FormCard";
 import { PermissionCard } from "./components/PermissionCard";
 import { OfflineScreen } from "./components/StatusScreens";
 import { Button } from "./components/ui/button";
+import { modalOpen } from "./components/ui/Modal";
 
 const DOUBLE_ESCAPE_MS = 500;
 const TAIL_LIMIT = 50;
@@ -209,7 +211,7 @@ export default function App({
   const [agents, setAgents] = useState<Agent[]>(boot?.agents ?? []);
   const [projects, setProjects] = useState<Project[]>(boot?.projects ?? []);
   const [workspace, setWorkspaceState] = useState<string | null>(() => {
-    const stored = localStorage.getItem(workspaceKey);
+    const stored = readStored(workspaceKey);
     if (stored && stored.startsWith("/")) return stored;
     return defaultDirectory && defaultDirectory.startsWith("/") ? defaultDirectory : null;
   });
@@ -217,12 +219,12 @@ export default function App({
   workspaceRef.current = workspace;
   const [recent, setRecent] = useState<string[]>(() => readRecent(instance, defaultInstance));
   const [scopes, setScopes] = useState<Scope[]>(() =>
-    parseScopes(localStorage.getItem("nit-gui.scopes")),
+    parseScopes(readStored("nit-gui.scopes")),
   );
   const scopesRef = useRef(scopes);
   scopesRef.current = scopes;
   const [scope, setScopeState] = useState<Scope>(() => {
-    const value = localStorage.getItem("nit-gui.scope");
+    const value = readStored("nit-gui.scope");
     const stored = value === "everywhere" ? "everywhere" : value === "mine" || value === "all" ? "mine" : "directory";
     return scopes.includes(stored) ? stored : scopes[0]!;
   });
@@ -232,22 +234,22 @@ export default function App({
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [themeOpen, setThemeOpen] = useState(false);
   const [backgroundOpen, setBackgroundOpen] = useState(false);
-  const [collapsed, setCollapsed] = useState(() => localStorage.getItem("nit-gui.collapsed") === "1");
+  const [collapsed, setCollapsed] = useState(() => readStored("nit-gui.collapsed") === "1");
   const setExpanded = useCallback((open: boolean) => {
     setCollapsed(!open);
-    localStorage.setItem("nit-gui.collapsed", open ? "0" : "1");
+    writeStored("nit-gui.collapsed", open ? "0" : "1");
   }, []);
   const swipe = useSidebarSwipe(setExpanded);
-  const [spellcheck, setSpellcheck] = useState(() => localStorage.getItem("nit-gui.spellcheck") !== "0");
-  const [autofix, setAutofix] = useState(() => localStorage.getItem("nit-gui.autofix") !== "0");
+  const [spellcheck, setSpellcheck] = useState(() => readStored("nit-gui.spellcheck") !== "0");
+  const [autofix, setAutofix] = useState(() => readStored("nit-gui.autofix") !== "0");
   const [timeFormat, setTimeFormat] = useState<TimeFormat>(() =>
-    localStorage.getItem("nit-gui.time-format") === "12h" ? "12h" : "24h",
+    readStored("nit-gui.time-format") === "12h" ? "12h" : "24h",
   );
   const [showTime, setShowTime] = useState(
-    () => localStorage.getItem("nit-gui.show-time") !== "0",
+    () => readStored("nit-gui.show-time") !== "0",
   );
   const [motion, setMotion] = useState<"animated" | "static">(() => {
-    const stored = localStorage.getItem("nit-gui.motion");
+    const stored = readStored("nit-gui.motion");
     if (stored === "animated" || stored === "static") return stored;
     return window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ? "static" : "animated";
   });
@@ -255,7 +257,7 @@ export default function App({
     document.documentElement.dataset.motion = motion;
   }, [motion]);
   const [background, setBackground] = useState<SceneSetting>(() => {
-    const stored = localStorage.getItem("nit-gui.background");
+    const stored = readStored("nit-gui.background");
     return stored === "random" || (SCENE_IDS as readonly string[]).includes(stored ?? "")
       ? (stored as SceneSetting)
       : "ripple";
@@ -287,7 +289,7 @@ export default function App({
   const pendingStatus = useRef<Map<string, Set<string>>>(new Map());
   const statusRef = useRef(statusByInstance);
   statusRef.current = statusByInstance;
-  const [notifyOn, setNotifyOn] = useState(() => localStorage.getItem("nit-gui.notify") === "on");
+  const [notifyOn, setNotifyOn] = useState(() => readStored("nit-gui.notify") === "on");
   const [uiReady, setUiReady] = useState(false);
   const [hiddenByInstance, setHiddenByInstance] = useState<HiddenIndex>({});
   const hiddenByInstanceRef = useRef(hiddenByInstance);
@@ -305,7 +307,7 @@ export default function App({
   );
   const [sessionsLoading, setSessionsLoading] = useState(true);
   const [selectedId, setSelectedIdState] = useState<string | null>(() =>
-    localStorage.getItem(sessionKey),
+    readStored(sessionKey),
   );
   const selectedIdRef = useRef(selectedId);
   selectedIdRef.current = selectedId;
@@ -429,10 +431,10 @@ export default function App({
     const shownBefore = shownSeq.current;
     try {
       let state = await api.ui(instance);
-      if (localStorage.getItem(UI_MIGRATED_KEY) !== "1") {
+      if (readStored(UI_MIGRATED_KEY) !== "1") {
         let legacy: string[] = [];
         try {
-          const value = JSON.parse(localStorage.getItem(LEGACY_HIDDEN_KEY) ?? "[]");
+          const value = JSON.parse(readStored(LEGACY_HIDDEN_KEY) ?? "[]");
           legacy = Array.isArray(value)
             ? value.filter((item) => typeof item === "string")
             : [];
@@ -441,13 +443,13 @@ export default function App({
           const written = await api.setHidden(legacy, true, instance);
           state = { ...state, hidden: written.hidden };
         }
-        localStorage.setItem(UI_MIGRATED_KEY, "1");
-        localStorage.removeItem(LEGACY_HIDDEN_KEY);
+        writeStored(UI_MIGRATED_KEY, "1");
+        removeStored(LEGACY_HIDDEN_KEY);
       }
-      if (localStorage.getItem(UI_PREFS_MIGRATED_KEY) !== "1") {
+      if (readStored(UI_PREFS_MIGRATED_KEY) !== "1") {
         if (!state.model) {
           try {
-            const value = JSON.parse(localStorage.getItem("nit-gui.model") ?? "null");
+            const value = JSON.parse(readStored("nit-gui.model") ?? "null");
             if (value && typeof value.id === "string" && typeof value.providerID === "string") {
               await api.setModel(value);
               state = { ...state, model: value };
@@ -455,15 +457,15 @@ export default function App({
           } catch {}
         }
         if (!state.agent) {
-          const legacy = localStorage.getItem("nit-gui.agent");
+          const legacy = readStored("nit-gui.agent");
           if (legacy) {
             await api.setAgent(legacy);
             state = { ...state, agent: legacy };
           }
         }
-        localStorage.setItem(UI_PREFS_MIGRATED_KEY, "1");
-        localStorage.removeItem("nit-gui.model");
-        localStorage.removeItem("nit-gui.agent");
+        writeStored(UI_PREFS_MIGRATED_KEY, "1");
+        removeStored("nit-gui.model");
+        removeStored("nit-gui.agent");
       }
       applyUiState(state);
       if ((hiddenSeq.current[instance] ?? 0) === hiddenBefore && shownSeq.current === shownBefore) {
@@ -1252,7 +1254,7 @@ export default function App({
     if (!sessions.some((session) => session.id === selectedId)) {
       transcriptCache.delete(selectedId);
       setSelectedIdState(null);
-      localStorage.removeItem(sessionKey);
+      removeStored(sessionKey);
     }
   }, [sessions, sessionsLoading, selectedId]);
 
@@ -1261,7 +1263,7 @@ export default function App({
     const selected = sessions.find((session) => session.id === selectedId);
     if (!selected || !isHidden(selected)) return;
     setSelectedIdState(null);
-    localStorage.removeItem(sessionKey);
+    removeStored(sessionKey);
   }, [isHidden, selectedId, sessions, showHidden]);
 
   const saveCurrentTranscript = useCallback(() => {
@@ -1285,7 +1287,7 @@ export default function App({
 
   const rememberWorkspaceFor = useCallback((owner: string, directory: string) => {
     const value = directory.trim().replace(/\/+$/, "") || "/";
-    localStorage.setItem(instanceScopedKey("nit-gui.workspace", owner, defaultInstance), value);
+    writeStored(instanceScopedKey("nit-gui.workspace", owner, defaultInstance), value);
     addRecent(owner, defaultInstance, value);
     return value;
   }, [defaultInstance]);
@@ -1325,8 +1327,8 @@ export default function App({
       loadingEarlierRef.current = false;
     }
     setSelectedIdState(id);
-    if (id) localStorage.setItem(sessionKey, id);
-    else localStorage.removeItem(sessionKey);
+    if (id) writeStored(sessionKey, id);
+    else removeStored(sessionKey);
     setSidebarOpen(false);
   }, [clearDone, clearFailed, saveCurrentTranscript]);
 
@@ -1343,7 +1345,7 @@ export default function App({
       const owner = foreignInstance(id);
       if (owner) {
         const session = sessionsRef.current.find((item) => item.id === id);
-        localStorage.setItem(instanceScopedKey("nit-gui.session", owner, defaultInstance), id);
+        writeStored(instanceScopedKey("nit-gui.session", owner, defaultInstance), id);
         const directory = session?.location?.directory;
         if (session) seedBootSession(owner, session);
         if (directory) rememberWorkspaceFor(owner, directory);
@@ -1383,7 +1385,7 @@ export default function App({
 
   const toggleNotify = useCallback(async () => {
     if (notifications) {
-      localStorage.setItem("nit-gui.notify", "off");
+      writeStored("nit-gui.notify", "off");
       setNotifyOn(false);
       return;
     }
@@ -1397,7 +1399,7 @@ export default function App({
       setBanner("Notifications are blocked for this site");
       return;
     }
-    localStorage.setItem("nit-gui.notify", "on");
+    writeStored("nit-gui.notify", "on");
     setNotifyOn(true);
   }, [notifications]);
 
@@ -1421,9 +1423,9 @@ export default function App({
   const selectWorkspace = useCallback((directory: string, owner?: string) => {
     if (owner && owner !== instance) {
       rememberWorkspaceFor(owner, directory);
-      localStorage.removeItem(instanceScopedKey("nit-gui.session", owner, defaultInstance));
+      removeStored(instanceScopedKey("nit-gui.session", owner, defaultInstance));
       if (scopesRef.current.includes("directory")) {
-        localStorage.setItem("nit-gui.scope", "directory");
+        writeStored("nit-gui.scope", "directory");
       }
       setPickerOpen(false);
       onSwitchInstance(owner);
@@ -1434,11 +1436,11 @@ export default function App({
     rememberWorkspace(directory);
     if (scopesRef.current.includes("directory")) {
       setScopeState("directory");
-      localStorage.setItem("nit-gui.scope", "directory");
+      writeStored("nit-gui.scope", "directory");
     }
     setSelectedIdState(null);
     setSceneEpoch((epoch) => epoch + 1);
-    localStorage.removeItem(sessionKey);
+    removeStored(sessionKey);
     loadedIdRef.current = null;
     setMessages([]);
     setMessagesLoading(false);
@@ -1549,7 +1551,7 @@ export default function App({
       }
     }
     setScopeState(next);
-    localStorage.setItem("nit-gui.scope", next);
+    writeStored("nit-gui.scope", next);
   }, [instance]);
 
   const toggleView = useCallback(
@@ -1557,7 +1559,7 @@ export default function App({
       const next = toggleScope(scopesRef.current, id);
       if (next === scopesRef.current) return;
       setScopes(next);
-      localStorage.setItem("nit-gui.scopes", next.join(","));
+      writeStored("nit-gui.scopes", next.join(","));
       if (!next.includes(scopeRef.current)) changeScope(next[0]!);
     },
     [changeScope],
@@ -1567,7 +1569,7 @@ export default function App({
     (directory?: string, owner?: string) => {
       if (owner && owner !== instance) {
         if (directory) rememberWorkspaceFor(owner, directory);
-        localStorage.removeItem(instanceScopedKey("nit-gui.session", owner, defaultInstance));
+        removeStored(instanceScopedKey("nit-gui.session", owner, defaultInstance));
         setPickerOpen(false);
         setSidebarOpen(false);
         onSwitchInstance(owner);
@@ -1592,7 +1594,7 @@ export default function App({
   const toggleSidebar = useCallback(() => {
     setCollapsed((current) => {
       const next = !current;
-      localStorage.setItem("nit-gui.collapsed", next ? "1" : "0");
+      writeStored("nit-gui.collapsed", next ? "1" : "0");
       return next;
     });
   }, []);
@@ -1802,7 +1804,7 @@ export default function App({
   const closeBackground = useCallback(() => setBackgroundOpen(false), []);
   const changeBackground = useCallback((next: SceneSetting) => {
     setBackground(next);
-    localStorage.setItem("nit-gui.background", next);
+    writeStored("nit-gui.background", next);
   }, []);
   const changeTheme = useCallback(
     (next: Theme) => {
@@ -2133,7 +2135,7 @@ export default function App({
         if (createdSession) {
           firstPrompt.current = { sessionId, text };
           setSelectedIdState(sessionId);
-          localStorage.setItem(sessionKey, sessionId);
+          writeStored(sessionKey, sessionId);
           loadedIdRef.current = sessionId;
           setHistoryCursor(null);
           setLoadingEarlier(false);
@@ -2236,7 +2238,7 @@ export default function App({
   }, [workspace]);
 
   useEffect(() => {
-    setReviewSnooze(parseSnooze(localStorage.getItem(reviewSnoozeKey(instance, workspace))));
+    setReviewSnooze(parseSnooze(readStored(reviewSnoozeKey(instance, workspace))));
     setReviewNote(null);
     setReviewBase(null);
   }, [instance, workspace]);
@@ -2284,7 +2286,7 @@ export default function App({
       if (action === "later") {
         const next = snoozeItem(reviewSnooze, item.id, Date.now());
         setReviewSnooze(next);
-        localStorage.setItem(reviewSnoozeKey(instance, workspace), JSON.stringify(next));
+        writeStored(reviewSnoozeKey(instance, workspace), JSON.stringify(next));
         return;
       }
       const note = item.note ? ` ${item.note}` : "";
@@ -2534,6 +2536,7 @@ export default function App({
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape" && modalOpen()) return;
       const mod = event.metaKey || event.ctrlKey;
       const keys = shortcutKeys(event);
       if (mod && keys.includes("k")) {
@@ -2594,7 +2597,7 @@ export default function App({
           return;
         }
         if (pickerOpen) {
-          if (!event.repeat) setPickerOpen(false);
+          if (!event.repeat) closePicker();
           return;
         }
         const id = selectedIdRef.current;
@@ -2614,6 +2617,7 @@ export default function App({
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [
     changeScope,
+    closePicker,
     cycleSessions,
     isRunning,
     newChat,
@@ -2906,23 +2910,23 @@ export default function App({
           onOpenBackground={openBackground}
           onSpellcheck={(value) => {
             setSpellcheck(value);
-            localStorage.setItem("nit-gui.spellcheck", value ? "1" : "0");
+            writeStored("nit-gui.spellcheck", value ? "1" : "0");
           }}
           onAutofix={(value) => {
             setAutofix(value);
-            localStorage.setItem("nit-gui.autofix", value ? "1" : "0");
+            writeStored("nit-gui.autofix", value ? "1" : "0");
           }}
           onTimeFormat={(value) => {
             setTimeFormat(value);
-            localStorage.setItem("nit-gui.time-format", value);
+            writeStored("nit-gui.time-format", value);
           }}
           onShowTime={(value) => {
             setShowTime(value);
-            localStorage.setItem("nit-gui.show-time", value ? "1" : "0");
+            writeStored("nit-gui.show-time", value ? "1" : "0");
           }}
           onMotion={(value) => {
             setMotion(value);
-            localStorage.setItem("nit-gui.motion", value);
+            writeStored("nit-gui.motion", value);
           }}
           notify={notifications}
           onNotify={() => void toggleNotify()}

@@ -504,7 +504,7 @@ export const Sidebar = memo(function Sidebar({
     const observer = new ResizeObserver(update);
     observer.observe(container);
     return () => observer.disconnect();
-  });
+  }, [orderSignature, expanded, scope, search]);
 
   useEffect(() => {
     if (!selectedId || selectedRank === null) return;

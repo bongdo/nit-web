@@ -9,6 +9,10 @@ const FOCUSABLE =
 
 let openModals = 0;
 
+export function modalOpen(): boolean {
+  return openModals > 0;
+}
+
 export function Modal({
   label,
   title,

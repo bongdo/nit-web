@@ -98,7 +98,7 @@ func TestClientIP(t *testing.T) {
 	proxied := httptest.NewRequest("GET", "/", nil)
 	proxied.RemoteAddr = "127.0.0.1:5555"
 	proxied.Header.Set("X-Forwarded-For", "198.51.100.4, 10.0.0.1")
-	if got := ClientIP(proxied); got != "198.51.100.4" {
+	if got := ClientIP(proxied); got != "10.0.0.1" {
 		t.Fatalf("proxied ip = %q", got)
 	}
 

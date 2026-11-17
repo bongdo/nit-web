@@ -818,7 +818,7 @@ func TestMessagesLight(t *testing.T) {
 	answer := strings.Repeat("a", 300)
 	upstream := httptest.NewServer(auth(func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintf(w, `{"data":[
-			{"id":"m1","type":"user","time":{"created":1},"text":"hello"},
+			{"id":"m3","type":"compaction","time":{"created":3},"summary":"kept summary"},
 			{"id":"m2","type":"assistant","time":{"created":2},"content":[
 				{"type":"reasoning","text":%q,"ordinal":0},
 				{"type":"tool","id":"t1","name":"read","state":{"status":"completed","input":{"filePath":"/tmp/a"},"content":[{"type":"text","text":"tool output"}],"metadata":{"lines":3}}},
@@ -826,7 +826,7 @@ func TestMessagesLight(t *testing.T) {
 				{"type":"tool","id":"q1","name":"question","state":{"status":"completed","input":{"questions":[{"question":"Pick","options":[{"label":"A"}]}]},"content":[{"type":"text","text":"User answered: A"}],"metadata":{"answers":[["A"]]}}},
 				{"type":"text","text":%q,"ordinal":0}
 			]},
-			{"id":"m3","type":"compaction","time":{"created":3},"summary":"kept summary"}
+			{"id":"m1","type":"user","time":{"created":1},"text":"hello"}
 		],"cursor":{"next":null}}`, reasoning, answer)
 	}))
 	defer upstream.Close()
@@ -1634,12 +1634,6 @@ type multiProvider struct {
 	def        string
 	configPath string
 }
-
-func (p *multiProvider) Client(context.Context) (*opencode.Client, error) {
-	return p.clients[p.def], nil
-}
-
-func (p *multiProvider) Drop() {}
 
 func (p *multiProvider) ClientFor(_ context.Context, name string) (*opencode.Client, error) {
 	client, ok := p.clients[name]

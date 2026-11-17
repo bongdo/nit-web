@@ -25,7 +25,6 @@ const (
 type qrView struct {
 	Code  string
 	Image template.URL
-	Link  string
 	Agent string
 	IP    string
 	User  string
@@ -144,7 +143,7 @@ func (s *Server) qrCard(w http.ResponseWriter, r *http.Request) (qrView, bool) {
 	if err != nil {
 		return qrView{}, false
 	}
-	return qrView{Code: code, Image: image, Link: link}, true
+	return qrView{Code: code, Image: image}, true
 }
 
 func (s *Server) scanPage(w http.ResponseWriter, r *http.Request) {

@@ -1,4 +1,4 @@
-const FENCED = /```[\s\S]*?```/g;
+const FENCED = /(`{3,}|~{3,})[\s\S]*?\1/g;
 const INLINE = /`[^`\n]+`/g;
 
 export function withoutCode(text: string): string {

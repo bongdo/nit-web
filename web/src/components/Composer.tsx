@@ -16,6 +16,7 @@ import { loadDraftFiles, saveDraftFiles } from "../lib/draft-files";
 import { loadDraftState, saveDraftState, type DraftState } from "../lib/drafts";
 import { questionAnswer, questionFields } from "../lib/forms";
 import { formatBytes, quoteText } from "../lib/format";
+import { readStored, writeStored } from "../lib/storage";
 import { shouldCaptureKey, shortcutKeys } from "../lib/keys";
 import {
   applyIssue,
@@ -616,7 +617,7 @@ export const Composer = memo(function Composer({
   const learnSentWords = (words: string[]) => {
     let counts: Record<string, number> = {};
     try {
-      const stored = JSON.parse(localStorage.getItem("nit-gui.spell-seen") ?? "{}");
+      const stored = JSON.parse(readStored("nit-gui.spell-seen") ?? "{}");
       if (stored && typeof stored === "object" && !Array.isArray(stored)) {
         counts = stored as Record<string, number>;
       }
@@ -633,7 +634,7 @@ export const Composer = memo(function Composer({
       }
     }
     try {
-      localStorage.setItem("nit-gui.spell-seen", JSON.stringify(counts));
+      writeStored("nit-gui.spell-seen", JSON.stringify(counts));
     } catch {}
     if (learned.length === 0) return;
     setIgnored(ignoreWords(learned));

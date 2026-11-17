@@ -134,6 +134,12 @@ func (s *Server) security(next http.Handler) http.Handler {
 		if r.TLS != nil || strings.EqualFold(r.Header.Get("X-Forwarded-Proto"), "https") {
 			w.Header().Set("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
 		}
+		if r.Method != http.MethodGet && r.Method != http.MethodHead {
+			if site := r.Header.Get("Sec-Fetch-Site"); site != "" && site != "same-origin" && site != "none" {
+				http.Error(w, "cross-site request blocked", http.StatusForbidden)
+				return
+			}
+		}
 		if id, ok := s.session(w, r); ok {
 			r = r.WithContext(context.WithValue(r.Context(), identityKey, id))
 		} else if id, ok := s.serviceIdentity(r, forwarded); ok {

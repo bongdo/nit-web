@@ -477,6 +477,32 @@ func TestMigration(t *testing.T) {
 	}
 }
 
+func TestExplicitWeekTTLSurvivesMigration(t *testing.T) {
+	root := t.TempDir()
+	store, err := Open(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	src := filepath.Join(t.TempDir(), "week.txt")
+	writeFile(t, src, "week")
+	entry, err := store.PublishPath(src, "week", PublishOptions{TTL: 7 * 24 * time.Hour})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	reopened, err := Open(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := reopened.Get(entry.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Forever() {
+		t.Fatal("migration cleared a real 7-day expiry")
+	}
+}
+
 func writeLegacy(t *testing.T, root, id, name string, created, expires time.Time, file string) {
 	t.Helper()
 	dir := filepath.Join(root, id)

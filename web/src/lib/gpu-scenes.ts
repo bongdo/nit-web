@@ -260,7 +260,7 @@ void scene(vec2 p, vec2 cell, out vec4 color) {
 `;
 
 const SCULPT = (map: string) => PRELUDE + `
-const vec3 LIGHT = normalize(vec3(0.42, -0.55, -0.62));
+const vec3 LIGHT = normalize(vec3(0.72, -0.58, 0.38));
 
 vec2 rot2(vec2 v, float a) {
   float s = sin(a);
@@ -285,7 +285,7 @@ vec3 normalAt(vec3 q) {
 
 void scene(vec2 p, vec2 cell, out vec4 color) {
   vec3 ro = vec3(0.0, 0.0, 1.35);
-  vec3 rd = normalize(vec3(p * 2.3, -1.6));
+  vec3 rd = normalize(vec3(p * 1.45, -1.6));
   float dist = 0.0;
   float hit = -1.0;
   for (int i = 0; i < 84; i++) {
@@ -316,7 +316,7 @@ void scene(vec2 p, vec2 cell, out vec4 color) {
 const TORUS = SCULPT(`
 float map(vec3 q) {
   q.xz = rot2(q.xz, uT * 0.6);
-  q.yz = rot2(q.yz, 0.42 + 0.12 * sin(uT * 0.3));
+  q.yz = rot2(q.yz, 1.15 + 0.15 * sin(uT * 0.3));
   vec2 w = vec2(length(q.xz) - 0.24, q.y);
   return length(w) - 0.095;
 }
@@ -360,12 +360,12 @@ float map(vec3 q) {
 const BLOB = SCULPT(`
 float map(vec3 q) {
   q.xz = rot2(q.xz, uT * 0.25);
-  vec3 a = q - vec3(0.13 * sin(uT * 0.7), 0.11 * cos(uT * 0.9), 0.0);
-  vec3 b = q - vec3(-0.14 * cos(uT * 0.6), -0.09 * sin(uT * 0.8), 0.06);
-  vec3 c = q - vec3(0.03 * sin(uT * 1.1), 0.15 * sin(uT * 0.5), -0.09);
-  float d = length(a) - 0.16;
-  d = smin(d, length(b) - 0.14, 0.09);
-  return smin(d, length(c) - 0.11, 0.09);
+  vec3 a = q - vec3(0.15 * sin(uT * 0.7), 0.13 * cos(uT * 0.9), 0.0);
+  vec3 b = q - vec3(-0.16 * cos(uT * 0.6), -0.11 * sin(uT * 0.8), 0.07);
+  vec3 c = q - vec3(0.04 * sin(uT * 1.1), 0.17 * sin(uT * 0.5), -0.10);
+  float d = length(a) - 0.18;
+  d = smin(d, length(b) - 0.16, 0.10);
+  return smin(d, length(c) - 0.13, 0.10);
 }
 `);
 

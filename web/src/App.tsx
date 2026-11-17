@@ -890,7 +890,7 @@ export default function App({
             if (runningIdsRef.current[session.id] ?? sessionRunning(session)) continue;
             prefetching.current.add(session.id);
             try {
-              const page = await api.messages(session.id, { light: true });
+              const page = await api.messages(session.id, { light: true, limit: TAIL_LIMIT });
               if (selectedIdRef.current === session.id) continue;
               const latest = sessionsRef.current.find((item) => item.id === session.id);
               if (
@@ -1221,7 +1221,7 @@ export default function App({
     setMessagesLoading(!cached);
     setTranscriptError(null);
     const before = new Map(messagesRef.current.map((message) => [message.id, message]));
-    api.messages(selectedId, { light: true })
+    api.messages(selectedId, { light: true, limit: TAIL_LIMIT })
       .then((page) => {
         if (cancelled) return;
         const tail = normalizeMessages(page.data);
@@ -1368,7 +1368,7 @@ export default function App({
         if (directory) rememberWorkspaceFor(owner, directory);
         if (!transcriptCache.getFor(owner, id)) {
           void api
-            .messages(id, { light: true }, owner)
+            .messages(id, { light: true, limit: TAIL_LIMIT }, owner)
             .then((page) => {
               transcriptCache.setFor(owner, id, {
                 messages: lightMessages(normalizeMessages(page.data)),

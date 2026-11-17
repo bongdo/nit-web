@@ -254,9 +254,10 @@ or `NIT_GUI_TTS_TOKEN`) when an audio client is connected. The browser's
   login lockout counters.
 - **One ingress.** `bongdo.space` on `92.5.143.242:443` is the only public
   entry; the ephemeral public IP is not reserved, so DNS must follow it.
-- **No supervisor.** `bin/deploy` starts the app and Caddy with `setsid`;
-  they do not survive reboot. `bin/languagetool` also has no supervisor.
-  systemd is the durable answer.
+- **Boot only, no supervisor.** `nit-stack.service` runs
+  `~/.config/nit-gui/boot.sh` after reboot and starts the gate, apps and Caddy
+  from the last built binaries. They do not restart after a crash; `bin/deploy`
+  still owns updates. Per-process systemd units are the durable answer.
 - **Dictation is client-side by design.** nit-gui has no STT endpoint or model.
   The composer is a plain textarea, so the device's own dictation works. Better
   STT can return later as an optional server capability.

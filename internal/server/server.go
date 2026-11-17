@@ -34,8 +34,8 @@ const (
 	shareBase   = "/share"
 
 	maxTranscriptPages    = 100
-	maxTranscriptMessages = 2000
-	maxTranscriptBytes    = 32 << 20
+	maxTranscriptMessages = 400
+	maxTranscriptBytes    = 4 << 20
 )
 
 type MultiProvider interface {

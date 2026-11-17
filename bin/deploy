@@ -125,7 +125,7 @@ if [ -z "${NIT_GUI_LANGUAGETOOL_URL:-}" ] && {
     command -v nix >/dev/null 2>&1
 }; then
   grammar_port="${NIT_GUI_LANGUAGETOOL_PORT:-8180}"
-  if NIT_GUI_LANGUAGETOOL_PORT="$grammar_port" "$PWD/bin/languagetool" >/dev/null 2>&1; then
+  if NIT_GUI_LANGUAGETOOL_PORT="$grammar_port" "$PWD/bin/languagetool" >/dev/null 2>&1 9>&-; then
     export NIT_GUI_LANGUAGETOOL_URL="http://127.0.0.1:$grammar_port"
     unset NIT_GUI_LANGUAGETOOL
   fi

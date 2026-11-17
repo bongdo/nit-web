@@ -9,7 +9,14 @@
     <link rel="icon" href="/icon.svg" type="image/svg+xml" />
     <script>
       (() => {
-        const stored = localStorage.getItem("nit-gui.theme") || "system";
+        const stored =
+          (() => {
+            try {
+              return localStorage.getItem("nit-gui.theme");
+            } catch {
+              return null;
+            }
+          })() || "system";
         const dark =
           stored === "dark" ||
           ["nord", "gruvbox", "dracula", "ember", "paper-dark", "kiln", "ash-dark"].includes(stored) ||

@@ -510,8 +510,8 @@ export const ASCII_SCENES = {
   "ascii-lattice": LATTICE,
   "ascii-blob": BLOB,
   "ascii-stars": ASCII(STARS),
-  "ascii-angel": ASCII(ANGEL),
-  "ascii-gyro": ASCII(GYRO),
+  "ascii-angel": ANGEL,
+  "ascii-gyro": GYRO,
 };
 
 export type AsciiSceneId = keyof typeof ASCII_SCENES;

@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"sync"
+	"syscall"
 	"time"
 )
 
@@ -20,10 +21,9 @@ var (
 )
 
 type piperProcess struct {
-	cmd     *exec.Cmd
-	stdin   io.WriteCloser
-	exited  chan struct{}
-	waitErr error
+	cmd    *exec.Cmd
+	stdin  io.WriteCloser
+	exited chan struct{}
 }
 
 type piperWorker struct {
@@ -96,6 +96,7 @@ func (w *piperWorker) ensure() error {
 	}
 	lengthScale := strconv.FormatFloat(1/w.rate, 'f', -1, 64)
 	cmd := exec.Command(w.binary, "-m", w.model, "--json-input", "-q", "--length_scale", lengthScale)
+	cmd.SysProcAttr = &syscall.SysProcAttr{Pdeathsig: syscall.SIGTERM}
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
 		return errors.New("host voice could not start")
@@ -108,7 +109,7 @@ func (w *piperWorker) ensure() error {
 	proc := &piperProcess{cmd: cmd, stdin: stdin, exited: make(chan struct{})}
 	w.proc = proc
 	go func() {
-		proc.waitErr = cmd.Wait()
+		_ = cmd.Wait()
 		close(proc.exited)
 	}()
 	return nil
@@ -145,10 +146,16 @@ func (w *piperWorker) wait(ctx context.Context, path string) ([]byte, error) {
 		case <-ticker.C:
 		}
 		info, err := os.Stat(path)
-		if err != nil || info.Size() < 44 || info.Size() == last {
+		if err != nil || info.Size() < 44 {
 			continue
 		}
-		last = info.Size()
+		if info.Size() > maxHostVoiceBytes {
+			return nil, errors.New("host voice output is too large")
+		}
+		if info.Size() != last {
+			last = info.Size()
+			continue
+		}
 		data, err := os.ReadFile(path)
 		if err != nil {
 			continue

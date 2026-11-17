@@ -162,16 +162,22 @@ func safeScanTarget(raw, host string) (string, bool) {
 	if err != nil {
 		return "", false
 	}
+	var target string
 	if parsed.Host != "" {
 		if !strings.EqualFold(parsed.Host, host) || (parsed.Scheme != "http" && parsed.Scheme != "https") {
 			return "", false
 		}
-		return parsed.RequestURI(), true
+		target = parsed.RequestURI()
+	} else {
+		if !strings.HasPrefix(parsed.Path, "/") || strings.HasPrefix(parsed.Path, "//") {
+			return "", false
+		}
+		target = parsed.RequestURI()
 	}
-	if !strings.HasPrefix(parsed.Path, "/") || strings.HasPrefix(parsed.Path, "//") {
+	if safe := gateid.SafeNext(target); safe != target {
 		return "", false
 	}
-	return parsed.RequestURI(), true
+	return target, true
 }
 
 func (s *Server) qrConfirmPage(w http.ResponseWriter, r *http.Request) {

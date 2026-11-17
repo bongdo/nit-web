@@ -116,6 +116,9 @@ func buildInstances(specs []InstanceSpec, reuse map[string]*instance) ([]*instan
 func (r *Registry) Reload() error {
 	specs, err := loadInstances()
 	if err != nil {
+		r.mu.Lock()
+		r.configErr = err.Error()
+		r.mu.Unlock()
 		return err
 	}
 	if len(specs) == 0 {
@@ -214,6 +217,10 @@ func saveInstances(specs []InstanceSpec) error {
 		return err
 	}
 	if _, err := tmp.Write(append(raw, '\n')); err != nil {
+		tmp.Close()
+		return err
+	}
+	if err := tmp.Sync(); err != nil {
 		tmp.Close()
 		return err
 	}

@@ -1,4 +1,28 @@
 <!doctype html>
-<meta charset="utf-8">
-<title>nit-gui</title>
-<p>frontend bundle not built: run <code>bin/check</code> or <code>bin/deploy</code>.</p>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="color-scheme" content="dark light" />
+    <title>nit-gui</title>
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="icon" href="/icon.svg" type="image/svg+xml" />
+    <script>
+      (() => {
+        const stored = localStorage.getItem("nit-gui.theme") || "system";
+        const dark =
+          stored === "dark" ||
+          ["nord", "gruvbox", "dracula", "ember", "paper-dark", "kiln", "ash-dark"].includes(stored) ||
+          (stored === "system" && matchMedia("(prefers-color-scheme: dark)").matches);
+        document.documentElement.classList.toggle("dark", dark);
+        document.documentElement.dataset.theme =
+          stored === "system" ? (dark ? "dark" : "light") : stored;
+      })();
+    </script>
+    <script type="module" crossorigin src="/assets/index-CisYsBvD.js"></script>
+    <link rel="stylesheet" crossorigin href="/assets/index-B0KplcLB.css">
+  </head>
+  <body>
+    <div id="root"></div>
+  </body>
+</html>

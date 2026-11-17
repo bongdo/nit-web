@@ -651,7 +651,7 @@ func TestMessagesPaginate(t *testing.T) {
 	upstream := httptest.NewServer(auth(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Query().Get("cursor") {
 		case "":
-			if r.URL.Query().Get("order") != "asc" {
+			if r.URL.Query().Get("order") != "desc" {
 				t.Errorf("first page order = %q", r.URL.Query().Get("order"))
 			}
 			fmt.Fprint(w, `{"data":[{"id":"m1"}],"cursor":{"next":"abc"}}`)
@@ -679,7 +679,7 @@ func TestMessagesPaginate(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
 		t.Fatal(err)
 	}
-	if len(body.Data) != 2 || body.Data[0]["id"] != "m1" || body.Data[1]["id"] != "m2" {
+	if len(body.Data) != 2 || body.Data[0]["id"] != "m2" || body.Data[1]["id"] != "m1" {
 		t.Fatalf("unexpected data: %s", rec.Body)
 	}
 }
@@ -714,7 +714,7 @@ func TestMessagesStreamPages(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
 		t.Fatalf("invalid json: %v: %s", err, rec.Body)
 	}
-	if len(body.Data) != 4 || body.Data[0]["id"] != "m1" || body.Data[3]["id"] != "m4" {
+	if len(body.Data) != 4 || body.Data[0]["id"] != "m4" || body.Data[3]["id"] != "m1" {
 		t.Fatalf("unexpected data: %s", rec.Body)
 	}
 	if body.Previous != nil {
@@ -739,13 +739,17 @@ func TestMessagesStreamFailureKeepsJSON(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "http://127.0.0.1:7788/api/sessions/ses_1/messages", nil)
 	newHandler(t, upstream.URL).ServeHTTP(rec, req)
 	var body struct {
-		Data []map[string]any `json:"data"`
+		Data     []map[string]any `json:"data"`
+		Previous *string          `json:"previous"`
 	}
 	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
 		t.Fatalf("invalid json: %v: %s", err, rec.Body)
 	}
 	if len(body.Data) != 1 || body.Data[0]["id"] != "m1" {
 		t.Fatalf("unexpected data: %s", rec.Body)
+	}
+	if body.Previous == nil || *body.Previous != "p2" {
+		t.Fatalf("previous = %v, want p2", body.Previous)
 	}
 }
 

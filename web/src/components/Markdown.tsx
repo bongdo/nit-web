@@ -252,19 +252,21 @@ const MarkdownBlock = memo(function MarkdownBlock({
   );
 });
 
+export type MarkdownProps = {
+  text: string;
+  className?: string;
+  streaming?: boolean;
+  directory?: string | null;
+  peroURL?: string | null;
+};
+
 export const Markdown = memo(function Markdown({
   text,
   className,
   streaming = false,
   directory,
   peroURL,
-}: {
-  text: string;
-  className?: string;
-  streaming?: boolean;
-  directory?: string | null;
-  peroURL?: string | null;
-}) {
+}: MarkdownProps) {
   const blocks = streaming ? splitMarkdownBlocks(text) : null;
   return (
     <div className={cn("markdown", className)}>

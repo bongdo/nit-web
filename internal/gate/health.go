@@ -26,23 +26,19 @@ type serverHealth struct {
 	ok        bool
 }
 
-type healthSnapshot struct {
-	Server serverHealth
-}
-
 type healthCache struct {
 	mu       sync.Mutex
 	at       time.Time
-	snapshot healthSnapshot
+	snapshot serverHealth
 }
 
-func (h *healthCache) get(now time.Time) healthSnapshot {
+func (h *healthCache) get(now time.Time) serverHealth {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	if !h.at.IsZero() && now.Sub(h.at) < healthTTL {
 		return h.snapshot
 	}
-	h.snapshot = healthSnapshot{Server: readServerHealth()}
+	h.snapshot = readServerHealth()
 	h.at = now
 	return h.snapshot
 }

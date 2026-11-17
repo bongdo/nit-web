@@ -20,6 +20,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 	"unicode/utf8"
 
@@ -82,7 +83,7 @@ func (h *Handler) StopStreams() {
 	h.server.stopOnce.Do(func() {
 		close(h.server.done)
 		if voice := h.server.voice; voice != nil && voice.worker != nil {
-			voice.worker.shutdown()
+			go voice.worker.shutdown()
 		}
 	})
 }
@@ -387,7 +388,9 @@ func (s *Server) health(w http.ResponseWriter, r *http.Request) {
 		Version string `json:"version"`
 	}
 	if err := c.Do(r.Context(), http.MethodGet, "/api/info", nil, &info); err != nil {
-		s.drop(r)
+		if errors.Is(err, syscall.ECONNREFUSED) || errors.Is(err, syscall.ECONNRESET) || errors.Is(err, io.EOF) {
+			s.drop(r)
+		}
 		writeJSON(w, http.StatusOK, map[string]any{
 			"ok":       false,
 			"instance": s.instanceName(r),
@@ -404,15 +407,20 @@ func (s *Server) health(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+func sessionQuery() url.Values {
+	q := url.Values{}
+	q.Set("limit", "100")
+	q.Set("order", "desc")
+	q.Set("archived", "false")
+	return q
+}
+
 func (s *Server) sessions(w http.ResponseWriter, r *http.Request) {
 	c, ok := s.withClient(w, r)
 	if !ok {
 		return
 	}
-	q := url.Values{}
-	q.Set("limit", "100")
-	q.Set("order", "desc")
-	q.Set("archived", "false")
+	q := sessionQuery()
 	if r.URL.Query().Get("children") != "true" {
 		q.Set("parentID", "null")
 	}
@@ -598,28 +606,37 @@ func (s *Server) messages(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte(`}`))
 		return
 	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	_, _ = w.Write([]byte(`{"data":[`))
+	collected := make([]json.RawMessage, 0)
 	cursor := ""
-	wrote := false
-	total := 0
+	previous := ""
 	size := 0
 	for page := 0; page < maxTranscriptPages; page++ {
-		path := fmt.Sprintf("/api/session/%s/message?order=asc&limit=100", url.PathEscape(id))
+		query := url.Values{}
+		query.Set("limit", "100")
+		query.Set("order", "desc")
 		if cursor != "" {
-			path = fmt.Sprintf("/api/session/%s/message?limit=100&cursor=%s", url.PathEscape(id), url.QueryEscape(cursor))
+			query.Set("cursor", cursor)
 		}
-		raw, err := c.Raw(r.Context(), http.MethodGet, path)
+		raw, err := c.Raw(r.Context(), http.MethodGet, fmt.Sprintf("/api/session/%s/message?%s", url.PathEscape(id), query.Encode()))
 		if err != nil {
 			if r.Context().Err() == nil {
 				s.log.Warn("transcript page failed", "session", id, "error", err)
 			}
+			if len(collected) == 0 {
+				writeError(w, http.StatusBadGateway, "OpenCode returned no transcript")
+				return
+			}
+			previous = cursor
 			break
 		}
 		data, next, _, err := decodeMessagesPage(raw)
 		if err != nil {
 			s.log.Warn("transcript page invalid", "session", id, "error", err)
+			if len(collected) == 0 {
+				writeError(w, http.StatusBadGateway, "OpenCode returned an invalid transcript")
+				return
+			}
+			previous = cursor
 			break
 		}
 		if len(data) == 0 {
@@ -629,21 +646,55 @@ func (s *Server) messages(w http.ResponseWriter, r *http.Request) {
 			data, err = lightenTranscript(data)
 			if err != nil {
 				s.log.Warn("transcript page invalid", "session", id, "error", err)
+				if len(collected) == 0 {
+					writeError(w, http.StatusBadGateway, "OpenCode returned an invalid transcript")
+					return
+				}
+				previous = cursor
 				break
 			}
 		}
-		if !writeTranscriptPage(w, wrote, redactor.JSON(data)) {
-			return
-		}
-		wrote = true
-		total += transcriptCount(data)
-		size += len(data)
-		if next == "" || total >= maxTranscriptMessages || size >= maxTranscriptBytes {
+		var messages []json.RawMessage
+		if err := json.Unmarshal(data, &messages); err != nil {
+			s.log.Warn("transcript page invalid", "session", id, "error", err)
+			if len(collected) == 0 {
+				writeError(w, http.StatusBadGateway, "OpenCode returned an invalid transcript")
+				return
+			}
+			previous = cursor
 			break
 		}
+		collected = append(collected, messages...)
+		size += len(data)
 		cursor = next
+		if cursor == "" {
+			break
+		}
+		if len(collected) >= maxTranscriptMessages || size >= maxTranscriptBytes || page == maxTranscriptPages-1 {
+			previous = cursor
+			break
+		}
 	}
-	_, _ = w.Write([]byte(`],"previous":null}`))
+	for left, right := 0, len(collected)-1; left < right; left, right = left+1, right-1 {
+		collected[left], collected[right] = collected[right], collected[left]
+	}
+	encoded, err := json.Marshal(collected)
+	if err != nil {
+		writeError(w, http.StatusBadGateway, "OpenCode returned an invalid transcript")
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write([]byte(`{"data":`))
+	_, _ = w.Write(redactor.JSON(encoded))
+	if previous == "" {
+		_, _ = w.Write([]byte(`,"previous":null}`))
+		return
+	}
+	quoted, _ := json.Marshal(previous)
+	_, _ = w.Write([]byte(`,"previous":`))
+	_, _ = w.Write(quoted)
+	_, _ = w.Write([]byte(`}`))
 }
 
 func writeTranscriptPage(w http.ResponseWriter, wrote bool, page []byte) bool {
@@ -662,14 +713,6 @@ func writeTranscriptPage(w http.ResponseWriter, wrote bool, page []byte) bool {
 	}
 	_, err := w.Write(body)
 	return err == nil
-}
-
-func transcriptCount(data []byte) int {
-	var messages []json.RawMessage
-	if err := json.Unmarshal(data, &messages); err != nil {
-		return 0
-	}
-	return len(messages)
 }
 
 func decodeMessagesPage(raw []byte) (json.RawMessage, string, string, error) {
@@ -757,10 +800,7 @@ func (s *Server) children(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	q := url.Values{}
-	q.Set("limit", "100")
-	q.Set("order", "desc")
-	q.Set("archived", "false")
+	q := sessionQuery()
 	q.Set("parentID", id)
 	var raw json.RawMessage
 	if err := c.Do(r.Context(), http.MethodGet, "/api/session?"+q.Encode(), nil, &raw); err != nil {
@@ -1503,38 +1543,43 @@ func (s *Server) ttsSay(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "clients": clients})
 }
 
-func (s *Server) ttsAudio(w http.ResponseWriter, r *http.Request) {
-	if s.voice == nil {
-		writeError(w, http.StatusServiceUnavailable, "host voice not configured")
-		return
-	}
+func (s *Server) voiceText(w http.ResponseWriter, r *http.Request) (string, bool) {
 	var body struct {
 		Text string `json:"text"`
 	}
 	decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, 64<<10))
 	if err := decoder.Decode(&body); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid request")
-		return
+		return "", false
 	}
 	text, err := ttsText(body.Text)
 	if err != nil {
 		writeTTSInputError(w, err)
-		return
+		return "", false
 	}
 	text = speechText(text)
 	if text == "" {
 		writeTTSInputError(w, errTTSTextEmpty)
+		return "", false
+	}
+	return text, true
+}
+
+func (s *Server) ttsAudio(w http.ResponseWriter, r *http.Request) {
+	if s.voice == nil {
+		writeError(w, http.StatusServiceUnavailable, "host voice not configured")
+		return
+	}
+	text, ok := s.voiceText(w, r)
+	if !ok {
 		return
 	}
 	_ = http.NewResponseController(w).SetWriteDeadline(time.Now().Add(hostVoiceTimeout + 5*time.Second))
 	audio, contentType, err := s.voice.synthesize(r.Context(), text)
 	if err != nil {
-		switch {
-		case errors.Is(err, errTTSTextLong):
-			writeError(w, http.StatusRequestEntityTooLarge, err.Error())
-		case errors.Is(err, errTTSTextEmpty):
-			writeError(w, http.StatusBadRequest, err.Error())
-		default:
+		if errors.Is(err, errTTSTextLong) || errors.Is(err, errTTSTextEmpty) {
+			writeTTSInputError(w, err)
+		} else {
 			writeError(w, http.StatusServiceUnavailable, err.Error())
 		}
 		return
@@ -1551,22 +1596,8 @@ func (s *Server) ttsStream(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusServiceUnavailable, "host voice streaming not available")
 		return
 	}
-	var body struct {
-		Text string `json:"text"`
-	}
-	decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, 64<<10))
-	if err := decoder.Decode(&body); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid request")
-		return
-	}
-	text, err := ttsText(body.Text)
-	if err != nil {
-		writeTTSInputError(w, err)
-		return
-	}
-	text = speechText(text)
-	if text == "" {
-		writeTTSInputError(w, errTTSTextEmpty)
+	text, ok := s.voiceText(w, r)
+	if !ok {
 		return
 	}
 	controller := http.NewResponseController(w)

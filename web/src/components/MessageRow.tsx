@@ -11,7 +11,7 @@ import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
 import { CompactionRow } from "./Compaction";
 import { HtmlMessagePreview } from "./HtmlMessagePreview";
-import { Markdown } from "./Markdown";
+import { MarkdownLazy } from "./MarkdownLazy";
 import { QuestionCard } from "./QuestionCard";
 import { Reasoning } from "./Reasoning";
 import { ReplyActions } from "./ReplyActions";
@@ -103,7 +103,7 @@ export const MessageRow = memo(function MessageRow({
                 ))}
               </div>
             )}
-            <Markdown text={message.text ?? ""} directory={directory} peroURL={peroURL} />
+            <MarkdownLazy text={message.text ?? ""} directory={directory} peroURL={peroURL} />
             {showTime && (
               <div className="text-muted-foreground mt-1 text-right text-[10px]">
                 {timeLabel(message.time.created, timeFormat)}
@@ -277,7 +277,7 @@ export const MessageRow = memo(function MessageRow({
                 <HtmlMessagePreview source={part.text} />
               ) : (
                 <>
-                  <Markdown text={part.text} directory={directory} peroURL={peroURL} />
+                  <MarkdownLazy text={part.text} directory={directory} peroURL={peroURL} />
                   {looksLikeHtml(part.text) && <HtmlMessagePreview source={part.text} />}
                 </>
               )}

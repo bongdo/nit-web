@@ -1,6 +1,7 @@
 package server
 
 import (
+	"log/slog"
 	"net"
 	"net/http"
 	"net/url"
@@ -31,6 +32,9 @@ func newAuthGate() *authGate {
 		secret = nil
 	}
 	publicHost := strings.TrimSuffix(strings.ToLower(strings.TrimSpace(os.Getenv("NIT_GUI_PUBLIC_HOST"))), ".")
+	if publicHost != "" && len(secret) == 0 {
+		slog.Error("gate secret missing; app auth is disabled and /api is open to the host", "path", gateid.DefaultSecretPath())
+	}
 	return &authGate{
 		enabled:    len(secret) > 0 && publicHost != "",
 		base:       strings.TrimRight(os.Getenv("NIT_GUI_BASE_PATH"), "/"),

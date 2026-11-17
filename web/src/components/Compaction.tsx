@@ -3,7 +3,7 @@ import { ChevronDown, Layers } from "lucide-react";
 import { formatTokens } from "../lib/format";
 import { cn } from "../lib/utils";
 import type { Message } from "../lib/types";
-import { Markdown } from "./Markdown";
+import { MarkdownLazy } from "./MarkdownLazy";
 
 function reasonLabel(reason?: string): string {
   if (reason === "manual") return "on request";
@@ -134,7 +134,7 @@ export function CompactionRow({
                 aria-label="Summary of earlier conversation"
                 className="scrollbar-thin max-h-[min(50vh,20rem)] overflow-y-auto pr-1"
               >
-                <Markdown
+                <MarkdownLazy
                   text={summary}
                   className="compaction-summary text-muted-foreground"
                 />

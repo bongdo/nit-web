@@ -35,7 +35,7 @@ func (s *Server) accountPassword(w http.ResponseWriter, r *http.Request) {
 	data := s.accountView(r)
 	password := r.PostFormValue("password")
 	current := r.PostFormValue("current")
-	if _, ok := s.users.Authenticate(id.User, current); !ok {
+	if !s.checkCurrentPassword(id, current) {
 		data.Error = "текущий пароль неверный"
 		s.renderStatus(w, "account", data, http.StatusUnauthorized)
 		return
@@ -61,7 +61,7 @@ func (s *Server) accountTOTPStart(w http.ResponseWriter, r *http.Request) {
 		s.renderStatus(w, "account", data, http.StatusBadRequest)
 		return
 	}
-	if _, ok := s.users.Authenticate(id.User, r.PostFormValue("current")); !ok {
+	if !s.checkCurrentPassword(id, r.PostFormValue("current")) {
 		data.Error = "текущий пароль неверный"
 		s.renderStatus(w, "account", data, http.StatusUnauthorized)
 		return
@@ -96,7 +96,7 @@ func (s *Server) accountTOTPEnable(w http.ResponseWriter, r *http.Request) {
 		s.renderStatus(w, "account", data, http.StatusBadRequest)
 		return
 	}
-	if _, ok := s.users.Authenticate(id.User, r.PostFormValue("current")); !ok {
+	if !s.checkCurrentPassword(id, r.PostFormValue("current")) {
 		data.Error = "текущий пароль неверный"
 		s.renderStatus(w, "account", data, http.StatusUnauthorized)
 		return
@@ -133,7 +133,7 @@ func (s *Server) accountTOTPEnable(w http.ResponseWriter, r *http.Request) {
 		s.renderStatus(w, "account", data, http.StatusInternalServerError)
 		return
 	}
-	if err := s.users.UseTOTPStep(id.User, step); err != nil {
+	if _, err := s.users.ConsumeTOTPStep(id.User, step); err != nil {
 		s.log.Warn("gate totp step", "error", err)
 	}
 	data = s.accountView(r)
@@ -156,7 +156,7 @@ func (s *Server) accountTOTPDisable(w http.ResponseWriter, r *http.Request) {
 		s.renderStatus(w, "account", data, http.StatusBadRequest)
 		return
 	}
-	if _, ok := s.users.Authenticate(id.User, r.PostFormValue("current")); !ok {
+	if !s.checkCurrentPassword(id, r.PostFormValue("current")) {
 		data.Error = "текущий пароль неверный"
 		s.renderStatus(w, "account", data, http.StatusUnauthorized)
 		return
@@ -178,6 +178,19 @@ func (s *Server) accountTOTPDisable(w http.ResponseWriter, r *http.Request) {
 	data.Message = "двухфакторная защита отключена"
 	s.audit.Add(AuditEvent{User: id.User, IP: gateid.ClientIP(r), Agent: deviceName(r.UserAgent()), Result: "totp-off"})
 	s.render(w, "account", data)
+}
+
+func (s *Server) checkCurrentPassword(id gateid.Identity, password string) bool {
+	key := "p:" + id.User
+	if _, blocked := s.blockedKey(key); blocked {
+		return false
+	}
+	if _, ok := s.users.Authenticate(id.User, password); !ok {
+		s.noteFailureKey(key)
+		return false
+	}
+	s.resetKey(key)
+	return true
 }
 
 func (s *Server) accountDeviceRemove(w http.ResponseWriter, r *http.Request) {

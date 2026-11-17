@@ -3,7 +3,7 @@ import { Check, Clock, FileText } from "lucide-react";
 import type { ReviewItem } from "../lib/types";
 import { ageLabel, openItems, stripFrontmatter, type SnoozeMap } from "../lib/review";
 import { cn } from "../lib/utils";
-import { Markdown } from "./Markdown";
+import { MarkdownLazy } from "./MarkdownLazy";
 import { Button } from "./ui/button";
 import { Modal } from "./ui/Modal";
 
@@ -104,7 +104,7 @@ export function ReviewSheet({
         <div className="scrollbar-thin min-h-0 flex-1 overflow-y-auto p-3">
           {tab === "base" ? (
             base ? (
-              <Markdown text={stripFrontmatter(base.text)} />
+              <MarkdownLazy text={stripFrontmatter(base.text)} />
             ) : (
               <div className="text-muted-foreground py-8 text-center text-xs">
                 {baseLoading ? "Loading…" : "No vault in this workspace."}
@@ -161,7 +161,7 @@ export function ReviewSheet({
                     )}
                     {noteOpen && note && (
                       <div className="border-border bg-background mt-2 max-h-64 overflow-y-auto rounded-md border p-2">
-                        <Markdown text={stripFrontmatter(note.text)} className="text-xs" />
+                        <MarkdownLazy text={stripFrontmatter(note.text)} className="text-xs" />
                       </div>
                     )}
 

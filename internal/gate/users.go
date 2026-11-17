@@ -97,6 +97,28 @@ func OpenStore(path string) (*Store, error) {
 	return store, nil
 }
 
+func (s *Store) Reload() error {
+	data, err := os.ReadFile(s.path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return err
+	}
+	var file storeFile
+	if err := json.Unmarshal(data, &file); err != nil {
+		return fmt.Errorf("gate: parse %s: %w", s.path, err)
+	}
+	users := make(map[string]User, len(file.Users))
+	for _, user := range file.Users {
+		users[user.Name] = user
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.users = users
+	return nil
+}
+
 func (s *Store) List() []User {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -176,6 +198,9 @@ func (s *Store) Approve(name string) (string, error) {
 	user, ok := s.users[name]
 	if !ok {
 		return "", ErrUnknownUser
+	}
+	if user.Status != StatusPending {
+		return "", ErrActiveAccount
 	}
 	token, err := newToken()
 	if err != nil {
@@ -275,16 +300,19 @@ func (s *Store) ClearTOTP(name string) error {
 	return s.save()
 }
 
-func (s *Store) UseTOTPStep(name string, step int64) error {
+func (s *Store) ConsumeTOTPStep(name string, step int64) (bool, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	user, ok := s.users[normalizeName(name)]
 	if !ok {
-		return ErrUnknownUser
+		return false, ErrUnknownUser
+	}
+	if step <= user.TOTPStep {
+		return false, nil
 	}
 	user.TOTPStep = step
 	s.users[user.Name] = user
-	return s.save()
+	return true, s.save()
 }
 
 func (s *Store) ConsumeRecovery(name, code string) (bool, error) {
@@ -350,6 +378,10 @@ func (s *Store) save() error {
 		return err
 	}
 	if err := tmp.Chmod(0o600); err != nil {
+		tmp.Close()
+		return err
+	}
+	if err := tmp.Sync(); err != nil {
 		tmp.Close()
 		return err
 	}

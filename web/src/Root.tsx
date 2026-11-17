@@ -6,6 +6,7 @@ import { messageOf } from "./lib/errors";
 import { appLabel } from "./lib/instances";
 import type { InstancesResponse } from "./lib/types";
 import { InstancesMenu } from "./components/InstancesMenu";
+import { preloadMarkdown } from "./components/MarkdownLazy";
 
 const CACHE_KEY = "nit-gui.instances.v1";
 
@@ -53,6 +54,15 @@ export default function Root() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    const idle = window.requestIdleCallback ?? ((run: () => void) => window.setTimeout(run, 200));
+    const id = idle(() => void preloadMarkdown());
+    return () => {
+      if (window.cancelIdleCallback) window.cancelIdleCallback(id);
+      else window.clearTimeout(id);
+    };
+  }, []);
 
   const refresh = useCallback(async () => {
     setError(null);

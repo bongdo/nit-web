@@ -8,7 +8,9 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"os/exec"
 	"os/signal"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -81,6 +83,9 @@ func main() {
 	signal.Notify(reload, syscall.SIGHUP)
 	go func() {
 		for range reload {
+			if err := users.Reload(); err != nil {
+				log.Warn("users reload failed", "error", err)
+			}
 			if err := routes.Reload(); err != nil {
 				log.Warn("routes reload failed", "error", err)
 				continue
@@ -123,6 +128,21 @@ func resetTOTP(args []string) error {
 	if err := users.ClearTOTP(args[0]); err != nil {
 		return err
 	}
+	reloadGate()
 	fmt.Println("2FA off for", args[0])
 	return nil
+}
+
+func reloadGate() {
+	out, err := exec.Command("pgrep", "-f", `\.cache/gate --addr`).Output()
+	if err != nil {
+		return
+	}
+	for _, field := range strings.Fields(string(out)) {
+		pid, err := strconv.Atoi(field)
+		if err != nil {
+			continue
+		}
+		_ = syscall.Kill(pid, syscall.SIGHUP)
+	}
 }

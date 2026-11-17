@@ -284,15 +284,17 @@ func (s *Server) setSession(w http.ResponseWriter, r *http.Request, id gateid.Id
 }
 
 func (s *Server) stopSession(w http.ResponseWriter, r *http.Request) {
-	http.SetCookie(w, &http.Cookie{
-		Name:     sessionCookie,
-		Value:    "",
-		Path:     "/",
-		MaxAge:   -1,
-		HttpOnly: true,
-		Secure:   s.secure(r),
-		SameSite: http.SameSiteLaxMode,
-	})
+	for _, name := range []string{sessionCookie, appSessionCookie, deviceCookie} {
+		http.SetCookie(w, &http.Cookie{
+			Name:     name,
+			Value:    "",
+			Path:     "/",
+			MaxAge:   -1,
+			HttpOnly: true,
+			Secure:   s.secure(r),
+			SameSite: http.SameSiteLaxMode,
+		})
+	}
 }
 
 func (s *Server) secure(r *http.Request) bool {

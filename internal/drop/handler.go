@@ -142,7 +142,9 @@ func (h *Manager) row(ctx context.Context, entry Entry) entryRow {
 	}
 	if doc := entry.Text(); doc != "" {
 		row.RawDocURL = h.publicBase + url.PathEscape(entry.Slug) + "/" + escapePath(doc)
-		row.DocURL = peroLink(h.peroURL, filepath.Join(h.store.Root(), entry.ID, filepath.FromSlash(doc)))
+		if path, err := h.store.FilePath(entry.ID, doc); err == nil {
+			row.DocURL = peroLink(h.peroURL, path)
+		}
 	}
 	row.PreviewKind, row.PreviewURL, row.PreviewText = h.preview(entry)
 	row.Ext = entryExt(entry)
@@ -189,11 +191,11 @@ func (h *Manager) preview(entry Entry) (string, string, string) {
 }
 
 func (h *Manager) previewText(entry Entry, rel string) string {
-	safe, err := safeRel(rel)
+	full, err := h.store.FilePath(entry.ID, rel)
 	if err != nil {
 		return ""
 	}
-	file, err := os.Open(filepath.Join(h.store.Root(), entry.ID, filepath.FromSlash(safe)))
+	file, err := os.Open(full)
 	if err != nil {
 		return ""
 	}
@@ -705,6 +707,10 @@ func dirIndex(entry Entry, dir string) string {
 }
 
 func (h *Public) file(w http.ResponseWriter, r *http.Request, entry Entry, rel string) {
+	if hiddenPath(rel) && !(len(entry.Files) == 1 && entry.Files[0].Path == rel) {
+		http.NotFound(w, r)
+		return
+	}
 	full, err := h.store.FilePath(entry.ID, rel)
 	if err != nil {
 		http.NotFound(w, r)

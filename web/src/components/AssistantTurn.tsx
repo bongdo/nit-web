@@ -12,7 +12,7 @@ import { cn } from "../lib/utils";
 import { ChangedFilesButton, FileList } from "./FileChips";
 import { HtmlArtifact } from "./HtmlArtifact";
 import { HtmlMessagePreview } from "./HtmlMessagePreview";
-import { Markdown } from "./Markdown";
+import { MarkdownLazy } from "./MarkdownLazy";
 import { QuestionCard } from "./QuestionCard";
 import { ReplyActions } from "./ReplyActions";
 import { Reasoning } from "./Reasoning";
@@ -283,7 +283,7 @@ export const AssistantTurn = memo(function AssistantTurn({
                 segments.map((segment, segmentIndex) => (
                   <div key={`segment-${segmentIndex}`} className="min-w-0">
                     {segment.text.trim() !== "" && (
-                      <Markdown
+                      <MarkdownLazy
                         text={segment.text}
                         streaming={live}
                         directory={workspace}

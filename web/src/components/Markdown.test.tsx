@@ -1,6 +1,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { Markdown } from "./Markdown";
+import { MarkdownLazy } from "./MarkdownLazy";
 
 const render = (text: string) => renderToStaticMarkup(<Markdown text={text} />);
 
@@ -67,5 +68,32 @@ describe("Markdown values", () => {
     const html = render("| случай | цена |\n| --- | --- |\n| a | ~1 день |\n| b | недели |");
     expect(html).not.toContain("md-num");
     expect(html).toContain('class="md-value"');
+  });
+});
+
+describe("MarkdownLazy", () => {
+  it("shows plain text while the chunk loads, without parsing", () => {
+    const html = renderToStaticMarkup(
+      <MarkdownLazy text={"Первый абзац.\n\n**Второй**"} streaming />,
+    );
+    expect(html).toContain("whitespace-pre-wrap");
+    expect(html).toContain("Первый абзац.");
+    expect(html).not.toContain("<strong>");
+  });
+
+  it("renders the same markup as the direct import once resolved", async () => {
+    const text = "Первый абзац.\n\nВторой **абзац**.";
+    const settled = async () => {
+      for (let attempt = 0; attempt < 5; attempt++) {
+        try {
+          return renderToStaticMarkup(<MarkdownLazy text={text} />);
+        } catch (thrown) {
+          if (!(thrown instanceof Promise)) throw thrown;
+          await thrown;
+        }
+      }
+      throw new Error("markdown chunk never resolved");
+    };
+    expect(await settled()).toBe(render(text));
   });
 });

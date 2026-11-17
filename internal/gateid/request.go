@@ -12,11 +12,14 @@ func ClientIP(r *http.Request) string {
 		host = r.RemoteAddr
 	}
 	if host == "127.0.0.1" || host == "::1" {
-		if forwarded := r.Header.Get("X-Forwarded-For"); forwarded != "" {
-			for _, part := range strings.Split(forwarded, ",") {
-				if ip := strings.TrimSpace(part); ip != "" {
-					return ip
-				}
+		forwarded := r.Header.Get("X-Forwarded-For")
+		if forwarded == "" {
+			return host
+		}
+		parts := strings.Split(forwarded, ",")
+		for index := len(parts) - 1; index >= 0; index-- {
+			if ip := strings.TrimSpace(parts[index]); ip != "" {
+				return ip
 			}
 		}
 	}

@@ -113,6 +113,7 @@ func (s *Server) render(w http.ResponseWriter, name string, data view) {
 func (s *Server) renderStatus(w http.ResponseWriter, name string, data view, status int) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("X-Frame-Options", "DENY")
+	w.Header().Set("Cache-Control", "no-store")
 	w.WriteHeader(status)
 	if err := pages.ExecuteTemplate(w, name, data); err != nil {
 		s.log.Error("gate page failed", "page", name, "error", err)

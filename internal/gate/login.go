@@ -81,10 +81,11 @@ func (s *Server) consumeCode(user User, code string) bool {
 		return false
 	}
 	if step, ok := totpMatch(user.TOTP, code, s.now(), user.TOTPStep); ok {
-		if err := s.users.UseTOTPStep(user.Name, step); err != nil {
+		used, err := s.users.ConsumeTOTPStep(user.Name, step)
+		if err != nil {
 			s.log.Warn("gate totp step", "error", err)
 		}
-		return true
+		return used
 	}
 	used, err := s.users.ConsumeRecovery(user.Name, code)
 	if err != nil {

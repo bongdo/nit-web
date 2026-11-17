@@ -322,10 +322,10 @@ func (s *Store) Delete(ref string) error {
 	if err != nil {
 		return err
 	}
-	defer unlock()
 	s.mu.Lock()
 	entry, err := s.resolveLocked(ref)
 	s.mu.Unlock()
+	unlock()
 	if err != nil {
 		return err
 	}
@@ -557,8 +557,11 @@ func (s *Store) PublishPath(src, name string, opts PublishOptions) (Entry, error
 		if err != nil {
 			return err
 		}
-		defer file.Close()
 		if err := builder.AddFile(filepath.ToSlash(rel), file); err != nil {
+			file.Close()
+			return err
+		}
+		if err := file.Close(); err != nil {
 			return err
 		}
 		return nil
@@ -648,6 +651,11 @@ func syncDir(dir string) error {
 }
 
 func (s *Store) migrate() error {
+	unlock, err := s.lockRoot()
+	if err != nil {
+		return err
+	}
+	defer unlock()
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	items, err := os.ReadDir(s.root)
@@ -674,7 +682,7 @@ func (s *Store) migrate() error {
 		entry := entries[index]
 		raw, rawErr := s.readRaw(entry.ID)
 		if rawErr == nil {
-			if raw.Expires != nil && raw.Expires.Sub(raw.Created) == 7*24*time.Hour {
+			if raw.Kind == "files" && raw.Expires != nil && raw.Expires.Sub(raw.Created) == 7*24*time.Hour {
 				entry.Expires = nil
 			}
 			if raw.Expires != nil && raw.Expires.IsZero() {

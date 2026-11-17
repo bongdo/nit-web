@@ -100,15 +100,17 @@ func TestPublicHidesDotfiles(t *testing.T) {
 	store := testStore(t)
 	src := t.TempDir()
 	writeFile(t, filepath.Join(src, "index.html"), "<h1>ok</h1>")
-	writeFile(t, filepath.Join(src, ".env"), "SECRET=1")
+	writeFile(t, filepath.Join(src, "sub", ".env"), "SECRET=1")
 	writeFile(t, filepath.Join(src, "sub", ".git", "config"), "[core]")
+	writeFile(t, filepath.Join(src, "_expo", ".routes.json"), "{}")
+	writeFile(t, filepath.Join(src, ".well-known", "security.txt"), "Contact: x")
 	entry, err := store.PublishPath(src, "dotfiles", PublishOptions{Public: true})
 	if err != nil {
 		t.Fatal(err)
 	}
 	server := testDropServer(t, store, nil)
 
-	for _, target := range []string{"/d/" + entry.Slug + "/.env", "/d/" + entry.Slug + "/sub/.git/config"} {
+	for _, target := range []string{"/d/" + entry.Slug + "/sub/.env", "/d/" + entry.Slug + "/sub/.git/config"} {
 		resp, err := http.Get(server.URL + target)
 		if err != nil {
 			t.Fatal(err)
@@ -116,6 +118,17 @@ func TestPublicHidesDotfiles(t *testing.T) {
 		resp.Body.Close()
 		if resp.StatusCode != http.StatusNotFound {
 			t.Fatalf("%s status = %d, want 404", target, resp.StatusCode)
+		}
+	}
+
+	for _, target := range []string{"/d/" + entry.Slug + "/_expo/.routes.json", "/d/" + entry.Slug + "/.well-known/security.txt"} {
+		resp, err := http.Get(server.URL + target)
+		if err != nil {
+			t.Fatal(err)
+		}
+		resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("%s status = %d, want 200", target, resp.StatusCode)
 		}
 	}
 

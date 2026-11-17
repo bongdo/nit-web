@@ -724,7 +724,7 @@ func dirIndex(entry Entry, dir string) string {
 }
 
 func (h *Public) file(w http.ResponseWriter, r *http.Request, entry Entry, rel string) {
-	if hiddenPath(rel) && !(len(entry.Files) == 1 && entry.Files[0].Path == rel) {
+	if secretPath(rel) && !(len(entry.Files) == 1 && entry.Files[0].Path == rel) {
 		http.NotFound(w, r)
 		return
 	}
@@ -802,7 +802,7 @@ func (h *Public) autoindex(w http.ResponseWriter, r *http.Request, entry Entry, 
 		if !strings.HasPrefix(file.Path, prefix) {
 			continue
 		}
-		if hiddenPath(file.Path) {
+		if hiddenFromIndex(file.Path) {
 			continue
 		}
 		base := r.PathValue("slug")
@@ -879,9 +879,25 @@ func ParseTTL(raw string) (time.Duration, error) {
 	return value, nil
 }
 
-func hiddenPath(name string) bool {
+func hiddenFromIndex(name string) bool {
 	for _, part := range strings.Split(name, "/") {
 		if strings.HasPrefix(part, ".") {
+			return true
+		}
+	}
+	return false
+}
+
+func secretPath(name string) bool {
+	for _, part := range strings.Split(name, "/") {
+		lower := strings.ToLower(part)
+		switch lower {
+		case ".git", ".svn", ".hg", ".ssh", ".aws", ".gnupg", ".kube", ".docker", ".config", ".npm", ".cache",
+			".env", ".npmrc", ".netrc", ".pgpass", ".gitconfig", ".git-credentials", ".htaccess", ".htpasswd",
+			".bash_history", ".zsh_history", ".bashrc", ".zshrc", ".profile":
+			return true
+		}
+		if strings.HasPrefix(lower, ".env.") {
 			return true
 		}
 	}

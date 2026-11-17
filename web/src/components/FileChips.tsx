@@ -1,8 +1,9 @@
 import { memo } from "react";
 import { ChevronDown, ChevronUp, FileDiff } from "lucide-react";
-import { appLinkClick } from "../lib/appLink";
+import { fileLinkClick } from "../lib/appLink";
 import { basename } from "../lib/format";
 import { peroHref, resolveFilePath } from "../lib/diff";
+import { viewHref } from "../lib/fileLink";
 import type { EditedFile } from "../lib/types";
 import { cn } from "../lib/utils";
 import { Button } from "./ui/button";
@@ -19,16 +20,17 @@ function FileChip({
   agent?: string;
 }) {
   const path = resolveFilePath(file.path, cwd);
-  const href = peroHref(base, path, file.lines, agent);
+  const href = viewHref(path);
+  const pero = peroHref(base, path, file.lines, agent);
   return (
     <a
       href={href}
       target="_blank"
       rel="noreferrer"
-      title={`Open ${path} in pero`}
+      title={`View ${path} · Shift-click for pero`}
       onClick={(event) => {
         event.stopPropagation();
-        appLinkClick({ app: "pero", path, lines: file.lines, agent }, href)(event);
+        fileLinkClick({ app: "pero", path, lines: file.lines, agent }, pero)(event);
       }}
       className="bg-muted text-muted-foreground hover:bg-accent hover:text-foreground inline-flex max-w-44 shrink-0 items-center gap-1 rounded px-1.5 py-0.5 font-mono text-[10px]"
     >

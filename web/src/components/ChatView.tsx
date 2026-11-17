@@ -10,12 +10,13 @@ import {
 import {
   ArrowDown,
   CircleAlert,
+  FileCode2,
   Loader2,
   MessageSquare,
   Quote,
   Sparkles,
 } from "lucide-react";
-import type { Agent, Instance, Message, Model, Project, Session } from "../lib/types";
+import type { Agent, Instance, LineRange, Message, Model, Project, Session } from "../lib/types";
 import {
   BOTTOM_GAP,
   isAtTop,
@@ -24,6 +25,7 @@ import {
 } from "../lib/scroll";
 import { cn } from "../lib/utils";
 import type { TimeFormat } from "../lib/time";
+import { openInApp } from "../lib/appLink";
 import { useChatDictionary } from "../hooks/useChatDictionary";
 import { Button } from "./ui/button";
 import { AssistantTurn } from "./AssistantTurn";
@@ -31,6 +33,29 @@ import { CompactionBusy } from "./Compaction";
 import { MessageRow } from "./MessageRow";
 import { Scene, type SceneSetting } from "./Scene";
 import { WorkspaceMenu } from "./WorkspacePicker";
+
+type SelectionQuote = {
+  text: string;
+  x: number;
+  y: number;
+  file?: { path: string; href: string; lines?: LineRange[] };
+};
+
+function selectedFile(node: Node | null): SelectionQuote["file"] {
+  const element = node instanceof Element ? node : node?.parentElement;
+  const anchor = element?.closest<HTMLAnchorElement>("a[data-pero-href]");
+  const path = anchor?.dataset.filePath;
+  const href = anchor?.dataset.peroHref;
+  if (!path || !href) return undefined;
+  let lines: LineRange[] | undefined;
+  try {
+    const raw = anchor?.dataset.fileLines;
+    lines = raw ? (JSON.parse(raw) as LineRange[]) : undefined;
+  } catch {
+    lines = undefined;
+  }
+  return { path, href, lines };
+}
 
 function Skeleton() {
   return (
@@ -185,7 +210,7 @@ export function ChatView({
     session: string;
   } | null>(null);
   const [showJump, setShowJump] = useState(false);
-  const [quote, setQuote] = useState<{ text: string; x: number; y: number } | null>(null);
+  const [quote, setQuote] = useState<SelectionQuote | null>(null);
   const [freshRow, setFreshRow] = useState<{ id: string; session: string } | null>(null);
   const jumping = useRef(false);
   const seenSession = useRef<string | null>(null);
@@ -345,8 +370,11 @@ export function ChatView({
       }
       const x = rect.left + rect.width / 2;
       const y = rect.top;
+      const file = selectedFile(selection.anchorNode);
       setQuote((current) =>
-        current?.text === text && current.x === x && current.y === y ? current : { text, x, y },
+        current?.text === text && current.x === x && current.y === y && current.file?.href === file?.href
+          ? current
+          : { text, x, y, file },
       );
     };
     document.addEventListener("selectionchange", update);
@@ -803,23 +831,45 @@ export function ChatView({
       )}
 
       {quote && (
-        <Button
-          variant="secondary"
-          size="xs"
-          className="fixed z-50 shadow-md"
+        <div
+          className="fixed z-50 flex items-center gap-1"
           style={{ left: quote.x, top: quote.y - 8, transform: "translate(-50%, -100%)" }}
           onMouseDown={(event) => event.preventDefault()}
-          onClick={() => {
-            onQuote(quote.text);
-            window.getSelection()?.removeAllRanges();
-            setQuote(null);
-          }}
-          aria-label="Quote selection"
-          title="Quote in the composer"
         >
-          <Quote />
-          Quote
-        </Button>
+          <Button
+            variant="secondary"
+            size="xs"
+            className="shadow-md"
+            onClick={() => {
+              onQuote(quote.text);
+              window.getSelection()?.removeAllRanges();
+              setQuote(null);
+            }}
+            aria-label="Quote selection"
+            title="Quote in the composer"
+          >
+            <Quote />
+            Quote
+          </Button>
+          {quote.file && (
+            <Button
+              variant="secondary"
+              size="xs"
+              className="shadow-md"
+              onClick={() => {
+                const file = quote.file!;
+                openInApp({ app: "pero", path: file.path, lines: file.lines }, file.href);
+                window.getSelection()?.removeAllRanges();
+                setQuote(null);
+              }}
+              aria-label={`Open ${quote.file.path} in pero`}
+              title={`Open ${quote.file.path} in pero`}
+            >
+              <FileCode2 />
+              pero
+            </Button>
+          )}
+        </div>
       )}
     </div>
   );

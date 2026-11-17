@@ -35,6 +35,15 @@ export function openInApp(target: AppTarget, href: string): void {
   channel.postMessage({ type: "open", id, ...target });
 }
 
+export function fileLinkClick(target: AppTarget, href: string) {
+  return (event: MouseEvent<HTMLAnchorElement>) => {
+    if (event.defaultPrevented || event.button !== 0) return;
+    if (!event.shiftKey || event.metaKey || event.ctrlKey || event.altKey) return;
+    event.preventDefault();
+    openInApp(target, href);
+  };
+}
+
 export function appLinkClick(target: AppTarget, href: string) {
   return (event: MouseEvent<HTMLAnchorElement>) => {
     if (

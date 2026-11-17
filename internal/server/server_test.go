@@ -388,6 +388,80 @@ func TestFileProxy(t *testing.T) {
 	}
 }
 
+func TestViewServesTextAsPlain(t *testing.T) {
+	upstream := httptest.NewServer(auth(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/fs/read/home/ubuntu/work/notes.md":
+			fmt.Fprint(w, "# Notes")
+		case "/api/fs/read/home/ubuntu/work/page.html":
+			fmt.Fprint(w, "<script>alert(1)</script>")
+		case "/api/fs/read/home/ubuntu/work/shot.png":
+			fmt.Fprint(w, "PNG")
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer upstream.Close()
+
+	handler := newHandler(t, upstream.URL)
+
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet,
+		"http://127.0.0.1:7788/api/view?path=%2Fhome%2Fubuntu%2Fwork%2Fnotes.md", nil))
+	if rec.Code != http.StatusOK || rec.Body.String() != "# Notes" {
+		t.Fatalf("status = %d: %s", rec.Code, rec.Body)
+	}
+	if rec.Header().Get("Content-Type") != "text/plain; charset=utf-8" {
+		t.Fatalf("content type = %q", rec.Header().Get("Content-Type"))
+	}
+
+	rec = httptest.NewRecorder()
+	handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet,
+		"http://127.0.0.1:7788/api/view?path=%2Fhome%2Fubuntu%2Fwork%2Fpage.html", nil))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d: %s", rec.Code, rec.Body)
+	}
+	if rec.Header().Get("Content-Type") != "text/plain; charset=utf-8" {
+		t.Fatalf("html content type = %q", rec.Header().Get("Content-Type"))
+	}
+
+	rec = httptest.NewRecorder()
+	handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet,
+		"http://127.0.0.1:7788/api/view?path=%2Fhome%2Fubuntu%2Fwork%2Fshot.png", nil))
+	if rec.Code != http.StatusOK || rec.Body.String() != "PNG" {
+		t.Fatalf("status = %d: %s", rec.Code, rec.Body)
+	}
+	if rec.Header().Get("Content-Type") != "image/png" {
+		t.Fatalf("png content type = %q", rec.Header().Get("Content-Type"))
+	}
+}
+
+func TestViewDownloadsBinary(t *testing.T) {
+	upstream := httptest.NewServer(auth(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, "PK\x03\x04archive")
+	}))
+	defer upstream.Close()
+
+	rec := httptest.NewRecorder()
+	newHandler(t, upstream.URL).ServeHTTP(rec, httptest.NewRequest(http.MethodGet,
+		"http://127.0.0.1:7788/api/view?path=%2Fhome%2Fubuntu%2Fwork%2Fapp.zip", nil))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d: %s", rec.Code, rec.Body)
+	}
+	if !strings.HasPrefix(rec.Header().Get("Content-Disposition"), "attachment") {
+		t.Fatalf("content disposition = %q", rec.Header().Get("Content-Disposition"))
+	}
+}
+
+func TestViewRejectsRelativePath(t *testing.T) {
+	rec := httptest.NewRecorder()
+	newHandler(t, "http://127.0.0.1:1").ServeHTTP(rec, httptest.NewRequest(http.MethodGet,
+		"http://127.0.0.1:7788/api/view?path=docs%2Fdecisions.md", nil))
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d: %s", rec.Code, rec.Body)
+	}
+}
+
 func TestArtifactServesHtmlFromSessionDirectory(t *testing.T) {
 	upstream := httptest.NewServer(auth(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {

@@ -9,6 +9,7 @@ import {
   FileJson,
   FileKey,
   FileSpreadsheet,
+  FileTerminal,
   FileText,
   FileVideo,
   Presentation,
@@ -20,15 +21,18 @@ import { cn } from "../lib/utils";
 export function FileTypeIcon({
   name,
   mime,
+  executable,
   className,
 }: {
   name?: string;
   mime?: string;
+  executable?: boolean;
   className?: string;
 }) {
   const type = fileType({ name, mime });
-  const Icon =
-    type === "image"
+  const Icon = executable
+    ? FileTerminal
+    : type === "image"
       ? FileImage
       : type === "pdf" || type === "document"
         ? FileText

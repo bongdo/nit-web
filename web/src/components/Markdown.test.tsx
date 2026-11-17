@@ -24,13 +24,14 @@ describe("Markdown values", () => {
     expect(html.match(/md-num/g) ?? []).toHaveLength(3);
   });
 
-  it("links a path in inline code to pero", () => {
+  it("opens a path in inline code in the viewer, with pero behind shift", () => {
     const html = renderToStaticMarkup(
       <Markdown text={"Открой `bin/check` и `docs/decisions.md:12`."} directory="/work/app" peroURL="/pero/" />,
     );
     expect(html).toContain("md-file");
-    expect(html).toContain("/pero/?open=%2Fwork%2Fapp%2Fbin%2Fcheck");
-    expect(html).toContain("open=%2Fwork%2Fapp%2Fdocs%2Fdecisions.md&amp;lines=12");
+    expect(html).toContain("/api/view?path=%2Fwork%2Fapp%2Fbin%2Fcheck");
+    expect(html).toContain('data-pero-href="/pero/?open=%2Fwork%2Fapp%2Fbin%2Fcheck"');
+    expect(html).toContain("data-pero-href=\"/pero/?open=%2Fwork%2Fapp%2Fdocs%2Fdecisions.md&amp;lines=12\"");
   });
 
   it("links a path in inline code while streaming", () => {
@@ -38,7 +39,7 @@ describe("Markdown values", () => {
       <Markdown text={"Открой `bin/check`."} streaming directory="/work/app" peroURL="/pero/" />,
     );
     expect(html).toContain('class="md-file"');
-    expect(html).toContain("/pero/?open=%2Fwork%2Fapp%2Fbin%2Fcheck");
+    expect(html).toContain("/api/view?path=%2Fwork%2Fapp%2Fbin%2Fcheck");
   });
 
   it("does not link paths without a directory", () => {
@@ -51,6 +52,14 @@ describe("Markdown values", () => {
       <Markdown text={"Открой `src/main.c3`."} directory="/work/app" peroURL="/pero/" />,
     );
     expect(html).toMatch(/class="md-file"[^>]*>\s*<svg/);
+  });
+
+  it("marks an executable in bin with a terminal icon", () => {
+    const html = renderToStaticMarkup(
+      <Markdown text={"Открой `bin/deploy`."} directory="/work/app" peroURL="/pero/" />,
+    );
+    expect(html).toContain("lucide-file-terminal");
+    expect(html).not.toContain("lucide-file-icon");
   });
 
   it("dims brackets in plain inline code", () => {

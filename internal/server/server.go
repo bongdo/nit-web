@@ -189,6 +189,7 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("POST /api/grammar", s.grammarCheck)
 	s.mux.HandleFunc("POST /api/upload", s.upload)
 	s.mux.HandleFunc("GET /api/file", s.file)
+	s.mux.HandleFunc("GET /api/view", s.view)
 	s.mux.HandleFunc("GET /api/artifact", s.artifact)
 	s.mux.HandleFunc("GET /api/review", s.review)
 	s.mux.HandleFunc("GET /api/doc", s.doc)
@@ -281,6 +282,7 @@ func (s *Server) middleware(next http.Handler) http.Handler {
 		}
 		switch {
 		case r.URL.Path == "/api/events", r.URL.Path == "/api/file",
+			r.URL.Path == "/api/view",
 			r.URL.Path == "/api/tts/audio", r.URL.Path == "/api/tts/stream",
 			r.URL.Path == "/drop/api/upload", r.URL.Path == shareBase+"/api/upload",
 			strings.HasPrefix(r.URL.Path, "/d/"), strings.HasPrefix(r.URL.Path, shareBase+"/"):
@@ -1242,6 +1244,80 @@ func (s *Server) file(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "private, max-age=3600")
 	if _, err := io.Copy(w, body.Body); err != nil {
 		s.log.Warn("file stream failed", "path", path, "error", err)
+	}
+}
+
+func viewPath(raw string) (string, bool) {
+	path := strings.TrimSpace(raw)
+	if path == "" || len(path) > 4096 || strings.ContainsRune(path, 0) || !filepath.IsAbs(path) {
+		return "", false
+	}
+	return filepath.Clean(path), true
+}
+
+func viewContentType(path string, head []byte) (string, bool) {
+	ext := strings.ToLower(filepath.Ext(path))
+	switch ext {
+	case ".png":
+		return "image/png", true
+	case ".jpg", ".jpeg":
+		return "image/jpeg", true
+	case ".gif":
+		return "image/gif", true
+	case ".webp":
+		return "image/webp", true
+	case ".avif":
+		return "image/avif", true
+	case ".bmp":
+		return "image/bmp", true
+	case ".pdf":
+		return "application/pdf", true
+	}
+	contentType := mime.TypeByExtension(ext)
+	if strings.HasPrefix(contentType, "audio/") || strings.HasPrefix(contentType, "video/") {
+		return contentType, true
+	}
+	if strings.HasPrefix(contentType, "text/") ||
+		contentType == "application/json" || contentType == "application/xml" {
+		return "text/plain; charset=utf-8", true
+	}
+	if detected := http.DetectContentType(head); strings.HasPrefix(detected, "text/") {
+		return "text/plain; charset=utf-8", true
+	}
+	if contentType == "" {
+		contentType = "application/octet-stream"
+	}
+	return contentType, false
+}
+
+func (s *Server) view(w http.ResponseWriter, r *http.Request) {
+	path, ok := viewPath(r.URL.Query().Get("path"))
+	if !ok {
+		writeError(w, http.StatusBadRequest, "path must be absolute")
+		return
+	}
+	c, ok := s.withClient(w, r)
+	if !ok {
+		return
+	}
+	body, err := c.ReadFile(r.Context(), path)
+	if err != nil {
+		s.upstreamError(w, r, err)
+		return
+	}
+	defer body.Body.Close()
+	reader := bufio.NewReader(body.Body)
+	head, _ := reader.Peek(512)
+	contentType, inline := viewContentType(path, head)
+	if !inline {
+		w.Header().Set("Content-Disposition", mime.FormatMediaType("attachment", map[string]string{
+			"filename": filepath.Base(path),
+		}))
+	}
+	w.Header().Set("Content-Type", contentType)
+	w.Header().Set("Cache-Control", "private, max-age=60")
+	if _, err := io.Copy(w, reader); err != nil {
+		s.log.Warn("view stream failed", "path", path, "error", err)
 	}
 }
 

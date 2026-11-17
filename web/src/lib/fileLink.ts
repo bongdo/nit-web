@@ -1,6 +1,20 @@
+import { getInstance } from "./api";
+import { appPath } from "./base";
+import { addInstanceParam } from "./instances";
 import type { LineRange } from "./types";
 
 export type FileTarget = { path: string; lines?: LineRange[] };
+
+const EXECUTABLE_DIR = /(^|\/)(bin|sbin|scripts)\//;
+
+export function executablePath(path: string): boolean {
+  const name = path.split("/").pop() ?? "";
+  return name !== "" && !name.includes(".") && EXECUTABLE_DIR.test(path);
+}
+
+export function viewHref(path: string): string {
+  return addInstanceParam(appPath(`/api/view?path=${encodeURIComponent(path)}`), getInstance());
+}
 
 const KNOWN_EXT =
   /\.(md|markdown|txt|ts|tsx|js|jsx|mjs|cjs|go|py|json|jsonl|ya?ml|toml|css|scss|html?|sh|bash|zsh|sql|rs|java|kt|kts|c|h|cpp|hpp|cs|rb|php|swift|xml|ini|conf|lock|mod|sum|env|svg|c3|zig|nim|str|dart|nix|lua|hs|ex|exs|erl|clj|scala|sol|vue|svelte)$/i;

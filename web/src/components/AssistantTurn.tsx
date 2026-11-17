@@ -1,5 +1,5 @@
 import { memo, useEffect, useRef, useState } from "react";
-import { Bot, ChevronDown, ChevronRight, CircleAlert, ListTree, Loader2, X } from "lucide-react";
+import { Bot, ChevronDown, ChevronRight, CircleAlert, ListTree, Loader2 } from "lucide-react";
 import type { Agent, Message, Model, ReasoningPart, ToolPart } from "../lib/types";
 import { activityLine, toolBreakdown } from "../lib/activity";
 import { turnEditedFiles } from "../lib/diff";
@@ -17,6 +17,7 @@ import { MarkdownLazy } from "./MarkdownLazy";
 import { QuestionCard } from "./QuestionCard";
 import { ReplyActions } from "./ReplyActions";
 import { Button } from "./ui/button";
+import { Modal } from "./ui/Modal";
 
 function durationLabel(messages: Message[]): string {
   const first = messages[0]?.time.created;
@@ -60,7 +61,6 @@ export const AssistantTurn = memo(function AssistantTurn({
   const [open, setOpen] = useState(false);
   const [showFiles, setShowFiles] = useState(false);
   const filesRef = useRef<HTMLDivElement | null>(null);
-  const panelRef = useRef<HTMLDivElement | null>(null);
   const wasStreaming = useRef(streaming);
   const wasLive = useRef(streaming);
   const [loadingSteps, setLoadingSteps] = useState(false);
@@ -156,23 +156,6 @@ export const AssistantTurn = memo(function AssistantTurn({
       document.removeEventListener("keydown", onKey);
     };
   }, [showFiles]);
-
-  useEffect(() => {
-    if (!open || showSteps) return;
-    panelRef.current?.scrollIntoView({ block: "nearest" });
-    const onPointer = (event: MouseEvent) => {
-      if (!filesRef.current?.contains(event.target as Node)) setOpen(false);
-    };
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setOpen(false);
-    };
-    document.addEventListener("mousedown", onPointer);
-    document.addEventListener("keydown", onKey);
-    return () => {
-      document.removeEventListener("mousedown", onPointer);
-      document.removeEventListener("keydown", onKey);
-    };
-  }, [activity.length, loadingSteps, open, showSteps]);
 
   const loadSteps = () => {
     if (!onLoadMessage) return;
@@ -385,28 +368,21 @@ export const AssistantTurn = memo(function AssistantTurn({
               </Button>
             )}
             {!showSteps && open && (
-              <div
-                ref={panelRef}
-                role="dialog"
-                aria-label="Agent steps"
-                className="file-popover-enter bg-popover text-popover-foreground border-border absolute bottom-full left-0 z-30 mb-2 flex max-h-[min(70vh,26rem)] w-[min(34rem,calc(100vw-4rem))] flex-col overflow-hidden rounded-xl border shadow-xl"
+              <Modal
+                label="Agent steps"
+                title={
+                  <>
+                    <span className="text-[11px] font-semibold uppercase tracking-wider">
+                      Activity
+                    </span>
+                    <span className="text-muted-foreground min-w-0 flex-1 truncate text-[10px]">
+                      {stats}
+                    </span>
+                  </>
+                }
+                panelClassName="max-w-2xl"
+                onClose={() => setOpen(false)}
               >
-                <header className="border-border/70 flex items-center gap-2 border-b px-3 py-2">
-                  <span className="text-[11px] font-semibold uppercase tracking-wider">
-                    Activity
-                  </span>
-                  <span className="text-muted-foreground min-w-0 flex-1 truncate text-[10px]">
-                    {stats}
-                  </span>
-                  <Button
-                    variant="ghost"
-                    size="icon-xs"
-                    onClick={() => setOpen(false)}
-                    aria-label="Close steps"
-                  >
-                    <X />
-                  </Button>
-                </header>
                 <div className="scrollbar-thin min-h-0 flex-1 overflow-y-auto px-2 py-2">
                   {loadingSteps && activity.length === 0 ? (
                     <p className="text-muted-foreground px-2 py-1 text-xs">Loading steps…</p>
@@ -428,7 +404,7 @@ export const AssistantTurn = memo(function AssistantTurn({
                   )}
                 </div>
                 {breakdown.length > 0 && (
-                  <footer className="border-border/70 flex flex-wrap items-center gap-1 border-t px-2 py-1.5">
+                  <footer className="border-border/70 flex flex-wrap items-center gap-1 border-t px-3 py-2">
                     {breakdown.map((group) => (
                       <span
                         key={group.verb}
@@ -448,7 +424,7 @@ export const AssistantTurn = memo(function AssistantTurn({
                     )}
                   </footer>
                 )}
-              </div>
+              </Modal>
             )}
             {!streaming && reply.trim() !== "" && (
               <ReplyActions text={reply} enter={wasLive.current} />

@@ -78,6 +78,7 @@ import {
   type StatusSets,
 } from "./lib/sessions";
 import { shortcutKeys } from "./lib/keys";
+import { appPath, staleBundle } from "./lib/base";
 import { cn } from "./lib/utils";
 import { cachedSessions, readBoot, seedBootSession, writeBoot } from "./lib/bootCache";
 import { instanceScopedKey } from "./lib/instances";
@@ -2065,6 +2066,15 @@ export default function App({
     }
   };
 
+  const checkBundle = useCallback(async () => {
+    const current = document.querySelector('script[type="module"][src]')?.getAttribute("src");
+    if (!current) return;
+    try {
+      const html = await fetch(appPath("/"), { cache: "no-store" }).then((r) => r.text());
+      if (staleBundle(current, html)) window.location.reload();
+    } catch {}
+  }, []);
+
   const onStreamOpen = (owner: string) => {
     if (owner !== instance) {
       if (!openedStreams.current.has(owner)) {
@@ -2078,6 +2088,7 @@ export default function App({
       firstStreamOpen.current = false;
       return;
     }
+    void checkBundle();
     reloadSelected();
     void loadSessions(false);
     void loadForms();
@@ -2504,7 +2515,7 @@ export default function App({
           break;
         case "help":
           setBanner(
-            "Commands: /new /dir /instances /compact /revert /fork /fork-here /retry /theme /backgrounds /clear /help · Shortcuts: Alt+N new chat, Alt+O switch workspace, Alt+J/K or Ctrl+Tab/Shift+Ctrl+Tab next/prev chat (Tab in a text field completes /commands, accepts the highlighted suggestion, otherwise indents two spaces; Shift+Tab or Esc leaves the field), Alt+←/→ this dir / all chats / everywhere, Ctrl/⌘K search",
+            "Commands: /new /dir /instances /compact /revert /fork /fork-here /retry /theme /backgrounds /clear /help · Shortcuts: Alt+N new chat, Alt+O switch workspace, Alt+J/K next/prev chat (Tab in a text field completes /commands, accepts the highlighted suggestion, otherwise indents two spaces; Shift+Tab or Esc leaves the field), Alt+←/→ this dir / all chats / everywhere, Ctrl/⌘K search",
           );
           break;
       }
@@ -2553,6 +2564,7 @@ export default function App({
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key !== "Escape" && modalOpen()) return;
+      if (event.repeat) return;
       const mod = event.metaKey || event.ctrlKey;
       const keys = shortcutKeys(event);
       if (mod && keys.includes("k")) {
@@ -2586,17 +2598,6 @@ export default function App({
         const index = list.indexOf(scopeRef.current);
         const next = list[((index < 0 ? 0 : index) + step + list.length) % list.length];
         if (next) changeScope(next);
-        return;
-      }
-      if (event.ctrlKey && event.key === "Tab") {
-        if (cycleSessions.length === 0) return;
-        event.preventDefault();
-        const nextId = nextSessionId(
-          cycleSessions,
-          selectedIdRef.current,
-          event.shiftKey ? -1 : 1,
-        );
-        if (nextId) openSession(nextId);
         return;
       }
       if (event.key === "Escape") {

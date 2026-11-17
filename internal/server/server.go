@@ -2008,6 +2008,9 @@ func (s *Server) setSessionStatus(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "could not save ui state")
 		return
 	}
+	if status == "" {
+		s.log.Info("session status cleared", "id", id, "agent", r.UserAgent())
+	}
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 }
 

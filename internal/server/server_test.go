@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -508,7 +509,7 @@ func TestFileProxyRejectsTraversal(t *testing.T) {
 
 func TestFileProxyAllowsFrameForPDFPreview(t *testing.T) {
 	upstream := httptest.NewServer(auth(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/api/fs/read/tmp/nit-gui-1-a%20b.pdf" && r.URL.Path != "/api/fs/read/tmp/nit-gui-1-a b.pdf" {
+		if r.URL.Path != "/api/fs/read/tmp/nit-gui-1-a_b.pdf" {
 			t.Errorf("path = %q", r.URL.Path)
 		}
 		fmt.Fprint(w, "%PDF")
@@ -517,13 +518,73 @@ func TestFileProxyAllowsFrameForPDFPreview(t *testing.T) {
 
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet,
-		"http://127.0.0.1:7788/api/file?path=file:///tmp/nit-gui-1-a%20b.pdf", nil)
+		"http://127.0.0.1:7788/api/file?path=file:///tmp/nit-gui-1-a_b.pdf", nil)
 	newHandler(t, upstream.URL).ServeHTTP(rec, req)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d: %s", rec.Code, rec.Body)
 	}
 	if rec.Header().Get("X-Frame-Options") != "SAMEORIGIN" {
 		t.Fatalf("x-frame-options = %q", rec.Header().Get("X-Frame-Options"))
+	}
+}
+
+func TestFileProxyRejectsNonUploadPaths(t *testing.T) {
+	paths := []string{
+		"/tmp/nit-gui-piper-123/segment-1.wav",
+		"/tmp/nit-gui-x",
+		"/tmp/nit-gui-1-../../etc/passwd",
+		"/tmp/nit-gui-",
+		"/tmp/other",
+	}
+	for _, path := range paths {
+		rec := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodGet,
+			"http://127.0.0.1:7788/api/file?path="+url.QueryEscape(path), nil)
+		newHandler(t, "http://127.0.0.1:1").ServeHTTP(rec, req)
+		if rec.Code != http.StatusForbidden {
+			t.Fatalf("%s status = %d: %s", path, rec.Code, rec.Body)
+		}
+	}
+}
+
+func TestUploadThenFileServesIt(t *testing.T) {
+	var saved string
+	upstream := httptest.NewServer(auth(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.URL.Path == "/api/experimental/fs/write":
+			saved = r.URL.Query().Get("path")
+			fmt.Fprintf(w, `{"data":{"path":%q}}`, saved)
+		case strings.HasPrefix(r.URL.Path, "/api/fs/read/"):
+			fmt.Fprint(w, "%PDF")
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer upstream.Close()
+
+	handler := newHandler(t, upstream.URL)
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "http://127.0.0.1:7788/api/upload?name=a%20b.pdf", strings.NewReader("%PDF"))
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("upload status = %d: %s", rec.Code, rec.Body)
+	}
+	var body struct {
+		Path string `json:"path"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if !filepath.IsAbs(body.Path) || !strings.HasSuffix(body.Path, "-a_b.pdf") {
+		t.Fatalf("upload path = %q", body.Path)
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodGet,
+		"http://127.0.0.1:7788/api/file?path="+url.QueryEscape(body.Path), nil)
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK || rec.Body.String() != "%PDF" {
+		t.Fatalf("file status = %d: %s", rec.Code, rec.Body)
 	}
 }
 
@@ -619,6 +680,71 @@ func TestMessagesPaginate(t *testing.T) {
 		t.Fatal(err)
 	}
 	if len(body.Data) != 2 || body.Data[0]["id"] != "m1" || body.Data[1]["id"] != "m2" {
+		t.Fatalf("unexpected data: %s", rec.Body)
+	}
+}
+
+func TestMessagesStreamPages(t *testing.T) {
+	var calls int32
+	upstream := httptest.NewServer(auth(func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddInt32(&calls, 1)
+		switch r.URL.Query().Get("cursor") {
+		case "":
+			fmt.Fprint(w, `{"data":[{"id":"m1"},{"id":"m2"}],"cursor":{"next":"p2"}}`)
+		case "p2":
+			fmt.Fprint(w, `{"data":[{"id":"m3"}],"cursor":{"next":"p3"}}`)
+		case "p3":
+			fmt.Fprint(w, `{"data":[{"id":"m4"}],"cursor":{"next":null}}`)
+		default:
+			t.Errorf("unexpected cursor %q", r.URL.Query().Get("cursor"))
+		}
+	}))
+	defer upstream.Close()
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "http://127.0.0.1:7788/api/sessions/ses_1/messages", nil)
+	newHandler(t, upstream.URL).ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d: %s", rec.Code, rec.Body)
+	}
+	var body struct {
+		Data     []map[string]any `json:"data"`
+		Previous *string          `json:"previous"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatalf("invalid json: %v: %s", err, rec.Body)
+	}
+	if len(body.Data) != 4 || body.Data[0]["id"] != "m1" || body.Data[3]["id"] != "m4" {
+		t.Fatalf("unexpected data: %s", rec.Body)
+	}
+	if body.Previous != nil {
+		t.Fatalf("previous = %v", *body.Previous)
+	}
+	if got := atomic.LoadInt32(&calls); got != 3 {
+		t.Fatalf("upstream calls = %d, want 3", got)
+	}
+}
+
+func TestMessagesStreamFailureKeepsJSON(t *testing.T) {
+	upstream := httptest.NewServer(auth(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Query().Get("cursor") == "p2" {
+			http.Error(w, "upstream broke", http.StatusInternalServerError)
+			return
+		}
+		fmt.Fprint(w, `{"data":[{"id":"m1"}],"cursor":{"next":"p2"}}`)
+	}))
+	defer upstream.Close()
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "http://127.0.0.1:7788/api/sessions/ses_1/messages", nil)
+	newHandler(t, upstream.URL).ServeHTTP(rec, req)
+	var body struct {
+		Data []map[string]any `json:"data"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatalf("invalid json: %v: %s", err, rec.Body)
+	}
+	if len(body.Data) != 1 || body.Data[0]["id"] != "m1" {
 		t.Fatalf("unexpected data: %s", rec.Body)
 	}
 }

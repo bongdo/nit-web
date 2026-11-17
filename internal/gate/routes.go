@@ -46,6 +46,7 @@ func defaultRoutes() []Route {
 		{Prefix: "/nit", Cap: gateid.AdminHost, Upstream: "http://127.0.0.1:7791", Note: "редактор, терминал"},
 		{Prefix: "/pero", Cap: gateid.AdminHost, Upstream: "http://127.0.0.1:7789", Note: "редактор файлов"},
 		{Prefix: "/term", Cap: gateid.AdminHost, Upstream: "http://127.0.0.1:7795", Note: "shell"},
+		{Prefix: "/docs", Cap: gateid.AdminHost, Upstream: "http://127.0.0.1:7796", Note: "документы"},
 		{Prefix: "/share", Optional: true, Upstream: "http://127.0.0.1:7791", Note: "drop: ссылки и менеджер"},
 	}
 }

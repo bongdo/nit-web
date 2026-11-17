@@ -79,7 +79,8 @@ export function SceneGpu({
     try {
       program = compile(gl, scene.mode === "lines" ? LINES : ASCII_SCENES[variant as keyof typeof ASCII_SCENES]);
       if (scene.mode === "ascii") glyphProgram = compile(gl, GLYPHS);
-    } catch {
+    } catch (error) {
+      console.error("gpu scene", variant, String(error));
       return;
     }
 

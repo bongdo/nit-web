@@ -103,7 +103,7 @@ func New(multi MultiProvider, static fs.FS, log *slog.Logger) *Handler {
 		grammar:      newGrammarChecker(log),
 		tts:          newTTSHub(),
 		voice:        newHostVoice(),
-		auth:         newAuthGate(log),
+		auth:         newAuthGate(),
 		ui:           ui,
 		basePath:     strings.TrimRight(os.Getenv("NIT_GUI_BASE_PATH"), "/"),
 		publicHost:   strings.TrimSuffix(strings.ToLower(strings.TrimSpace(os.Getenv("NIT_GUI_PUBLIC_HOST"))), "."),

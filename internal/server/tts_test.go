@@ -409,6 +409,42 @@ func TestPiperWorkerStaysWarm(t *testing.T) {
 	}
 }
 
+func TestPiperWorkerRemovesTempDir(t *testing.T) {
+	t.Setenv("FAKE_VOICE_STARTS", filepath.Join(t.TempDir(), "starts"))
+	voice := fakePiperVoice(t)
+	worker := voice.worker
+	if _, _, err := voice.synthesize(context.Background(), "привет"); err != nil {
+		t.Fatal(err)
+	}
+	worker.mu.Lock()
+	dir := worker.dir
+	worker.mu.Unlock()
+	if dir == "" {
+		t.Fatal("piper created no temp dir")
+	}
+	worker.shutdown()
+	if _, err := os.Stat(dir); !os.IsNotExist(err) {
+		t.Fatalf("temp dir survived shutdown: %v", err)
+	}
+	if worker.dir != "" {
+		t.Fatalf("worker kept dir %q", worker.dir)
+	}
+}
+
+func TestPiperWorkerHonoursCancelledContext(t *testing.T) {
+	starts := filepath.Join(t.TempDir(), "starts")
+	t.Setenv("FAKE_VOICE_STARTS", starts)
+	voice := fakePiperVoice(t)
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if _, _, err := voice.synthesize(ctx, "привет"); err == nil {
+		t.Fatal("cancelled context produced audio")
+	}
+	if _, err := os.Stat(starts); !os.IsNotExist(err) {
+		t.Fatal("piper started for a cancelled context")
+	}
+}
+
 func TestHostVoiceErrors(t *testing.T) {
 	voiceEnv(t)
 	model := filepath.Join(t.TempDir(), "voice.onnx")

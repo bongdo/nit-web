@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from "react";
-import { Plus, RefreshCw, Server, X } from "lucide-react";
+import { Plus, RefreshCw, Server } from "lucide-react";
 import { api } from "../lib/api";
 import type {
   CapabilityState,
@@ -11,8 +11,8 @@ import type {
 } from "../lib/types";
 import { appLabel, mergeDeviceCapabilities } from "../lib/instances";
 import { cn } from "../lib/utils";
-import { useModalFocus } from "../hooks/useModalFocus";
 import { Button } from "./ui/button";
+import { Modal } from "./ui/Modal";
 import { Input } from "./ui/input";
 import { Pick } from "./ui/pick";
 
@@ -87,7 +87,6 @@ export function InstancesMenu({
   onRefresh: () => void | Promise<void>;
   onClose: () => void;
 }) {
-  const panel = useModalFocus<HTMLDivElement>();
   const [selected, setSelected] = useState(active);
   const [refreshing, setRefreshing] = useState(false);
   const [form, setForm] = useState<FormState | null>(null);
@@ -98,20 +97,6 @@ export function InstancesMenu({
   useEffect(() => {
     setSelected(active);
   }, [active]);
-
-  useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== "Escape") return;
-      if (form) {
-        setForm(null);
-        setActionError("");
-        return;
-      }
-      onClose();
-    };
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [form, onClose]);
 
   const info =
     data.instances.find((item) => item.id === selected) ??
@@ -226,35 +211,25 @@ export function InstancesMenu({
   };
 
   return (
-    <div
-      className="overlay-backdrop fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
-      onClick={onClose}
+    <Modal
+      label="Instances"
+      closeLabel="Close instances"
+      title={
+        <>
+          <Server className="size-4" />
+          <h2 className="text-sm font-semibold">Instances</h2>
+        </>
+      }
+      actions={
+        <Button variant="outline" size="sm" onClick={startNew}>
+          <Plus />
+          New instance
+        </Button>
+      }
+      onClose={onClose}
+      onEscape={form ? cancelForm : onClose}
+      panelClassName="max-w-3xl"
     >
-      <div
-        ref={panel}
-        role="dialog"
-        aria-modal="true"
-        aria-label="Instances"
-        tabIndex={-1}
-        onClick={(event) => event.stopPropagation()}
-        className="overlay-modal bg-background border-border flex max-h-[calc(100dvh-2rem)] w-full max-w-3xl flex-col overflow-hidden rounded-xl border shadow-xl outline-none"
-      >
-        <div className="border-border flex items-center justify-between gap-2 border-b px-4 py-3">
-          <h2 className="flex items-center gap-2 text-sm font-semibold">
-            <Server className="size-4" />
-            Instances
-          </h2>
-          <div className="flex items-center gap-1">
-            <Button variant="outline" size="sm" onClick={startNew}>
-              <Plus />
-              New instance
-            </Button>
-            <Button variant="ghost" size="icon-sm" onClick={onClose} aria-label="Close instances">
-              <X />
-            </Button>
-          </div>
-        </div>
-
         <div className="border-border space-y-1 border-b px-4 py-3">
           <div className="font-mono text-[11px]">
             This app: {appLabel(data.app.host)}
@@ -534,7 +509,6 @@ export function InstancesMenu({
           </span>
           <span className="shrink-0">gate: {data.app.host}</span>
         </div>
-      </div>
-    </div>
+    </Modal>
   );
 }

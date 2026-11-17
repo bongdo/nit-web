@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { addInstanceParam, instanceScopedKey, mergeDeviceCapabilities } from "./instances";
+import { addInstanceParam, instanceScopedKey, mergeDeviceCapabilities, streamDelta } from "./instances";
 import type { InstanceCapability } from "./types";
 
 describe("instances", () => {
@@ -23,6 +23,15 @@ describe("instances", () => {
     expect(addInstanceParam("/api/events", "laptop")).toBe("/api/events?instance=laptop");
     expect(addInstanceParam("/api/events#top", "laptop")).toBe("/api/events?instance=laptop#top");
     expect(addInstanceParam("/api/events?x=1", "")).toBe("/api/events?x=1");
+  });
+
+  it("keeps live event streams and opens only the new instances", () => {
+    expect(streamDelta(["local"], ["local", "riga"])).toEqual({ open: ["riga"], close: [] });
+    expect(streamDelta(["local", "riga"], ["local"])).toEqual({ open: [], close: ["riga"] });
+    expect(streamDelta(["local"], ["local"])).toEqual({ open: [], close: [] });
+    expect(streamDelta([], ["local"])).toEqual({ open: ["local"], close: [] });
+    expect(streamDelta(["a", "b"], ["b", "c"])).toEqual({ open: ["c"], close: ["a"] });
+    expect(streamDelta(["local"], [])).toEqual({ open: [], close: ["local"] });
   });
 
   it("downgrades host speech to the device voice fallback", () => {

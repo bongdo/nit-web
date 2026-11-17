@@ -5,7 +5,6 @@ import {
   attachmentNameFromHref,
   attachmentWarning,
   fileType,
-  isLocalFileHref,
 } from "./attachments";
 
 const model = (input: string[]) => ({ name: "Model", capabilities: { input } });
@@ -66,10 +65,8 @@ describe("attachments", () => {
     expect(fileType({ name: "unknown" })).toBe("other");
   });
 
-  it("recognizes local file links and derives the name", () => {
+  it("derives the attachment name from a local file link", () => {
     const href = "/api/file?path=file%3A%2F%2F%2Ftmp%2Fnit-gui-1-track.mp3";
-    expect(isLocalFileHref(href)).toBe(true);
-    expect(isLocalFileHref("https://example.com/a.mp3")).toBe(false);
     expect(attachmentNameFromHref(href)).toBe("nit-gui-1-track.mp3");
   });
 

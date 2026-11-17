@@ -66,6 +66,18 @@ export function withLocalStatus(
   return { done, failed };
 }
 
+export function dropSettledStatus(
+  server: StatusSets,
+  local: StatusSets,
+  pending: Set<string>,
+): void {
+  for (const id of pending) {
+    if (local.done.has(id) !== server.done.has(id)) continue;
+    if (local.failed.has(id) !== server.failed.has(id)) continue;
+    pending.delete(id);
+  }
+}
+
 export function sameStatus(a: StatusSets, b: StatusSets): boolean {
   return (
     a.done.size === b.done.size &&
@@ -73,16 +85,6 @@ export function sameStatus(a: StatusSets, b: StatusSets): boolean {
     [...b.done].every((id) => a.done.has(id)) &&
     [...b.failed].every((id) => a.failed.has(id))
   );
-}
-
-export function hiddenIndex(pools: InstanceHidden[]): HiddenIndex {
-  const index: HiddenIndex = {};
-  for (const pool of pools) {
-    const ids = new Set(index[pool.instance]);
-    for (const id of pool.hidden) ids.add(id);
-    index[pool.instance] = ids;
-  }
-  return index;
 }
 
 export function hiddenLookup(index: HiddenIndex, active: string) {

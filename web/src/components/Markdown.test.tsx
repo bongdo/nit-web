@@ -32,6 +32,14 @@ describe("Markdown values", () => {
     expect(html).toContain("open=%2Fwork%2Fapp%2Fdocs%2Fdecisions.md&amp;lines=12");
   });
 
+  it("links a path in inline code while streaming", () => {
+    const html = renderToStaticMarkup(
+      <Markdown text={"Открой `bin/check`."} streaming directory="/work/app" peroURL="/pero/" />,
+    );
+    expect(html).toContain('class="md-file"');
+    expect(html).toContain("/pero/?open=%2Fwork%2Fapp%2Fbin%2Fcheck");
+  });
+
   it("does not link paths without a directory", () => {
     const html = renderToStaticMarkup(<Markdown text={"Открой `bin/check`."} peroURL="/pero/" />);
     expect(html).not.toContain("md-file");

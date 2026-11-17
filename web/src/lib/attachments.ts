@@ -92,10 +92,6 @@ export function localFileHref(href?: string): string | undefined {
   return undefined;
 }
 
-export function isLocalFileHref(href?: string): boolean {
-  return localFileHref(href) !== undefined;
-}
-
 export function attachmentHref(file: UserFile): string | undefined {
   const uri = fileUri(file);
   const inline = file.data && file.mime ? `data:${file.mime};base64,${file.data}` : undefined;

@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
+  dropSettledStatus,
   groupByDirectory,
   groupKey,
   groupSessions,
-  hiddenIndex,
   hiddenLookup,
   hoistFinished,
   isTechnical,
@@ -200,7 +200,7 @@ describe("sessions", () => {
       session({ id: "hidden" }),
       session({ id: "child", parentID: "visible" }),
     ];
-    const isHidden = hiddenLookup(hiddenIndex([{ instance: "local", hidden: ["hidden"] }]), "local");
+    const isHidden = hiddenLookup({ local: new Set(["hidden"]) }, "local");
     expect(listedSessions(list, isHidden, false).map((item) => item.id)).toEqual(["visible"]);
     expect(listedSessions(list, isHidden, true).map((item) => item.id)).toEqual([
       "visible",
@@ -216,7 +216,7 @@ describe("sessions", () => {
       session({ id: "orphan", parentID: "missing" }),
       session({ id: "other", parentID: "elsewhere" }),
     ];
-    const isHidden = hiddenLookup(hiddenIndex([{ instance: "local", hidden: ["hidden"] }]), "local");
+    const isHidden = hiddenLookup({ local: new Set(["hidden"]) }, "local");
     expect(
       listedSubagents(list, new Set(["visible"]), isHidden, false).map((item) => item.id),
     ).toEqual(["child"]);
@@ -226,10 +226,10 @@ describe("sessions", () => {
   });
 
   it("keeps hidden chats per instance in the everywhere scope", () => {
-    const index = hiddenIndex([
-      { instance: "frankfurt", hidden: ["ses_shared", "ses_local"] },
-      { instance: "riga", hidden: ["ses_shared"] },
-    ]);
+    const index = {
+      frankfurt: new Set(["ses_shared", "ses_local"]),
+      riga: new Set(["ses_shared"]),
+    };
     const isHidden = hiddenLookup(index, "frankfurt");
     const list = [
       session({ id: "ses_shared", instance: "frankfurt" }),
@@ -246,18 +246,10 @@ describe("sessions", () => {
   });
 
   it("hides a chat only on the instance that hid it", () => {
-    const isHidden = hiddenLookup(hiddenIndex([{ instance: "riga", hidden: ["ses_a"] }]), "frankfurt");
+    const isHidden = hiddenLookup({ riga: new Set(["ses_a"]) }, "frankfurt");
     expect(isHidden({ id: "ses_a", instance: "frankfurt" })).toBe(false);
     expect(isHidden({ id: "ses_a" })).toBe(false);
     expect(isHidden({ id: "ses_a", instance: "riga" })).toBe(true);
-  });
-
-  it("merges repeated pools for one instance", () => {
-    const index = hiddenIndex([
-      { instance: "riga", hidden: ["a"] },
-      { instance: "riga", hidden: ["b"] },
-    ]);
-    expect([...index.riga].sort()).toEqual(["a", "b"]);
   });
 
   it("nests children under their parent and leaves orphans as roots", () => {
@@ -374,6 +366,21 @@ describe("sessions", () => {
     expect(withLocalStatus(server, local, new Set())).toBe(server);
     expect(sameStatus(server, { done: new Set(["a"]), failed: new Set() })).toBe(true);
     expect(sameStatus(server, local)).toBe(false);
+  });
+
+  it("stops overriding the server once it echoes the local status", () => {
+    const local = { done: new Set(["b"]), failed: new Set(["c"]) };
+    const stale = { done: new Set<string>(), failed: new Set<string>() };
+    const pending = new Set(["b", "c"]);
+
+    dropSettledStatus(stale, local, pending);
+    expect([...pending]).toEqual(["b", "c"]);
+
+    dropSettledStatus({ done: new Set(["b"]), failed: new Set<string>() }, local, pending);
+    expect([...pending]).toEqual(["c"]);
+
+    dropSettledStatus({ done: new Set(["b"]), failed: new Set(["c"]) }, local, pending);
+    expect([...pending]).toEqual([]);
   });
 
   it("reports each session only when it starts running", () => {

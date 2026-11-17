@@ -516,8 +516,6 @@ export const ASCII_SCENES = {
   "ascii-gyro": GYRO,
 };
 
-export type AsciiSceneId = keyof typeof ASCII_SCENES;
-
 export const LINES = `#version 300 es
 precision highp float;
 in vec2 vUV;

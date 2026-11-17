@@ -10,9 +10,9 @@ npm --prefix web run typecheck
 npm --prefix web run test
 npm --prefix web run build
 
-out="$(gofmt -l main.go internal)"
+out="$(gofmt -l main.go internal cmd)"
 [ -z "$out" ] || { printf 'gofmt:\n%s\n' "$out" >&2; exit 1; }
 go vet ./...
-go test ./...
+go test -race ./...
 mkdir -p .cache
 go build -o .cache/nit-gui-check .

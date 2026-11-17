@@ -20,6 +20,18 @@ export function addInstanceParam(href: string, id: string): string {
   return `${path}${separator}instance=${encodeURIComponent(id)}${hash}`;
 }
 
+export function streamDelta(
+  previous: string[],
+  next: string[],
+): { open: string[]; close: string[] } {
+  const before = new Set(previous);
+  const after = new Set(next);
+  return {
+    open: next.filter((id) => !before.has(id)),
+    close: previous.filter((id) => !after.has(id)),
+  };
+}
+
 export function mergeDeviceCapabilities(
   caps: InstanceCapability[],
   supportsSpeech: boolean,

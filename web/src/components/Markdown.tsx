@@ -274,6 +274,8 @@ export const Markdown = memo(function Markdown({
             key={index}
             text={block}
             streaming={index === blocks.length - 1}
+            directory={directory}
+            peroURL={peroURL}
           />
         ))
       ) : (

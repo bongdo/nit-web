@@ -15,11 +15,19 @@ type Pending = {
 let worker: Worker | null = null;
 let starting: Promise<void> | null = null;
 let broken = false;
+let failedAt = 0;
 let sequence = 0;
 const pending = new Map<number, Pending>();
 
+export const RESTART_GUARD_MS = 30_000;
+
+export function restartAllowed(failedAt: number, now: number): boolean {
+  return failedAt === 0 || now - failedAt >= RESTART_GUARD_MS;
+}
+
 function stop(error: Error) {
   broken = true;
+  failedAt = Date.now();
   worker?.terminate();
   worker = null;
   starting = null;
@@ -28,7 +36,12 @@ function stop(error: Error) {
 }
 
 function start(): Promise<void> {
-  if (broken) return Promise.reject(new Error("spellcheck unavailable"));
+  if (broken) {
+    if (!restartAllowed(failedAt, Date.now())) {
+      return Promise.reject(new Error("spellcheck unavailable"));
+    }
+    broken = false;
+  }
   if (starting) return starting;
   starting = new Promise<void>((resolve, reject) => {
     try {
@@ -59,7 +72,10 @@ function start(): Promise<void> {
       stop(error);
     };
   }).catch((error: unknown) => {
-    broken = true;
+    if (!broken) {
+      broken = true;
+      failedAt = Date.now();
+    }
     starting = null;
     throw error;
   });
@@ -67,28 +83,29 @@ function start(): Promise<void> {
 }
 
 function request<T>(message: Record<string, unknown>): Promise<T> {
-  if (broken) return Promise.resolve([] as T);
-  return start().then(() => {
-    if (!worker) return [] as T;
-    const id = ++sequence;
-    return new Promise<T>((resolve, reject) => {
-      const timer = setTimeout(() => {
-        pending.delete(id);
-        reject(new Error("spellcheck timed out"));
-      }, 15_000);
-      pending.set(id, {
-        resolve: (value) => {
-          clearTimeout(timer);
-          resolve(value as T);
-        },
-        reject: (error) => {
-          clearTimeout(timer);
-          reject(error);
-        },
+  return start()
+    .then(() => {
+      if (!worker) return [] as T;
+      const id = ++sequence;
+      return new Promise<T>((resolve, reject) => {
+        const timer = setTimeout(() => {
+          pending.delete(id);
+          reject(new Error("spellcheck timed out"));
+        }, 15_000);
+        pending.set(id, {
+          resolve: (value) => {
+            clearTimeout(timer);
+            resolve(value as T);
+          },
+          reject: (error) => {
+            clearTimeout(timer);
+            reject(error);
+          },
+        });
+        worker?.postMessage({ ...message, id });
       });
-      worker?.postMessage({ ...message, id });
-    });
-  });
+    })
+    .catch(() => [] as T);
 }
 
 export function preloadSpellcheck(): Promise<void> {

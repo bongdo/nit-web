@@ -2,9 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   draftStorageKey,
   draftUpdatedKey,
-  loadDraft,
   loadDraftState,
-  saveDraft,
   saveDraftState,
 } from "./drafts";
 
@@ -21,18 +19,18 @@ function memoryStorage() {
 describe("drafts", () => {
   it("keeps a separate draft per key", () => {
     const storage = memoryStorage();
-    saveDraft("ses_a", "first", storage);
-    saveDraft("ses_b", "second", storage);
-    expect(loadDraft("ses_a", storage)).toBe("first");
-    expect(loadDraft("ses_b", storage)).toBe("second");
+    saveDraftState("ses_a", "first", 0, storage);
+    saveDraftState("ses_b", "second", 0, storage);
+    expect(loadDraftState("ses_a", storage).text).toBe("first");
+    expect(loadDraftState("ses_b", storage).text).toBe("second");
     expect(storage.has(draftStorageKey("ses_a"))).toBe(true);
   });
 
   it("removes empty drafts", () => {
     const storage = memoryStorage();
-    saveDraft("ses_a", "text", storage);
-    saveDraft("ses_a", "", storage);
-    expect(loadDraft("ses_a", storage)).toBe("");
+    saveDraftState("ses_a", "text", 0, storage);
+    saveDraftState("ses_a", "", 0, storage);
+    expect(loadDraftState("ses_a", storage).text).toBe("");
     expect(storage.has(draftStorageKey("ses_a"))).toBe(false);
     expect(storage.has(draftUpdatedKey("ses_a"))).toBe(false);
   });

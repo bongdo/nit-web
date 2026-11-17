@@ -1,10 +1,9 @@
 import { Fragment, useState } from "react";
-import { Check, Shuffle, X } from "lucide-react";
+import { Check, Shuffle } from "lucide-react";
 import { BACKGROUNDS, BACKGROUND_GROUPS } from "../lib/backgrounds";
 import { isGpuVariant } from "../lib/gpu-scenes";
 import { cn } from "../lib/utils";
-import { useModalFocus } from "../hooks/useModalFocus";
-import { Button } from "./ui/button";
+import { Modal } from "./ui/Modal";
 import { Scene, type SceneSetting } from "./Scene";
 
 export function BackgroundPicker({
@@ -16,31 +15,17 @@ export function BackgroundPicker({
   onPick: (background: SceneSetting) => void;
   onClose: () => void;
 }) {
-  const panel = useModalFocus<HTMLDivElement>();
   const [hovered, setHovered] = useState<SceneSetting | null>(null);
 
   return (
-    <div
-      className="overlay-backdrop fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
-      onClick={onClose}
+    <Modal
+      label="Background"
+      closeLabel="Close backgrounds"
+      title={<h2 className="text-sm font-semibold">Background</h2>}
+      onClose={onClose}
+      panelClassName="max-w-2xl"
     >
-      <div
-        ref={panel}
-        role="dialog"
-        aria-modal="true"
-        aria-label="Background"
-        tabIndex={-1}
-        onClick={(event) => event.stopPropagation()}
-        className="overlay-modal bg-background border-border flex max-h-[calc(100dvh-2rem)] w-full max-w-2xl flex-col overflow-hidden rounded-xl border shadow-xl outline-none"
-      >
-        <div className="border-border flex items-center justify-between border-b px-4 py-3">
-          <h2 className="text-sm font-semibold">Background</h2>
-          <Button variant="ghost" size="icon-sm" onClick={onClose} aria-label="Close backgrounds">
-            <X />
-          </Button>
-        </div>
-
-        <div className="scrollbar-thin grid grid-cols-2 gap-2 overflow-y-auto p-3 sm:grid-cols-3">
+      <div className="scrollbar-thin grid grid-cols-2 gap-2 overflow-y-auto p-3 sm:grid-cols-3">
           {BACKGROUNDS.map((item, index) => (
             <Fragment key={item.id}>
               {(index === 0 || BACKGROUNDS[index - 1].group !== item.group) && (
@@ -94,10 +79,9 @@ export function BackgroundPicker({
                 </span>
               )}
             </button>
-            </Fragment>
-          ))}
-        </div>
+        </Fragment>
+      ))}
       </div>
-    </div>
+    </Modal>
   );
 }

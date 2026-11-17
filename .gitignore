@@ -1,6 +1,7 @@
 /.cache/
 /web/node_modules
-/web/dist/
+/web/dist/*
+!/web/dist/index.html
 .DS_Store
 .env*
 .agent/log/

@@ -1,7 +1,6 @@
 package server
 
 import (
-	"log/slog"
 	"net"
 	"net/http"
 	"net/url"
@@ -14,7 +13,10 @@ import (
 	"nitgui/internal/gateid"
 )
 
-const authCookieName = "nit_gate"
+const (
+	authCookieName    = "nit_gate"
+	gateSessionCookie = "gate_session"
+)
 
 type authGate struct {
 	enabled    bool
@@ -23,7 +25,7 @@ type authGate struct {
 	secret     []byte
 }
 
-func newAuthGate(*slog.Logger) *authGate {
+func newAuthGate() *authGate {
 	secret, err := gateid.ReadSecret(gateid.DefaultSecretPath())
 	if err != nil {
 		secret = nil
@@ -84,12 +86,16 @@ func (a *authGate) authenticated(r *http.Request) bool {
 	if id, ok := gateid.From(r, a.secret); ok && !id.Anonymous() {
 		return true
 	}
-	cookie, err := r.Cookie(authCookieName)
-	if err != nil || cookie.Value == "" {
-		return false
+	for _, name := range []string{authCookieName, gateSessionCookie} {
+		cookie, err := r.Cookie(name)
+		if err != nil || cookie.Value == "" {
+			continue
+		}
+		if id, err := gateid.Verify(a.secret, cookie.Value, time.Now()); err == nil && !id.Anonymous() {
+			return true
+		}
 	}
-	id, err := gateid.Verify(a.secret, cookie.Value, time.Now())
-	return err == nil && !id.Anonymous()
+	return false
 }
 
 func (a *authGate) trimBase(path string) string {
@@ -113,24 +119,6 @@ func (a *authGate) externalPath(path string) string {
 		return path
 	}
 	return a.base + path
-}
-
-func safeNext(raw, base string) string {
-	if raw == "" || raw[0] != '/' || strings.HasPrefix(raw, "//") {
-		return base + "/"
-	}
-	for _, r := range raw {
-		if r < 0x20 || r == 0x7f || r == '\\' {
-			return base + "/"
-		}
-	}
-	if base != "" && raw != base && !strings.HasPrefix(raw, base+"/") && !outsideBase(raw) {
-		if raw == "/" {
-			return base + "/"
-		}
-		return base + raw
-	}
-	return raw
 }
 
 func (a *authGate) secure(r *http.Request) bool {
@@ -164,22 +152,4 @@ func hostOnly(hostport string) string {
 		host = h
 	}
 	return strings.TrimSuffix(strings.Trim(host, "[]"), ".")
-}
-
-func clientIP(r *http.Request) string {
-	host, _, err := net.SplitHostPort(r.RemoteAddr)
-	if err != nil {
-		host = r.RemoteAddr
-	}
-	if host == "127.0.0.1" || host == "::1" {
-		forwarded := r.Header.Get("X-Forwarded-For")
-		if forwarded != "" {
-			for _, part := range strings.Split(forwarded, ",") {
-				if ip := strings.TrimSpace(part); ip != "" {
-					return ip
-				}
-			}
-		}
-	}
-	return host
 }

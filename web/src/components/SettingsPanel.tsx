@@ -9,7 +9,6 @@ import {
   Palette,
   Pencil,
   Shuffle,
-  X,
   type LucideIcon,
 } from "lucide-react";
 import type { ReactNode } from "react";
@@ -21,8 +20,8 @@ import type { TimeFormat } from "../lib/time";
 import { modelKey } from "../lib/format";
 import { SCOPES, type Scope } from "../lib/sessions";
 import { cn } from "../lib/utils";
-import { useModalFocus } from "../hooks/useModalFocus";
 import { Button } from "./ui/button";
+import { Modal } from "./ui/Modal";
 import { Field, Pick, type PickOption } from "./ui/pick";
 
 const VIEW_ICONS: Record<Scope, LucideIcon> = {
@@ -216,29 +215,15 @@ export function SettingsPanel({
     modelOptions.unshift({ value: modelKey(model), label: model.id, group: model.providerID });
   }
   const scene = BACKGROUNDS.find((item) => item.id === background);
-  const panel = useModalFocus<HTMLDivElement>();
 
   return (
-    <div
-      className="overlay-backdrop fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
-      onClick={onClose}
+    <Modal
+      label="Settings"
+      closeLabel="Close settings"
+      title={<h2 className="text-sm font-semibold">Settings</h2>}
+      onClose={onClose}
+      panelClassName="max-w-3xl"
     >
-      <div
-        ref={panel}
-        role="dialog"
-        aria-modal="true"
-        aria-label="Settings"
-        tabIndex={-1}
-        onClick={(event) => event.stopPropagation()}
-        className="overlay-modal bg-background border-border flex max-h-[calc(100dvh-2rem)] w-full max-w-3xl flex-col overflow-hidden rounded-xl border shadow-xl outline-none"
-      >
-        <div className="border-border flex items-center justify-between border-b px-4 py-3">
-          <h2 className="text-sm font-semibold">Settings</h2>
-          <Button variant="ghost" size="icon-sm" onClick={onClose} aria-label="Close settings">
-            <X />
-          </Button>
-        </div>
-
         <div className="scrollbar-thin grid min-h-0 gap-3 overflow-y-auto p-3 sm:grid-cols-2">
           <Section
             icon={Layers}
@@ -428,7 +413,6 @@ export function SettingsPanel({
             </Field>
           </Section>
         </div>
-      </div>
-    </div>
+    </Modal>
   );
 }

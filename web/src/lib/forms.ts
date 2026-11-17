@@ -7,11 +7,6 @@ export function questionFields(form: FormInfo): FormField[] | null {
   return fields;
 }
 
-export function questionField(form: FormInfo): FormField | null {
-  const fields = questionFields(form);
-  return fields && fields.length === 1 ? fields[0] : null;
-}
-
 export function initialFormValues(form: FormInfo): Record<string, unknown> {
   const values: Record<string, unknown> = {};
   for (const field of form.fields) {

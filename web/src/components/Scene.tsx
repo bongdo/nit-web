@@ -1,7 +1,13 @@
-import { useEffect, useMemo, useRef } from "react";
+import { Suspense, lazy, useEffect, useMemo, useRef } from "react";
 import { cn } from "../lib/utils";
 import { GPU_VARIANTS, isGpuVariant, type GpuVariant } from "../lib/gpu-scenes";
-import { SceneGpu } from "./SceneGpu";
+
+const SceneGpu = lazy(() =>
+  import("./SceneGpu").then((module) => ({ default: module.SceneGpu })),
+);
+
+const CANVAS =
+  "pointer-events-none absolute inset-0 size-full [mask-image:linear-gradient(to_bottom,transparent,black_14%,black_78%,transparent)]";
 
 const GAP = 24;
 const STEP = 5;
@@ -48,9 +54,17 @@ export function Scene(props: SceneProps) {
     return SCENE_IDS[Math.floor(Math.random() * SCENE_IDS.length)];
   }, [props.variant]);
   if (isGpuVariant(resolved)) {
-    return <SceneGpu {...props} variant={resolved} />;
+    return (
+      <Suspense fallback={<Placeholder className={props.className} />}>
+        <SceneGpu {...props} variant={resolved} />
+      </Suspense>
+    );
   }
   return <SceneCanvas {...props} variant={resolved as SceneVariant} />;
+}
+
+function Placeholder({ className }: { className?: string }) {
+  return <canvas aria-hidden className={cn(CANVAS, className)} />;
 }
 
 function SceneCanvas({
@@ -716,13 +730,6 @@ function SceneCanvas({
   }, [motion, paused, preview, variant]);
 
   return (
-    <canvas
-      ref={ref}
-      aria-hidden
-      className={cn(
-        "pointer-events-none absolute inset-0 size-full [mask-image:linear-gradient(to_bottom,transparent,black_14%,black_78%,transparent)]",
-        className,
-      )}
-    />
+    <canvas ref={ref} aria-hidden className={cn(CANVAS, className)} />
   );
 }

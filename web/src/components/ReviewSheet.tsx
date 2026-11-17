@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
-import { Check, Clock, FileText, X } from "lucide-react";
+import { Check, Clock, FileText } from "lucide-react";
 import type { ReviewItem } from "../lib/types";
 import { ageLabel, openItems, stripFrontmatter, type SnoozeMap } from "../lib/review";
-import { useModalFocus } from "../hooks/useModalFocus";
 import { cn } from "../lib/utils";
 import { Markdown } from "./Markdown";
 import { Button } from "./ui/button";
+import { Modal } from "./ui/Modal";
 
 export type ReviewAction = "accept" | "reject" | "later";
 
@@ -40,16 +40,6 @@ export function ReviewSheet({
   const [rejectId, setRejectId] = useState<string | null>(null);
   const [rejectText, setRejectText] = useState("");
   const open = useMemo(() => openItems(items), [items]);
-  const panel = useModalFocus<HTMLDivElement>();
-
-  useEffect(() => {
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose();
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
-
   useEffect(() => {
     if (tab === "base" && !base && !baseLoading) onLoadBase();
   }, [tab, base, baseLoading, onLoadBase]);
@@ -68,30 +58,22 @@ export function ReviewSheet({
   };
 
   return (
-    <div
-      className="overlay-backdrop fixed inset-0 z-50 flex items-end justify-center bg-black/40 sm:items-center sm:p-4"
-      onClick={onClose}
-    >
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-label="Review"
-        ref={panel}
-        tabIndex={-1}
-        onClick={(event) => event.stopPropagation()}
-        className="overlay-modal bg-background border-border flex max-h-[85dvh] w-full max-w-2xl flex-col overflow-hidden rounded-t-xl border shadow-xl outline-none sm:rounded-xl"
-      >
-        <div className="border-border flex items-center gap-2 border-b px-4 py-3">
+    <Modal
+      label="Review"
+      closeLabel="Close review"
+      closeSize="icon-xs"
+      title={
+        <>
           <span className="text-sm font-semibold">Review</span>
           <span className="bg-secondary text-secondary-foreground rounded-full px-1.5 text-[10px] leading-5 tabular-nums">
             {open.length}
           </span>
-          <span className="flex-1" />
-          <Button variant="ghost" size="icon-xs" onClick={onClose} aria-label="Close review">
-            <X />
-          </Button>
-        </div>
-
+        </>
+      }
+      onClose={onClose}
+      className="items-end p-0 sm:items-center sm:p-4"
+      panelClassName="max-h-[85dvh] max-w-2xl rounded-t-xl sm:rounded-xl"
+    >
         <div className="border-border flex gap-1 border-b px-3 py-2" role="tablist">
           <button
             type="button"
@@ -249,7 +231,6 @@ export function ReviewSheet({
             </div>
           )}
         </div>
-      </div>
-    </div>
+    </Modal>
   );
 }

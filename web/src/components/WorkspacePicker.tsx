@@ -26,12 +26,13 @@ import {
   pathCrumbs,
   splitPathInput,
 } from "../lib/paths";
-import { instanceScopedKey } from "../lib/instances";
 import { ApiError, api } from "../lib/api";
-import { useModalFocus } from "../hooks/useModalFocus";
+import { messageOf } from "../lib/errors";
+import { readRecent } from "../lib/recent";
 import { cn } from "../lib/utils";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
+import { Modal } from "./ui/Modal";
 import { Scene, type SceneSetting } from "./Scene";
 
 export function workspaceOptions(projects: Project[], recent: string[]): string[] {
@@ -39,21 +40,6 @@ export function workspaceOptions(projects: Project[], recent: string[]): string[
 }
 
 type PathStatus = "idle" | "relative" | "checking" | "exists" | "missing" | "error";
-
-function messageOf(error: unknown): string {
-  return error instanceof Error && error.message ? error.message : "Could not load folders";
-}
-
-function readRecent(instance: string, defaultInstance: string): string[] {
-  if (!instance) return [];
-  try {
-    const raw = localStorage.getItem(instanceScopedKey("nit-gui.recent", instance, defaultInstance));
-    const value = JSON.parse(raw ?? "[]");
-    return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
-  } catch {
-    return [];
-  }
-}
 
 function machineDot(state: Instance["state"]): string {
   if (state === "connected") return "bg-success";
@@ -111,11 +97,9 @@ export function WorkspacePicker({
   const [newName, setNewName] = useState("");
   const [creating, setCreating] = useState(false);
   const [newError, setNewError] = useState<string | null>(null);
-  const panel = useModalFocus<HTMLDivElement>();
   const inputRef = useRef<HTMLInputElement>(null);
   const crumbsRef = useRef<HTMLDivElement>(null);
   const rowsRef = useRef<(HTMLButtonElement | null)[]>([]);
-  const pressedBackdrop = useRef(false);
   const editing = useRef(false);
 
   const selectedMachine = instances.find((item) => item.id === machine);
@@ -206,7 +190,7 @@ export function WorkspacePicker({
         setBrowseError(
           cause instanceof ApiError && cause.status === 404
             ? "This folder does not exist anymore."
-            : messageOf(cause),
+            : messageOf(cause, "Could not load folders"),
         );
       })
       .finally(() => {
@@ -354,7 +338,7 @@ export function WorkspacePicker({
       setNewName("");
       onPick(created.path, machine);
     } catch (cause) {
-      setNewError(messageOf(cause));
+      setNewError(messageOf(cause, "Could not load folders"));
     } finally {
       setCreating(false);
     }
@@ -423,31 +407,20 @@ export function WorkspacePicker({
     </button>
   ));
 
-  const body = (
-    <div
-      ref={panel}
-      role={onClose ? "dialog" : undefined}
-      aria-modal={onClose ? true : undefined}
-      aria-label={onClose ? "Choose a workspace" : undefined}
-      tabIndex={-1}
-      onClick={onClose ? (event) => event.stopPropagation() : undefined}
-      className="overlay-modal bg-background border-border relative flex max-h-[calc(100dvh-2rem)] w-full max-w-xl flex-col overflow-hidden rounded-xl border shadow-xl outline-none"
-    >
-      <div className="border-border flex items-center gap-2 border-b px-4 py-3">
-        <Folder className="text-muted-foreground size-4" />
-        <div className="min-w-0 flex-1">
-          <div className="text-sm font-semibold">Choose a workspace</div>
-          <div className="text-muted-foreground text-[11px]">
-            Every chat is scoped to one directory for its lifetime.
-          </div>
+  const title = (
+    <>
+      <Folder className="text-muted-foreground size-4" />
+      <div className="min-w-0 flex-1">
+        <div className="text-sm font-semibold">Choose a workspace</div>
+        <div className="text-muted-foreground text-[11px]">
+          Every chat is scoped to one directory for its lifetime.
         </div>
-        {onClose && (
-          <Button variant="ghost" size="icon-sm" onClick={onClose} aria-label="Close">
-            <X />
-          </Button>
-        )}
       </div>
+    </>
+  );
 
+  const content = (
+    <>
       <div className="border-border flex flex-wrap items-center gap-1 border-b px-3 py-2">
         <span className="text-muted-foreground mr-1 text-[10px] uppercase tracking-wide">
           Machine
@@ -779,29 +752,29 @@ export function WorkspacePicker({
             : `Recent folders on ${machineName}. Use Browse for the file manager.`}
         </p>
       </div>
-    </div>
+    </>
   );
 
   if (onClose) {
     return (
-      <div
-        className="overlay-backdrop fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
-        onPointerDown={(event) => {
-          pressedBackdrop.current = event.target === event.currentTarget;
-        }}
-        onClick={() => {
-          if (pressedBackdrop.current) onClose();
-        }}
+      <Modal
+        label="Choose a workspace"
+        title={title}
+        onClose={onClose}
+        panelClassName="relative max-w-xl"
       >
-        {body}
-      </div>
+        {content}
+      </Modal>
     );
   }
 
   return (
     <div className="overlay-context bg-background relative flex h-full items-center justify-center overflow-hidden p-4">
       <Scene variant={variant} motion={motion} />
-      {body}
+      <div className="overlay-modal bg-background border-border relative flex max-h-[calc(100dvh-2rem)] w-full max-w-xl flex-col overflow-hidden rounded-xl border shadow-xl outline-none">
+        <div className="border-border flex items-center gap-2 border-b px-4 py-3">{title}</div>
+        {content}
+      </div>
     </div>
   );
 }

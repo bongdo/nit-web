@@ -21,7 +21,7 @@ func testAuthGate(t *testing.T) (*authGate, []byte) {
 	t.Setenv("NIT_GATE_KEY", keyPath)
 	t.Setenv("NIT_GUI_PUBLIC_HOST", "frankfurt.tailf358cb.ts.net")
 	t.Setenv("NIT_GUI_BASE_PATH", "")
-	return newAuthGate(nil), secret
+	return newAuthGate(), secret
 }
 
 func signedIdentity(secret []byte, expires time.Time) string {
@@ -100,6 +100,15 @@ func TestPrivatePathNeedsGateCookie(t *testing.T) {
 	if rec.Code != http.StatusOK || !reached {
 		t.Fatalf("gate header status = %d, reached = %v", rec.Code, reached)
 	}
+
+	reached = false
+	preview := authRequest("/api/sessions")
+	preview.AddCookie(&http.Cookie{Name: gateSessionCookie, Value: signedIdentity(secret, time.Now().Add(time.Hour))})
+	rec = httptest.NewRecorder()
+	handler.ServeHTTP(rec, preview)
+	if rec.Code != http.StatusOK || !reached {
+		t.Fatalf("gate session status = %d, reached = %v", rec.Code, reached)
+	}
 }
 
 func TestAuthRejectsForgedOrStaleCookie(t *testing.T) {
@@ -146,7 +155,7 @@ func TestAuthDisabledWithoutPublicHost(t *testing.T) {
 	}
 	t.Setenv("NIT_GATE_KEY", keyPath)
 	t.Setenv("NIT_GUI_PUBLIC_HOST", "")
-	gate := newAuthGate(nil)
+	gate := newAuthGate()
 	if gate.enabled {
 		t.Fatal("local instance without a public host requires a gate session")
 	}

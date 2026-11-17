@@ -239,6 +239,21 @@ export function allowedWord(word: string): boolean {
   return ALL_CAPS_LATIN.test(word);
 }
 
+export function primaryLanguage(text: string): "ru" | "en" {
+  return /\p{Script=Cyrillic}/u.test(text) ? "ru" : "en";
+}
+
+export function languageChecker(checker: SpellChecker, language: "ru" | "en"): SpellChecker {
+  const foreign = (word: string) => {
+    const own = languageOf(word);
+    return own !== null && own !== "mixed" && own !== language;
+  };
+  return {
+    correct: (word) => foreign(word) || checker.correct(word),
+    suggest: (word) => (foreign(word) ? [] : checker.suggest(word)),
+  };
+}
+
 function skippable(word: string): boolean {
   if (word.length > 64) return true;
   if (DIGIT_OR_UNDERSCORE.test(word)) return true;

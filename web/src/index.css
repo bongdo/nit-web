@@ -831,31 +831,6 @@
     }
   }
 
-  .sidebar-sheen-badge {
-    overflow: hidden;
-  }
-
-  .sidebar-sheen-badge-settle {
-    animation: sidebar-sheen-badge-settle 620ms cubic-bezier(0.22, 0.7, 0.2, 1) both;
-  }
-
-  .sidebar-sheen-badge-settle::after {
-    content: "";
-    position: absolute;
-    inset: 0;
-    border-radius: inherit;
-    pointer-events: none;
-    background: linear-gradient(
-      100deg,
-      transparent 38%,
-      color-mix(in oklab, white 55%, var(--success)) 48%,
-      color-mix(in oklab, white 18%, var(--success)) 52%,
-      transparent 62%
-    );
-    transform: translateX(-120%);
-    animation: sidebar-sheen-sweep 780ms cubic-bezier(0.22, 0.7, 0.2, 1) both;
-  }
-
   .sidebar-sheen-search-count-in {
     animation: sidebar-sheen-fade 180ms ease-out both;
   }
@@ -1077,29 +1052,6 @@
     }
   }
 
-  @keyframes sidebar-sheen-sweep {
-    from {
-      transform: translateX(-120%);
-    }
-    to {
-      transform: translateX(120%);
-    }
-  }
-
-  @keyframes sidebar-sheen-badge-settle {
-    0% {
-      color: var(--success);
-      transform: scale(0.94);
-    }
-    60% {
-      color: var(--success);
-      transform: scale(1.02);
-    }
-    100% {
-      transform: scale(1);
-    }
-  }
-
   @keyframes sidebar-sheen-scope-in {
     from {
       opacity: 0.2;
@@ -1112,8 +1064,6 @@
   }
 
   @media (prefers-reduced-motion: reduce) {
-    .sidebar-sheen-badge-settle,
-    .sidebar-sheen-badge-settle::after,
     .sidebar-sheen-search-count-in,
     .sidebar-sheen-scope-in {
       animation: none;
@@ -1620,18 +1570,6 @@
     animation: chrome-sheen-error-progress 10s linear both;
   }
 
-  .chrome-sheen-chip {
-    position: relative;
-  }
-
-  .chrome-sheen-chip-in {
-    animation: chrome-sheen-chip-in 240ms cubic-bezier(0.22, 0.7, 0.2, 1) both;
-  }
-
-  .chrome-sheen-chip-out {
-    animation: chrome-sheen-chip-out 240ms cubic-bezier(0.22, 0.7, 0.2, 1) both;
-  }
-
   .chrome-sheen-health {
     position: relative;
     overflow: hidden;
@@ -1702,8 +1640,6 @@
     .chrome-sheen-latest::after,
     .chrome-sheen-error::after,
     .chrome-sheen-error-progress,
-    .chrome-sheen-chip-in,
-    .chrome-sheen-chip-out,
     .chrome-sheen-health-offline::before,
     .chrome-sheen-health-sweep,
     .chrome-sheen-empty::before {
@@ -1713,7 +1649,6 @@
     .chrome-sheen-context-sweep,
     .chrome-sheen-latest::after,
     .chrome-sheen-error::after,
-    .chrome-sheen-chip-out,
     .chrome-sheen-health-sweep {
       opacity: 0;
     }
@@ -1805,24 +1740,6 @@
     }
   }
 
-  @keyframes chrome-sheen-chip-in {
-    from {
-      opacity: 0;
-    }
-    to {
-      opacity: 1;
-    }
-  }
-
-  @keyframes chrome-sheen-chip-out {
-    from {
-      opacity: 1;
-    }
-    to {
-      opacity: 0;
-    }
-  }
-
   @keyframes chrome-sheen-health-breathe {
     0%,
     100% {
@@ -1899,18 +1816,13 @@
     animation: form-sheen-done 780ms cubic-bezier(0.22, 0.7, 0.2, 1) both;
   }
 
-  .form-sheen-option,
-  .form-sheen-chosen {
+  .form-sheen-option {
     position: relative;
     isolation: isolate;
-  }
-
-  .form-sheen-option {
     overflow: hidden;
   }
 
-  .form-sheen-option::after,
-  .form-sheen-chosen::after {
+  .form-sheen-option::after {
     content: "";
     position: absolute;
     z-index: -1;
@@ -1931,17 +1843,6 @@
 
   .form-sheen-option:has(input:checked)::after {
     animation: form-sheen-ripple 300ms cubic-bezier(0.22, 0.7, 0.2, 1) both;
-  }
-
-  .form-sheen-chosen::after {
-    inset: -2px;
-    transform-origin: 0.3rem 55%;
-    background: radial-gradient(
-      circle at 0.3rem 55%,
-      color-mix(in oklab, var(--success) 26%, transparent),
-      transparent 70%
-    );
-    animation: form-sheen-ripple 340ms cubic-bezier(0.22, 0.7, 0.2, 1) both;
   }
 
   .form-sheen-check {
@@ -2015,7 +1916,6 @@
     .form-sheen-waiting::after,
     .form-sheen-card.form-sheen-done::after,
     .form-sheen-option:has(input:checked)::after,
-    .form-sheen-chosen::after,
     .form-sheen-check,
     .ask-sheen-chip,
     .attach-sheen-chip,

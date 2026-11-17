@@ -1,8 +1,16 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { StreamEvent } from "../lib/types";
 import { appPath } from "../lib/base";
+import { streamDelta } from "../lib/instances";
 
 export type StreamStatus = "connecting" | "online" | "offline";
+
+type Streams = {
+  closed: boolean;
+  sources: Map<string, EventSource>;
+  timers: Map<string, number>;
+  retry: Record<string, number>;
+};
 
 export function useEventStream(
   onEvent: (event: StreamEvent, instance: string) => void,
@@ -18,28 +26,31 @@ export function useEventStream(
     () => [...new Set(instances.filter(Boolean))].sort().join("|"),
     [instances],
   );
+  const streams = useRef<Streams>({
+    closed: true,
+    sources: new Map(),
+    timers: new Map(),
+    retry: {},
+  });
+  const connected = useRef<string[]>([]);
 
-  useEffect(() => {
-    const ids = key ? key.split("|") : [];
-    const sources = new Map<string, EventSource>();
-    const timers = new Map<string, number>();
-    const retry: Record<string, number> = {};
-    let closed = false;
+  const setStatus = useCallback((id: string, status: StreamStatus) => {
+    setStatuses((previous) =>
+      previous[id] === status ? previous : { ...previous, [id]: status },
+    );
+  }, []);
 
-    const setStatus = (id: string, status: StreamStatus) =>
-      setStatuses((previous) =>
-        previous[id] === status ? previous : { ...previous, [id]: status },
-      );
-
-    const connect = (id: string) => {
-      if (closed) return;
+  const connect = useCallback(
+    (id: string) => {
+      const current = streams.current;
+      if (current.closed) return;
       setStatus(id, "connecting");
       const source = new EventSource(
         appPath(`/api/events?instance=${encodeURIComponent(id)}`),
       );
-      sources.set(id, source);
+      current.sources.set(id, source);
       source.onopen = () => {
-        retry[id] = 0;
+        current.retry[id] = 0;
         setStatus(id, "online");
         openRef.current?.(id);
       };
@@ -52,29 +63,64 @@ export function useEventStream(
         }
       };
       source.onerror = () => {
-        if (sources.get(id) !== source) return;
+        if (current.sources.get(id) !== source) return;
         setStatus(id, "offline");
         source.close();
-        sources.delete(id);
-        const attempt = retry[id] ?? 0;
-        retry[id] = attempt + 1;
+        current.sources.delete(id);
+        const attempt = current.retry[id] ?? 0;
+        current.retry[id] = attempt + 1;
         const base = 500 * 2 ** attempt;
         const delay = Math.min(8_000, Math.round(base * (0.7 + Math.random() * 0.6)));
         const timer = window.setTimeout(() => {
-          timers.delete(id);
+          current.timers.delete(id);
           connect(id);
         }, delay);
-        timers.set(id, timer);
+        current.timers.set(id, timer);
       };
-    };
+    },
+    [setStatus],
+  );
 
-    for (const id of ids) connect(id);
+  useEffect(() => {
+    const current = streams.current;
+    current.closed = false;
+    const next = key ? key.split("|") : [];
+    const { open, close } = streamDelta(connected.current, next);
+    for (const id of close) {
+      const source = current.sources.get(id);
+      if (source) {
+        source.close();
+        current.sources.delete(id);
+      }
+      const timer = current.timers.get(id);
+      if (timer !== undefined) {
+        window.clearTimeout(timer);
+        current.timers.delete(id);
+      }
+      delete current.retry[id];
+    }
+    for (const id of open) connect(id);
+    if (close.length > 0) {
+      setStatuses((previous) => {
+        const copy = { ...previous };
+        for (const id of close) delete copy[id];
+        return copy;
+      });
+    }
+    connected.current = next;
+  }, [key, connect]);
+
+  useEffect(() => {
     return () => {
-      closed = true;
-      for (const timer of timers.values()) window.clearTimeout(timer);
-      for (const source of sources.values()) source.close();
+      const current = streams.current;
+      current.closed = true;
+      for (const timer of current.timers.values()) window.clearTimeout(timer);
+      current.timers.clear();
+      for (const source of current.sources.values()) source.close();
+      current.sources.clear();
+      connected.current = [];
     };
-  }, [key]);
+  }, []);
 
   return statuses;
 }

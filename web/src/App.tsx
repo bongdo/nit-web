@@ -33,6 +33,7 @@ import {
   eventSessionID,
   lightenEvent,
   lightMessages,
+  MAX_RETRY_ATTEMPTS,
   normalizeMessages,
   planRetry,
   retryDelay,
@@ -53,6 +54,7 @@ import {
 } from "./lib/format";
 import { questionFields } from "./lib/forms";
 import {
+  dropSettledStatus,
   groupSessions,
   hiddenLookup,
   listedSessions,
@@ -80,6 +82,7 @@ import { cn } from "./lib/utils";
 import { cachedSessions, readBoot, seedBootSession, writeBoot } from "./lib/bootCache";
 import { instanceScopedKey } from "./lib/instances";
 import { saveDraftFiles } from "./lib/draft-files";
+import { messageOf } from "./lib/errors";
 import { parseSnooze, pendingCount, snoozeItem, type SnoozeMap } from "./lib/review";
 import type { TimeFormat } from "./lib/time";
 import { useAttention } from "./hooks/useAttention";
@@ -103,11 +106,6 @@ import { Button } from "./components/ui/button";
 
 const DOUBLE_ESCAPE_MS = 500;
 const TAIL_LIMIT = 50;
-
-function messageOf(error: unknown): string {
-  if (error instanceof Error && error.message) return error.message;
-  return "Something went wrong";
-}
 
 const LEGACY_HIDDEN_KEY = "nit-gui.hidden";
 const UI_MIGRATED_KEY = "nit-gui.ui-migrated";
@@ -293,6 +291,8 @@ export default function App({
   const failedIdsRef = useRef(failedIds);
   failedIdsRef.current = failedIds;
   const pendingStatus = useRef<Map<string, Set<string>>>(new Map());
+  const statusRef = useRef(statusByInstance);
+  statusRef.current = statusByInstance;
   const [notifyOn, setNotifyOn] = useState(() => localStorage.getItem("nit-gui.notify") === "on");
   const [uiReady, setUiReady] = useState(false);
   const [hiddenByInstance, setHiddenByInstance] = useState<HiddenIndex>({});
@@ -414,12 +414,14 @@ export default function App({
       if (status === "done") done.add(id);
       else if (status === "failed") failed.add(id);
     }
+    const pending = pendingStatus.current.get(instance);
+    if (pending) dropSettledStatus({ done, failed }, statusRef.current[instance] ?? NO_STATUS, pending);
     setStatusByInstance((previous) => {
       const local = previous[instance];
       const status = withLocalStatus(
         { done, failed },
         local ?? NO_STATUS,
-        pendingStatus.current.get(instance) ?? NO_IDS,
+        pending ?? NO_IDS,
       );
       if (local && sameStatus(local, status)) return previous;
       return { ...previous, [instance]: status };
@@ -702,10 +704,12 @@ export default function App({
             else if (status === "failed") failed.add(id);
           }
           const before = previous[pool.instance];
+          const pending = pendingStatus.current.get(pool.instance);
+          if (pending) dropSettledStatus({ done, failed }, before ?? NO_STATUS, pending);
           const status = withLocalStatus(
             { done, failed },
             before ?? NO_STATUS,
-            pendingStatus.current.get(pool.instance) ?? NO_IDS,
+            pending ?? NO_IDS,
           );
           if (before && sameStatus(before, status)) continue;
           next[pool.instance] = status;
@@ -947,10 +951,9 @@ export default function App({
       if (selectedIdRef.current !== id) return;
       formsOwnerRef.current = id;
       setForms(data);
-    } catch {
+    } catch (error) {
       if (selectedIdRef.current !== id) return;
-      formsOwnerRef.current = id;
-      setForms([]);
+      setBanner(messageOf(error));
     }
   }, []);
 
@@ -966,10 +969,9 @@ export default function App({
       if (selectedIdRef.current !== id) return;
       permissionsOwnerRef.current = id;
       setPermissions(data);
-    } catch {
+    } catch (error) {
       if (selectedIdRef.current !== id) return;
-      permissionsOwnerRef.current = id;
-      setPermissions([]);
+      setBanner(messageOf(error));
     }
   }, []);
 
@@ -1768,6 +1770,12 @@ export default function App({
     ) => {
       clearRetry(sessionID);
       const run = (attempt: number) => {
+        if (attempt > MAX_RETRY_ATTEMPTS) {
+          clearRetry(sessionID);
+          markFailed(sessionID, owner);
+          setBanner(`Upstream is still overloaded after ${MAX_RETRY_ATTEMPTS} retries.`);
+          return;
+        }
         const delay = retryDelay(attempt, plan.retryAfterMs);
         retryAttempts.current[sessionID] = attempt;
         setBanner(
@@ -1786,7 +1794,7 @@ export default function App({
       };
       run(start);
     },
-    [clearRetry, instance],
+    [clearRetry, instance, markFailed],
   );
 
   useEffect(() => {
@@ -1887,15 +1895,17 @@ export default function App({
           mine && sessionID === selectedIdRef.current
             ? messagesRef.current
             : (transcriptCache.getFor(owner, sessionID)?.messages ?? []);
+        const attempt = (retryAttempts.current[sessionID] ?? 0) + 1;
         const plan = planRetry(
           known,
           data.error as Message["error"] | undefined,
-          (retryAttempts.current[sessionID] ?? 0) + 1,
+          attempt,
+          typeof data.assistantMessageID === "string" ? data.assistantMessageID : undefined,
         );
         if (plan) {
           clearFailed(sessionID, owner);
           clearDone(sessionID, owner);
-          scheduleRetry(sessionID, plan, 1, owner);
+          scheduleRetry(sessionID, plan, attempt, owner);
         } else {
           markFailed(sessionID, owner);
         }
@@ -2068,24 +2078,10 @@ export default function App({
       firstStreamOpen.current = false;
       return;
     }
-    const selected = selectedIdRef.current;
-    const keep = selected ? transcriptCache.get(selected) : undefined;
-    transcriptCache.clear();
-    if (selected && keep) transcriptCache.set(selected, keep);
-    void (async () => {
-      const wasOk = healthRef.current?.ok;
-      const result = await loadHealth();
-      if (result.ok && !wasOk) {
-        void loadCatalog();
-        void loadProjects();
-      }
-    })();
-    void loadSessions();
-    void loadChildren();
+    reloadSelected();
+    void loadSessions(false);
     void loadForms();
     void loadPermissions();
-    void loadUiState();
-    reloadSelected();
   };
 
   const streamInstances = useMemo(() => {

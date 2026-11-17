@@ -138,10 +138,13 @@ export function eventSessionID(event: StreamEvent): string {
   return typeof form?.sessionID === "string" ? form.sessionID : "";
 }
 
+export const MAX_RETRY_ATTEMPTS = 5;
+
 export function planRetry(
   messages: Message[],
   error: Message["error"] | undefined,
   attempt: number,
+  assistantMessageID?: string,
 ): {
   id: string;
   text: string;
@@ -150,7 +153,12 @@ export function planRetry(
   retryAfterMs?: number;
 } | null {
   if (!isRetryableFailure(error)) return null;
-  const user = [...messages].reverse().find((item) => item.type === "user");
+  if (attempt > MAX_RETRY_ATTEMPTS) return null;
+  const failedAt = assistantMessageID
+    ? messages.findIndex((item) => item.id === assistantMessageID)
+    : -1;
+  const turn = failedAt >= 0 ? messages.slice(0, failedAt) : messages;
+  const user = [...turn].reverse().find((item) => item.type === "user");
   if (!user?.id || user.id.startsWith("local-")) return null;
   const files = (user.files ?? []).flatMap((file) =>
     typeof file.uri === "string" ? [{ uri: file.uri, name: file.name }] : [],

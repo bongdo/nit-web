@@ -230,6 +230,29 @@ describe("provider retry", () => {
     expect(planRetry([], overloaded, 1)).toBeNull();
   });
 
+  it("retries the prompt of the failed turn, not the newest one", () => {
+    const first = { ...user, id: "msg_first", text: "first prompt" };
+    const second = { ...user, id: "msg_second", text: "second prompt" };
+    const failed = { id: "msg_a1", type: "assistant" as const, time: { created: 2 } };
+    const messages: Message[] = [
+      first,
+      failed,
+      second,
+      { id: "msg_a2", type: "assistant", time: { created: 4 } },
+    ];
+
+    expect(planRetry(messages, overloaded, 1, "msg_a1")?.text).toBe("first prompt");
+    expect(planRetry(messages, overloaded, 1, "msg_a1")?.id).toBe("msg_first");
+    expect(planRetry(messages, overloaded, 1, "msg_a2")?.text).toBe("second prompt");
+    expect(planRetry(messages, overloaded, 1, "msg_missing")?.text).toBe("second prompt");
+  });
+
+  it("stops scheduling retries after the fifth attempt", () => {
+    const messages: Message[] = [user, { id: "msg_a1", type: "assistant", time: { created: 2 } }];
+    expect(planRetry(messages, overloaded, 5, "msg_a1")).not.toBeNull();
+    expect(planRetry(messages, overloaded, 6, "msg_a1")).toBeNull();
+  });
+
   it("backs off exponentially and caps the wait", () => {
     expect(retryDelay(1)).toBe(2_000);
     expect(retryDelay(2)).toBe(4_000);

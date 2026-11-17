@@ -38,11 +38,3 @@ export function saveDraftState(
     }
   } catch {}
 }
-
-export function loadDraft(key: string, storage: ReadStorage = localStorage): string {
-  return loadDraftState(key, storage).text;
-}
-
-export function saveDraft(key: string, value: string, storage: WriteStorage = localStorage): void {
-  saveDraftState(key, value, Date.now(), storage);
-}

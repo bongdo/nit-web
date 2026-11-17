@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import nspell from "nspell";
 import { describe, expect, it } from "vitest";
+import { RESTART_GUARD_MS, restartAllowed } from "./spell-client";
 import {
   addsOnlyPunctuation,
   allowedWord,
@@ -13,6 +14,7 @@ import {
   hidePending,
   issueAtCaret,
   keepStale,
+  languageChecker,
   languageOf,
   levenshtein,
   maskCode,
@@ -20,6 +22,7 @@ import {
   mergeIssues,
   pendingWord,
   prefixMatches,
+  primaryLanguage,
   punctuationFix,
   safeAutoFix,
   sortWords,
@@ -417,5 +420,33 @@ describe("spell", () => {
     expect(fixIntact({ start: 2, replacement: "грамматики" }, "я грамматики")).toBe(true);
     expect(fixIntact({ start: 2, replacement: "грамматики" }, "я грамматик")).toBe(false);
     expect(fixIntact({ start: 2, replacement: "грамматики" }, "ты грамматики")).toBe(false);
+  });
+});
+
+describe("dictionary choice", () => {
+  it("picks the dictionary from the first text that arrives", () => {
+    expect(primaryLanguage("привет мир")).toBe("ru");
+    expect(primaryLanguage("hello world")).toBe("en");
+    expect(primaryLanguage("hello, привет")).toBe("ru");
+    expect(primaryLanguage("")).toBe("en");
+  });
+
+  it("ignores words of the dictionary that was not loaded", () => {
+    const checker = { correct: () => false, suggest: () => ["fix"] };
+    const ru = languageChecker(checker, "ru");
+    const en = languageChecker(checker, "en");
+
+    expect(ru.correct("привет")).toBe(false);
+    expect(ru.correct("hello")).toBe(true);
+    expect(ru.suggest("hello")).toEqual([]);
+    expect(ru.suggest("привет")).toEqual(["fix"]);
+    expect(en.correct("привет")).toBe(true);
+    expect(en.correct("hello")).toBe(false);
+  });
+
+  it("allows one worker restart after the guard window", () => {
+    expect(restartAllowed(0, 1_000)).toBe(true);
+    expect(restartAllowed(1_000, 1_000 + RESTART_GUARD_MS - 1)).toBe(false);
+    expect(restartAllowed(1_000, 1_000 + RESTART_GUARD_MS)).toBe(true);
   });
 });

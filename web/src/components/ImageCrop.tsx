@@ -1,8 +1,8 @@
-import { useRef, useState, type KeyboardEvent, type PointerEvent } from "react";
-import { Crop, Loader2, RotateCcw, X } from "lucide-react";
+import { useEffect, useRef, useState, type PointerEvent } from "react";
+import { Crop, Loader2, RotateCcw } from "lucide-react";
 import { cropBox, cropFile, cropReady, type CropBox } from "../lib/crop";
-import { useModalFocus } from "../hooks/useModalFocus";
 import { Button } from "./ui/button";
+import { Modal } from "./ui/Modal";
 
 const STEP = 0.02;
 
@@ -27,7 +27,6 @@ export function ImageCrop({
   onApply: (file: File) => void;
   onClose: () => void;
 }) {
-  const panel = useModalFocus<HTMLDivElement>();
   const frame = useRef<HTMLDivElement>(null);
   const anchor = useRef<{ x: number; y: number } | null>(null);
   const [box, setBox] = useState<CropBox | null>(null);
@@ -55,49 +54,34 @@ export function ImageCrop({
     }
   };
 
-  const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
-    if (event.key === "Escape") {
-      event.stopPropagation();
-      onClose();
-      return;
-    }
-    const dx =
-      event.key === "ArrowLeft" ? -STEP : event.key === "ArrowRight" ? STEP : 0;
-    const dy = event.key === "ArrowUp" ? -STEP : event.key === "ArrowDown" ? STEP : 0;
-    if (!dx && !dy) return;
-    event.preventDefault();
-    setBox((current) => {
-      const base = current ?? { left: 0.05, top: 0.05, right: 0.95, bottom: 0.95 };
-      if (!event.shiftKey) return moved(base, dx, dy);
-      return cropBox(
-        { x: base.left, y: base.top },
-        { x: base.right + dx, y: base.bottom + dy },
-      );
-    });
-  };
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      const dx =
+        event.key === "ArrowLeft" ? -STEP : event.key === "ArrowRight" ? STEP : 0;
+      const dy = event.key === "ArrowUp" ? -STEP : event.key === "ArrowDown" ? STEP : 0;
+      if (!dx && !dy) return;
+      event.preventDefault();
+      setBox((current) => {
+        const base = current ?? { left: 0.05, top: 0.05, right: 0.95, bottom: 0.95 };
+        if (!event.shiftKey) return moved(base, dx, dy);
+        return cropBox(
+          { x: base.left, y: base.top },
+          { x: base.right + dx, y: base.bottom + dy },
+        );
+      });
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
 
   return (
-    <div
-      className="overlay-backdrop fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
-      onClick={onClose}
+    <Modal
+      label={`Crop ${name}`}
+      closeLabel="Close crop"
+      title={<h2 className="min-w-0 flex-1 truncate text-sm font-semibold">Crop {name}</h2>}
+      onClose={onClose}
+      panelClassName="max-w-2xl"
     >
-      <div
-        ref={panel}
-        role="dialog"
-        aria-modal="true"
-        aria-label={`Crop ${name}`}
-        tabIndex={-1}
-        onClick={(event) => event.stopPropagation()}
-        onKeyDown={onKeyDown}
-        className="overlay-modal bg-background border-border flex max-h-[calc(100dvh-2rem)] w-full max-w-2xl flex-col overflow-hidden rounded-xl border shadow-xl outline-none"
-      >
-        <div className="border-border flex items-center gap-2 border-b px-4 py-3">
-          <h2 className="min-w-0 flex-1 truncate text-sm font-semibold">Crop {name}</h2>
-          <Button variant="ghost" size="icon-sm" onClick={onClose} aria-label="Close crop">
-            <X />
-          </Button>
-        </div>
-
         <div className="scrollbar-thin flex min-h-0 flex-1 justify-center overflow-auto p-3">
           <div
             ref={frame}
@@ -165,7 +149,6 @@ export function ImageCrop({
             </Button>
           </div>
         </div>
-      </div>
-    </div>
+    </Modal>
   );
 }

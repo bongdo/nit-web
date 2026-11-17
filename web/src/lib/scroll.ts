@@ -33,17 +33,3 @@ export function shouldLoadEarlier({
   if (pull) return isAtTop(scrollTop);
   return scrollTop < EARLIER_THRESHOLD || scrollHeight <= clientHeight + EARLIER_THRESHOLD;
 }
-
-export function needsEarlier(
-  scrollTop: number,
-  scrollHeight: number,
-  clientHeight: number,
-): boolean {
-  return shouldLoadEarlier({
-    scrollTop,
-    scrollHeight,
-    clientHeight,
-    hasEarlier: true,
-    loading: false,
-  });
-}

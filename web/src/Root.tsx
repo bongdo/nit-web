@@ -2,16 +2,12 @@ import { useCallback, useEffect, useState } from "react";
 import App from "./App";
 import { api } from "./lib/api";
 import { prefetchBoot } from "./lib/bootCache";
+import { messageOf } from "./lib/errors";
 import { appLabel } from "./lib/instances";
 import type { InstancesResponse } from "./lib/types";
 import { InstancesMenu } from "./components/InstancesMenu";
 
 const CACHE_KEY = "nit-gui.instances.v1";
-
-function messageOf(error: unknown): string {
-  if (error instanceof Error && error.message) return error.message;
-  return "Could not load instances";
-}
 
 function readCached(): InstancesResponse | null {
   try {
@@ -50,7 +46,7 @@ export default function Root() {
       setActive(next);
       localStorage.setItem("nit-gui.instance", next);
     } catch (cause) {
-      setError(messageOf(cause));
+      setError(messageOf(cause, "Could not load instances"));
     }
   }, []);
 
@@ -68,7 +64,7 @@ export default function Root() {
         result.instances.some((item) => item.id === current) ? current : result.default,
       );
     } catch (cause) {
-      setError(messageOf(cause));
+      setError(messageOf(cause, "Could not load instances"));
     }
   }, []);
 

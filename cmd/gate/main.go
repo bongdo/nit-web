@@ -128,21 +128,31 @@ func resetTOTP(args []string) error {
 	if err := users.ClearTOTP(args[0]); err != nil {
 		return err
 	}
-	reloadGate()
+	if err := reloadGate(); err != nil {
+		return fmt.Errorf("2FA cleared in users.json, but the gate did not reload: %w", err)
+	}
 	fmt.Println("2FA off for", args[0])
 	return nil
 }
 
-func reloadGate() {
+func reloadGate() error {
 	out, err := exec.Command("pgrep", "-f", `\.cache/gate --addr`).Output()
 	if err != nil {
-		return
+		return errors.New("gate process not found")
 	}
+	pids := 0
 	for _, field := range strings.Fields(string(out)) {
 		pid, err := strconv.Atoi(field)
 		if err != nil {
 			continue
 		}
-		_ = syscall.Kill(pid, syscall.SIGHUP)
+		if err := syscall.Kill(pid, syscall.SIGHUP); err != nil {
+			return fmt.Errorf("signal %d: %w", pid, err)
+		}
+		pids++
 	}
+	if pids == 0 {
+		return errors.New("gate process not found")
+	}
+	return nil
 }

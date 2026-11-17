@@ -28,6 +28,7 @@ var (
 	ErrNotFound    = errors.New("drop entry not found")
 	ErrSlugTaken   = errors.New("drop slug already in use")
 	ErrInvalidSlug = errors.New("invalid drop slug")
+	ErrStorePath   = errors.New("the drop store cannot be published")
 )
 
 type File struct {
@@ -504,6 +505,17 @@ type PublishOptions struct {
 }
 
 func (s *Store) PublishPath(src, name string, opts PublishOptions) (Entry, error) {
+	src, err := filepath.Abs(src)
+	if err != nil {
+		return Entry{}, err
+	}
+	root := filepath.Clean(s.root)
+	if abs, err := filepath.Abs(root); err == nil {
+		root = abs
+	}
+	if src == root || strings.HasPrefix(src, root+string(os.PathSeparator)) {
+		return Entry{}, ErrStorePath
+	}
 	info, err := os.Stat(src)
 	if err != nil {
 		return Entry{}, err
@@ -539,6 +551,9 @@ func (s *Store) PublishPath(src, name string, opts PublishOptions) (Entry, error
 		}
 		if current == src {
 			return nil
+		}
+		if current == root {
+			return filepath.SkipDir
 		}
 		if item.Type()&fs.ModeSymlink != 0 {
 			if item.IsDir() {
@@ -768,7 +783,7 @@ func (s *Store) slugTakenLocked(slug, exceptID string) bool {
 }
 
 func uniqueSlug(used map[string]string, base string) string {
-	base = slugBaseValue(base)
+	base = usableSlug(base)
 	if used[base] == "" {
 		return base
 	}
@@ -796,6 +811,14 @@ func slugBaseValue(value string) string {
 	value = Slugify(value)
 	if value == "" {
 		value = "drop"
+	}
+	return value
+}
+
+func usableSlug(value string) string {
+	value = slugBaseValue(value)
+	if !validSlug(value) {
+		return "drop"
 	}
 	return value
 }
@@ -845,7 +868,7 @@ func PublicPath(rest string) bool {
 }
 
 func validSlug(value string) bool {
-	if value == "" || len(value) > 64 || ReservedSlug(value) {
+	if value == "" || len(value) > 64 || ReservedSlug(value) || validID(value) {
 		return false
 	}
 	for _, r := range value {
@@ -904,7 +927,7 @@ func sameEntryData(left, right Entry) bool {
 func (s *Store) cleanOrphan(id string, now time.Time) {
 	dir := filepath.Join(s.root, id)
 	info, err := os.Stat(dir)
-	if err != nil || now.Sub(info.ModTime()) < time.Hour {
+	if err != nil || now.Sub(info.ModTime()) < 24*time.Hour {
 		return
 	}
 	_ = os.RemoveAll(dir)
@@ -1052,7 +1075,7 @@ func (b *Builder) Commit() (Entry, error) {
 }
 
 func (s *Store) uniqueSlugLocked(base string) string {
-	base = slugBaseValue(base)
+	base = usableSlug(base)
 	if !s.slugTakenLocked(base, "") {
 		return base
 	}

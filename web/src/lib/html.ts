@@ -16,7 +16,8 @@ export function looksLikeHtml(text: string): boolean {
 export function isPureHtml(text: string): boolean {
   const trimmed = text.trim();
   if (!looksLikeHtml(trimmed)) return false;
-  return /^<(?!!--)(?:!doctype\s+html|html[\s>]|[a-z][\w-]*[\s>/])/i.test(trimmed);
+  if (!/^<(?!!--)(?:!doctype\s+html|html[\s>]|[a-z][\w-]*[\s>/])/i.test(trimmed)) return false;
+  return /<\/[a-z][\w:-]*>\s*$/i.test(trimmed);
 }
 
 export function isHtmlLanguage(lang?: string): boolean {

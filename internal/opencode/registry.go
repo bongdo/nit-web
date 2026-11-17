@@ -380,7 +380,7 @@ func localEndpoint(ctx context.Context, spec InstanceSpec) (Endpoint, io.Closer,
 		}
 		ep.Password = pw
 		ep.Refresh = passwordFileRefresh(spec.PasswordFile)
-	case isLoopback(ep.URL):
+	case IsLoopbackURL(ep.URL):
 		if ep.Password == "" {
 			ep.Password = ReadPassword()
 		}
@@ -454,12 +454,13 @@ func (r *Registry) connectSSH(ctx context.Context, spec InstanceSpec) (Endpoint,
 	if err != nil {
 		return Endpoint{}, nil, err
 	}
-	t := newSSHTunnel(exec.CommandContext(r.ctx, "ssh", "-N", "-o", "BatchMode=yes", "-o", "ExitOnForwardFailure=yes",
+	cmd := exec.CommandContext(r.ctx, "ssh", "-N", "-o", "BatchMode=yes", "-o", "ExitOnForwardFailure=yes",
 		"-o", "ServerAliveInterval=15", "-o", "ServerAliveCountMax=3",
-		"-L", fmt.Sprintf("127.0.0.1:%d:127.0.0.1:%s", local, port), host))
-	if err := t.cmd.Start(); err != nil {
+		"-L", fmt.Sprintf("127.0.0.1:%d:127.0.0.1:%s", local, port), host)
+	if err := cmd.Start(); err != nil {
 		return Endpoint{}, nil, fmt.Errorf("ssh %s: tunnel: %w", host, err)
 	}
+	t := newSSHTunnel(cmd)
 	if err := waitPort(ctx, local, 10*time.Second); err != nil {
 		_ = t.Close()
 		return Endpoint{}, nil, fmt.Errorf("ssh %s: tunnel did not open: %w", host, err)
@@ -629,7 +630,7 @@ func passwordFileRefresh(path string) func() (string, bool) {
 	}
 }
 
-func isLoopback(raw string) bool {
+func IsLoopbackURL(raw string) bool {
 	u, err := url.Parse(raw)
 	if err != nil {
 		return false

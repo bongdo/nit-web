@@ -106,6 +106,13 @@ func (s *Server) loginError(w http.ResponseWriter, r *http.Request, next, name, 
 }
 
 func (s *Server) logout(w http.ResponseWriter, r *http.Request) {
+	if cookie, err := r.Cookie(sessionCookie); err == nil {
+		if id, err := gateid.Verify(s.secret, cookie.Value, s.now()); err == nil && id.Dev != "" {
+			if err := s.devices.Remove(id.Dev); err != nil && err != ErrNoDevice {
+				s.log.Warn("gate device remove", "error", err)
+			}
+		}
+	}
 	s.stopSession(w, r)
 	http.Redirect(w, r, "/", http.StatusSeeOther)
 }

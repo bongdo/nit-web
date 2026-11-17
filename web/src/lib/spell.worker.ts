@@ -67,7 +67,10 @@ let cachedLanguage: "ru" | "en" | null = null;
 let cachedIssues: SpellIssue[] = [];
 
 function dictionary(text: string): Promise<Loaded> {
-  const language = primaryLanguage(text);
+  return byLanguage(primaryLanguage(text));
+}
+
+function byLanguage(language: "ru" | "en"): Promise<Loaded> {
   let entry = dictionaries.get(language);
   if (!entry) {
     entry = load(language).catch((error: unknown) => {
@@ -77,6 +80,16 @@ function dictionary(text: string): Promise<Loaded> {
     dictionaries.set(language, entry);
   }
   return entry;
+}
+
+async function checkers(text: string): Promise<[SpellChecker, SpellChecker]> {
+  const primary = primaryLanguage(text);
+  const mixed = /\p{Script=Cyrillic}/u.test(text) && /[A-Za-z]/.test(text);
+  const [ru, en] = await Promise.all([
+    byLanguage(mixed ? "ru" : primary),
+    byLanguage(mixed ? "en" : primary),
+  ]);
+  return [wrap(ru.checker, "ru"), wrap(en.checker, "en")];
 }
 
 scope.postMessage({ type: "ready" });

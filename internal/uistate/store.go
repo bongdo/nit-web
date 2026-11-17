@@ -224,29 +224,46 @@ func (s *Store) SetStatus(instance, id, status string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	state := s.instanceLocked(instance)
+	previous, had := state.Status[id]
 	if status == "" {
 		delete(state.Status, id)
 	} else {
 		state.Status[id] = status
 	}
 	s.state.Instances[instance] = state
-	return s.saveLocked()
+	if err := s.saveLocked(); err != nil {
+		if had {
+			state.Status[id] = previous
+		} else {
+			delete(state.Status, id)
+		}
+		return err
+	}
+	return nil
 }
 
 func (s *Store) SetDraft(instance, key, text string) (Draft, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	state := s.instanceLocked(instance)
+	previous, had := state.Drafts[key]
+	draft := Draft{UpdatedAt: time.Now().UnixMilli()}
 	if text == "" {
-		draft := Draft{UpdatedAt: time.Now().UnixMilli(), Cleared: true}
-		state.Drafts[key] = draft
-		s.state.Instances[instance] = state
-		return draft, s.saveLocked()
+		draft.Cleared = true
+	} else {
+		draft.Text = text
 	}
-	draft := Draft{Text: text, UpdatedAt: time.Now().UnixMilli()}
 	state.Drafts[key] = draft
 	s.state.Instances[instance] = state
-	return draft, s.saveLocked()
+	if err := s.saveLocked(); err != nil {
+		if had {
+			state.Drafts[key] = previous
+		} else {
+			delete(state.Drafts, key)
+		}
+		return Draft{}, err
+	}
+	return draft, nil
 }
 
 func (s *Store) Draft(instance, key string) Draft {
@@ -259,6 +276,7 @@ func (s *Store) SetModel(instance string, model *ModelRef) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	state := s.instanceLocked(instance)
+	previous := state.Model
 	if model == nil {
 		state.Model = nil
 	} else {
@@ -266,16 +284,25 @@ func (s *Store) SetModel(instance string, model *ModelRef) error {
 		state.Model = &clone
 	}
 	s.state.Instances[instance] = state
-	return s.saveLocked()
+	if err := s.saveLocked(); err != nil {
+		state.Model = previous
+		return err
+	}
+	return nil
 }
 
 func (s *Store) SetAgent(instance, agent string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	state := s.instanceLocked(instance)
+	previous := state.Agent
 	state.Agent = agent
 	s.state.Instances[instance] = state
-	return s.saveLocked()
+	if err := s.saveLocked(); err != nil {
+		state.Agent = previous
+		return err
+	}
+	return nil
 }
 
 func (s *Store) Has(instance string) bool {

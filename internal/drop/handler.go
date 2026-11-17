@@ -652,6 +652,14 @@ func (h *Public) service(w http.ResponseWriter, r *http.Request, entry Entry) {
 	proxy.ServeHTTP(w, r)
 }
 
+func gateCookieName(name string) bool {
+	switch strings.ToLower(strings.TrimSpace(name)) {
+	case "nit_gate", "gate_session", "gate_device":
+		return true
+	}
+	return false
+}
+
 func stripServiceHeaders(header http.Header) {
 	header.Del("Authorization")
 	for name := range header {
@@ -671,7 +679,7 @@ func stripServiceHeaders(header http.Header) {
 				continue
 			}
 			name, _, _ := strings.Cut(part, "=")
-			if strings.EqualFold(strings.TrimSpace(name), "nit_gate") {
+			if gateCookieName(name) {
 				continue
 			}
 			kept = append(kept, part)
@@ -696,7 +704,7 @@ func rewriteServiceCookies(header http.Header, path string) {
 			rewritten = append(rewritten, value)
 			continue
 		}
-		if strings.EqualFold(cookie.Name, "nit_gate") {
+		if gateCookieName(cookie.Name) {
 			continue
 		}
 		cookie.Domain = ""

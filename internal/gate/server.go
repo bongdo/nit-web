@@ -251,12 +251,13 @@ func (s *Server) startSession(w http.ResponseWriter, r *http.Request, user User,
 	}
 	if temp {
 		id.Exp = s.now().Add(tempTTL).Unix()
-	}
-	device, err := s.deviceFor(w, r, user.Name)
-	if err != nil {
-		s.log.Warn("gate device add", "error", err)
 	} else {
-		id.Dev = device.ID
+		device, err := s.deviceFor(w, r, user.Name)
+		if err != nil {
+			s.log.Warn("gate device add", "error", err)
+		} else {
+			id.Dev = device.ID
+		}
 	}
 	s.setSession(w, r, id, !temp)
 	s.ensureAppSession(w, r, !temp)
@@ -343,6 +344,9 @@ func (s *Server) proxy(w http.ResponseWriter, r *http.Request) {
 	proxy.Director = func(req *http.Request) {
 		director(req)
 		req.Header.Del(gateid.Header)
+		if id.Anonymous() {
+			stripSessionCookies(req.Header)
+		}
 		req.Header.Set("X-Forwarded-Host", r.Host)
 		if s.secure(r) {
 			req.Header.Set("X-Forwarded-Proto", "https")
@@ -356,6 +360,33 @@ func (s *Server) proxy(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	proxy.ServeHTTP(w, r)
+}
+
+func stripSessionCookies(header http.Header) {
+	values := header.Values("Cookie")
+	if len(values) == 0 {
+		return
+	}
+	kept := make([]string, 0, len(values))
+	for _, value := range values {
+		for _, part := range strings.Split(value, ";") {
+			part = strings.TrimSpace(part)
+			if part == "" {
+				continue
+			}
+			name, _, _ := strings.Cut(part, "=")
+			switch strings.ToLower(strings.TrimSpace(name)) {
+			case sessionCookie, appSessionCookie, deviceCookie:
+				continue
+			}
+			kept = append(kept, part)
+		}
+	}
+	if len(kept) == 0 {
+		header.Del("Cookie")
+		return
+	}
+	header.Set("Cookie", strings.Join(kept, "; "))
 }
 
 func (s *Server) upstreamFailure() int {

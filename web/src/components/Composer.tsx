@@ -111,6 +111,7 @@ export const Composer = memo(function Composer({
   onFormDone,
   onDraftApplied,
   onInsertApplied,
+  onDraftChange,
 }: {
   session: Session | null;
   workspace: string | null;
@@ -135,6 +136,7 @@ export const Composer = memo(function Composer({
   onFormDone: () => void;
   onDraftApplied?: () => void;
   onInsertApplied?: () => void;
+  onDraftChange?: (key: string, hasDraft: boolean) => void;
 }) {
   const coarse = window.matchMedia("(pointer: coarse)").matches;
   const customSpell = spellcheck && !coarse;
@@ -204,6 +206,7 @@ export const Composer = memo(function Composer({
       hydratedRef.current = true;
       setHydrated(true);
       saveDraftState(draftKey, resolved, Date.now());
+      onDraftChange?.(draftKey, Boolean(resolved));
       if (!resolved) void api.setDraft(draftKey, "", instance).catch(() => {});
     }
   };
@@ -227,6 +230,7 @@ export const Composer = memo(function Composer({
             void api.setDraft(draftKey, local.text, instance).catch(() => {});
           }
         }
+        onDraftChange?.(draftKey, Boolean(valueRef.current));
         hydratedRef.current = true;
         setHydrated(true);
       })
@@ -234,7 +238,7 @@ export const Composer = memo(function Composer({
     return () => {
       cancelled = true;
     };
-  }, [draftKey, instance]);
+  }, [draftKey, instance, onDraftChange]);
 
   useEffect(() => {
     let cancelled = false;

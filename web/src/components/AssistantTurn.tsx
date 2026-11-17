@@ -4,7 +4,7 @@ import type { Agent, Message, Model, ReasoningPart, ToolPart } from "../lib/type
 import { activityLine } from "../lib/activity";
 import { turnEditedFiles } from "../lib/diff";
 import { stepMessageIDs } from "../lib/stream";
-import { htmlArtifactSegments, isPureHtml, looksLikeHtml } from "../lib/html";
+import { htmlArtifactSegments, isPureHtml } from "../lib/html";
 import { modelLabel, replyText, turnBlocks } from "../lib/format";
 import { timeLabel, type TimeFormat } from "../lib/time";
 import { useSmoothText } from "../hooks/useSmoothText";
@@ -328,7 +328,7 @@ export const AssistantTurn = memo(function AssistantTurn({
                 !segments.some((segment) =>
                   segment.artifacts.some((artifact) => "source" in artifact),
                 ) &&
-                (pureHtml || looksLikeHtml(text)) && <HtmlMessagePreview source={text} />}
+                pureHtml && <HtmlMessagePreview source={text} />}
               {live && !page && <span className="stream-caret" />}
             </div>
           );

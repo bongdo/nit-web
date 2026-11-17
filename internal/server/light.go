@@ -185,7 +185,8 @@ func lightenTranscript(data []byte) ([]byte, error) {
 	for index, message := range messages {
 		trimmed, err := lightenMessage(message)
 		if err != nil {
-			return nil, err
+			light[index] = message
+			continue
 		}
 		light[index] = trimmed
 	}

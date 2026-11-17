@@ -595,7 +595,7 @@ func (s *Server) messages(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte(`{"data":[`))
-		writeTranscriptPage(w, false, redactor.JSON(data))
+		writeTranscriptPage(w, redactor.JSON(data))
 		if previous != "" {
 			encoded, _ := json.Marshal(previous)
 			_, _ = w.Write([]byte(`],"previous":`))
@@ -698,7 +698,7 @@ func (s *Server) messages(w http.ResponseWriter, r *http.Request) {
 	_, _ = w.Write([]byte(`}`))
 }
 
-func writeTranscriptPage(w http.ResponseWriter, wrote bool, page []byte) bool {
+func writeTranscriptPage(w http.ResponseWriter, page []byte) bool {
 	body := bytes.TrimSpace(page)
 	if len(body) < 2 || body[0] != '[' || body[len(body)-1] != ']' {
 		return true
@@ -706,11 +706,6 @@ func writeTranscriptPage(w http.ResponseWriter, wrote bool, page []byte) bool {
 	body = bytes.TrimSpace(body[1 : len(body)-1])
 	if len(body) == 0 {
 		return true
-	}
-	if wrote {
-		if _, err := w.Write([]byte(",")); err != nil {
-			return false
-		}
 	}
 	_, err := w.Write(body)
 	return err == nil
@@ -1412,9 +1407,13 @@ func (s *Server) review(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer body.Body.Close()
-	raw, err := io.ReadAll(io.LimitReader(body.Body, 1<<20))
+	raw, err := io.ReadAll(io.LimitReader(body.Body, (1<<20)+1))
 	if err != nil {
 		writeError(w, http.StatusBadGateway, "could not read review queue")
+		return
+	}
+	if len(raw) > 1<<20 {
+		writeError(w, http.StatusRequestEntityTooLarge, "review queue is too large")
 		return
 	}
 	var queue reviewQueue
@@ -1445,9 +1444,13 @@ func (s *Server) doc(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer body.Body.Close()
-	raw, err := io.ReadAll(io.LimitReader(body.Body, 512<<10))
+	raw, err := io.ReadAll(io.LimitReader(body.Body, (512<<10)+1))
 	if err != nil {
 		writeError(w, http.StatusBadGateway, "could not read document")
+		return
+	}
+	if len(raw) > 512<<10 {
+		writeError(w, http.StatusRequestEntityTooLarge, "document is too large")
 		return
 	}
 	if !utf8.Valid(raw) {

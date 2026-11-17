@@ -1,5 +1,21 @@
 type ReadStorage = Pick<Storage, "getItem">;
 type WriteStorage = Pick<Storage, "setItem" | "removeItem">;
+type ScanStorage = Pick<Storage, "length" | "key" | "getItem">;
+
+const DRAFT_PREFIX = "nit-gui.draft.";
+
+export function loadDraftKeys(storage: ScanStorage = localStorage): Set<string> {
+  const keys = new Set<string>();
+  try {
+    for (let index = 0; index < storage.length; index++) {
+      const name = storage.key(index);
+      if (!name?.startsWith(DRAFT_PREFIX)) continue;
+      const key = name.slice(DRAFT_PREFIX.length);
+      if (key && !key.endsWith(".updated") && storage.getItem(name)) keys.add(key);
+    }
+  } catch {}
+  return keys;
+}
 
 export type DraftState = { text: string; updatedAt: number };
 

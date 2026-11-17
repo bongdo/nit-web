@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   draftStorageKey,
   draftUpdatedKey,
+  loadDraftKeys,
   loadDraftState,
   saveDraftState,
 } from "./drafts";
@@ -9,6 +10,10 @@ import {
 function memoryStorage() {
   const values = new Map<string, string>();
   return {
+    get length() {
+      return values.size;
+    },
+    key: (index: number) => [...values.keys()][index] ?? null,
     getItem: (key: string) => values.get(key) ?? null,
     setItem: (key: string, value: string) => void values.set(key, value),
     removeItem: (key: string) => void values.delete(key),
@@ -33,6 +38,14 @@ describe("drafts", () => {
     expect(loadDraftState("ses_a", storage).text).toBe("");
     expect(storage.has(draftStorageKey("ses_a"))).toBe(false);
     expect(storage.has(draftUpdatedKey("ses_a"))).toBe(false);
+  });
+
+  it("lists only non-empty draft keys", () => {
+    const storage = memoryStorage();
+    saveDraftState("ses_a", "first", 0, storage);
+    saveDraftState("laptop:ses_b", "second", 0, storage);
+    saveDraftState("ses_c", "", 0, storage);
+    expect([...loadDraftKeys(storage)].sort()).toEqual(["laptop:ses_b", "ses_a"]);
   });
 
   it("keeps the local timestamp for server conflict resolution", () => {

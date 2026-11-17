@@ -83,6 +83,7 @@ import { cachedSessions, readBoot, seedBootSession, writeBoot } from "./lib/boot
 import { instanceScopedKey } from "./lib/instances";
 import { readStored, removeStored, writeStored } from "./lib/storage";
 import { saveDraftFiles } from "./lib/draft-files";
+import { loadDraftKeys } from "./lib/drafts";
 import { messageOf } from "./lib/errors";
 import { addRecent, readRecent } from "./lib/recent";
 import { parseSnooze, pendingCount, snoozeItem, type SnoozeMap } from "./lib/review";
@@ -302,6 +303,16 @@ export default function App({
     [hiddenByInstance, instance],
   );
   const [showHidden, setShowHidden] = useState(false);
+  const [draftKeys, setDraftKeys] = useState<Set<string>>(() => loadDraftKeys());
+  const setDraftPresence = useCallback((key: string, hasDraft: boolean) => {
+    setDraftKeys((current) => {
+      if (current.has(key) === hasDraft) return current;
+      const next = new Set(current);
+      if (hasDraft) next.add(key);
+      else next.delete(key);
+      return next;
+    });
+  }, []);
   const [sessions, setSessions] = useState<Session[]>(() =>
     cachedSessions(boot, scope, workspace, instance),
   );
@@ -509,6 +520,11 @@ export default function App({
   );
   const composerKey = selectedId ?? `new:${workspace ?? ""}`;
   const composerDraftKey = draftKeyFor(composerKey);
+  const hasDraft = useCallback(
+    (session: Pick<Session, "id" | "instance">) =>
+      draftKeys.has(draftKeyFor(session.id, session.instance ?? instance)),
+    [draftKeys, draftKeyFor, instance],
+  );
   const parentSession = selectedSession?.parentID
     ? (sessions.find((session) => session.id === selectedSession.parentID) ?? null)
     : null;
@@ -2701,6 +2717,7 @@ export default function App({
             search={search}
             searchRef={searchRef}
             isHidden={isHidden}
+            hasDraft={hasDraft}
             hiddenCount={hiddenCount}
             showHidden={showHidden}
             onSearch={setSearch}
@@ -2864,6 +2881,7 @@ export default function App({
               onError={setBanner}
               onFormDone={finishForm}
               onDraftApplied={clearComposerDraft}
+              onDraftChange={setDraftPresence}
               onInsertApplied={clearComposerInsert}
             />
           </div>

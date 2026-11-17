@@ -2,7 +2,6 @@ package server
 
 import (
 	"errors"
-	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -145,7 +144,7 @@ func (s *Server) saveInstance(w http.ResponseWriter, r *http.Request) {
 		spec.Password = ""
 	}
 	if in.Transport == "url" && spec.Password == "" && spec.PasswordFile == "" &&
-		!isLoopbackURL(spec.URL) {
+		!opencode.IsLoopbackURL(spec.URL) {
 		writeError(w, http.StatusBadRequest, "a remote url needs a password or password file")
 		return
 	}
@@ -302,17 +301,4 @@ func writePasswordFile(path, password string) error {
 		return err
 	}
 	return os.Rename(name, path)
-}
-
-func isLoopbackURL(raw string) bool {
-	u, err := url.Parse(raw)
-	if err != nil {
-		return false
-	}
-	host := u.Hostname()
-	if host == "localhost" || host == "0.0.0.0" || host == "::" {
-		return true
-	}
-	ip := net.ParseIP(host)
-	return ip != nil && ip.IsLoopback()
 }

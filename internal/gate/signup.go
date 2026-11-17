@@ -3,6 +3,9 @@ package gate
 import (
 	"net/http"
 	"strings"
+	"time"
+
+	"nitgui/internal/gateid"
 )
 
 func (s *Server) signupPage(w http.ResponseWriter, r *http.Request) {
@@ -10,6 +13,14 @@ func (s *Server) signupPage(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) signupSubmit(w http.ResponseWriter, r *http.Request) {
+	key := "signup:" + gateid.ClientIP(r)
+	if wait, blocked := s.blockedKey(key); blocked {
+		data := s.newNarrow(r, "запрос доступа")
+		data.Error = "слишком много заявок, попробуйте через " + wait.Round(time.Second).String()
+		s.renderStatus(w, "signup", data, http.StatusTooManyRequests)
+		return
+	}
+	s.noteFailureKey(key)
 	name := strings.TrimSpace(r.PostFormValue("name"))
 	_, err := s.users.Request(name)
 	data := s.newNarrow(r, "запрос доступа")

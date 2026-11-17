@@ -22,6 +22,7 @@ import {
   Monitor,
   Moon,
   Palette,
+  Pencil,
   Plus,
   Search,
   Settings,
@@ -63,6 +64,7 @@ function SessionRow({
   failed,
   done,
   hidden,
+  draft,
   now,
   subagentCount = 0,
   runningSubagents = 0,
@@ -82,6 +84,7 @@ function SessionRow({
   failed: boolean;
   done: boolean;
   hidden: boolean;
+  draft: boolean;
   now: number;
   subagentCount?: number;
   runningSubagents?: number;
@@ -158,6 +161,11 @@ function SessionRow({
             </span>
           )}
           <span className="min-w-0 flex-1 truncate text-[13px] font-medium">{title}</span>
+          {draft && (
+            <span className="text-muted-foreground shrink-0" aria-label="Draft saved" role="img">
+              <Pencil className="size-3" aria-hidden />
+            </span>
+          )}
           <span
             className={cn(
               "shrink-0 text-[10px] transition-opacity group-hover:opacity-0",
@@ -253,6 +261,7 @@ export const Sidebar = memo(function Sidebar({
   search,
   searchRef,
   isHidden,
+  hasDraft,
   hiddenCount,
   showHidden,
   onSearch,
@@ -291,6 +300,7 @@ export const Sidebar = memo(function Sidebar({
   search: string;
   searchRef: RefObject<HTMLInputElement | null>;
   isHidden: (session: Pick<Session, "id" | "instance">) => boolean;
+  hasDraft: (session: Pick<Session, "id" | "instance">) => boolean;
   hiddenCount: number;
   showHidden: boolean;
   onSearch: (value: string) => void;
@@ -412,6 +422,7 @@ export const Sidebar = memo(function Sidebar({
           failed={failedIds.has(session.id)}
           done={doneIds.has(session.id)}
           hidden={isHidden(session)}
+          draft={hasDraft(session)}
           now={now}
           showDirectory={scope !== "directory" && !grouped}
           subagentCount={children.length}
@@ -443,6 +454,7 @@ export const Sidebar = memo(function Sidebar({
                 failed={failedIds.has(child.id)}
                 done={doneIds.has(child.id)}
                 hidden={isHidden(child)}
+                draft={hasDraft(child)}
                 now={now}
                 onClick={() => onSelect(child.id)}
                 onHide={() => onHide(child.id)}

@@ -701,7 +701,10 @@ nspell worker. It is not implemented yet.
   and inline code stay still. HTML previews and inline pages wait until the
   streaming part stops, so an iframe is not rebuilt for every token. Reasoning
   and tool calls are collapsed by default; code copy, GFM tables and task lists
-  stay.
+  stay. Settings → Chat → Agent steps hides them completely: the transcript
+  shows answers only, a one-line spinner names the current action while a reply
+  is still on its way, and each finished turn keeps a `Steps` button (with an
+  error mark when a tool failed) to reveal that turn's log on demand.
 - Prose highlights values without a background: a number with a unit or a
   currency amount, and session/task ids, get one copper tint and tabular digits.
   Units are matched in English and Russian (`260px`, `8 МБ`, `0.5-1 день`,
@@ -765,6 +768,9 @@ nspell worker. It is not implemented yet.
   `Static`. `Static` draws one frame and still repaints when the pointer moves.
   The default follows `prefers-reduced-motion`; the choice is stored in
   `localStorage`.
+- Settings → Chat controls the transcript: `Agent steps` shows or hides
+  reasoning and tool calls, `Message time` shows the clock on each row. `Time &
+  alerts` keeps the clock format and desktop notifications.
 - Shortcuts: `mod+k` search, `alt+n` new chat, `tab`/`shift+tab` (or
   `alt+j`/`alt+k`) next/previous chat in the sidebar order, `alt+←`/`alt+→`
   switches the scope This dir / All chats / Everywhere, `enter` send and

@@ -1,5 +1,5 @@
 import { memo, useEffect, useRef, useState } from "react";
-import { Bot, ChevronDown, ChevronRight, Loader2 } from "lucide-react";
+import { Bot, ChevronDown, ChevronRight, CircleAlert, ListTree, Loader2 } from "lucide-react";
 import type { Agent, Message, Model, ReasoningPart, ToolPart } from "../lib/types";
 import { activityLine } from "../lib/activity";
 import { turnEditedFiles } from "../lib/diff";
@@ -17,6 +17,7 @@ import { QuestionCard } from "./QuestionCard";
 import { ReplyActions } from "./ReplyActions";
 import { Reasoning } from "./Reasoning";
 import { ToolCall } from "./ToolCall";
+import { Button } from "./ui/button";
 
 function durationLabel(messages: Message[]): string {
   const first = messages[0]?.time.created;
@@ -39,6 +40,7 @@ type AssistantTurnProps = {
   streaming: boolean;
   timeFormat: TimeFormat;
   showTime: boolean;
+  showSteps: boolean;
   onLoadMessage?: (messageID: string) => void | Promise<void>;
 };
 
@@ -53,6 +55,7 @@ export const AssistantTurn = memo(function AssistantTurn({
   streaming,
   timeFormat,
   showTime,
+  showSteps,
   onLoadMessage,
 }: AssistantTurnProps) {
   const [open, setOpen] = useState(false);
@@ -185,6 +188,7 @@ export const AssistantTurn = memo(function AssistantTurn({
       <div className="min-w-0 pl-8">
         {blocks.map((block, index) => {
           if (block.kind === "steps") {
+            if (!showSteps && !open) return null;
             return (
               <div
                 key="steps"
@@ -334,8 +338,17 @@ export const AssistantTurn = memo(function AssistantTurn({
           );
         })}
 
-        {textParts.length === 0 && !hasSteps && streaming && (
-          <div className="text-muted-foreground py-2 text-xs">Waiting for the first token…</div>
+        {textParts.length === 0 && streaming && (
+          showSteps ? (
+            !hasSteps && (
+              <div className="text-muted-foreground py-2 text-xs">Waiting for the first token…</div>
+            )
+          ) : (
+            <div className="text-muted-foreground flex items-center gap-2 py-2 text-xs">
+              <Loader2 className="size-3.5 animate-spin" />
+              <span className="min-w-0 truncate">{summary || "Waiting for the first token…"}</span>
+            </div>
+          )
         )}
         {last?.error && (
           <div className="text-destructive border-destructive/30 bg-destructive/5 mt-2 flex items-start gap-2 rounded-md border px-3 py-2 text-xs">
@@ -344,11 +357,28 @@ export const AssistantTurn = memo(function AssistantTurn({
             </span>
           </div>
         )}
-        {((!streaming && reply.trim() !== "") || changedFiles.length > 0) && (
+        {((!streaming && reply.trim() !== "") || changedFiles.length > 0 || (!showSteps && hasSteps)) && (
           <div
             ref={filesRef}
             className="relative mt-2 flex flex-wrap items-center gap-2"
           >
+            {!showSteps && hasSteps && (
+              <Button
+                variant="ghost"
+                size="xs"
+                className={cn("text-muted-foreground", open && "text-foreground")}
+                aria-expanded={open}
+                onClick={() => {
+                  const next = !open;
+                  setOpen(next);
+                  if (next) loadSteps();
+                }}
+              >
+                <ListTree />
+                <span>Steps{shownSteps > 0 ? ` · ${shownSteps}` : ""}</span>
+                {shownErrors > 0 && <CircleAlert className="text-destructive" />}
+              </Button>
+            )}
             {!streaming && reply.trim() !== "" && (
               <ReplyActions text={reply} enter={wasLive.current} />
             )}
@@ -387,6 +417,7 @@ function sameTurn(left: AssistantTurnProps, right: AssistantTurnProps): boolean 
     left.agents === right.agents &&
     left.timeFormat === right.timeFormat &&
     left.showTime === right.showTime &&
+    left.showSteps === right.showSteps &&
     left.onLoadMessage === right.onLoadMessage &&
     sameMessages(left.messages, right.messages)
   );

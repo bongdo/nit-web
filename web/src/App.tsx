@@ -250,6 +250,9 @@ export default function App({
   const [showTime, setShowTime] = useState(
     () => readStored("nit-gui.show-time") !== "0",
   );
+  const [showSteps, setShowSteps] = useState(
+    () => readStored("nit-gui.show-steps") !== "0",
+  );
   const [motion, setMotion] = useState<"animated" | "static">(() => {
     const stored = readStored("nit-gui.motion");
     if (stored === "animated" || stored === "static") return stored;
@@ -2821,6 +2824,7 @@ export default function App({
           sceneKey={sceneEpoch}
           timeFormat={timeFormat}
           showTime={showTime}
+          showSteps={showSteps}
           onRetry={reloadSelected}
           onRevert={revertMessage}
           onFork={forkMessage}
@@ -2921,6 +2925,7 @@ export default function App({
           autofix={autofix}
           timeFormat={timeFormat}
           showTime={showTime}
+          showSteps={showSteps}
           motion={motion}
           background={background}
           scopes={scopes}
@@ -2944,6 +2949,10 @@ export default function App({
           onShowTime={(value) => {
             setShowTime(value);
             writeStored("nit-gui.show-time", value ? "1" : "0");
+          }}
+          onShowSteps={(value) => {
+            setShowSteps(value);
+            writeStored("nit-gui.show-steps", value ? "1" : "0");
           }}
           onMotion={(value) => {
             setMotion(value);

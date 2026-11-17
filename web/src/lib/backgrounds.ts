@@ -33,9 +33,12 @@ export const BACKGROUNDS: BackgroundEntry[] = [
 
   { id: "ascii-blackhole", label: "Black hole", hint: "ascii", menu: "ASCII · black hole", group: "ascii" },
   { id: "ascii-jelly", label: "Jellyfish", hint: "ascii", menu: "ASCII · jellyfish", group: "ascii" },
-  { id: "ascii-butterfly", label: "Butterfly", hint: "ascii", menu: "ASCII · butterfly", group: "ascii" },
   { id: "ascii-fish", label: "Fish", hint: "ascii", menu: "ASCII · fish", group: "ascii" },
   { id: "ascii-torus", label: "Torus", hint: "ascii", menu: "ASCII · torus", group: "ascii" },
+  { id: "ascii-crystal", label: "Crystal", hint: "3d", menu: "ASCII · crystal", group: "ascii" },
+  { id: "ascii-mobius", label: "Möbius", hint: "3d", menu: "ASCII · möbius", group: "ascii" },
+  { id: "ascii-lattice", label: "Lattice", hint: "3d", menu: "ASCII · lattice", group: "ascii" },
+  { id: "ascii-blob", label: "Blob", hint: "3d", menu: "ASCII · blob", group: "ascii" },
   { id: "ascii-stars", label: "Stars", hint: "ascii", menu: "ASCII · stars", group: "ascii" },
   { id: "ascii-angel", label: "Guardian", hint: "ascii", menu: "ASCII · winged guardian", group: "ascii" },
   { id: "ascii-gyro", label: "Gyroscope", hint: "ascii", menu: "ASCII · gyroscope", group: "ascii" },

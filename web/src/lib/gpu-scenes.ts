@@ -221,41 +221,7 @@ void scene(vec2 p, vec2 cell, out vec4 color) {
 }
 `;
 
-const BUTTERFLY = `
-float ellipseDist(vec2 p, vec2 r) {
-  return (length(p / r) - 1.0) * min(r.x, r.y);
-}
 
-float segmentDist(vec2 p, vec2 a, vec2 b) {
-  vec2 pa = p - a;
-  vec2 ba = b - a;
-  float h = clamp(dot(pa, ba) / dot(ba, ba), 0.0, 1.0);
-  return length(pa - ba * h);
-}
-
-void scene(vec2 p, vec2 cell, out vec4 color) {
-  float t = uT;
-  float flap = 0.35 + 0.65 * abs(sin(t * 1.5));
-  vec2 q = vec2(abs(p.x), p.y);
-  float upper = ellipseDist(q - vec2(0.12 * flap, -0.085), vec2(0.105 * flap, 0.082));
-  float lower = ellipseDist(q - vec2(0.085 * flap, 0.075), vec2(0.072 * flap, 0.058));
-  float wing = min(upper, lower);
-  float aside = sm((q.x - 0.014) * 120.0);
-  float outline = smoothstep(0.009, 0.0, abs(wing)) * aside;
-  float fill = sm(-wing / 0.08) * 0.1 * aside;
-  float spot = smoothstep(0.012, 0.0, abs(ellipseDist(q - vec2(0.15 * flap, -0.1), vec2(0.03, 0.026)))) * aside;
-  float body = smoothstep(0.011, 0.0, abs(p.x)) * smoothstep(0.17, 0.04, abs(p.y)) * 0.95;
-  float head = smoothstep(0.016, 0.0, length(p - vec2(0.0, -0.145)));
-  float antenna = 0.0;
-  for (int i = 0; i < 2; i++) {
-    float side = i == 0 ? -1.0 : 1.0;
-    antenna += smoothstep(0.005, 0.0,
-      segmentDist(p, vec2(0.0, -0.15), vec2(side * 0.075, -0.245)));
-  }
-  float heat = max(outline, max(fill, max(spot * 0.8, max(body, max(head, antenna * 0.85)))));
-  color = emit(heat, uAccent, hash21(cell) * 12.0);
-}
-`;
 
 const FISH = `
 float segDist(vec2 p, vec2 a, vec2 b) {
@@ -293,46 +259,116 @@ void scene(vec2 p, vec2 cell, out vec4 color) {
 }
 `;
 
-const TORUS = `
-float torusSdf(vec3 q) {
-  q.xz = vec2(cos(uT * 0.6) * q.x - sin(uT * 0.6) * q.z, sin(uT * 0.6) * q.x + cos(uT * 0.6) * q.z);
-  q.yz = vec2(0.9 * q.y - 0.42 * q.z, 0.42 * q.y + 0.9 * q.z);
-  vec2 w = vec2(length(q.xz) - 0.24, q.y);
-  return length(w) - 0.10;
+const SCULPT = (map: string) => PRELUDE + `
+const vec3 LIGHT = normalize(vec3(0.42, -0.55, -0.62));
+
+vec2 rot2(vec2 v, float a) {
+  float s = sin(a);
+  float c = cos(a);
+  return vec2(c * v.x - s * v.y, s * v.x + c * v.y);
 }
 
-vec3 torusNormal(vec3 p) {
-  float e = 0.01;
+float smin(float a, float b, float k) {
+  float h = clamp(0.5 + 0.5 * (b - a) / k, 0.0, 1.0);
+  return mix(b, a, h) - k * h * (1.0 - h);
+}
+
+${map}
+
+vec3 normalAt(vec3 q) {
+  float e = 0.004;
   return normalize(vec3(
-    torusSdf(p + vec3(e, 0.0, 0.0)) - torusSdf(p - vec3(e, 0.0, 0.0)),
-    torusSdf(p + vec3(0.0, e, 0.0)) - torusSdf(p - vec3(0.0, e, 0.0)),
-    torusSdf(p + vec3(0.0, 0.0, e)) - torusSdf(p - vec3(0.0, 0.0, e))));
+    map(q + vec3(e, 0.0, 0.0)) - map(q - vec3(e, 0.0, 0.0)),
+    map(q + vec3(0.0, e, 0.0)) - map(q - vec3(0.0, e, 0.0)),
+    map(q + vec3(0.0, 0.0, e)) - map(q - vec3(0.0, 0.0, e))));
 }
 
 void scene(vec2 p, vec2 cell, out vec4 color) {
-  vec3 ro = vec3(0.0, 0.0, 1.2);
-  vec3 rd = normalize(vec3(p * 2.6, -1.5));
+  vec3 ro = vec3(0.0, 0.0, 1.35);
+  vec3 rd = normalize(vec3(p * 2.3, -1.6));
   float dist = 0.0;
   float hit = -1.0;
-  for (int i = 0; i < 64; i++) {
-    float s = torusSdf(ro + rd * dist);
-    if (s < 0.002) { hit = dist; break; }
-    dist += s * 0.9;
-    if (dist > 2.2) break;
+  for (int i = 0; i < 84; i++) {
+    float s = map(ro + rd * dist);
+    if (s < 0.0012) { hit = dist; break; }
+    dist += max(s * 0.8, 0.0012);
+    if (dist > 3.0) break;
   }
   float heat = 0.0;
   if (hit > 0.0) {
     vec3 pos = ro + rd * hit;
-    vec3 n = torusNormal(pos);
-    vec3 light = normalize(vec3(0.45, -0.65, -0.6));
-    float lambert = max(dot(n, light), 0.0);
-    float rim = pow(1.0 - max(dot(n, -rd), 0.0), 2.5);
-    float shine = pow(max(dot(reflect(rd, n), light), 0.0), 8.0);
-    heat = 0.12 + 0.72 * pow(lambert, 0.85) + 0.45 * rim + 0.5 * shine;
+    vec3 n = normalAt(pos);
+    float lambert = max(dot(n, LIGHT), 0.0);
+    float rim = pow(1.0 - max(dot(n, -rd), 0.0), 2.0);
+    float spec = pow(max(dot(reflect(rd, n), LIGHT), 0.0), 18.0);
+    float occ = 0.0;
+    for (int i = 0; i < 3; i++) {
+      float step = 0.03 + 0.045 * float(i);
+      occ += (step - map(pos + n * step)) / step;
+    }
+    float ao = clamp(1.0 - occ / 3.0, 0.0, 1.0);
+    heat = (0.1 + 0.6 * lambert + 0.5 * rim + 0.35 * spec) * (0.5 + 0.5 * ao);
   }
   color = emit(heat, uAccent, hash21(cell) * 12.0);
 }
-`;
+` + MAIN;
+
+const TORUS = SCULPT(`
+float map(vec3 q) {
+  q.xz = rot2(q.xz, uT * 0.6);
+  q.yz = rot2(q.yz, 0.42 + 0.12 * sin(uT * 0.3));
+  vec2 w = vec2(length(q.xz) - 0.24, q.y);
+  return length(w) - 0.095;
+}
+`);
+
+const CRYSTAL = SCULPT(`
+float map(vec3 q) {
+  q.xz = rot2(q.xz, uT * 0.45);
+  q.xy = rot2(q.xy, 0.4 * sin(uT * 0.3));
+  q.y *= 1.25;
+  vec3 p = abs(q);
+  float octa = (p.x + p.y + p.z - 0.42) * 0.57735027;
+  vec3 r = abs(q.zxy);
+  float cube = max(max(r.x, r.y), r.z) - 0.19;
+  return max(octa, -cube);
+}
+`);
+
+const MOBIUS = SCULPT(`
+float map(vec3 q) {
+  q.xz = rot2(q.xz, uT * 0.35);
+  q.yz = rot2(q.yz, 0.5);
+  float angle = atan(q.z, q.x);
+  float radius = length(q.xz);
+  vec2 band = rot2(vec2(radius - 0.26, q.y), angle * 0.5);
+  return max(abs(band.x) - 0.085, abs(band.y) - 0.016) - 0.006;
+}
+`);
+
+const LATTICE = SCULPT(`
+float map(vec3 q) {
+  q.xz = rot2(q.xz, uT * 0.2);
+  q.xy = rot2(q.xy, uT * 0.12);
+  vec3 k = q * 7.0;
+  float lattice = abs(dot(sin(k), cos(k.zxy))) - 0.32;
+  float ball = length(q) - 0.42;
+  return max(lattice * 0.16, ball * 0.9);
+}
+`);
+
+const BLOB = SCULPT(`
+float map(vec3 q) {
+  q.xz = rot2(q.xz, uT * 0.25);
+  vec3 a = q - vec3(0.13 * sin(uT * 0.7), 0.11 * cos(uT * 0.9), 0.0);
+  vec3 b = q - vec3(-0.14 * cos(uT * 0.6), -0.09 * sin(uT * 0.8), 0.06);
+  vec3 c = q - vec3(0.03 * sin(uT * 1.1), 0.15 * sin(uT * 0.5), -0.09);
+  float d = length(a) - 0.16;
+  d = smin(d, length(b) - 0.14, 0.09);
+  return smin(d, length(c) - 0.11, 0.09);
+}
+`);
+
 
 const STARS = `
 void scene(vec2 p, vec2 cell, out vec4 color) {
@@ -358,8 +394,7 @@ void scene(vec2 p, vec2 cell, out vec4 color) {
 const ASCII = (body: string) => PRELUDE + body + MAIN;
 
 
-const ANGEL = `
-mat2 spin2(float a) { float c = cos(a), s = sin(a); return mat2(c, -s, s, c); }
+const ANGEL = SCULPT(`
 float ball(vec3 p, vec3 r) {
   float k0 = length(p / r);
   float k1 = length(p / (r * r));
@@ -371,131 +406,109 @@ float stick(vec3 p, vec3 a, vec3 b, float r) {
   float h = clamp(dot(pa, ba) / dot(ba, ba), 0.0, 1.0);
   return length(pa - ba * h) - r;
 }
+mat2 face(vec2 d) { return mat2(-d.y, d.x, d.x, d.y); }
 
-float yaw;
+float angelBody(vec3 p) {
+  float hips = ball(p - vec3(0.0, 0.03, 0.0), vec3(0.105, 0.095, 0.075));
+  float torso = ball(p - vec3(0.0, 0.19, 0.005), vec3(0.092, 0.14, 0.068));
+  float chest = ball(p - vec3(0.0, 0.29, 0.015), vec3(0.095, 0.075, 0.072));
+  float neck = stick(p, vec3(0.0, 0.345, 0.0), vec3(0.0, 0.40, 0.005), 0.033);
+  float head = ball(p - vec3(0.0, 0.465, 0.01), vec3(0.058, 0.075, 0.062));
+  float hair = ball(p - vec3(0.0, 0.49, -0.03), vec3(0.068, 0.082, 0.058));
+  float braid = stick(p, vec3(0.0, 0.45, -0.055), vec3(0.025, 0.12, -0.075), 0.032);
+  float armUp = stick(p, vec3(-0.085, 0.29, 0.01), vec3(-0.15, 0.47, 0.06), 0.026);
+  float armDown = stick(p, vec3(0.085, 0.29, 0.01), vec3(0.125, 0.08, 0.04), 0.026);
 
-float guardian(vec3 p) {
-  p.xz = spin2(yaw) * p.xz;
-  float up = clamp((p.y + 0.62) / 0.74, 0.0, 1.0);
-  float robe = length(p.xz) - mix(0.245, 0.075, up * up);
-  robe = max(robe, p.y - 0.14);
-  robe = max(robe, -(p.y + 0.63));
-  float torso = ball(p - vec3(0.0, 0.26, 0.0), vec3(0.145, 0.19, 0.105));
-  float chest = ball(p - vec3(0.0, 0.34, 0.02), vec3(0.13, 0.10, 0.10));
-  float neck = stick(p, vec3(0.0, 0.42, 0.0), vec3(0.0, 0.47, -0.005), 0.042);
-  float head = ball(p - vec3(0.0, 0.545, 0.008), vec3(0.072, 0.092, 0.078));
-  float hair = ball(p - vec3(0.0, 0.575, -0.045), vec3(0.085, 0.10, 0.07));
-  vec2 ring = vec2(length(p.xy - vec2(0.0, 0.79)) - 0.135, p.z + 0.10);
-  float halo = length(ring) - 0.011;
-  vec3 arm = p;
-  arm.x = abs(arm.x) - 0.125;
-  float arms = stick(arm, vec3(0.0, 0.36, 0.0), vec3(-0.055, 0.20, 0.075), 0.032);
+  float fall = clamp((0.03 - p.y) / 0.63, 0.0, 1.0);
+  vec2 hem = vec2(p.x - 0.05 * fall * fall, p.z);
+  float skirt = length(hem) - mix(0.085, 0.30, fall * fall);
+  skirt += 0.028 * sin(atan(p.z, p.x) * 5.0 + p.y * 6.0) * fall;
+  skirt = max(skirt, p.y - 0.06);
+  skirt = max(skirt, -(p.y + 0.60));
 
-  vec3 wing = p;
-  wing.x = abs(wing.x);
+  vec3 drape = p - vec3(0.02, 0.24, -0.075);
+  drape.xy = rot2(drape.xy, 0.25);
+  float cape = ball(drape, vec3(0.135, 0.28, 0.018));
+
+  float body = min(min(hips, torso), min(chest, min(neck, min(head, hair))));
+  body = min(body, min(braid, min(skirt, cape)));
+  return min(body, min(armUp, armDown));
+}
+
+float angelWing(vec3 p) {
+  vec3 w = p;
+  w.x = abs(w.x);
+  float edge = min(stick(w, vec3(0.05, 0.33, -0.10), vec3(0.24, 0.62, -0.12), 0.031),
+              min(stick(w, vec3(0.24, 0.62, -0.12), vec3(0.44, 0.79, -0.13), 0.023),
+                  stick(w, vec3(0.44, 0.79, -0.13), vec3(0.60, 0.87, -0.14), 0.015)));
   float feathers = 1e9;
-  for (int i = 0; i < 4; i++) {
+  for (int i = 0; i < 6; i++) {
     float fi = float(i);
-    float a = 0.55 + 0.17 * fi;
-    vec2 dir = vec2(sin(a), cos(a));
-    vec2 centre = vec2(0.13, 0.30) + dir * (0.17 + 0.02 * fi);
-    vec3 q = vec3(wing.x, wing.y, wing.z + 0.035 * fi) - vec3(centre, -0.09 - 0.03 * fi);
-    q.xy = spin2(a) * q.xy;
-    q.yz = spin2(-0.12) * q.yz;
-    feathers = min(feathers, ball(q, vec3(0.038, 0.32 - 0.025 * fi, 0.016)));
+    float t = fi / 5.0;
+    vec2 root = mix(vec2(0.09, 0.42), vec2(0.57, 0.80), t);
+    float ang = 0.16 + 0.135 * fi;
+    vec2 dir = vec2(sin(ang), -cos(ang));
+    float len = 0.44 - 0.030 * fi;
+    vec3 q = vec3(w.x, w.y, w.z + 0.11 + 0.02 * fi) - vec3(root + dir * (len * 0.5), 0.0);
+    q.xy = face(dir) * q.xy;
+    q.yz = rot2(q.yz, -0.10);
+    feathers = min(feathers, ball(q, vec3(0.036, len * 0.5, 0.011)));
   }
-
-  float body = min(robe, min(torso, min(chest, min(neck, min(head, hair)))));
-  return min(min(body, arms), min(halo, feathers));
+  float coverts = 1e9;
+  for (int i = 0; i < 3; i++) {
+    float fi = float(i);
+    vec2 root = mix(vec2(0.08, 0.40), vec2(0.36, 0.62), fi * 0.5);
+    vec2 dir = normalize(vec2(0.10 + 0.12 * fi, -1.0));
+    vec3 q = vec3(w.x, w.y, w.z + 0.06) - vec3(root + dir * 0.14, 0.0);
+    q.xy = face(dir) * q.xy;
+    coverts = min(coverts, ball(q, vec3(0.040, 0.17, 0.012)));
+  }
+  return min(edge, min(feathers, coverts));
 }
 
-vec3 guardianNormal(vec3 p) {
-  float e = 0.0035;
-  return normalize(vec3(
-    guardian(p + vec3(e, 0.0, 0.0)) - guardian(p - vec3(e, 0.0, 0.0)),
-    guardian(p + vec3(0.0, e, 0.0)) - guardian(p - vec3(0.0, e, 0.0)),
-    guardian(p + vec3(0.0, 0.0, e)) - guardian(p - vec3(0.0, 0.0, e))));
+float angelProp(vec3 p) {
+  float staff = stick(p, vec3(-0.16, -0.44, 0.06), vec3(-0.30, 0.60, 0.02), 0.009);
+  float guard = ball(p - vec3(-0.275, 0.485, 0.03), vec3(0.028, 0.010, 0.010));
+  vec2 ring = vec2(length(p.xy - vec2(0.0, 0.575)) - 0.082, p.z + 0.075);
+  float halo = length(ring) - 0.006;
+  vec3 rock = p - vec3(0.02, -0.645, 0.0);
+  float base = ball(rock, vec3(0.245, 0.062, 0.175));
+  base += 0.012 * sin(rock.x * 26.0) * sin(rock.z * 21.0);
+  return min(min(staff, guard), min(halo, base));
 }
 
-void scene(vec2 p, vec2 cell, out vec4 color) {
-  yaw = -0.55 + uScroll * 1.75 + uT * 0.05;
-  vec3 ro = vec3(0.0, 0.02, 1.32 - 0.22 * uScroll);
-  vec3 rd = normalize(vec3(p.x * 2.3, -p.y * 2.3, -1.45));
-
-  float travel = 0.0;
-  float hit = -1.0;
-  for (int i = 0; i < 80; i++) {
-    float d = guardian(ro + rd * travel);
-    if (d < 0.0015) { hit = travel; break; }
-    travel += d * 0.85;
-    if (travel > 2.6) break;
-  }
-
-  float heat = 0.0;
-  if (hit > 0.0) {
-    vec3 pos = ro + rd * hit;
-    vec3 n = guardianNormal(pos);
-    vec3 key = normalize(vec3(0.30, 0.48, 0.83));
-    vec3 bounce = normalize(vec3(-0.55, -0.25, 0.45));
-    float dif = max(dot(n, key), 0.0);
-    float side = max(dot(n, bounce), 0.0);
-    float rim = pow(1.0 - max(dot(n, -rd), 0.0), 2.4);
-    float lift = 0.42 + 0.58 * smoothstep(-0.62, 0.72, pos.y);
-    heat = (0.30 + 0.80 * pow(dif, 0.75) + 0.28 * side + 0.38 * rim) * lift;
-  }
-
-  color = emit(heat * 1.1, mix(uAccent, uInk, clamp(heat, 0.0, 1.0)), hash21(cell) * 12.0);
+float map(vec3 q) {
+  q.xz = rot2(q.xz, -0.5 + uScroll * 1.9 + uT * 0.05);
+  q.y -= 0.06;
+  return min(min(angelBody(q), angelWing(q)), angelProp(q)) / 1.3;
 }
-`;
+`);
 
-const GYRO = `
-mat2 turn(float a) { float c = cos(a), s = sin(a); return mat2(c, -s, s, c); }
+const GYRO = SCULPT(`
 float hoop(vec3 p, float yaw, float tilt, float radius, float thick) {
-  p.yz = turn(tilt) * p.yz;
-  p.xz = turn(yaw) * p.xz;
+  p.yz = rot2(p.yz, tilt);
+  p.xz = rot2(p.xz, yaw);
   vec2 q = vec2(length(p.xz) - radius, p.y);
   return length(q) - thick;
 }
-float gyro(vec3 p, float t) {
-  return min(hoop(p, t, 0.0, 0.24, 0.022),
-         min(hoop(p, t * 1.3, 1.55, 0.30, 0.020),
-             hoop(p, t * 0.7, 0.8, 0.36, 0.018)));
-}
-void scene(vec2 p, vec2 cell, out vec4 color) {
+
+float map(vec3 q) {
   float t = uT * 0.5 + uScroll * 3.0;
-  vec3 ro = vec3(0.0, 0.0, 1.35);
-  vec3 rd = normalize(vec3(p.x * 2.4, -p.y * 2.4, -1.5));
-  float travel = 0.0;
-  float hit = -1.0;
-  for (int i = 0; i < 64; i++) {
-    float d = gyro(ro + rd * travel, t);
-    if (d < 0.0018) { hit = travel; break; }
-    travel += d;
-    if (travel > 2.4) break;
-  }
-  float heat = 0.0;
-  if (hit > 0.0) {
-    vec3 pos = ro + rd * hit;
-    float e = 0.004;
-    vec3 n = normalize(vec3(
-      gyro(pos + vec3(e, 0.0, 0.0), t) - gyro(pos - vec3(e, 0.0, 0.0), t),
-      gyro(pos + vec3(0.0, e, 0.0), t) - gyro(pos - vec3(0.0, e, 0.0), t),
-      gyro(pos + vec3(0.0, 0.0, e), t) - gyro(pos - vec3(0.0, 0.0, e), t)));
-    vec3 light = normalize(vec3(0.4, 0.7, 0.6));
-    float dif = max(dot(n, light), 0.0);
-    float rim = pow(1.0 - max(dot(n, -rd), 0.0), 2.0);
-    heat = 0.18 + 0.8 * dif + 0.45 * rim;
-  }
-  color = emit(heat, mix(uAccent, uInk, clamp(heat, 0.0, 1.0)), hash21(cell) * 12.0);
+  return min(hoop(q, t, 0.0, 0.24, 0.022),
+         min(hoop(q, t * 1.3, 1.55, 0.30, 0.020),
+             hoop(q, t * 0.7, 0.8, 0.36, 0.018)));
 }
-`;
+`);
 
 export const ASCII_SCENES = {
   "ascii-blackhole": ASCII(BLACK_HOLE),
   "ascii-jelly": ASCII(JELLY),
-  "ascii-butterfly": ASCII(BUTTERFLY),
   "ascii-fish": ASCII(FISH),
-  "ascii-torus": ASCII(TORUS),
+  "ascii-torus": TORUS,
+  "ascii-crystal": CRYSTAL,
+  "ascii-mobius": MOBIUS,
+  "ascii-lattice": LATTICE,
+  "ascii-blob": BLOB,
   "ascii-stars": ASCII(STARS),
   "ascii-angel": ASCII(ANGEL),
   "ascii-gyro": ASCII(GYRO),
@@ -617,9 +630,12 @@ export type GpuScene =
 export const GPU_SCENES = {
   "ascii-blackhole": { mode: "ascii", label: "Black hole", hint: "ascii", menu: "ASCII · black hole" },
   "ascii-jelly": { mode: "ascii", label: "Jellyfish", hint: "ascii", menu: "ASCII · jellyfish" },
-  "ascii-butterfly": { mode: "ascii", label: "Butterfly", hint: "ascii", menu: "ASCII · butterfly" },
   "ascii-fish": { mode: "ascii", label: "Fish", hint: "ascii", menu: "ASCII · fish" },
   "ascii-torus": { mode: "ascii", label: "Torus", hint: "ascii", menu: "ASCII · torus" },
+  "ascii-crystal": { mode: "ascii", label: "Crystal", hint: "ascii", menu: "ASCII · crystal" },
+  "ascii-mobius": { mode: "ascii", label: "Möbius", hint: "ascii", menu: "ASCII · möbius" },
+  "ascii-lattice": { mode: "ascii", label: "Lattice", hint: "ascii", menu: "ASCII · lattice" },
+  "ascii-blob": { mode: "ascii", label: "Blob", hint: "ascii", menu: "ASCII · blob" },
   "ascii-stars": { mode: "ascii", label: "Stars", hint: "ascii", menu: "ASCII · stars" },
   "ascii-angel": { mode: "ascii", label: "Guardian", hint: "ascii", menu: "ASCII · winged guardian" },
   "ascii-gyro": { mode: "ascii", label: "Gyroscope", hint: "ascii", menu: "ASCII · gyroscope" },

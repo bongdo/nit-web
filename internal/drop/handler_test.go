@@ -551,3 +551,26 @@ func TestFileNotFoundAndTraversal(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestServiceProxyStripsGateCookies(t *testing.T) {
+	header := http.Header{}
+	header.Set("Cookie", "nit_gate=a; gate_session=b; gate_device=c; nit_theme=dark")
+	stripServiceHeaders(header)
+	if got := header.Get("Cookie"); got != "nit_theme=dark" {
+		t.Fatalf("request cookie = %q, want only nit_theme", got)
+	}
+	header = http.Header{}
+	header.Set("Cookie", "gate_session=b; gate_device=c")
+	stripServiceHeaders(header)
+	if got := header.Get("Cookie"); got != "" {
+		t.Fatalf("request cookie = %q, want none", got)
+	}
+	response := http.Header{}
+	response.Add("Set-Cookie", "gate_session=x; Path=/")
+	response.Add("Set-Cookie", "app=1; Path=/")
+	rewriteServiceCookies(response, "/share/x/")
+	values := response.Values("Set-Cookie")
+	if len(values) != 1 || !strings.Contains(values[0], "app=1") {
+		t.Fatalf("response cookies = %v, want only app", values)
+	}
+}

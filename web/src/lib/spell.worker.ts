@@ -91,12 +91,18 @@ function complete(dictionaries: Loaded, prefix: string, ignore: string[]): strin
   const lower = prefix.toLowerCase();
   if (ignore.some((word) => word.toLowerCase() === lower)) return [];
   if (dictionaries.ru.correct(prefix) || dictionaries.en.correct(prefix)) return [];
-  const candidates = [
-    ...prefixMatches(dictionaries.ruWords, prefix, 80),
-    ...prefixMatches(dictionaries.enWords, prefix, 80),
-    ...ignore.filter((word) => word.length > prefix.length && word.toLowerCase().startsWith(lower)),
-  ];
-  const best = bestCompletion(candidates, prefix);
+  const personal = ignore.filter(
+    (word) => word.length > prefix.length && word.toLowerCase().startsWith(lower),
+  );
+  const best =
+    bestCompletion(personal, prefix) ??
+    bestCompletion(
+      [
+        ...prefixMatches(dictionaries.ruWords, prefix, 80),
+        ...prefixMatches(dictionaries.enWords, prefix, 80),
+      ],
+      prefix,
+    );
   if (!best) return [];
   return [/^\p{Lu}/u.test(prefix) ? best[0].toUpperCase() + best.slice(1) : best];
 }

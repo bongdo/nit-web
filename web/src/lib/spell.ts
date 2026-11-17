@@ -192,6 +192,12 @@ function blank(value: string): string {
   return " ".repeat(value.length);
 }
 
+const LETTER = /[\p{L}\p{M}]/u;
+
+function isLetter(value: string | undefined): boolean {
+  return value !== undefined && LETTER.test(value);
+}
+
 export function maskCode(text: string): string {
   return text
     .replace(/```[\s\S]*?```/g, blank)
@@ -397,10 +403,21 @@ export function levenshtein(left: string, right: string): number {
   return previous[right.length];
 }
 
+function cutsWord(text: string, start: number, end: number): boolean {
+  return (
+    (isLetter(text[start - 1]) && isLetter(text[start])) ||
+    (isLetter(text[end - 1]) && isLetter(text[end]))
+  );
+}
+
 export function hidePending(issues: SpellIssue[], text: string, caret: number | null): SpellIssue[] {
   const pending = pendingWord(text, caret);
-  if (!pending) return issues;
-  return issues.filter((issue) => issue.end <= pending.start || issue.start >= pending.end);
+  return issues.filter(
+    (issue) =>
+      text.slice(issue.start, issue.end) === issue.word &&
+      !cutsWord(text, issue.start, issue.end) &&
+      (!pending || issue.end <= pending.start || issue.start >= pending.end),
+  );
 }
 
 export function pendingWord(text: string, caret: number | null): { start: number; end: number } | null {
@@ -408,6 +425,15 @@ export function pendingWord(text: string, caret: number | null): { start: number
   const match = /[\p{L}\p{M}][\p{L}\p{M}'’\-]*$/u.exec(text);
   if (!match) return null;
   return { start: caret - match[0].length, end: caret };
+}
+
+export function sortWords(words: Iterable<string>): string[] {
+  return Array.from(words).sort((left, right) => {
+    const a = left.toLowerCase();
+    const b = right.toLowerCase();
+    if (a !== b) return a < b ? -1 : 1;
+    return left < right ? -1 : left > right ? 1 : 0;
+  });
 }
 
 export function prefixMatches(sorted: string[], prefix: string, limit = 200): string[] {
@@ -438,14 +464,47 @@ export function addsOnlyPunctuation(original: string, replacement: string): bool
   );
 }
 
+const INFLECTION = /^(?:s|es|ies|ed|d|ing|ly|er|est|'s)$/;
+
+function inflectional(longer: string, shorter: string): boolean {
+  return longer.startsWith(shorter) && INFLECTION.test(longer.slice(shorter.length));
+}
+
 export function safeAutoFix(word: string, suggestions: string[]): string | null {
   if (word.length < 3 || word.includes("-") || word !== word.toLowerCase()) return null;
   const lower = word.toLowerCase();
   const candidates = Array.from(new Set(suggestions))
     .map((item) => item.trim())
     .filter((item) => item && item.toLowerCase() !== lower)
-    .filter((item) => levenshtein(lower, item.toLowerCase()) === 1);
+    .filter((item) => levenshtein(lower, item.toLowerCase()) === 1)
+    .filter((item) => {
+      const candidate = item.toLowerCase();
+      return !inflectional(lower, candidate) && !inflectional(candidate, lower);
+    });
   return candidates.length === 1 ? candidates[0] : null;
+}
+
+export function fixSignature(original: string, replacement: string): string {
+  return `${original}\u0000${replacement}`;
+}
+
+export function fixIntact(fix: { start: number; replacement: string }, text: string): boolean {
+  return text.slice(fix.start, fix.start + fix.replacement.length) === fix.replacement;
+}
+
+export function punctuationFix(
+  issues: SpellIssue[],
+  caret: number,
+  rejected: Set<string>,
+): { issue: SpellIssue; replacement: string } | null {
+  for (const issue of issues) {
+    if (issue.source !== "grammar" || issue.suggestions.length !== 1 || caret < issue.end) continue;
+    const replacement = issue.suggestions[0];
+    if (!addsOnlyPunctuation(issue.word, replacement)) continue;
+    if (rejected.has(fixSignature(issue.word, replacement))) continue;
+    return { issue, replacement };
+  }
+  return null;
 }
 
 export function maskedAt(text: string, index: number): boolean {

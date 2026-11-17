@@ -8,6 +8,7 @@ import {
 } from "react";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { appLinkClick } from "../lib/appLink";
 import { attachmentNameFromHref, localFileHref } from "../lib/attachments";
 import { peroHref, resolveFilePath } from "../lib/diff";
 import { fileTarget } from "../lib/fileLink";
@@ -144,13 +145,16 @@ function codeFor(
     }
     const target = fileTarget(text);
     if (target && directory && peroURL) {
+      const path = resolveFilePath(target.path, directory);
+      const href = peroHref(peroURL, path, target.lines);
       return (
         <a
-          href={peroHref(peroURL, resolveFilePath(target.path, directory), target.lines)}
+          href={href}
           target="_blank"
           rel="noreferrer noopener"
           title={`Open ${target.path} in pero`}
           className="md-file"
+          onClick={appLinkClick({ app: "pero", path, lines: target.lines }, href)}
         >
           <code className={className}>{children}</code>
         </a>

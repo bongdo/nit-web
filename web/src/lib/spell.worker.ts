@@ -1,5 +1,5 @@
 import nspell from "nspell";
-import { findIssues, prefixMatches, unknownWords, type SpellIssue, type SpellChecker } from "./spell";
+import { findIssues, prefixMatches, sortWords, unknownWords, type SpellIssue, type SpellChecker } from "./spell";
 
 type IssuesRequest = { kind?: "issues"; id: number; text: string; ignore: string[] };
 type CompletionRequest = { kind: "completion"; id: number; prefix: string; ignore: string[] };
@@ -41,7 +41,7 @@ function dictionaryWords(dictionary: string): string[] {
     const word = head.split("/")[0];
     if (word && /^\p{L}/u.test(word)) words.add(word);
   }
-  return Array.from(words).sort();
+  return sortWords(words);
 }
 
 async function load(): Promise<Loaded> {

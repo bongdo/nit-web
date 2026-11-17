@@ -4,6 +4,8 @@ import {
   allowedWord,
   applyIssue,
   findIssues,
+  fixIntact,
+  fixSignature,
   grammarIssues,
   hidePending,
   issueAtCaret,
@@ -15,7 +17,9 @@ import {
   mergeIssues,
   pendingWord,
   prefixMatches,
+  punctuationFix,
   safeAutoFix,
+  sortWords,
   unknownWords,
   words,
   type SpellChecker,
@@ -322,5 +326,71 @@ describe("spell", () => {
     expect(findIssues("boxes", ru, en)).toEqual([]);
     expect(findIssues("executablse", ru, en)).toHaveLength(1);
     expect(unknownWords("executables boxes", ru, en)).toEqual([]);
+  });
+
+  it("never marks part of a word or a range that no longer matches the text", () => {
+    const stale: SpellIssue = {
+      start: 4,
+      end: 11,
+      word: "наблюда",
+      suggestions: ["наблюдать"],
+      language: "ru",
+    };
+    expect(hidePending([stale], "это наблюдаю", 13)).toEqual([]);
+    expect(hidePending([stale], "это наблюдаю", null)).toEqual([]);
+    expect(hidePending([stale], "это наблюдаю и пишу", 13)).toEqual([]);
+    const shifted: SpellIssue = { ...stale, start: 5, end: 8 };
+    expect(hidePending([shifted], "это наблюдаю", null)).toEqual([]);
+    expect(hidePending([{ ...stale, start: 0, end: 7, word: "это наб" }], "это наблюдаю", null)).toEqual([]);
+  });
+
+  it("keeps a mark on a whole word and on a hyphen part", () => {
+    const whole: SpellIssue = {
+      start: 4,
+      end: 12,
+      word: "наблюдаю",
+      suggestions: [],
+      language: "ru",
+    };
+    expect(hidePending([whole], "это наблюдаю", 13)).toHaveLength(1);
+    expect(hidePending([whole], "это наблюдаю ", 13)).toHaveLength(1);
+    const part: SpellIssue = { start: 4, end: 6, word: "та", suggestions: ["то"], language: "ru" };
+    expect(hidePending([part], "кто-та пришёл", null)).toHaveLength(1);
+  });
+
+  it("does not strip an inflection when auto-fixing", () => {
+    expect(safeAutoFix("executables", ["executable"])).toBeNull();
+    expect(safeAutoFix("executable", ["executables"])).toBeNull();
+    expect(safeAutoFix("closed", ["close"])).toBeNull();
+    expect(safeAutoFix("runn", ["run"])).toBe("run");
+    expect(safeAutoFix("grammer", ["grammar"])).toBe("grammar");
+  });
+
+  it("sorts dictionary words so a lowercase prefix search finds them", () => {
+    const mixed = sortWords(["Box", "abbey", "aback"]);
+    expect(mixed).toEqual(["aback", "abbey", "Box"]);
+    expect(prefixMatches(mixed, "ab")).toEqual(["aback", "abbey"]);
+    expect(prefixMatches(sortWords(["Navajo", "naval", "nave"]), "nav")).toEqual([
+      "Navajo",
+      "naval",
+      "nave",
+    ]);
+  });
+
+  it("re-applies no punctuation fix the user rejected", () => {
+    const text = "проверку но";
+    const issues = grammarIssues(text, [
+      { offset: 0, length: 8, message: "comma", ruleID: "X", replacements: ["проверку,"] },
+    ]);
+    expect(punctuationFix(issues, 10, new Set())?.replacement).toBe("проверку,");
+    expect(punctuationFix(issues, 7, new Set())).toBeNull();
+    const rejected = new Set([fixSignature("проверку", "проверку,")]);
+    expect(punctuationFix(issues, 10, rejected)).toBeNull();
+  });
+
+  it("knows when an applied fix is still intact", () => {
+    expect(fixIntact({ start: 2, replacement: "грамматики" }, "я грамматики")).toBe(true);
+    expect(fixIntact({ start: 2, replacement: "грамматики" }, "я грамматик")).toBe(false);
+    expect(fixIntact({ start: 2, replacement: "грамматики" }, "ты грамматики")).toBe(false);
   });
 });

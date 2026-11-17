@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import type { Session } from "../lib/types";
 import { formatCost, formatRelative, sessionRunning, workspaceLabel } from "../lib/format";
+import { appLinkClick } from "../lib/appLink";
 import { peroHref, termHref } from "../lib/diff";
 import { cn } from "../lib/utils";
 import { Button } from "./ui/button";
@@ -255,6 +256,10 @@ function MobileMenu({
                 target="_blank"
                 rel="noreferrer"
                 role="menuitem"
+                onClick={appLinkClick(
+                  { app: "term", dir: directory },
+                  termHref(termURL, directory),
+                )}
                 className="hover:bg-accent/60 flex items-center gap-2 rounded px-2 py-1.5 text-[12px]"
               >
                 <Terminal className="text-muted-foreground size-3.5 shrink-0" />
@@ -265,6 +270,10 @@ function MobileMenu({
                 target="_blank"
                 rel="noreferrer"
                 role="menuitem"
+                onClick={appLinkClick(
+                  { app: "pero", path: directory },
+                  peroHref(peroURL, directory),
+                )}
                 className="hover:bg-accent/60 flex items-center gap-2 rounded px-2 py-1.5 text-[12px]"
               >
                 <FileCode2 className="text-muted-foreground size-3.5 shrink-0" />

@@ -18,18 +18,20 @@ import { questionAnswer, questionFields } from "../lib/forms";
 import { formatBytes, quoteText } from "../lib/format";
 import { shouldCaptureKey, shortcutKeys } from "../lib/keys";
 import {
-  addsOnlyPunctuation,
   applyIssue,
+  fixIntact,
+  fixSignature,
   hidePending,
   issueAtCaret,
   issueKey,
   maskedAt,
+  punctuationFix,
   safeAutoFix,
   type SpellIssue,
 } from "../lib/spell";
 import { useSpellcheck } from "../hooks/useSpellcheck";
 import { useCompletion } from "../hooks/useCompletion";
-import { loadIgnoredWords, SPELL_CHANGED } from "../lib/chatWords";
+import { ignoreWords, loadIgnoredWords, SPELL_CHANGED } from "../lib/chatWords";
 import { checkSpelling } from "../lib/spell-client";
 import { cn } from "../lib/utils";
 import { FileTypeIcon } from "./Attachment";
@@ -169,6 +171,7 @@ export const Composer = memo(function Composer({
   const syncUntil = useRef(0);
   const autoCorrectPending = useRef(false);
   const grammarFixes = useRef(0);
+  const rejectedFixes = useRef(new Set<string>());
   const lastTypedAt = useRef(0);
   const fileRef = useRef<HTMLInputElement>(null);
   const draftBeforeForm = useRef("");
@@ -492,23 +495,17 @@ export const Composer = memo(function Composer({
     if (!area || document.activeElement !== area) return;
     const caretNow = area.selectionStart;
     if (caretNow !== area.selectionEnd) return;
-    const issue = issues.find(
-      (item) =>
-        item.source === "grammar" &&
-        caretNow >= item.end &&
-        item.suggestions.length === 1 &&
-        addsOnlyPunctuation(answerText.slice(item.start, item.end), item.suggestions[0]),
-    );
-    if (!issue) return;
-    const replacement = issue.suggestions[0];
-    const position = caretNow + replacement.length - (issue.end - issue.start);
+    const fix = punctuationFix(issues, caretNow, rejectedFixes.current);
+    if (!fix) return;
+    const replacement = fix.replacement;
+    const position = caretNow + replacement.length - (fix.issue.end - fix.issue.start);
     grammarFixes.current += 1;
-    updateValue(applyIssue(answerText, issue, replacement));
+    updateValue(applyIssue(answerText, fix.issue, replacement));
     setCaret(position);
     setUndoFix({
-      original: answerText.slice(issue.start, issue.end),
+      original: fix.issue.word,
       replacement,
-      start: issue.start,
+      start: fix.issue.start,
       at: Date.now(),
       ignore: false,
     });
@@ -556,12 +553,12 @@ export const Composer = memo(function Composer({
     if (!clean) return;
     setHintRect(null);
     setDismissed(null);
-    setIgnored((current) => {
-      if (current.includes(clean)) return current;
-      const next = [...current, clean];
-      localStorage.setItem("nit-gui.spell-ignore", JSON.stringify(next));
-      return next;
-    });
+    setIgnored(ignoreWords([clean]));
+  };
+
+  const rejectFix = (fix: AutoFix) => {
+    rejectedFixes.current.add(fixSignature(fix.original, fix.replacement));
+    if (fix.ignore) ignoreWord(fix.original);
   };
 
   const autoFixWord = async (start: number, end: number, word: string) => {
@@ -596,7 +593,7 @@ export const Composer = memo(function Composer({
     const area = ref.current;
     if (!fix || !area) return;
     const end = fix.start + fix.replacement.length;
-    if (area.value.slice(fix.start, end) !== fix.replacement) {
+    if (!fixIntact(fix, area.value)) {
       setUndoFix(null);
       return;
     }
@@ -604,9 +601,9 @@ export const Composer = memo(function Composer({
     const shift = fix.original.length - fix.replacement.length;
     const caretNow = area.selectionStart;
     const nextCaret = caretNow >= end ? caretNow + shift : caretNow;
+    rejectFix(fix);
     updateValue(next);
     setCaret(nextCaret);
-    if (fix.ignore) ignoreWord(fix.original);
     setUndoFix(null);
     requestAnimationFrame(() => {
       const current = ref.current;
@@ -635,13 +632,11 @@ export const Composer = memo(function Composer({
         delete counts[word];
       }
     }
-    localStorage.setItem("nit-gui.spell-seen", JSON.stringify(counts));
+    try {
+      localStorage.setItem("nit-gui.spell-seen", JSON.stringify(counts));
+    } catch {}
     if (learned.length === 0) return;
-    setIgnored((current) => {
-      const next = Array.from(new Set([...current, ...learned]));
-      localStorage.setItem("nit-gui.spell-ignore", JSON.stringify(next));
-      return next;
-    });
+    setIgnored(ignoreWords(learned));
   };
 
   const addFiles = (files: File[]) => {
@@ -1060,6 +1055,10 @@ export const Composer = memo(function Composer({
                   autoCorrectPending.current = false;
                   grammarFixes.current = 0;
                   lastTypedAt.current = Date.now();
+                  if (undoFix && !fixIntact(undoFix, next)) {
+                    rejectFix(undoFix);
+                    setUndoFix(null);
+                  }
                   updateValue(next);
                   const caretNow = event.target.selectionStart;
                   setCaret(caretNow === event.target.selectionEnd ? caretNow : null);
@@ -1106,7 +1105,7 @@ export const Composer = memo(function Composer({
                     if (
                       area &&
                       area.selectionStart >= end &&
-                      area.value.slice(undoFix.start, end) === undoFix.replacement
+                      fixIntact(undoFix, area.value)
                     ) {
                       event.preventDefault();
                       event.stopPropagation();
@@ -1121,7 +1120,7 @@ export const Composer = memo(function Composer({
                       area &&
                       area.selectionStart === end &&
                       area.selectionEnd === end &&
-                      area.value.slice(undoFix.start, end) === undoFix.replacement
+                      fixIntact(undoFix, area.value)
                     ) {
                       event.preventDefault();
                       event.stopPropagation();

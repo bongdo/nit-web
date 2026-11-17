@@ -18,6 +18,18 @@ function read(key: string): string[] {
   }
 }
 
+function write(key: string, words: string[]): void {
+  try {
+    localStorage.setItem(key, JSON.stringify(words));
+  } catch {
+    return;
+  }
+}
+
+function lower(words: string[]): string[] {
+  return words.map((word) => word.toLowerCase());
+}
+
 export function chatText(messages: Message[]): string {
   const parts: string[] = [];
   for (const message of messages) {
@@ -31,16 +43,21 @@ export function chatText(messages: Message[]): string {
   return parts.join("\n").slice(-MAX_CHARS);
 }
 
+export function ignoreWords(words: string[]): string[] {
+  const merged = Array.from(new Set([...lower(read(IGNORE_KEY)), ...lower(words)]));
+  write(IGNORE_KEY, merged);
+  return merged;
+}
+
 export function loadIgnoredWords(): string[] {
-  return Array.from(new Set([...read(IGNORE_KEY), ...read(CHAT_KEY).map((word) => word.toLowerCase())]));
+  return Array.from(new Set([...lower(read(IGNORE_KEY)), ...lower(read(CHAT_KEY))]));
 }
 
 export function mergeChatWords(words: string[]): boolean {
   const current = read(CHAT_KEY);
-  const known = new Set(current);
+  const known = new Set(lower(current));
   if (!words.some((word) => !known.has(word.toLowerCase()))) return false;
-  const merged = Array.from(new Set([...current, ...words.map((word) => word.toLowerCase())])).slice(-LIMIT);
-  localStorage.setItem(CHAT_KEY, JSON.stringify(merged));
+  write(CHAT_KEY, Array.from(new Set([...current, ...lower(words)])).slice(-LIMIT));
   window.dispatchEvent(new Event(SPELL_CHANGED));
   return true;
 }

@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import nspell from "nspell";
 import { describe, expect, it } from "vitest";
 import {
   addsOnlyPunctuation,
@@ -88,6 +90,13 @@ const en: SpellChecker = {
     ].includes(word.toLowerCase()),
   suggest: (word) => (word.toLowerCase() === "grammer" ? ["grammar"] : []),
 };
+
+const realEn: SpellChecker = (() => {
+  const read = (name: string) =>
+    readFileSync(new URL(`../../node_modules/dictionary-en/index.${name}`, import.meta.url), "utf8");
+  const checker = nspell(read("aff"), read("dic"));
+  return { correct: (word) => checker.correct(word), suggest: (word) => checker.suggest(word) };
+})();
 
 describe("spell", () => {
   it("keeps offsets when masking code, paths, urls and inline code", () => {
@@ -326,6 +335,13 @@ describe("spell", () => {
     expect(findIssues("boxes", ru, en)).toEqual([]);
     expect(findIssues("executablse", ru, en)).toHaveLength(1);
     expect(unknownWords("executables boxes", ru, en)).toEqual([]);
+  });
+
+  it("accepts the plural of an affix-derived word from the real dictionary", () => {
+    expect(realEn.correct("executable")).toBe(true);
+    expect(realEn.correct("executables")).toBe(false);
+    expect(findIssues("executables", ru, realEn)).toEqual([]);
+    expect(safeAutoFix("executables", ["executable"])).toBeNull();
   });
 
   it("never marks part of a word or a range that no longer matches the text", () => {

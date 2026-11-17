@@ -710,6 +710,12 @@ nspell worker. It is not implemented yet.
   a file with a known extension (`bin/check`, `docs/decisions.md:12`) is a link
   to pero in a new tab, resolved against the chat directory; commands with
   spaces, URLs, Cyrillic prose and bare words stay plain, so no accidental links.
+- Cross-app links reuse a running page: a file link posts on the same-origin
+  `BroadcastChannel` `nit-pero`, and the term/pero workspace icons post on
+  `nit-term`/`nit-pero`. The receiver opens the path or switches the terminal
+  session without a reload, keeps its tabs and unsaved text, and acknowledges;
+  nothing answering in 400 ms means a new tab, so the links work with the apps
+  closed. Modifier and middle clicks keep the plain new-tab behaviour.
 - HTML answers: an agent or user can reference a workspace page as
   `[[html:pages/chart.html|Title]]` on its own line. The chat reads the file
   through `/api/artifact` and renders it inline as part of the reply; the marker

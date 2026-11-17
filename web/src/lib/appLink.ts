@@ -5,7 +5,7 @@ export type AppTarget =
   | { app: "pero"; path: string; lines?: LineRange[]; agent?: string }
   | { app: "term"; dir?: string; session?: string };
 
-const FALLBACK_MS = 120;
+const FALLBACK_MS = 400;
 
 export function openInApp(target: AppTarget, href: string): void {
   if (typeof window === "undefined" || typeof BroadcastChannel === "undefined") {

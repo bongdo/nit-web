@@ -44,7 +44,8 @@ export function chatText(messages: Message[]): string {
 }
 
 export function ignoreWords(words: string[]): string[] {
-  const merged = Array.from(new Set([...lower(read(IGNORE_KEY)), ...lower(words)]));
+  const clean = words.map((word) => word.trim().toLowerCase()).filter(Boolean);
+  const merged = Array.from(new Set([...lower(read(IGNORE_KEY)), ...clean]));
   write(IGNORE_KEY, merged);
   return merged;
 }

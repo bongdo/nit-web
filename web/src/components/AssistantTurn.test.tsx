@@ -51,5 +51,6 @@ describe("AssistantTurn steps", () => {
     expect(html).not.toContain("Checking the failing test first.");
     expect(html).not.toContain("bin/check");
     expect(html).toContain(`Steps · 2`);
+    expect(html).not.toContain("Activity</span>");
   });
 });

@@ -1,7 +1,7 @@
 import { memo, useEffect, useRef, useState } from "react";
-import { Bot, ChevronDown, ChevronRight, CircleAlert, ListTree, Loader2 } from "lucide-react";
+import { Bot, ChevronDown, ChevronRight, CircleAlert, ListTree, Loader2, X } from "lucide-react";
 import type { Agent, Message, Model, ReasoningPart, ToolPart } from "../lib/types";
-import { activityLine } from "../lib/activity";
+import { activityLine, toolBreakdown } from "../lib/activity";
 import { turnEditedFiles } from "../lib/diff";
 import { stepMessageIDs } from "../lib/stream";
 import { htmlArtifactSegments, isPureHtml } from "../lib/html";
@@ -9,14 +9,13 @@ import { modelLabel, replyText, turnBlocks } from "../lib/format";
 import { timeLabel, type TimeFormat } from "../lib/time";
 import { useSmoothText } from "../hooks/useSmoothText";
 import { cn } from "../lib/utils";
+import { ActivityLog } from "./ActivityLog";
 import { ChangedFilesButton, FileList } from "./FileChips";
 import { HtmlArtifact } from "./HtmlArtifact";
 import { HtmlMessagePreview } from "./HtmlMessagePreview";
 import { MarkdownLazy } from "./MarkdownLazy";
 import { QuestionCard } from "./QuestionCard";
 import { ReplyActions } from "./ReplyActions";
-import { Reasoning } from "./Reasoning";
-import { ToolCall } from "./ToolCall";
 import { Button } from "./ui/button";
 
 function durationLabel(messages: Message[]): string {
@@ -61,6 +60,7 @@ export const AssistantTurn = memo(function AssistantTurn({
   const [open, setOpen] = useState(false);
   const [showFiles, setShowFiles] = useState(false);
   const filesRef = useRef<HTMLDivElement | null>(null);
+  const panelRef = useRef<HTMLDivElement | null>(null);
   const wasStreaming = useRef(streaming);
   const wasLive = useRef(streaming);
   const [loadingSteps, setLoadingSteps] = useState(false);
@@ -127,6 +127,7 @@ export const AssistantTurn = memo(function AssistantTurn({
         .filter(Boolean)
         .join(" · ")
     : "";
+  const breakdown = toolBreakdown(activity, workspace).slice(0, 6);
 
   useEffect(() => {
     if (streaming) {
@@ -136,9 +137,9 @@ export const AssistantTurn = memo(function AssistantTurn({
     }
     if (wasStreaming.current) {
       wasStreaming.current = false;
-      setOpen(false);
+      if (showSteps) setOpen(false);
     }
-  }, [streaming]);
+  }, [showSteps, streaming]);
 
   useEffect(() => {
     if (!showFiles) return;
@@ -155,6 +156,23 @@ export const AssistantTurn = memo(function AssistantTurn({
       document.removeEventListener("keydown", onKey);
     };
   }, [showFiles]);
+
+  useEffect(() => {
+    if (!open || showSteps) return;
+    panelRef.current?.scrollIntoView({ block: "nearest" });
+    const onPointer = (event: MouseEvent) => {
+      if (!filesRef.current?.contains(event.target as Node)) setOpen(false);
+    };
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("mousedown", onPointer);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onPointer);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [activity.length, loadingSteps, open, showSteps]);
 
   const loadSteps = () => {
     if (!onLoadMessage) return;
@@ -188,7 +206,7 @@ export const AssistantTurn = memo(function AssistantTurn({
       <div className="min-w-0 pl-8">
         {blocks.map((block, index) => {
           if (block.kind === "steps") {
-            if (!showSteps && !open) return null;
+            if (!showSteps) return null;
             return (
               <div
                 key="steps"
@@ -229,30 +247,16 @@ export const AssistantTurn = memo(function AssistantTurn({
                     {loadingSteps && activity.length === 0 && (
                       <div className="text-muted-foreground px-2 py-1 text-xs">Loading steps…</div>
                     )}
-                    {activity.map((part, index) => {
-                      const owner = owners.get(part);
-                      const onLoad =
-                        onLoadMessage && part.light && owner && !(streaming && owner.id === last?.id)
-                          ? () => onLoadMessage(owner.id)
-                          : undefined;
-                      return part.type === "reasoning" ? (
-                        <Reasoning
-                          key={`reasoning-${index}`}
-                          part={part}
-                          streaming={streaming && index === activity.length - 1}
-                          onLoad={onLoad}
-                        />
-                      ) : (
-                        <ToolCall
-                          key={`tool-${part.id ?? index}`}
-                          part={part}
-                          cwd={workspace}
-                          peroURL={peroURL}
-                          agent={agentName}
-                          onLoad={onLoad}
-                        />
-                      );
-                    })}
+                    <ActivityLog
+                      activity={activity}
+                      owners={owners}
+                      workspace={workspace}
+                      peroURL={peroURL}
+                      agent={agentName}
+                      streaming={streaming}
+                      lastID={last?.id}
+                      onLoadMessage={onLoadMessage}
+                    />
                   </div>
                 )}
               </div>
@@ -368,6 +372,7 @@ export const AssistantTurn = memo(function AssistantTurn({
                 size="xs"
                 className={cn("text-muted-foreground", open && "text-foreground")}
                 aria-expanded={open}
+                aria-haspopup="dialog"
                 onClick={() => {
                   const next = !open;
                   setOpen(next);
@@ -378,6 +383,72 @@ export const AssistantTurn = memo(function AssistantTurn({
                 <span>Steps{shownSteps > 0 ? ` · ${shownSteps}` : ""}</span>
                 {shownErrors > 0 && <CircleAlert className="text-destructive" />}
               </Button>
+            )}
+            {!showSteps && open && (
+              <div
+                ref={panelRef}
+                role="dialog"
+                aria-label="Agent steps"
+                className="file-popover-enter bg-popover text-popover-foreground border-border absolute bottom-full left-0 z-30 mb-2 flex max-h-[min(70vh,26rem)] w-[min(34rem,calc(100vw-4rem))] flex-col overflow-hidden rounded-xl border shadow-xl"
+              >
+                <header className="border-border/70 flex items-center gap-2 border-b px-3 py-2">
+                  <span className="text-[11px] font-semibold uppercase tracking-wider">
+                    Activity
+                  </span>
+                  <span className="text-muted-foreground min-w-0 flex-1 truncate text-[10px]">
+                    {stats}
+                  </span>
+                  <Button
+                    variant="ghost"
+                    size="icon-xs"
+                    onClick={() => setOpen(false)}
+                    aria-label="Close steps"
+                  >
+                    <X />
+                  </Button>
+                </header>
+                <div className="scrollbar-thin min-h-0 flex-1 overflow-y-auto px-2 py-2">
+                  {loadingSteps && activity.length === 0 ? (
+                    <p className="text-muted-foreground px-2 py-1 text-xs">Loading steps…</p>
+                  ) : activity.length === 0 ? (
+                    <p className="text-muted-foreground px-2 py-1 text-xs">
+                      Nothing recorded for this turn.
+                    </p>
+                  ) : (
+                    <ActivityLog
+                      activity={activity}
+                      owners={owners}
+                      workspace={workspace}
+                      peroURL={peroURL}
+                      agent={agentName}
+                      streaming={streaming}
+                      lastID={last?.id}
+                      onLoadMessage={onLoadMessage}
+                    />
+                  )}
+                </div>
+                {breakdown.length > 0 && (
+                  <footer className="border-border/70 flex flex-wrap items-center gap-1 border-t px-2 py-1.5">
+                    {breakdown.map((group) => (
+                      <span
+                        key={group.verb}
+                        className={cn(
+                          "bg-muted/60 text-muted-foreground rounded px-1.5 py-0.5 font-mono text-[10px]",
+                          group.error > 0 && "text-destructive",
+                        )}
+                      >
+                        {group.verb} {group.count}
+                      </span>
+                    ))}
+                    {shownErrors > 0 && (
+                      <span className="text-destructive ml-auto flex items-center gap-1 text-[10px]">
+                        <CircleAlert className="size-3" />
+                        {shownErrors} failed
+                      </span>
+                    )}
+                  </footer>
+                )}
+              </div>
             )}
             {!streaming && reply.trim() !== "" && (
               <ReplyActions text={reply} enter={wasLive.current} />

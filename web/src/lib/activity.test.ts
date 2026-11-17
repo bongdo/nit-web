@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { activityLine, thinkingPreview, toolSummary } from "./activity";
+import { activityLine, thinkingPreview, toolBreakdown, toolSummary } from "./activity";
 import type { ToolPart } from "./types";
 
 const tool = (name: string, input: unknown, status: ToolPart["state"]["status"] = "completed"): ToolPart => ({
@@ -53,5 +53,19 @@ describe("activity", () => {
       "Thinking · Check the failing test",
     );
     expect(activityLine(tool("read", { path: "/tmp/a.go" }))).toBe("Read /tmp/a.go");
+  });
+
+  it("groups tools by verb and counts failures", () => {
+    const parts = [
+      tool("bash", { command: "bin/check" }),
+      tool("read", { filePath: "/tmp/a.go" }),
+      { ...tool("bash", { command: "go test" }), id: "tool_2" },
+      tool("grep", { pattern: "x" }, "error"),
+    ];
+    expect(toolBreakdown(parts)).toEqual([
+      { verb: "Run", count: 2, error: 0 },
+      { verb: "Read", count: 1, error: 0 },
+      { verb: "Search", count: 1, error: 1 },
+    ]);
   });
 });

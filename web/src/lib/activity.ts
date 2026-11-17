@@ -90,3 +90,21 @@ export function activityLine(
   const { verb, target } = toolSummary(part, cwd);
   return target ? `${verb} ${target}` : verb;
 }
+
+export type ToolGroup = { verb: string; count: number; error: number };
+
+export function toolBreakdown(
+  parts: (ReasoningPart | ToolPart)[],
+  cwd?: string | null,
+): ToolGroup[] {
+  const groups = new Map<string, ToolGroup>();
+  for (const part of parts) {
+    if (part.type !== "tool") continue;
+    const { verb } = toolSummary(part, cwd);
+    const group = groups.get(verb) ?? { verb, count: 0, error: 0 };
+    group.count += 1;
+    if (part.state.status === "error") group.error += 1;
+    groups.set(verb, group);
+  }
+  return [...groups.values()].sort((a, b) => b.count - a.count);
+}

@@ -17,18 +17,20 @@ if (!executablePath) {
 await mkdir(out, { recursive: true });
 
 const browser = await chromium.launch({ executablePath, args: ["--no-sandbox"] });
-const context = await browser.newContext({
-  viewport: { width: 800, height: 500 },
-  deviceScaleFactor: 1,
-  colorScheme: "dark",
-});
-const page = await context.newPage();
+try {
+  const context = await browser.newContext({
+    viewport: { width: 800, height: 500 },
+    deviceScaleFactor: 1,
+    colorScheme: "dark",
+  });
+  const page = await context.newPage();
 
-for (const prefix of prefixes) {
-  await page.goto(`${base}/preview/${prefix}`, { waitUntil: "domcontentloaded" });
-  await page.waitForTimeout(2500);
-  await page.screenshot({ path: join(out, `${prefix}.png`) });
-  console.log(join(out, `${prefix}.png`));
+  for (const prefix of prefixes) {
+    await page.goto(`${base}/preview/${prefix}`, { waitUntil: "domcontentloaded" });
+    await page.waitForTimeout(2500);
+    await page.screenshot({ path: join(out, `${prefix}.png`) });
+    console.log(join(out, `${prefix}.png`));
+  }
+} finally {
+  await browser.close();
 }
-
-await browser.close();

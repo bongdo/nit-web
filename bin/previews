@@ -6,4 +6,19 @@ if [ ! -d tools/previews/node_modules ]; then
   npm --prefix tools/previews install --offline --no-audit --no-fund
 fi
 
+envargs=()
+for v in NIT_GATE_URL NIT_GATE_PREVIEWS NIT_PREVIEWS NIT_PREVIEW_BROWSER; do
+  [ -n "${!v:-}" ] && envargs+=("--setenv=$v=${!v}")
+done
+
+if command -v systemd-run >/dev/null 2>&1; then
+  exec systemd-run --user --wait --pipe --quiet --collect \
+    --unit="nit-previews-$$" \
+    --property=KillMode=control-group \
+    --property=RuntimeMaxSec=300 \
+    --property=WorkingDirectory="$PWD" \
+    --setenv=PATH="$PATH" "${envargs[@]}" \
+    -- node tools/previews/shot.mjs
+fi
+
 exec node tools/previews/shot.mjs

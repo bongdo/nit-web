@@ -7,4 +7,14 @@ if [ ! -d "$root/tools/previews/node_modules" ]; then
   npm --prefix "$root/tools/previews" install --offline --no-audit --no-fund
 fi
 
+if command -v systemd-run >/dev/null 2>&1; then
+  exec systemd-run --user --wait --pipe --quiet --collect \
+    --unit="nit-page-$$" \
+    --property=KillMode=control-group \
+    --property=RuntimeMaxSec=120 \
+    --property=WorkingDirectory="$root" \
+    --setenv=PATH="$PATH" \
+    -- node "$root/tools/page/page.mjs" "$@"
+fi
+
 exec node "$root/tools/page/page.mjs" "$@"

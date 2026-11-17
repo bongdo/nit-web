@@ -533,9 +533,20 @@ export function punctuationFix(
   return null;
 }
 
+let maskCacheText = "";
+let maskCacheValue = "";
+
+function maskOf(text: string): string {
+  if (text !== maskCacheText) {
+    maskCacheValue = maskCode(text);
+    maskCacheText = text;
+  }
+  return maskCacheValue;
+}
+
 export function maskedAt(text: string, index: number): boolean {
   if (index < 0 || index >= text.length) return false;
-  return maskCode(text)[index] === " " && text[index] !== " ";
+  return maskOf(text)[index] === " " && text[index] !== " ";
 }
 
 export function keepStale(previous: string, next: string, issues: SpellIssue[]): SpellIssue[] {

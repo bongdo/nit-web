@@ -6,10 +6,10 @@ import { learnWords } from "../lib/spell-client";
 export function useChatDictionary(messages: Message[], ready: boolean) {
   useEffect(() => {
     if (!ready) return;
-    const text = chatText(messages);
-    if (!text) return;
     let alive = true;
     const timer = window.setTimeout(() => {
+      const text = chatText(messages);
+      if (!text) return;
       void learnWords(text, loadIgnoredWords())
         .then((words) => {
           if (alive && words.length > 0) mergeChatWords(words);

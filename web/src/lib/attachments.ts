@@ -28,7 +28,7 @@ const fileTypes: [FileType, RegExp][] = [
   ["spreadsheet", /\.(csv|tsv|xls|xlsx|ods|numbers)$/i],
   ["presentation", /\.(ppt|pptx|odp|key)$/i],
   ["json", /\.(json|jsonl)$/i],
-  ["code", /\.(js|jsx|ts|tsx|go|py|sh|bash|zsh|rs|java|c|cpp|h|hpp|cs|rb|php|swift|kt|kts|scala|sql|html?|css|scss|sass|less|xml|ya?ml|toml|ini|conf|env|c3|zig|nim|str|dart|nix|lua|hs|ex|exs|erl|clj|sol|vue|svelte)$/i],
+  ["code", /\.(js|jsx|ts|tsx|go|py|sh|bash|zsh|rs|java|c|cpp|h|hpp|cs|rb|php|swift|kt|kts|scala|sql|html?|css|scss|sass|less|xml|ya?ml|toml|ini|conf|env|lock|mod|sum|c3|zig|nim|str|dart|nix|lua|hs|ex|exs|erl|clj|sol|vue|svelte)$/i],
   ["key", /\.(pem|key|crt|cer|p12|pfx)$/i],
   ["document", /\.(txt|md|markdown|log|doc|docx|odt|rtf|pages)$/i],
 ];

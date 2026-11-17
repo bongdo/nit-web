@@ -22,6 +22,7 @@ export function Pick({
 }) {
   const [open, setOpen] = useState(false);
   const [rect, setRect] = useState<DOMRect | null>(null);
+  const [active, setActive] = useState(0);
   const button = useRef<HTMLButtonElement>(null);
   const panel = useRef<HTMLDivElement>(null);
   const current = options.find((item) => item.value === value);
@@ -33,9 +34,25 @@ export function Pick({
     }
     const box = button.current?.getBoundingClientRect();
     if (!box) return;
+    const index = options.findIndex((item) => item.value === value);
+    setActive(index >= 0 ? index : 0);
     setRect(box);
     setOpen(true);
   };
+
+  const choose = (index: number) => {
+    const item = options[index];
+    if (!item) return;
+    onChange(item.value);
+    setOpen(false);
+  };
+
+  useEffect(() => {
+    if (!open) return;
+    panel.current
+      ?.querySelector<HTMLElement>(`[data-pick-index="${active}"]`)
+      ?.scrollIntoView({ block: "nearest" });
+  }, [open, active]);
 
   useEffect(() => {
     if (!open) return;
@@ -84,6 +101,22 @@ export function Pick({
         aria-expanded={open}
         aria-label={label}
         onClick={toggle}
+        onKeyDown={(event) => {
+          if (!open) return;
+          if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+            event.preventDefault();
+            const step = event.key === "ArrowDown" ? 1 : -1;
+            setActive((index) => (index + step + options.length) % options.length);
+          } else if (event.key === "Home" || event.key === "End") {
+            event.preventDefault();
+            setActive(event.key === "Home" ? 0 : options.length - 1);
+          } else if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            choose(active);
+          } else if (event.key === "Tab") {
+            setOpen(false);
+          }
+        }}
         className="border-border bg-background hover:bg-accent/50 focus-visible:ring-ring flex h-8 w-full items-center justify-between gap-2 rounded-md border px-2 text-left text-xs outline-none focus-visible:ring-2"
       >
         <span className="min-w-0 flex-1 truncate">{current?.label ?? placeholder}</span>
@@ -118,13 +151,12 @@ export function Pick({
                     type="button"
                     role="menuitemradio"
                     aria-checked={item.value === value}
-                    onClick={() => {
-                      onChange(item.value);
-                      setOpen(false);
-                    }}
+                    data-pick-index={index}
+                    onMouseEnter={() => setActive(index)}
+                    onClick={() => choose(index)}
                     className={cn(
                       "hover:bg-accent/60 flex w-full items-center gap-2 rounded px-2 py-1.5 text-left",
-                      item.value === value && "bg-accent/40",
+                      (item.value === value || index === active) && "bg-accent/40",
                     )}
                   >
                     <span className="min-w-0 flex-1">

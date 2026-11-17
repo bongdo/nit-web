@@ -518,13 +518,13 @@ export function ChatView({
 
   const rows = useMemo(() => {
     const items: ReactNode[] = [];
-    const lastUserID = [...messages].reverse().find((message) => message.type === "user")?.id;
+    let lastUserID: string | undefined;
     let lastCompactionId: string | null = null;
     for (let index = messages.length - 1; index >= 0; index -= 1) {
-      if (messages[index].type === "compaction") {
-        lastCompactionId = messages[index].id;
-        break;
-      }
+      const message = messages[index];
+      if (!lastUserID && message.type === "user") lastUserID = message.id;
+      if (!lastCompactionId && message.type === "compaction") lastCompactionId = message.id;
+      if (lastUserID && lastCompactionId) break;
     }
     for (let index = 0; index < messages.length; index += 1) {
       const message = messages[index];

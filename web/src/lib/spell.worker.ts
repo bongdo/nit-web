@@ -129,13 +129,12 @@ function complete(loaded: Loaded, prefix: string, ignore: string[]): string[] {
 scope.onmessage = (event) => {
   const request = event.data;
   if (request.kind === "learn") {
-    void dictionary(request.text)
-      .then((loaded) => {
-        const checker = wrap(loaded.checker, loaded.language);
+    void checkers(request.text)
+      .then(([ru, en]) => {
         scope.postMessage({
           type: "learned",
           id: request.id,
-          words: unknownWords(request.text, checker, checker, new Set(request.ignore)),
+          words: unknownWords(request.text, ru, en, new Set(request.ignore)),
         });
       })
       .catch((error: unknown) => {
@@ -163,13 +162,12 @@ scope.onmessage = (event) => {
     scope.postMessage({ type: "issues", id: request.id, issues: cachedIssues });
     return;
   }
-  void dictionary(request.text)
-    .then((loaded) => {
-      const checker = wrap(loaded.checker, loaded.language);
-      const issues = findIssues(request.text, checker, checker, new Set(request.ignore));
+  void checkers(request.text)
+    .then(([ru, en]) => {
+      const issues = findIssues(request.text, ru, en, new Set(request.ignore));
       cachedText = request.text;
       cachedIgnore = ignoreKey;
-      cachedLanguage = loaded.language;
+      cachedLanguage = language;
       cachedIssues = issues;
       scope.postMessage({ type: "issues", id: request.id, issues });
     })

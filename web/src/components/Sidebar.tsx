@@ -206,7 +206,7 @@ function SessionRow({
           </div>
         )}
       </div>
-      <div className="absolute top-1 right-1 hidden items-center gap-0.5 group-hover:flex">
+      <div className="absolute top-1 right-1 hidden items-center gap-0.5 group-hover:flex group-focus-within:flex">
         {hidden ? (
           <Button
             variant="ghost"

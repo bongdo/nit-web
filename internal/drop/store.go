@@ -817,7 +817,7 @@ func slugBaseValue(value string) string {
 
 func usableSlug(value string) string {
 	value = slugBaseValue(value)
-	if !validSlug(value) {
+	if validID(value) {
 		return "drop"
 	}
 	return value

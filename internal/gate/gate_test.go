@@ -1322,8 +1322,8 @@ func TestTempLoginKeepsNoPersistentCookie(t *testing.T) {
 	if resp.StatusCode != http.StatusSeeOther {
 		t.Fatalf("login = %d", resp.StatusCode)
 	}
-	if got := len(devices.List()); got != 1 {
-		t.Fatalf("devices after temp login = %d, want 1", got)
+	if got := len(devices.List()); got != 0 {
+		t.Fatalf("devices after temp login = %d, want 0", got)
 	}
 	var session *http.Cookie
 	for _, cookie := range resp.Cookies() {
@@ -1338,8 +1338,8 @@ func TestTempLoginKeepsNoPersistentCookie(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !id.Temp || id.Dev == "" {
-		t.Fatalf("temp identity = %+v", id)
+	if !id.Temp || id.Dev != "" {
+		t.Fatalf("temp identity = %+v, want no device", id)
 	}
 	if ttl := time.Until(time.Unix(id.Exp, 0)); ttl > 12*time.Hour || ttl < 11*time.Hour {
 		t.Fatalf("temp session ttl = %v, want 12h", ttl)
@@ -1352,8 +1352,8 @@ func TestTempLoginKeepsNoPersistentCookie(t *testing.T) {
 	if account.StatusCode != http.StatusOK {
 		t.Fatalf("account = %d", account.StatusCode)
 	}
-	if got := len(devices.List()); got != 1 {
-		t.Fatalf("devices after visiting account = %d, want 1", got)
+	if got := len(devices.List()); got != 0 {
+		t.Fatalf("devices after visiting account = %d, want 0", got)
 	}
 }
 
@@ -1679,5 +1679,79 @@ func TestUpstreamFailureRateLimit(t *testing.T) {
 	now = now.Add(6 * time.Second)
 	if got := s.upstreamFailure(); got != 2 {
 		t.Fatalf("failure after window = %d, want 2 suppressed", got)
+	}
+}
+
+func TestLogoutForgetsDevice(t *testing.T) {
+	server, store, devices := testServerDevices(t, nil)
+	user, ok := store.Get("bongdo")
+	if !ok {
+		t.Fatal("bongdo is missing")
+	}
+	device, err := devices.Add("bongdo", "Firefox · Linux", "203.0.113.5")
+	if err != nil {
+		t.Fatal(err)
+	}
+	id := gateid.Identity{
+		User:  user.Name,
+		Role:  user.Role,
+		Caps:  gateid.Caps(user.Role),
+		Exp:   time.Now().Add(time.Hour).Unix(),
+		Epoch: user.Epoch(),
+		Dev:   device.ID,
+	}
+	request, err := http.NewRequest(http.MethodPost, server.URL+"/logout", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	request.AddCookie(&http.Cookie{Name: sessionCookie, Value: gateid.Sign([]byte(testKey), id)})
+	resp, err := noRedirect(t).Do(request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusSeeOther {
+		t.Fatalf("logout = %d", resp.StatusCode)
+	}
+	if devices.Has("bongdo", device.ID) {
+		t.Fatal("logout kept the device")
+	}
+}
+
+func TestOptionalRouteDropsSessionCookies(t *testing.T) {
+	var seen http.Header
+	server, _ := testServer(t, &seen)
+	request, err := http.NewRequest(http.MethodGet, server.URL+"/share/x/", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	request.AddCookie(&http.Cookie{Name: sessionCookie, Value: "bogus"})
+	request.AddCookie(&http.Cookie{Name: deviceCookie, Value: "bogus"})
+	request.AddCookie(&http.Cookie{Name: "nit_theme", Value: "dark"})
+	resp, err := noRedirect(t).Do(request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if got := seen.Get("Cookie"); got != "nit_theme=dark" {
+		t.Fatalf("upstream cookie = %q, want only nit_theme", got)
+	}
+}
+
+func TestSignupIsRateLimited(t *testing.T) {
+	server, _ := testServer(t, nil)
+	client := noRedirect(t)
+	last := 0
+	for index := 0; index < 6; index++ {
+		form := strings.NewReader("name=" + fmt.Sprintf("newbie%d", index))
+		resp, err := client.Post(server.URL+"/signup", "application/x-www-form-urlencoded", form)
+		if err != nil {
+			t.Fatal(err)
+		}
+		resp.Body.Close()
+		last = resp.StatusCode
+	}
+	if last != http.StatusTooManyRequests {
+		t.Fatalf("sixth signup = %d, want 429", last)
 	}
 }

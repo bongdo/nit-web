@@ -160,7 +160,7 @@ func TestMissingEntryFileIsCleaned(t *testing.T) {
 	if err := os.Mkdir(dir, 0o700); err != nil {
 		t.Fatal(err)
 	}
-	old := time.Now().Add(-2 * time.Hour)
+	old := time.Now().Add(-25 * time.Hour)
 	if err := os.Chtimes(dir, old, old); err != nil {
 		t.Fatal(err)
 	}
@@ -554,5 +554,45 @@ func TestReadOnlyStoreKeepsExpiredEntries(t *testing.T) {
 	}
 	if _, err := os.Stat(dir); err != nil {
 		t.Fatalf("read-only list deleted the entry: %v", err)
+	}
+}
+
+func TestPublishRefusesStore(t *testing.T) {
+	store := testStore(t)
+	if _, err := store.PublishPath(store.Root(), "leak", PublishOptions{Public: true}); !errors.Is(err, ErrStorePath) {
+		t.Fatalf("publishing the store = %v, want ErrStorePath", err)
+	}
+	parent := filepath.Dir(store.Root())
+	writeFile(t, filepath.Join(parent, "note.txt"), "hi")
+	entry, err := store.PublishPath(parent, "parent", PublishOptions{Public: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(entry.Files) != 1 || entry.Files[0].Path != "note.txt" {
+		t.Fatalf("parent publish files = %+v, want only the sibling", entry.Files)
+	}
+}
+
+func TestSlugCannotShadowID(t *testing.T) {
+	store := testStore(t)
+	first := publishFile(t, store, "a.txt", "a", PublishOptions{})
+	src := filepath.Join(t.TempDir(), "b.txt")
+	writeFile(t, src, "b")
+	if _, err := store.PublishPath(src, "b", PublishOptions{Slug: first.ID}); !errors.Is(err, ErrInvalidSlug) {
+		t.Fatalf("slug %s = %v, want ErrInvalidSlug", first.ID, err)
+	}
+}
+
+func TestAutoSlugNeverLooksLikeID(t *testing.T) {
+	store := testStore(t)
+	name := "d-0123456789abcdef"
+	src := filepath.Join(t.TempDir(), name+".txt")
+	writeFile(t, src, "x")
+	entry, err := store.PublishPath(src, name, PublishOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if validID(entry.Slug) {
+		t.Fatalf("auto slug = %s, looks like an entry id", entry.Slug)
 	}
 }

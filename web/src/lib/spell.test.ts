@@ -5,6 +5,7 @@ import {
   addsOnlyPunctuation,
   allowedWord,
   applyIssue,
+  bestCompletion,
   findIssues,
   fixIntact,
   fixSignature,
@@ -391,6 +392,14 @@ describe("spell", () => {
       "naval",
       "nave",
     ]);
+  });
+
+  it("prefers a lowercase completion for a lowercase prefix", () => {
+    expect(bestCompletion(["GMAT", "gmail"], "gma")).toBe("gmail");
+    expect(bestCompletion(["GMAT"], "gma")).toBeNull();
+    expect(bestCompletion(["Москва"], "мос")).toBeNull();
+    expect(bestCompletion(["Москва"], "Мос")).toBe("Москва");
+    expect(bestCompletion(["ситуация"], "ситуа")).toBe("ситуация");
   });
 
   it("re-applies no punctuation fix the user rejected", () => {

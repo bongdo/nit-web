@@ -436,6 +436,17 @@ export function sortWords(words: Iterable<string>): string[] {
   });
 }
 
+export function bestCompletion(words: string[], prefix: string): string | null {
+  const upper = /^\p{Lu}/u.test(prefix);
+  const candidates = words
+    .filter((word) => word.length > prefix.length)
+    .filter((word) => upper || !/^\p{Lu}/u.test(word))
+    .sort(
+      (left, right) => left.length - right.length || (left < right ? -1 : left > right ? 1 : 0),
+    );
+  return candidates[0] ?? null;
+}
+
 export function prefixMatches(sorted: string[], prefix: string, limit = 200): string[] {
   const query = prefix.toLowerCase();
   if (!query) return [];

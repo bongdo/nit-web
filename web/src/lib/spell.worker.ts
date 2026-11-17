@@ -1,5 +1,5 @@
 import nspell from "nspell";
-import { findIssues, prefixMatches, sortWords, unknownWords, type SpellIssue, type SpellChecker } from "./spell";
+import { findIssues, bestCompletion, prefixMatches, sortWords, unknownWords, type SpellIssue, type SpellChecker } from "./spell";
 
 type IssuesRequest = { kind?: "issues"; id: number; text: string; ignore: string[] };
 type CompletionRequest = { kind: "completion"; id: number; prefix: string; ignore: string[] };
@@ -96,9 +96,7 @@ function complete(dictionaries: Loaded, prefix: string, ignore: string[]): strin
     ...prefixMatches(dictionaries.enWords, prefix, 80),
     ...ignore.filter((word) => word.length > prefix.length && word.toLowerCase().startsWith(lower)),
   ];
-  const best = candidates
-    .filter((word) => word.length > prefix.length)
-    .sort((left, right) => left.length - right.length || (left < right ? -1 : left > right ? 1 : 0))[0];
+  const best = bestCompletion(candidates, prefix);
   if (!best) return [];
   return [/^\p{Lu}/u.test(prefix) ? best[0].toUpperCase() + best.slice(1) : best];
 }

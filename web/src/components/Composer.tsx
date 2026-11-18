@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import {
   AlertTriangle,
   ArrowUp,
@@ -95,6 +95,8 @@ export const Composer = memo(function Composer({
   running,
   focusKey,
   keyboard,
+  dockHandle,
+  onComposerMetrics,
   typingBlocked,
   drawerOpen,
   draftKey,
@@ -121,6 +123,8 @@ export const Composer = memo(function Composer({
   running?: boolean;
   focusKey?: string | null;
   keyboard?: { id: number; show: boolean } | null;
+  dockHandle?: ReactNode;
+  onComposerMetrics?: (height: number) => void;
   typingBlocked?: boolean;
   drawerOpen?: boolean;
   draftKey: string;
@@ -171,6 +175,7 @@ export const Composer = memo(function Composer({
   const [overflowing, setOverflowing] = useState(false);
   const [cropId, setCropId] = useState<string | null>(null);
   const ref = useRef<HTMLTextAreaElement>(null);
+  const cardRef = useRef<HTMLDivElement>(null);
   const highlightRef = useRef<ComposerHighlightsHandle>(null);
   const syncFrame = useRef(0);
   const syncUntil = useRef(0);
@@ -327,6 +332,30 @@ export const Composer = memo(function Composer({
     if (keyboard.show) ref.current?.focus();
     else if (document.activeElement === ref.current) ref.current?.blur();
   }, [keyboard]);
+
+  useEffect(() => {
+    const card = cardRef.current;
+    if (!card) return;
+    const apply = () => {
+      const rect = card.getBoundingClientRect();
+      const root = document.documentElement.style;
+      root.setProperty("--composer-bottom", `${Math.round(window.innerHeight - rect.bottom)}px`);
+      root.setProperty("--composer-height", `${Math.round(rect.height)}px`);
+      onComposerMetrics?.(rect.height);
+    };
+    const observer = new ResizeObserver(apply);
+    observer.observe(card);
+    window.addEventListener("resize", apply);
+    window.visualViewport?.addEventListener("resize", apply);
+    apply();
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", apply);
+      window.visualViewport?.removeEventListener("resize", apply);
+      document.documentElement.style.removeProperty("--composer-bottom");
+      document.documentElement.style.removeProperty("--composer-height");
+    };
+  }, [onComposerMetrics]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -877,8 +906,10 @@ export const Composer = memo(function Composer({
     <div className="shrink-0">
       <div className="mx-auto w-full max-w-3xl px-4 pt-2 pb-3">
         <div
+          ref={cardRef}
           className={cn(
             "border-border bg-card relative rounded-xl border shadow-sm",
+            dockHandle && "max-md:pt-6",
             disabled && "opacity-60",
             dropActive && "border-ring ring-ring/30 ring-[3px]",
           )}
@@ -895,6 +926,11 @@ export const Composer = memo(function Composer({
             }
           }}
         >
+          {dockHandle && (
+            <div className="pointer-events-auto absolute inset-x-0 top-0 z-10 flex justify-center md:hidden">
+              {dockHandle}
+            </div>
+          )}
           <CommandPalette
             open={paletteOpen}
             items={matches}

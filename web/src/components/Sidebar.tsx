@@ -289,6 +289,7 @@ export const Sidebar = memo(function Sidebar({
   motion,
   reviewCount,
   onReview,
+  onClose,
 }: {
   sessions: Session[];
   subagents: Session[];
@@ -328,6 +329,7 @@ export const Sidebar = memo(function Sidebar({
   motion: "animated" | "static";
   reviewCount: number;
   onReview: () => void;
+  onClose?: () => void;
 }) {
   const [now, setNow] = useState(Date.now());
   const [fading, setFading] = useState(false);
@@ -682,36 +684,50 @@ export const Sidebar = memo(function Sidebar({
         </div>
       )}
 
-      <div className="px-3 pb-2">
-        <div className="relative">
-          <Search className="text-muted-foreground pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2" />
-          <Input
-            ref={searchRef}
-            value={search}
-            onChange={(event) => onSearch(event.target.value)}
-            placeholder="Search chats"
-            aria-label="Search chats"
-            className="h-8 bg-background pr-14 pl-8 text-xs"
-          />
-          {search.trim() && (
-            <span
-              className={cn(
-                "sidebar-sheen-search-count text-muted-foreground absolute top-1/2 right-2 -translate-y-1/2 text-[9px] tabular-nums",
-                animated && "sidebar-sheen-search-count-in",
-              )}
-              title={`${visible.length} matching chats`}
-            >
-              {visible.length}
-            </span>
-          )}
-          <kbd
-            className={cn(
-              "border-border text-muted-foreground pointer-events-none absolute top-1/2 right-2 -translate-y-1/2 rounded border px-1 font-mono text-[9px] transition-opacity",
-              search.trim() && "opacity-0",
+      <div className="px-3 pb-2 max-md:order-first">
+        <div className="flex items-center gap-1">
+          <div className="relative min-w-0 flex-1">
+            <Search className="text-muted-foreground pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2" />
+            <Input
+              ref={searchRef}
+              value={search}
+              onChange={(event) => onSearch(event.target.value)}
+              placeholder="Search chats"
+              aria-label="Search chats"
+              className="h-8 bg-background pr-14 pl-8 text-xs"
+            />
+            {search.trim() && (
+              <span
+                className={cn(
+                  "sidebar-sheen-search-count text-muted-foreground absolute top-1/2 right-2 -translate-y-1/2 text-[9px] tabular-nums",
+                  animated && "sidebar-sheen-search-count-in",
+                )}
+                title={`${visible.length} matching chats`}
+              >
+                {visible.length}
+              </span>
             )}
-          >
-            {modKey}
-          </kbd>
+            <kbd
+              className={cn(
+                "border-border text-muted-foreground pointer-events-none absolute top-1/2 right-2 -translate-y-1/2 rounded border px-1 font-mono text-[9px] transition-opacity",
+                search.trim() && "opacity-0",
+              )}
+            >
+              {modKey}
+            </kbd>
+          </div>
+          {onClose && (
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              className="shrink-0 md:hidden"
+              onClick={onClose}
+              aria-label="Close chats"
+              title="Close chats"
+            >
+              <ChevronDown />
+            </Button>
+          )}
         </div>
       </div>
 

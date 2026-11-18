@@ -365,6 +365,20 @@ export default function App({
     onClose: () => setSidebarOpen(false),
   });
   const dockDragging = dock.progress !== null;
+  const composerHeight = useRef(0);
+  const onComposerMetrics = useCallback((height: number) => {
+    composerHeight.current = height;
+  }, []);
+  const dockVisible = sidebarOpen || dockDragging;
+  const [dockAlive, setDockAlive] = useState(false);
+  useEffect(() => {
+    if (dockVisible) {
+      setDockAlive(true);
+      return;
+    }
+    const timer = window.setTimeout(() => setDockAlive(false), 320);
+    return () => window.clearTimeout(timer);
+  }, [dockVisible]);
   const followKeyboard = useCallback((atBottom: boolean) => {
     if (!window.matchMedia("(max-width: 767px)").matches) return;
     setKeyboard({ id: Date.now(), show: atBottom });
@@ -1884,7 +1898,10 @@ export default function App({
     },
     [motion, setTheme, theme],
   );
-  const openSidebar = useCallback(() => setSidebarOpen(true), []);
+  const openSidebar = useCallback(() => {
+    setDockAlive(true);
+    requestAnimationFrame(() => setSidebarOpen(true));
+  }, []);
   const toggleHidden = useCallback(async () => {
     const next = !showHidden;
     const before = showHidden;
@@ -2737,21 +2754,22 @@ export default function App({
         ref={swipe.ref}
         aria-label="Chats"
         style={
-          dockDragging
+          dockDragging && dock.progress !== null
             ? {
-                translate: `0 calc(${Math.round((1 - (dock.progress ?? 0)) * 1000) / 10}% + var(--keyboard, 0px))`,
+                translate: `0 calc(${Math.round((1 - dock.progress) * 1000) / 10}% - ${((1 - dock.progress) * composerHeight.current).toFixed(1)}px)`,
                 transition: "none",
               }
             : undefined
         }
         className={cn(
-          "border-border bg-background fixed z-30 border-r",
-          "max-md:inset-x-0 max-md:top-auto max-md:bottom-[var(--keyboard,0px)] max-md:z-50 max-md:h-[min(82dvh,42rem)] max-md:w-full max-md:overscroll-contain max-md:rounded-t-2xl max-md:border-t max-md:border-r-0 max-md:pb-[env(safe-area-inset-bottom)] max-md:shadow-2xl",
-          "md:inset-y-0 md:left-0 md:w-[280px] md:touch-pan-y",
-          "ease-[cubic-bezier(0.32,0.72,0,1)] transition-[translate,width] duration-300 motion-reduce:transition-none",
+          "border-border bg-background fixed z-30",
+          "max-md:inset-x-4 max-md:mx-auto max-md:top-auto max-md:bottom-[var(--composer-bottom,0px)] max-md:z-50 max-md:h-[min(82dvh,42rem)] max-md:max-w-3xl max-md:overscroll-contain max-md:rounded-2xl max-md:border max-md:bg-card max-md:shadow-2xl",
+          "md:inset-y-0 md:left-0 md:border-r md:w-[280px] md:touch-pan-y",
+          "ease-[cubic-bezier(0.32,0.72,0,1)] transition-[translate,width,visibility] duration-300 motion-reduce:transition-none",
           sidebarOpen
             ? "max-md:translate-y-0"
-            : "max-md:translate-y-[calc(100%+var(--keyboard,0px))]",
+            : "max-md:translate-y-[calc(100%-var(--composer-height,0px))]",
+          !dockAlive && "max-md:invisible",
           cn(
             "md:static md:z-auto md:translate-x-0",
             collapsed ? "md:w-0 md:overflow-hidden md:border-r-0" : "md:w-[280px] lg:w-[300px]",
@@ -2808,6 +2826,7 @@ export default function App({
             motion={motion}
             reviewCount={reviewCount}
             onReview={() => setReviewOpen(true)}
+            onClose={() => setSidebarOpen(false)}
           />
           </div>
         </div>
@@ -2923,14 +2942,6 @@ export default function App({
           )}
 
           <div className="pointer-events-auto pb-[env(safe-area-inset-bottom)]">
-            <div
-              className="mx-auto flex w-full max-w-3xl touch-none justify-center px-4 md:hidden"
-              {...dock.handlers}
-            >
-              <span className="flex h-6 w-16 items-center justify-center">
-                <span aria-hidden className="bg-border h-1 w-10 rounded-full" />
-              </span>
-            </div>
             <Composer
               key={composerKey}
               session={selectedSession}
@@ -2942,6 +2953,16 @@ export default function App({
               running={running}
               focusKey={selectedId}
               keyboard={keyboard}
+              dockHandle={
+                <div
+                  className="flex h-6 w-16 touch-none items-center justify-center"
+                  aria-hidden
+                  {...dock.handlers}
+                >
+                  <span className="bg-border h-1 w-10 rounded-full" />
+                </div>
+              }
+              onComposerMetrics={onComposerMetrics}
               typingBlocked={
                 settingsOpen || pickerOpen || themeOpen || backgroundOpen || reviewOpen
               }

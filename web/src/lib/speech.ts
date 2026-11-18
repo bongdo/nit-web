@@ -313,6 +313,11 @@ let kind: "stream" | "audio" | "browser" | null = null;
 let gate: Promise<void> | null = null;
 let openGate: (() => void) | null = null;
 let listenersAttached = false;
+let pressStarted = 0;
+let pressX = 0;
+let pressY = 0;
+let suppressClickUntil = 0;
+let pendingClick: ReturnType<typeof setTimeout> | null = null;
 
 const SENTENCE_HIGHLIGHT = "speech";
 
@@ -504,6 +509,7 @@ function escapeValue(value: string): string {
 }
 
 function release(): void {
+  cancelPendingClick();
   generation += 1;
   controller?.abort();
   controller = null;
@@ -771,7 +777,31 @@ export function previousSentence(): void {
   restart(Math.max(0, shownSegment - 1));
 }
 
+function cancelPendingClick(): void {
+  if (pendingClick === null) return;
+  clearTimeout(pendingClick);
+  pendingClick = null;
+}
+
+function onDocumentPointerDown(event: PointerEvent): void {
+  pressStarted = Date.now();
+  pressX = event.clientX;
+  pressY = event.clientY;
+}
+
+function onDocumentPointerMove(event: PointerEvent): void {
+  if (event.buttons === 0) return;
+  if (Math.hypot(event.clientX - pressX, event.clientY - pressY) > 8) {
+    suppressClickUntil = Date.now() + 600;
+  }
+}
+
+function onDocumentPointerUp(): void {
+  if (Date.now() - pressStarted > 450) suppressClickUntil = Date.now() + 600;
+}
+
 function onDocumentClick(event: MouseEvent): void {
+  if (event.button !== 0 || Date.now() < suppressClickUntil) return;
   if (!anchored || !activeMessage) return;
   if (state.phase !== "playing" && state.phase !== "paused") return;
   const target = event.target as Element | null;
@@ -783,10 +813,22 @@ function onDocumentClick(event: MouseEvent): void {
   if (typeof window !== "undefined" && window.getSelection()?.toString()) return;
   const blockIndex = Number(block.getAttribute("data-speech-block"));
   if (!Number.isFinite(blockIndex)) return;
-  const point = caretPoint(event.clientX, event.clientY);
-  const index = point ? segmentAtPoint(block, blockIndex, point) : null;
-  if (index !== null) restart(index);
-  else jumpToBlock(blockIndex);
+  const message = activeMessage;
+  const x = event.clientX;
+  const y = event.clientY;
+  if (pendingClick !== null) {
+    cancelPendingClick();
+    return;
+  }
+  pendingClick = setTimeout(() => {
+    pendingClick = null;
+    if (!anchored || message !== activeMessage || !block.isConnected) return;
+    if (state.phase !== "playing" && state.phase !== "paused") return;
+    const point = caretPoint(x, y);
+    const index = point ? segmentAtPoint(block, blockIndex, point) : null;
+    if (index !== null) restart(index);
+    else jumpToBlock(blockIndex);
+  }, 260);
 }
 
 function onDocumentKey(event: KeyboardEvent): void {
@@ -799,12 +841,19 @@ function attach(): void {
   if (listenersAttached || typeof document === "undefined") return;
   document.addEventListener("click", onDocumentClick);
   document.addEventListener("keydown", onDocumentKey);
+  document.addEventListener("pointerdown", onDocumentPointerDown);
+  document.addEventListener("pointermove", onDocumentPointerMove);
+  document.addEventListener("pointerup", onDocumentPointerUp);
   listenersAttached = true;
 }
 
 function detach(): void {
+  cancelPendingClick();
   if (!listenersAttached || typeof document === "undefined") return;
   document.removeEventListener("click", onDocumentClick);
   document.removeEventListener("keydown", onDocumentKey);
+  document.removeEventListener("pointerdown", onDocumentPointerDown);
+  document.removeEventListener("pointermove", onDocumentPointerMove);
+  document.removeEventListener("pointerup", onDocumentPointerUp);
   listenersAttached = false;
 }

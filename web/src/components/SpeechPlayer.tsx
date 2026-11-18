@@ -21,8 +21,8 @@ export function SpeechPlayer() {
   };
 
   return (
-    <div className="mx-auto w-full max-w-3xl px-4 pt-2">
-      <div className="bg-card/95 border-border pointer-events-auto flex items-center gap-1 rounded-2xl border px-2 py-1.5 shadow-lg backdrop-blur">
+    <div className="mx-auto flex w-full max-w-3xl px-4 pt-1.5">
+      <div className="bg-card/85 border-border/70 pointer-events-auto inline-flex items-center gap-0.5 rounded-full border pr-1 pl-0.5 shadow-sm backdrop-blur">
         <Button
           variant="ghost"
           size="icon-xs"
@@ -52,13 +52,10 @@ export function SpeechPlayer() {
         >
           <SkipBack />
         </Button>
-        <span className="text-muted-foreground min-w-0 flex-1 truncate px-1 text-xs">
-          {busy ? "Preparing voice…" : state.phase === "paused" ? "Paused" : "Reading"}
-        </span>
         <Button
           variant="ghost"
           size="xs"
-          className="text-muted-foreground font-mono text-xs"
+          className="text-muted-foreground h-6 px-1.5 font-mono text-[10px]"
           onClick={nextRate}
           aria-label={`Reading speed ${state.rate} times`}
           title="Reading speed"

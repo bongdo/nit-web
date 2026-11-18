@@ -139,6 +139,26 @@ export function estimateTranscriptSize(messages: Message[]): number {
   return JSON.stringify(messages).length;
 }
 
+export const TAIL_TURNS = 8;
+export const TAIL_BYTES = 400 * 1024;
+
+export function userTurns(messages: Message[]): number {
+  let turns = 0;
+  for (const message of messages) {
+    if (message.type === "user") turns += 1;
+  }
+  return turns;
+}
+
+export function tailNeedsMore(
+  messages: Message[],
+  bytes: number,
+  previous: string | null,
+): boolean {
+  if (!previous || bytes >= TAIL_BYTES) return false;
+  return userTurns(messages) < TAIL_TURNS;
+}
+
 export function mergeTail(existing: Message[], tail: Message[]): Message[] {
   const tailIds = new Set(tail.map((message) => message.id));
   const base = existing.filter(

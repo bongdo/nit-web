@@ -39,12 +39,14 @@ import {
   retryDelay,
 } from "./lib/stream";
 import {
+  estimateTranscriptSize,
   mergeSnapshot,
   mergeTail,
   preferLocal,
   prependMessages,
   ScopedTranscriptCache,
   sharedTranscripts,
+  tailNeedsMore,
 } from "./lib/transcripts";
 import {
   contextPercent,
@@ -116,6 +118,7 @@ import { modalOpen } from "./components/ui/Modal";
 
 const DOUBLE_ESCAPE_MS = 500;
 const TAIL_LIMIT = 50;
+const TAIL_PAGE = 200;
 const PREFETCH_LIMIT = 6;
 
 const LEGACY_HIDDEN_KEY = "nit-gui.hidden";
@@ -1252,7 +1255,11 @@ export default function App({
     const force = lastEpochRef.current !== messageEpoch;
     lastEpochRef.current = messageEpoch;
     const cached = transcriptCache.get(selectedId);
-    if (cached && !force) {
+    if (
+      cached &&
+      !force &&
+      !tailNeedsMore(cached.messages, estimateTranscriptSize(cached.messages), cached.previous)
+    ) {
       setMessages(cached.messages);
       setHistoryCursor(cached.previous);
       setMessagesLoading(false);
@@ -1263,11 +1270,25 @@ export default function App({
     setMessagesLoading(!cached);
     setTranscriptError(null);
     const before = new Map(messagesRef.current.map((message) => [message.id, message]));
-    api.messages(selectedId, { light: true, limit: TAIL_LIMIT })
-      .then((page) => {
+    void (async () => {
+      try {
+        let page = await api.messages(selectedId, { light: true, limit: TAIL_PAGE });
+        let tail = normalizeMessages(page.data);
+        let previous = page.previous ?? null;
+        let bytes = estimateTranscriptSize(tail);
+        while (!cancelled && previous && tailNeedsMore(tail, bytes, previous)) {
+          const older = await api.messages(selectedId, {
+            light: true,
+            limit: TAIL_PAGE,
+            before: previous,
+          });
+          if (cancelled) return;
+          if (older.data.length === 0 || older.previous === previous) break;
+          tail = prependMessages(tail, normalizeMessages(older.data));
+          bytes += estimateTranscriptSize(older.data);
+          previous = older.previous ?? null;
+        }
         if (cancelled) return;
-        const tail = normalizeMessages(page.data);
-        const previous = page.previous ?? null;
         const current = messagesRef.current;
         const cursor = previous;
         const changed = preferLocal(
@@ -1293,13 +1314,12 @@ export default function App({
               : previous,
           );
         }
-      })
-      .catch((error) => {
+      } catch (error) {
         if (!cancelled) setTranscriptError(messageOf(error));
-      })
-      .finally(() => {
+      } finally {
         if (!cancelled) setMessagesLoading(false);
-      });
+      }
+    })();
     return () => {
       cancelled = true;
     };
@@ -1536,7 +1556,7 @@ export default function App({
     loadingEarlierRef.current = true;
     setLoadingEarlier(true);
     try {
-      const page = await api.messages(id, { light: true, limit: TAIL_LIMIT, before: cursor });
+      const page = await api.messages(id, { light: true, limit: TAIL_PAGE, before: cursor });
       if (selectedIdRef.current !== id || token !== earlierRequest.current) return;
       const older = lightMessages(normalizeMessages(page.data));
       const previous = page.previous ?? null;

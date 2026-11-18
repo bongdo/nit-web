@@ -2979,7 +2979,7 @@ export default function App({
               keyboard={keyboard}
               dockHandle={
                 <div
-                  className="flex h-6 w-16 touch-none items-center justify-center"
+                  className="flex h-6 w-full touch-none items-center justify-center"
                   aria-hidden
                   {...dock.handlers}
                 >

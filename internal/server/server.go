@@ -271,6 +271,9 @@ func (s *Server) middleware(next http.Handler) http.Handler {
 		w.Header().Set("X-Frame-Options", "DENY")
 		w.Header().Set("Cross-Origin-Opener-Policy", "same-origin")
 		w.Header().Set("Cross-Origin-Resource-Policy", "same-origin")
+		if strings.HasPrefix(r.URL.Path, "/api/") {
+			w.Header().Set("Cache-Control", "no-store")
+		}
 		if s.auth.secure(r) {
 			w.Header().Set("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
 		}
@@ -1252,7 +1255,7 @@ func (s *Server) file(w http.ResponseWriter, r *http.Request) {
 		}))
 	}
 	w.Header().Set("Content-Type", contentType)
-	w.Header().Set("Cache-Control", "private, max-age=3600")
+	w.Header().Set("Cache-Control", "private, max-age=60")
 	if _, err := io.Copy(w, body.Body); err != nil {
 		s.log.Warn("file stream failed", "path", path, "error", err)
 	}
@@ -2109,7 +2112,7 @@ func (s *Server) events(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 		case <-ping.C:
-			if !write([]byte(": ping\n\n")) {
+			if !write([]byte(": ping\ndata: {\"type\":\"ping\"}\n\n")) {
 				return
 			}
 		}
@@ -2132,10 +2135,17 @@ func (s *Server) staticFile(w http.ResponseWriter, r *http.Request) {
 	if info, err := fs.Stat(s.static, name); err == nil && !info.IsDir() {
 		if strings.HasPrefix(r.URL.Path, "/assets/") {
 			w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+		} else if strings.HasPrefix(r.URL.Path, "/dictionaries/") {
+			w.Header().Set("Cache-Control", "public, max-age=604800")
 		} else {
 			w.Header().Set("Cache-Control", "no-cache")
 		}
 		http.ServeFileFS(w, r, s.static, name)
+		return
+	}
+	if strings.HasPrefix(r.URL.Path, "/assets/") {
+		w.Header().Set("Cache-Control", "no-store")
+		writeError(w, http.StatusNotFound, "not found")
 		return
 	}
 	if _, err := fs.Stat(s.static, "index.html"); err != nil {

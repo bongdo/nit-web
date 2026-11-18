@@ -1,6 +1,15 @@
 import { useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { DOCK_MOVE_PX, dockOpens, dockProgress } from "../lib/dock";
 
+function swallowClick() {
+  const stop = (event: Event) => {
+    event.preventDefault();
+    event.stopPropagation();
+  };
+  window.addEventListener("click", stop, true);
+  window.setTimeout(() => window.removeEventListener("click", stop, true), 350);
+}
+
 export function useDockDrag({
   open,
   height,
@@ -24,6 +33,7 @@ export function useDockDrag({
 
   const onPointerDown = (event: ReactPointerEvent<HTMLElement>) => {
     if (event.button !== 0) return;
+    if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
     const from = open ? 1 : 0;
     drag.current = {
       id: event.pointerId,
@@ -51,6 +61,7 @@ export function useDockDrag({
     if (!state || state.id !== event.pointerId) return;
     drag.current = null;
     setProgress(null);
+    swallowClick();
     if (!state.moved) {
       if (open) onClose();
       else onOpen();

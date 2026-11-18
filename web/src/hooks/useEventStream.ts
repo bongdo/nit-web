@@ -9,8 +9,11 @@ type Streams = {
   closed: boolean;
   sources: Map<string, EventSource>;
   timers: Map<string, number>;
+  seen: Map<string, number>;
   retry: Record<string, number>;
 };
+
+const STALE_MS = 55_000;
 
 export function useEventStream(
   onEvent: (event: StreamEvent, instance: string) => void,
@@ -30,6 +33,7 @@ export function useEventStream(
     closed: true,
     sources: new Map(),
     timers: new Map(),
+    seen: new Map(),
     retry: {},
   });
   const connected = useRef<string[]>([]);
@@ -49,15 +53,20 @@ export function useEventStream(
         appPath(`/api/events?instance=${encodeURIComponent(id)}`),
       );
       current.sources.set(id, source);
+      current.seen.set(id, Date.now());
       source.onopen = () => {
         current.retry[id] = 0;
+        current.seen.set(id, Date.now());
         setStatus(id, "online");
         openRef.current?.(id);
       };
       source.onmessage = (message) => {
+        current.seen.set(id, Date.now());
         try {
           const parsed = JSON.parse(message.data) as StreamEvent;
-          if (parsed && typeof parsed.type === "string") eventRef.current(parsed, id);
+          if (parsed && typeof parsed.type === "string" && parsed.type !== "ping") {
+            eventRef.current(parsed, id);
+          }
         } catch {
           return;
         }
@@ -67,6 +76,7 @@ export function useEventStream(
         setStatus(id, "offline");
         source.close();
         current.sources.delete(id);
+        current.seen.delete(id);
         const attempt = current.retry[id] ?? 0;
         current.retry[id] = attempt + 1;
         const base = 500 * 2 ** attempt;
@@ -97,6 +107,7 @@ export function useEventStream(
         window.clearTimeout(timer);
         current.timers.delete(id);
       }
+      current.seen.delete(id);
       delete current.retry[id];
     }
     for (const id of open) connect(id);
@@ -109,6 +120,27 @@ export function useEventStream(
     }
     connected.current = next;
   }, [key, connect]);
+
+  useEffect(() => {
+    const check = () => {
+      const current = streams.current;
+      if (current.closed || document.hidden) return;
+      const now = Date.now();
+      for (const [id, source] of current.sources) {
+        if (now - (current.seen.get(id) ?? 0) <= STALE_MS) continue;
+        source.close();
+        current.sources.delete(id);
+        current.seen.delete(id);
+        connect(id);
+      }
+    };
+    const timer = window.setInterval(check, 10_000);
+    document.addEventListener("visibilitychange", check);
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", check);
+    };
+  }, [connect]);
 
   useEffect(() => {
     return () => {

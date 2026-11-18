@@ -323,10 +323,10 @@ export const Composer = memo(function Composer({
   }, [focusKey, coarse]);
 
   useEffect(() => {
-    if (!keyboard || coarse) return;
+    if (!keyboard) return;
     if (keyboard.show) ref.current?.focus();
     else if (document.activeElement === ref.current) ref.current?.blur();
-  }, [keyboard, coarse]);
+  }, [keyboard]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {

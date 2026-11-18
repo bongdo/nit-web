@@ -11,6 +11,7 @@ import {
   listedSubagents,
   mergeInstanceSessions,
   mergeWaitingSessionIds,
+  needsResync,
   newlyRunning,
   nextSessionId,
   parseScopes,
@@ -411,5 +412,13 @@ describe("sessions", () => {
         new Set(["selected", "waiting"]),
       ),
     ).toEqual(["busy", "waiting"]);
+  });
+
+  it("asks for a resync when a running session goes quiet", () => {
+    expect(needsResync(true, 1_000, 15_999)).toBe(false);
+    expect(needsResync(true, 1_000, 16_000)).toBe(true);
+    expect(needsResync(false, 1_000, 60_000)).toBe(false);
+    expect(needsResync(undefined, 1_000, 60_000)).toBe(false);
+    expect(needsResync(true, undefined, 60_000)).toBe(false);
   });
 });

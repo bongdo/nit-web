@@ -163,6 +163,17 @@ export function pollSessionIds(
     .map((session) => session.id);
 }
 
+export const RESYNC_AFTER_MS = 15_000;
+
+export function needsResync(
+  running: boolean | undefined,
+  lastEventAt: number | undefined,
+  now: number,
+): boolean {
+  if (!running || !lastEventAt) return false;
+  return now - lastEventAt >= RESYNC_AFTER_MS;
+}
+
 export function newlyRunning(
   sessions: Session[],
   running: Record<string, boolean>,

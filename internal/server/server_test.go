@@ -1971,3 +1971,22 @@ func TestInstanceSaveRenameAndDelete(t *testing.T) {
 		t.Fatalf("delete last = %d: %s", rec.Code, rec.Body)
 	}
 }
+
+func TestStaticMissingAssetIsNotFound(t *testing.T) {
+	handler := newHandler(t, "http://127.0.0.1:1")
+
+	asset := httptest.NewRecorder()
+	handler.ServeHTTP(asset, httptest.NewRequest(http.MethodGet, "http://127.0.0.1:7788/assets/missing.js", nil))
+	if asset.Code != http.StatusNotFound {
+		t.Fatalf("missing asset = %d: %s", asset.Code, asset.Body)
+	}
+	if strings.Contains(asset.Body.String(), "<html>nit</html>") {
+		t.Fatal("missing asset fell back to index.html")
+	}
+
+	page := httptest.NewRecorder()
+	handler.ServeHTTP(page, httptest.NewRequest(http.MethodGet, "http://127.0.0.1:7788/sessions/abc", nil))
+	if page.Code != http.StatusOK || !strings.Contains(page.Body.String(), "<html>nit</html>") {
+		t.Fatalf("page fallback = %d: %s", page.Code, page.Body)
+	}
+}

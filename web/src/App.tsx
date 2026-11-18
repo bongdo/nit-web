@@ -61,6 +61,7 @@ import {
   listedSubagents,
   mergeInstanceSessions,
   mergeWaitingSessionIds,
+  needsResync,
   newlyRunning,
   nextSessionId,
   NO_HIDDEN,
@@ -114,6 +115,7 @@ import { modalOpen } from "./components/ui/Modal";
 
 const DOUBLE_ESCAPE_MS = 500;
 const TAIL_LIMIT = 50;
+const PREFETCH_LIMIT = 6;
 
 const LEGACY_HIDDEN_KEY = "nit-gui.hidden";
 const UI_MIGRATED_KEY = "nit-gui.ui-migrated";
@@ -373,6 +375,7 @@ export default function App({
   const firstStreamOpen = useRef(true);
   const openedStreams = useRef(new Set<string>());
   const runningEventsAt = useRef<Record<string, number>>({});
+  const streamEventAt = useRef<Record<string, number>>({});
   const lastEscapeAt = useRef(0);
   const skipLoadRef = useRef<string | null>(null);
   const lastQueryRef = useRef(`${scope}|${workspace}|`);
@@ -894,7 +897,8 @@ export default function App({
       try {
         const queue = list
           .filter((session) => !session.instance || session.instance === instance)
-          .sort((a, b) => b.time.updated - a.time.updated);
+          .sort((a, b) => b.time.updated - a.time.updated)
+          .slice(0, PREFETCH_LIMIT);
         let next = 0;
         const worker = async () => {
           while (next < queue.length) {
@@ -1735,6 +1739,41 @@ export default function App({
     setMessageEpoch((value) => value + 1);
   }, []);
 
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      const id = selectedIdRef.current;
+      if (!id || document.hidden) return;
+      if (!needsResync(runningIdsRef.current[id], streamEventAt.current[id], Date.now())) return;
+      streamEventAt.current[id] = Date.now();
+      reloadSelected();
+      void loadSessions(false);
+    }, 5_000);
+    return () => window.clearInterval(timer);
+  }, [loadSessions, reloadSelected]);
+
+  useEffect(() => {
+    let hiddenAt = 0;
+    const resume = () => {
+      if (hiddenAt === 0 || Date.now() - hiddenAt < 3_000) return;
+      hiddenAt = 0;
+      reloadSelected();
+      if (healthRef.current?.ok) void loadSessions(false);
+    };
+    const onVisibility = () => {
+      if (document.hidden) {
+        hiddenAt = Date.now();
+        return;
+      }
+      resume();
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    window.addEventListener("pageshow", resume);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisibility);
+      window.removeEventListener("pageshow", resume);
+    };
+  }, [loadSessions, reloadSelected]);
+
   const markCompacting = useCallback((sessionID: string) => {
     setCompactingSessions((previous) => {
       if (previous.has(sessionID)) return previous;
@@ -1867,6 +1906,7 @@ export default function App({
     const sessionID = eventSessionID(event);
     const mine = owner === instance;
     const toolID = typeof data.id === "string" ? data.id : "";
+    if (mine && sessionID) streamEventAt.current[sessionID] = Date.now();
     if (toolID && data.name === "question") questionIDs.current.add(toolID);
 
     if (sessionID) {
@@ -2691,7 +2731,7 @@ export default function App({
         style={
           dockDragging
             ? {
-                translate: `0 ${Math.round((1 - (dock.progress ?? 0)) * 1000) / 10}%`,
+                translate: `0 calc(${Math.round((1 - (dock.progress ?? 0)) * 1000) / 10}% + var(--keyboard, 0px))`,
                 transition: "none",
               }
             : undefined
@@ -2701,7 +2741,9 @@ export default function App({
           "max-md:inset-x-0 max-md:top-auto max-md:bottom-[var(--keyboard,0px)] max-md:z-50 max-md:h-[min(82dvh,42rem)] max-md:w-full max-md:overscroll-contain max-md:rounded-t-2xl max-md:border-t max-md:border-r-0 max-md:pb-[env(safe-area-inset-bottom)] max-md:shadow-2xl",
           "md:inset-y-0 md:left-0 md:w-[280px] md:touch-pan-y",
           "ease-[cubic-bezier(0.32,0.72,0,1)] transition-[translate,width] duration-300 motion-reduce:transition-none",
-          sidebarOpen ? "max-md:translate-y-0" : "max-md:translate-y-full",
+          sidebarOpen
+            ? "max-md:translate-y-0"
+            : "max-md:translate-y-[calc(100%+var(--keyboard,0px))]",
           cn(
             "md:static md:z-auto md:translate-x-0",
             collapsed ? "md:w-0 md:overflow-hidden md:border-r-0" : "md:w-[280px] lg:w-[300px]",

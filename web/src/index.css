@@ -2229,3 +2229,25 @@ html[data-motion="static"] *:not(.animate-spin)::after {
   transition: none !important;
 }
 
+@media (max-width: 767px) {
+  .dock-panel-open {
+    transition:
+      translate 300ms cubic-bezier(0.32, 0.72, 0, 1),
+      opacity 180ms 120ms;
+  }
+
+  .dock-panel-closed {
+    transition:
+      translate 300ms cubic-bezier(0.32, 0.72, 0, 1),
+      opacity 120ms;
+  }
+
+  .dock-content-open {
+    transition: opacity 150ms;
+  }
+
+  .dock-content-closed {
+    transition: opacity 150ms 140ms;
+  }
+}
+

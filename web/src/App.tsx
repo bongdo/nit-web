@@ -82,6 +82,7 @@ import {
   type StatusSets,
 } from "./lib/sessions";
 import { shortcutKeys } from "./lib/keys";
+import { dockComposerFade, dockPanelFade } from "./lib/dock";
 import { appPath, staleBundle } from "./lib/base";
 import { cn } from "./lib/utils";
 import { cachedSessions, readBoot, seedBootSession, writeBoot } from "./lib/bootCache";
@@ -2777,6 +2778,7 @@ export default function App({
           dockDragging && dock.progress !== null
             ? {
                 translate: `0 calc(${Math.round((1 - dock.progress) * 1000) / 10}% - ${((1 - dock.progress) * composerHeight.current).toFixed(1)}px)`,
+                opacity: dockPanelFade(dock.progress),
                 transition: "none",
               }
             : undefined
@@ -2785,10 +2787,11 @@ export default function App({
           "border-border bg-background fixed z-30",
           "max-md:inset-x-4 max-md:mx-auto max-md:top-auto max-md:bottom-[var(--composer-bottom,0px)] max-md:z-50 max-md:h-[min(82dvh,42rem)] max-md:max-w-3xl max-md:overscroll-contain max-md:rounded-2xl max-md:border max-md:bg-card max-md:shadow-2xl",
           "md:inset-y-0 md:left-0 md:border-r md:w-[280px] md:touch-pan-y",
-          "ease-[cubic-bezier(0.32,0.72,0,1)] transition-[translate,width,visibility] duration-300 motion-reduce:transition-none",
+          "ease-[cubic-bezier(0.32,0.72,0,1)] transition-[translate,width,visibility,opacity] duration-300 motion-reduce:transition-none",
+          sidebarOpen ? "dock-panel-open" : "dock-panel-closed",
           sidebarOpen
-            ? "max-md:translate-y-0"
-            : "max-md:translate-y-[calc(100%-var(--composer-height,0px))]",
+            ? "max-md:translate-y-0 max-md:opacity-100"
+            : "max-md:translate-y-[calc(100%-var(--composer-height,0px))] max-md:opacity-0",
           !dockAlive && "max-md:invisible",
           cn(
             "md:static md:z-auto md:translate-x-0",
@@ -2961,7 +2964,19 @@ export default function App({
             </div>
           )}
 
-          <div className="pointer-events-auto pb-[env(safe-area-inset-bottom)]">
+          <div
+            className={cn(
+              "pointer-events-auto pb-[env(safe-area-inset-bottom)]",
+              sidebarOpen
+                ? "max-md:opacity-0 dock-content-open"
+                : "max-md:opacity-100 dock-content-closed",
+            )}
+            style={
+              dockDragging && dock.progress !== null
+                ? { opacity: 1 - dockComposerFade(dock.progress), transition: "none" }
+                : undefined
+            }
+          >
             <Composer
               key={composerKey}
               session={selectedSession}

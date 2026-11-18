@@ -4,6 +4,7 @@ import {
   draftUpdatedKey,
   loadDraftKeys,
   loadDraftState,
+  restoreDraft,
   saveDraftState,
 } from "./drafts";
 
@@ -55,5 +56,11 @@ describe("drafts", () => {
       text: "long prompt",
       updatedAt: 1234,
     });
+  });
+
+  it("puts a failed send back in front of anything typed meanwhile", () => {
+    expect(restoreDraft("first", "")).toBe("first");
+    expect(restoreDraft("first", "  ")).toBe("first");
+    expect(restoreDraft("first", "next")).toBe("first\n\nnext");
   });
 });

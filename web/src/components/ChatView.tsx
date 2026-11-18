@@ -24,7 +24,7 @@ import {
   shouldLoadEarlier,
   type ScrollAnchor,
 } from "../lib/scroll";
-import { readSelection } from "../lib/speech";
+import { readFromSelection } from "../lib/speech";
 import { cn } from "../lib/utils";
 import type { TimeFormat } from "../lib/time";
 import { openInApp } from "../lib/appLink";
@@ -41,6 +41,7 @@ type SelectionQuote = {
   x: number;
   y: number;
   messageID: string;
+  block: number;
   file?: { path: string; href: string; lines?: LineRange[] };
 };
 
@@ -94,6 +95,10 @@ function ErrorBanner({ error, onRetry }: { error: string; onRetry: () => void })
       <span aria-hidden className="chrome-sheen-error-progress" />
     </div>
   );
+}
+
+function rowKey(message: Message): string {
+  return message.localKey ?? message.id;
 }
 
 function findRow(rows: HTMLDivElement | null, messageID: string): HTMLElement | null {
@@ -400,14 +405,22 @@ export function ChatView({
           ? selection.anchorNode
           : selection.anchorNode?.parentElement;
       const messageID = node?.closest("[data-message-id]")?.getAttribute("data-message-id") ?? "";
+      const startNode = selection.getRangeAt(0).startContainer;
+      const startElement =
+        startNode instanceof Element ? startNode : startNode.parentElement;
+      const rawBlock = startElement
+        ?.closest("[data-speech-block]")
+        ?.getAttribute("data-speech-block");
+      const block = rawBlock === null || rawBlock === undefined ? -1 : Number(rawBlock);
       setQuote((current) =>
         current?.text === text &&
         current.x === x &&
         current.y === y &&
         current.messageID === messageID &&
+        current.block === block &&
         current.file?.href === file?.href
           ? current
-          : { text, x, y, messageID, file },
+          : { text, x, y, messageID, block, file },
       );
     };
     document.addEventListener("selectionchange", update);
@@ -455,11 +468,11 @@ export function ChatView({
     const sessionID = session?.id ?? null;
     const previous = entrance.current;
     const last = messages[messages.length - 1];
-    let row: string | null = last?.id ?? null;
+    let row: string | null = last ? rowKey(last) : null;
     if (last?.type === "assistant") {
       let index = messages.length - 1;
       while (index > 0 && messages[index - 1].type === "assistant") index -= 1;
-      row = messages[index]?.id ?? row;
+      row = messages[index] ? rowKey(messages[index]) : row;
     }
     if (!sessionID || loading) {
       entrance.current = { session: sessionID, row: null, count: 0, ready: false };
@@ -617,11 +630,12 @@ export function ChatView({
         );
         continue;
       }
+      const key = rowKey(message);
       items.push(
         <div
-          key={message.id}
+          key={key}
           data-message-id={message.id}
-          className={message.id === fresh ? "message-enter" : undefined}
+          className={key === fresh ? "message-enter" : undefined}
         >
           <MessageRow
             message={message}
@@ -901,12 +915,12 @@ export function ChatView({
             size="xs"
             className="shadow-md"
             onClick={() => {
-              readSelection(quote.messageID, quote.text);
+              readFromSelection(quote.messageID, quote.text, quote.block);
               window.getSelection()?.removeAllRanges();
               setQuote(null);
             }}
-            aria-label="Read selection aloud"
-            title="Read the selection aloud"
+            aria-label="Read from here"
+            title="Read from here to the end"
           >
             <Volume2 />
             Read

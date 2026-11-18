@@ -1,5 +1,12 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { speechSegments, speechSnapshot, splitSpeech, startReading, stopSpeech } from "./speech";
+import {
+  speechSegmentFor,
+  speechSegments,
+  speechSnapshot,
+  splitSpeech,
+  startReading,
+  stopSpeech,
+} from "./speech";
 
 describe("splitSpeech", () => {
   it("keeps paragraphs as separate segments", () => {
@@ -94,6 +101,19 @@ class FakeContext {
 afterEach(() => {
   stopSpeech();
   vi.unstubAllGlobals();
+});
+
+describe("speechSegmentFor", () => {
+  const text = "Первое предложение. Второе предложение.\n\nТретий абзац.";
+
+  it("finds the sentence that contains the selection", () => {
+    expect(speechSegmentFor(text, "Второе", 0)).toBe(1);
+    expect(speechSegmentFor(text, "Третий", 1)).toBe(2);
+  });
+
+  it("starts at the first sentence of the block when the text is not found", () => {
+    expect(speechSegmentFor(text, "нет такого", 1)).toBe(2);
+  });
 });
 
 describe("reading", () => {

@@ -298,6 +298,16 @@ class PcmPlayer {
   }
 }
 
+const replyTexts = new Map<string, string>();
+
+export function registerReplyText(messageId: string, text: string): void {
+  if (messageId) replyTexts.set(messageId, text);
+}
+
+export function unregisterReplyText(messageId: string): void {
+  replyTexts.delete(messageId);
+}
+
 let segments: SpeechSegment[] = [];
 let shownSegment = -1;
 let ticker: ReturnType<typeof setInterval> | null = null;
@@ -657,23 +667,25 @@ function begin(
   text: string,
   items: SpeechSegment[],
   isAnchored: boolean,
+  from = 0,
 ): void {
   release();
   if (items.length === 0) {
     setState({ phase: "idle", message: null, block: -1, anchored: false });
     return;
   }
+  const start = Math.min(Math.max(from, 0), items.length - 1);
   activeMessage = messageId;
   anchored = isAnchored;
   fullText = text;
   segments = items;
   attach();
   setState({ phase: "loading", message: messageId, anchored: isAnchored });
-  showSegment(0);
+  showSegment(start);
   startTicker();
   const gen = generation + 1;
   generation = gen;
-  void run(gen, 0);
+  void run(gen, start);
 }
 
 export function startReading(messageId: string, text: string): void {
@@ -686,10 +698,33 @@ export function startReading(messageId: string, text: string): void {
   begin(messageId, value, speechSegments(value), true);
 }
 
-export function readSelection(messageId: string, text: string): void {
-  const value = text.trim();
+export function speechSegmentFor(markdown: string, selected: string, block = -1): number {
+  return segmentIndex(speechSegments(markdown), selected, block);
+}
+
+function segmentIndex(items: SpeechSegment[], selected: string, block: number): number {
+  const prefix = plainSpeech(selected).toLowerCase().slice(0, 48).trim();
+  if (!prefix) return 0;
+  let fallback = -1;
+  for (let index = 0; index < items.length; index += 1) {
+    const item = items[index];
+    if (block >= 0 && item.block < block) continue;
+    if (fallback < 0) fallback = index;
+    if (plainSpeech(item.text).toLowerCase().includes(prefix)) return index;
+  }
+  return fallback >= 0 ? fallback : 0;
+}
+
+export function readFromSelection(messageId: string, selected: string, block = -1): void {
+  const value = selected.trim();
   if (!value) return;
-  begin(messageId, value, [{ text: value, block: -1, gap: 0 }], false);
+  const text = replyTexts.get(messageId);
+  if (!text) {
+    begin(messageId, value, [{ text: value, block: -1, gap: 0 }], false);
+    return;
+  }
+  const items = speechSegments(text);
+  begin(messageId, text, items, true, segmentIndex(items, value, block));
 }
 
 function restart(index: number): void {

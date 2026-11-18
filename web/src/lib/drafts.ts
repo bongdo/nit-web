@@ -19,6 +19,10 @@ export function loadDraftKeys(storage: ScanStorage = localStorage): Set<string> 
 
 export type DraftState = { text: string; updatedAt: number };
 
+export function restoreDraft(sent: string, typed: string): string {
+  return typed.trim() ? `${sent}\n\n${typed}` : sent;
+}
+
 export function draftStorageKey(key: string): string {
   return `nit-gui.draft.${key}`;
 }

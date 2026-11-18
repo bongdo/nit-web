@@ -3,10 +3,12 @@ import { Check, Copy, Loader2, Play, Volume2 } from "lucide-react";
 import { copyText } from "../lib/clipboard";
 import {
   pauseSpeech,
-  readSelection,
+  readFromSelection,
+  registerReplyText,
   resumeSpeech,
   startReading,
   stopSpeech,
+  unregisterReplyText,
   useSpeech,
 } from "../lib/speech";
 import { cn } from "../lib/utils";
@@ -46,11 +48,27 @@ export function ReplyActions({
     return value.length >= 3 ? value : "";
   };
 
+  const selectedBlock = (): number => {
+    const picked = window.getSelection();
+    if (!picked || picked.rangeCount === 0) return -1;
+    const node = picked.getRangeAt(0).startContainer;
+    const element = node instanceof Element ? node : node.parentElement;
+    const raw = element?.closest("[data-speech-block]")?.getAttribute("data-speech-block");
+    return raw === null || raw === undefined ? -1 : Number(raw);
+  };
+
   useEffect(() => {
     return () => {
       if (copyTimer.current !== null) window.clearTimeout(copyTimer.current);
     };
   }, []);
+
+  useEffect(() => {
+    const id = root.current?.closest("[data-message-id]")?.getAttribute("data-message-id");
+    if (!id) return;
+    registerReplyText(id, text);
+    return () => unregisterReplyText(id);
+  }, [text]);
 
   const copy = async () => {
     if (!(await copyText(text))) return;
@@ -74,7 +92,7 @@ export function ReplyActions({
     }
     const picked = selectedText();
     setSelection(false);
-    if (picked) readSelection(messageId(), picked);
+    if (picked) readFromSelection(messageId(), picked, selectedBlock());
     else startReading(messageId(), text);
   };
 
@@ -111,7 +129,7 @@ export function ReplyActions({
               : paused
                 ? "Resume reading"
                 : selection
-                  ? "Read selection"
+                  ? "Read from here"
                   : "Read aloud"
         }
         title={
@@ -122,7 +140,7 @@ export function ReplyActions({
               : paused
                 ? "Resume reading"
                 : selection
-                  ? "Read selection"
+                  ? "Read from here"
                   : "Read aloud"
         }
       >

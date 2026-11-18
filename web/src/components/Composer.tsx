@@ -13,7 +13,7 @@ import type { FormInfo, Model, Session } from "../lib/types";
 import { api } from "../lib/api";
 import { attachmentWarning } from "../lib/attachments";
 import { loadDraftFiles, saveDraftFiles } from "../lib/draft-files";
-import { loadDraftState, saveDraftState, type DraftState } from "../lib/drafts";
+import { loadDraftState, restoreDraft, saveDraftState, type DraftState } from "../lib/drafts";
 import { questionAnswer, questionFields } from "../lib/forms";
 import { formatBytes, quoteText } from "../lib/format";
 import { readStored, writeStored } from "../lib/storage";
@@ -756,7 +756,11 @@ export const Composer = memo(function Composer({
     const text = value.trim();
     if ((!text && readyFiles.length === 0) || !workspace || disabled || submitting) return;
     const dir = workspace;
+    const misspelled = issues
+      .filter((issue) => issue.source !== "grammar")
+      .map((issue) => issue.word.toLowerCase());
     setSubmitting(true);
+    updateValue("");
     try {
       const uploaded: Attachment[] = [];
       for (const item of readyFiles) {
@@ -773,16 +777,12 @@ export const Composer = memo(function Composer({
             current.map((entry) => (entry.id === item.id ? { ...entry, error: message } : entry)),
           );
           onError(message);
-          return;
+          throw error;
         }
       }
       setAttachments(uploaded);
       await onSend(text, uploaded, running ? (queue ? "queue" : "steer") : undefined);
-      const misspelled = issues
-        .filter((issue) => issue.source !== "grammar")
-        .map((issue) => issue.word.toLowerCase());
       if (misspelled.length > 0) learnSentWords(misspelled);
-      updateValue("");
       void saveDraftFiles(draftKey, []).catch(() => {});
       for (const item of attachments) {
         if (item.preview) URL.revokeObjectURL(item.preview);
@@ -791,6 +791,7 @@ export const Composer = memo(function Composer({
       addedDelay.current.clear();
       setAttachments([]);
     } catch {
+      updateValue(restoreDraft(text, valueRef.current));
       return;
     } finally {
       setSubmitting(false);

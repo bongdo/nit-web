@@ -131,6 +131,7 @@ export type MessageError = {
 
 export type Message = {
   id: string;
+  localKey?: string;
   type: string;
   time: { created: number; streamed?: number; completed?: number };
   text?: string;

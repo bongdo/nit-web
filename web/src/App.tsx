@@ -2220,8 +2220,10 @@ export default function App({
       if (!id) throw new Error("Session was not created.");
       const sessionId = id;
       clearRetry(sessionId);
+      const optimisticId = `local-${Date.now()}`;
       const optimistic: Message = {
-        id: `local-${Date.now()}`,
+        id: optimisticId,
+        localKey: optimisticId,
         type: "user",
         time: { created: Date.now() },
         text,

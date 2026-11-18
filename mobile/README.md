@@ -38,3 +38,9 @@ adb install -r android/app/build/outputs/apk/debug/app-debug.apk
 - The web app does not need a native build: the bridge injects `window.Capacitor` and
   `Capacitor.Plugins.<Name>` (App, Haptics, StatusBar, SplashScreen) into the remote page,
   so web-side code calls plugins through them.
+
+## Trying the selection menu without a phone
+
+The custom selection menu only arms itself on Android (`nativeAndroid()`). In a desktop
+browser open the app with `?touchselect=1` and DevTools touch emulation: long-press a
+message picks a word, dragging the finger extends it, the round handles extend it further.

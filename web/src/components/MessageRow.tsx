@@ -34,6 +34,8 @@ export const MessageRow = memo(function MessageRow({
   autoOpen,
   directory,
   peroURL,
+  sessionID,
+  instance,
   timeFormat,
   showTime,
   onRevert,
@@ -45,6 +47,8 @@ export const MessageRow = memo(function MessageRow({
   autoOpen?: boolean;
   directory?: string | null;
   peroURL: string;
+  sessionID?: string;
+  instance?: string;
   timeFormat: TimeFormat;
   showTime: boolean;
   onRevert: (message: Message) => Promise<void>;
@@ -88,7 +92,13 @@ export const MessageRow = memo(function MessageRow({
                 ))}
               </div>
             )}
-            <MarkdownLazy text={message.text ?? ""} directory={directory} peroURL={peroURL} />
+            <MarkdownLazy
+              text={message.text ?? ""}
+              directory={directory}
+              peroURL={peroURL}
+              sessionID={sessionID}
+              instance={instance}
+            />
             {showTime && (
               <div className="text-muted-foreground mt-1 text-right text-[10px]">
                 {timeLabel(message.time.created, timeFormat)}

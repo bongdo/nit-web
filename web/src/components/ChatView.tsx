@@ -604,7 +604,7 @@ export function ChatView({
             <AssistantTurn
               messages={group}
               sessionID={session?.id ?? ""}
-              instance={instance}
+              instance={session?.instance ?? instance}
               models={models}
               agents={agents}
               workspace={workspace}
@@ -630,6 +630,8 @@ export function ChatView({
             autoOpen={freshCompaction && message.id === lastCompactionId}
             directory={workspace}
             peroURL={peroURL}
+            sessionID={session?.id}
+            instance={session?.instance ?? instance}
             timeFormat={timeFormat}
             showTime={showTime}
             onRevert={onRevert}

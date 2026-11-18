@@ -55,7 +55,14 @@ export const ActivityLog = memo(function ActivityLog({
           {part.type === "reasoning" ? (
             <Reasoning part={part} streaming={streaming && index === activity.length - 1} />
           ) : (
-            <ToolCall part={part} cwd={workspace} peroURL={peroURL} agent={agent} />
+            <ToolCall
+              part={part}
+              cwd={workspace}
+              peroURL={peroURL}
+              agent={agent}
+              instance={instance}
+              sessionID={sessionID}
+            />
           )}
         </li>
       ))}

@@ -56,4 +56,10 @@ describe("viewHref", () => {
       "/api/view?path=%2Fwork%2Fapp%2Fdocs%2Fdecisions.md",
     );
   });
+
+  it("carries the instance and the session into the preview", () => {
+    expect(viewHref("/work/app/a.md", "laptop", "ses_1")).toBe(
+      "/view?path=%2Fwork%2Fapp%2Fa.md&instance=laptop&session=ses_1",
+    );
+  });
 });

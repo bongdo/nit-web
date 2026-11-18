@@ -42,6 +42,21 @@ describe("Markdown values", () => {
     expect(html).toContain("/view?path=%2Fwork%2Fapp%2Fbin%2Fcheck");
   });
 
+  it("carries the chat session into a file link", () => {
+    const html = renderToStaticMarkup(
+      <Markdown
+        text={"Открой `bin/check`."}
+        directory="/work/app"
+        peroURL="/pero/"
+        sessionID="ses_1"
+        instance="laptop"
+      />,
+    );
+    expect(html).toContain(
+      "/view?path=%2Fwork%2Fapp%2Fbin%2Fcheck&amp;instance=laptop&amp;session=ses_1",
+    );
+  });
+
   it("does not link paths without a directory", () => {
     const html = renderToStaticMarkup(<Markdown text={"Открой `bin/check`."} peroURL="/pero/" />);
     expect(html).not.toContain("md-file");

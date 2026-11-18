@@ -1,5 +1,35 @@
 # Decisions
 
+## 2026-11-18 — Three ways to open a file: bare view, pero, agent edit
+
+Context: the preview page grew a header and an "Edit in pero" button, so the
+default read was no longer bare. A bare browser also makes Shift-click and
+text selection weak on touch, and the same page is the natural place to point
+an agent at a block or an element. This replaces the 2026-11-18 "A file link
+opens a preview page, not raw text" entry.
+
+Decision: a file link opens `/view?path=` with no app chrome: markdown rendered,
+HTML sandboxed, code highlighted, media inline, binary as a download.
+Shift-click or the right-click menu opens pero at the file or lines; the same
+menu has Agent edit. Agent edit opens the same page with `mode=agent&session=`
+and lets a click outline a text block, table cell or HTML element. A small
+comment box sends ``In `path`, <location> «text»: comment`` to the chat that
+opened the link with `delivery: steer`, so many comments do not wait for the run
+to finish. The tiny Agent edit pill counts sends and links to the bare view.
+
+Why: reading, editing and pointing at a place are three verbs; the viewer
+already owns the first, pero the second, and the chat owns the third. Keeping
+the overlay in the viewer means the agent gets the file path and the exact
+locator without a second renderer.
+
+Rejected: a header with edit buttons on every read; a separate docs app; sending
+comments into the composer as quotes (it would lose the file and locator unless
+the user rebuilt them).
+
+Cost: HTML that references external files still renders only its inline part,
+because the sandbox has an opaque origin. If `steer` is refused because no run
+is active, the comment is retried as a normal prompt.
+
 ## 2026-11-18 — A file link opens a preview page, not raw text
 
 Context: the first `/api/view` returned every text file as `plain text`, so a

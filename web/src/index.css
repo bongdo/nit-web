@@ -474,6 +474,12 @@
     position: relative;
   }
 
+  .nit-annotate-selected {
+    outline: 2px solid var(--spark);
+    outline-offset: 2px;
+    border-radius: 3px;
+  }
+
   .md-block[data-speaking] {
     border-radius: 0.375rem;
     background: color-mix(in oklab, var(--spark) 6%, transparent);

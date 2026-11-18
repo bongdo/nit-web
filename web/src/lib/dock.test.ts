@@ -42,3 +42,23 @@ describe("dock fades", () => {
     expect(dockPanelFade(1)).toBe(1);
   });
 });
+
+describe("dockSettlesOpen", () => {
+  it("opens a short fast flick up even below the halfway point", () => {
+    expect(dockSettlesOpen(0.05, 1.2, 30)).toBe(true);
+  });
+
+  it("closes a short fast flick down while open", () => {
+    expect(dockSettlesOpen(0.95, -1.2, -30)).toBe(false);
+  });
+
+  it("falls back to the halfway point for a slow drag", () => {
+    expect(dockSettlesOpen(0.2, 0.1, 120)).toBe(false);
+    expect(dockSettlesOpen(0.8, -0.1, -120)).toBe(true);
+  });
+
+  it("ignores a fast twitch that barely moved", () => {
+    expect(dockFling(3, 6)).toBeNull();
+    expect(dockSettlesOpen(0.1, 3, 6)).toBe(false);
+  });
+});

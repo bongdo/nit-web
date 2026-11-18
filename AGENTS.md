@@ -7,6 +7,9 @@
 - `bin/auth` prints the password once and stores only its hash. If you rotate it,
   print the new password in the reply.
 - `bin/run` is the local development server on `127.0.0.1:7788`.
+- `bin/android [--install] [--drop]` builds `mobile/` into a debug APK. It needs JDK 21 and
+  Android SDK 36, so it does not run on an aarch64 host (Google ships x86_64 tools only);
+  `--install` pushes it with adb, `--drop` publishes it at `/share/nit-shell-apk/`.
 - `bin/uptime [seconds]` — samples `http://127.0.0.1:7791/` every 5 s and prints each outage with its length; no argument runs until Ctrl-C. Use it to measure stability instead of judging by feel.
 - `bin/previews` screenshots `/nit`, `/pero`, `/term` and `/share` into
   `~/.local/state/nit-gui/gate/previews` for the root page thumbnails. It needs a

@@ -7,7 +7,7 @@ to if the native runtime ever serves local content.
 
 ## Prerequisites
 
-- JDK 21
+- JDK 21 (Capacitor 8, `compileSdk`/`targetSdk` 36)
 - Android SDK Platform 36 + build-tools (Capacitor 8 sets compileSdk/targetSdk 36)
 - Google's Linux SDK/build tools are x86_64 only, so an aarch64 host cannot run
   `gradlew` without x86_64 emulation. Everything up to `cap sync` works on any arch.
@@ -19,6 +19,9 @@ npm install
 npx cap sync android          # or: npm run sync
 cd android && ./gradlew assembleDebug
 ```
+
+From the repository root, `bin/android` does the same and can push (`--install`) or
+publish (`--drop`, slug `nit-shell-apk`) the result.
 
 APK: `android/app/build/outputs/apk/debug/app-debug.apk`
 

@@ -1,5 +1,7 @@
 import { useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
-import { DOCK_MOVE_PX, dockOpens, dockProgress } from "../lib/dock";
+import { DOCK_MOVE_PX, dockProgress, dockSettlesOpen } from "../lib/dock";
+
+const FLING_WINDOW_MS = 120;
 
 function swallowClick() {
   const stop = (event: Event) => {
@@ -29,6 +31,7 @@ export function useDockDrag({
     height: number;
     moved: boolean;
     last: number;
+    samples: { t: number; y: number }[];
   } | null>(null);
 
   const onPointerDown = (event: ReactPointerEvent<HTMLElement>) => {
@@ -42,6 +45,7 @@ export function useDockDrag({
       height: height(),
       moved: false,
       last: from,
+      samples: [{ t: event.timeStamp, y: event.clientY }],
     };
     event.currentTarget.setPointerCapture(event.pointerId);
     setProgress(from);
@@ -50,8 +54,12 @@ export function useDockDrag({
   const onPointerMove = (event: ReactPointerEvent<HTMLElement>) => {
     const state = drag.current;
     if (!state || state.id !== event.pointerId) return;
-    if (!state.moved && Math.abs(event.clientY - state.y) < DOCK_MOVE_PX) return;
-    state.moved = true;
+    state.samples.push({ t: event.timeStamp, y: event.clientY });
+    if (state.samples.length > 16) state.samples.shift();
+    if (!state.moved) {
+      if (Math.abs(event.clientY - state.y) < DOCK_MOVE_PX) return;
+      state.moved = true;
+    }
     state.last = dockProgress(state.from, event.clientY - state.y, state.height);
     setProgress(state.last);
   };
@@ -67,7 +75,18 @@ export function useDockDrag({
       else onOpen();
       return;
     }
-    if (dockOpens(state.last)) onOpen();
+    const recent = state.samples.filter(
+      (sample) => event.timeStamp - sample.t <= FLING_WINDOW_MS,
+    );
+    const first = recent[0];
+    const last = recent[recent.length - 1];
+    let velocity = 0;
+    if (first && last && last.t > first.t) {
+      velocity = (-(last.y - first.y) / (last.t - first.t)) * (1000 / Math.max(1, state.height));
+    }
+    const travel = state.y - event.clientY;
+    console.log("dock fling", { velocity, travel, progress: state.last, recent: recent.length });
+    if (dockSettlesOpen(state.last, velocity, travel)) onOpen();
     else onClose();
   };
 

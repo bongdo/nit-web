@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="color-scheme" content="dark" />
+    <title>nit — нет связи</title>
+    <style>
+      html,
+      body {
+        height: 100%;
+        margin: 0;
+      }
+      body {
+        display: grid;
+        place-items: center;
+        background: #16171b;
+        color: #e6e6e6;
+        font: 16px/1.5 system-ui, -apple-system, sans-serif;
+        padding: 24px env(safe-area-inset-top) 24px env(safe-area-inset-bottom);
+      }
+      main {
+        max-width: 22rem;
+        text-align: center;
+      }
+      h1 {
+        margin: 0 0 8px;
+        font-size: 20px;
+        font-weight: 600;
+      }
+      p {
+        margin: 0 0 24px;
+        opacity: 0.7;
+      }
+      button {
+        font: inherit;
+        color: #16171b;
+        background: #e9a55a;
+        border: 0;
+        border-radius: 10px;
+        padding: 12px 24px;
+      }
+      button:active {
+        opacity: 0.8;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>nit — нет связи с сервером</h1>
+      <p>Проверьте интернет и попробуйте снова.</p>
+      <button type="button" onclick="location.replace('https://bongdo.space/nit/')">Повторить</button>
+    </main>
+  </body>
+</html>

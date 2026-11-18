@@ -3,6 +3,10 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
+  "scripts": {
+    "sync": "cap sync android",
+    "open": "cap open android"
+  },
   "dependencies": {
     "@capacitor/android": "^8.6.2",
     "@capacitor/app": "^8.1.2",
@@ -12,6 +16,7 @@
     "@capacitor/status-bar": "^8.0.4"
   },
   "devDependencies": {
-    "@capacitor/cli": "^8.6.2"
+    "@capacitor/cli": "^8.6.2",
+    "typescript": "^7.0.2"
   }
 }

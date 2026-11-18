@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">nit</string>
+    <string name="title_activity_main">nit</string>
+    <string name="package_name">space.bongdo.nit</string>
+    <string name="custom_url_scheme">space.bongdo.nit</string>
+</resources>

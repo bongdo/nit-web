@@ -780,16 +780,20 @@ export const Composer = memo(function Composer({
           throw error;
         }
       }
-      setAttachments(uploaded);
+      setAttachments((current) =>
+        current.map((item) => uploaded.find((entry) => entry.id === item.id) ?? item),
+      );
       await onSend(text, uploaded, running ? (queue ? "queue" : "steer") : undefined);
       if (misspelled.length > 0) learnSentWords(misspelled);
-      void saveDraftFiles(draftKey, []).catch(() => {});
-      for (const item of attachments) {
-        if (item.preview) URL.revokeObjectURL(item.preview);
-      }
-      setRemoving([]);
-      addedDelay.current.clear();
-      setAttachments([]);
+      const sent = new Set(uploaded.map((item) => item.id));
+      setAttachments((current) => {
+        for (const item of current) {
+          if (sent.has(item.id) && item.preview) URL.revokeObjectURL(item.preview);
+        }
+        return current.filter((item) => !sent.has(item.id));
+      });
+      setRemoving((current) => current.filter((id) => !sent.has(id)));
+      for (const id of sent) addedDelay.current.delete(id);
     } catch {
       updateValue(restoreDraft(text, valueRef.current));
       return;

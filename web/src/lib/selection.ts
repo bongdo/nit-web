@@ -3,10 +3,9 @@ import type { LineRange } from "./types";
 export type Point = { node: Node; offset: number };
 
 const WORD_CHAR = /[\p{L}\p{N}]/u;
+const CONNECTOR = /[-'’]/;
 
-export function wordBounds(text: string, offset: number): [number, number] {
-  const at = Math.max(0, Math.min(offset, text.length));
-  if (!text) return [0, 0];
+function seedWord(text: string, at: number): [number, number] {
   if (typeof Intl !== "undefined" && "Segmenter" in Intl) {
     const segmenter = new Intl.Segmenter(undefined, { granularity: "word" });
     for (const part of segmenter.segment(text)) {
@@ -18,9 +17,24 @@ export function wordBounds(text: string, offset: number): [number, number] {
   let end = at;
   while (start > 0 && WORD_CHAR.test(text[start - 1])) start--;
   while (end < text.length && WORD_CHAR.test(text[end])) end++;
-  if (start === end && text.length > 0) {
+  if (start === end) {
     start = Math.min(at, text.length - 1);
     end = start + 1;
+  }
+  return [start, end];
+}
+
+export function wordBounds(text: string, offset: number): [number, number] {
+  const at = Math.max(0, Math.min(offset, text.length));
+  if (!text) return [0, 0];
+  let [start, end] = seedWord(text, at);
+  while (start > 1 && CONNECTOR.test(text[start - 1]) && WORD_CHAR.test(text[start - 2])) {
+    start--;
+    while (start > 0 && WORD_CHAR.test(text[start - 1])) start--;
+  }
+  while (end < text.length - 1 && CONNECTOR.test(text[end]) && WORD_CHAR.test(text[end + 1])) {
+    end++;
+    while (end < text.length && WORD_CHAR.test(text[end])) end++;
   }
   return [start, end];
 }
@@ -28,12 +42,12 @@ export function wordBounds(text: string, offset: number): [number, number] {
 export function caretAt(x: number, y: number): Point | null {
   const doc = document as Document & {
     caretRangeFromPoint?: (x: number, y: number) => Range | null;
-    caretPositionFromPoint?: (x: number, y: number) => Point | null;
+    caretPositionFromPoint?: (x: number, y: number) => { offsetNode: Node; offset: number } | null;
   };
   const range = doc.caretRangeFromPoint?.(x, y);
   if (range) return { node: range.startContainer, offset: range.startOffset };
   const position = doc.caretPositionFromPoint?.(x, y);
-  return position ? { node: position.node, offset: position.offset } : null;
+  return position ? { node: position.offsetNode, offset: position.offset } : null;
 }
 
 function textPoint(point: Point | null): Point | null {

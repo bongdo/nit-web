@@ -449,6 +449,20 @@
     @apply bg-primary/20;
   }
 
+  .native-app,
+  .native-app * {
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+  }
+
+  .native-app input,
+  .native-app textarea,
+  .native-app [contenteditable="true"] {
+    -webkit-user-select: text;
+    user-select: text;
+  }
+
   :focus-visible {
     @apply outline-ring outline-2 outline-offset-2;
   }
@@ -2267,3 +2281,35 @@ html[data-motion="static"] *:not(.animate-spin)::after {
   }
 }
 
+
+.sel-box {
+  position: fixed;
+  z-index: 60;
+  border-radius: 2px;
+  background: color-mix(in oklab, var(--foreground) 26%, transparent);
+  pointer-events: none;
+}
+
+.sel-handle {
+  position: fixed;
+  z-index: 61;
+  width: 22px;
+  height: 22px;
+  margin: -11px 0 0 -11px;
+  border-radius: 9999px;
+  background: var(--foreground);
+  box-shadow: 0 1px 4px rgb(0 0 0 / 0.35);
+  touch-action: none;
+}
+
+.sel-handle::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: 100%;
+  width: 2px;
+  height: 14px;
+  margin-left: -1px;
+  border-radius: 1px;
+  background: var(--foreground);
+}

@@ -12,6 +12,7 @@ import {
 import type { FormInfo, Model, Session } from "../lib/types";
 import { api } from "../lib/api";
 import { attachmentWarning } from "../lib/attachments";
+import { tap } from "../lib/haptics";
 import { loadDraftFiles, saveDraftFiles } from "../lib/draft-files";
 import { loadDraftState, restoreDraft, saveDraftState, type DraftState } from "../lib/drafts";
 import { questionAnswer, questionFields } from "../lib/forms";
@@ -761,6 +762,7 @@ export const Composer = memo(function Composer({
       .map((issue) => issue.word.toLowerCase());
     setSubmitting(true);
     updateValue("");
+    tap("medium");
     try {
       const uploaded: Attachment[] = [];
       for (const item of readyFiles) {

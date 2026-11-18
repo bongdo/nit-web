@@ -114,6 +114,8 @@ import { PermissionCard } from "./components/PermissionCard";
 import { OfflineScreen } from "./components/StatusScreens";
 import { Button } from "./components/ui/button";
 import { modalOpen } from "./components/ui/Modal";
+import { exitApp, nativePlatform, onBackButton, syncStatusBar } from "./lib/native";
+import { themeIsDark } from "./lib/themes";
 
 const DOUBLE_ESCAPE_MS = 500;
 const TAIL_LIMIT = 50;
@@ -213,6 +215,10 @@ export default function App({
   const sessionKey = instanceScopedKey("nit-gui.session", instance, defaultInstance);
 
   const { theme, setTheme } = useTheme();
+
+  useEffect(() => {
+    syncStatusBar(themeIsDark(theme, window.matchMedia("(prefers-color-scheme: dark)").matches));
+  }, [theme]);
   const [boot] = useState(() => readBoot(instance));
   const [health, setHealth] = useState<Health | null>(boot?.health ?? null);
   const healthRef = useRef<Health | null>(boot?.health ?? null);
@@ -2723,6 +2729,32 @@ export default function App({
     backgroundOpen,
     pickerOpen,
   ]);
+
+  const closeTopLayer = useCallback(() => {
+    const layer =
+      themeOpen ||
+      backgroundOpen ||
+      settingsOpen ||
+      pickerOpen ||
+      sidebarOpen ||
+      modalOpen() ||
+      Boolean(document.querySelector("[data-selection-ui]"));
+    if (!layer) return false;
+    window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
+    return true;
+  }, [backgroundOpen, pickerOpen, settingsOpen, sidebarOpen, themeOpen]);
+
+  useEffect(() => {
+    if (!nativePlatform()) return;
+    return onBackButton((canGoBack) => {
+      if (closeTopLayer()) return;
+      if (canGoBack) {
+        window.history.back();
+        return;
+      }
+      exitApp();
+    });
+  }, [closeTopLayer]);
 
   if (health && !health.ok && !boot && sessions.length === 0 && !workspace) {
     return (

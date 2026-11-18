@@ -25,6 +25,7 @@ import {
   type ScrollAnchor,
 } from "../lib/scroll";
 import { readFromSelection } from "../lib/speech";
+import { selectionFile } from "../lib/selection";
 import { cn } from "../lib/utils";
 import type { TimeFormat } from "../lib/time";
 import { openInApp } from "../lib/appLink";
@@ -35,6 +36,7 @@ import { CompactionBusy } from "./Compaction";
 import { MessageRow } from "./MessageRow";
 import { Scene, type SceneSetting } from "./Scene";
 import { WorkspaceMenu } from "./WorkspacePicker";
+import { TextSelectionMenu } from "./TextSelectionMenu";
 
 type SelectionQuote = {
   text: string;
@@ -46,19 +48,7 @@ type SelectionQuote = {
 };
 
 function selectedFile(node: Node | null): SelectionQuote["file"] {
-  const element = node instanceof Element ? node : node?.parentElement;
-  const anchor = element?.closest<HTMLAnchorElement>("a[data-pero-href]");
-  const path = anchor?.dataset.filePath;
-  const href = anchor?.dataset.peroHref;
-  if (!path || !href) return undefined;
-  let lines: LineRange[] | undefined;
-  try {
-    const raw = anchor?.dataset.fileLines;
-    lines = raw ? (JSON.parse(raw) as LineRange[]) : undefined;
-  } catch {
-    lines = undefined;
-  }
-  return { path, href, lines };
+  return selectionFile(node);
 }
 
 function Skeleton() {
@@ -870,6 +860,8 @@ export function ChatView({
           <div aria-hidden style={{ height: "var(--dock, 0px)" }} />
         </div>
       </div>
+
+      <TextSelectionMenu container={scrollRef} onQuote={onQuote} />
 
       {showJump && (
         <div className="pointer-events-none absolute inset-x-0 bottom-[calc(var(--dock,0px)+0.75rem)] flex justify-center">

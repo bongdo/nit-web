@@ -44,3 +44,20 @@ adb install -r android/app/build/outputs/apk/debug/app-debug.apk
 The custom selection menu only arms itself on Android (`nativeAndroid()`). In a desktop
 browser open the app with `?touchselect=1` and DevTools touch emulation: long-press a
 message picks a word, dragging the finger extends it, the round handles extend it further.
+
+## Building on nixos
+
+The aarch64 host cannot run Google's x86_64 SDK tools; `nixos` can (JDK 21, SDK in
+`~/.android` with platform 36, Gradle 8.14.3 cached). From the repository root:
+
+```bash
+rsync -az --exclude node_modules --exclude .gradle --exclude build \
+  mobile/ nixos:~/nit-mobile/
+ssh nixos 'cd ~/nit-mobile && npm ci --no-audit --no-fund && npx cap sync android'
+ssh nixos 'cd ~/nit-mobile/android && ANDROID_HOME=$HOME/.android ./gradlew --no-daemon assembleDebug'
+scp nixos:~/nit-mobile/android/app/build/outputs/apk/debug/app-debug.apk .cache/nit-shell.apk
+bin/drop .cache/nit-shell.apk --slug nit-shell-apk --public
+```
+
+The published APK is `https://bongdo.space/share/nit-shell-apk/`; installing it replaces
+only the shell, `space.bongdo.nit` (the Compose client) is a different app.

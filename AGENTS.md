@@ -8,7 +8,9 @@
   print the new password in the reply.
 - `bin/run` is the local development server on `127.0.0.1:7788`.
 - `bin/android [--install] [--drop]` builds `mobile/` into a debug APK. It needs JDK 21 and
-  Android SDK 36, so it does not run on an aarch64 host (Google ships x86_64 tools only);
+  Android SDK 36, so it does not run on an aarch64 host (Google ships x86_64 tools only).
+  Build on `nixos` instead (JDK 21, SDK 36 in `~/.android`): rsync `mobile/`, then
+  `ANDROID_HOME=$HOME/.android ./gradlew assembleDebug` and copy the APK back.
   `--install` pushes it with adb, `--drop` publishes it at `/share/nit-shell-apk/`.
 - `bin/uptime [seconds]` — samples `http://127.0.0.1:7791/` every 5 s and prints each outage with its length; no argument runs until Ctrl-C. Use it to measure stability instead of judging by feel.
 - `bin/previews` screenshots `/nit`, `/pero`, `/term` and `/share` into

@@ -40,11 +40,13 @@ export function HtmlPreview({
   className,
   title = "HTML preview",
   autoHeight = true,
+  fill = false,
 }: {
   source: string;
   className?: string;
   title?: string;
   autoHeight?: boolean;
+  fill?: boolean;
 }) {
   const ref = useRef<HTMLIFrameElement>(null);
   const [height, setHeight] = useState(() => cachedHeight(source));
@@ -86,6 +88,7 @@ export function HtmlPreview({
     <div
       className={cn(
         "row-sheen-preview relative w-full overflow-hidden rounded-lg border border-border",
+        fill && "h-full",
         loaded ? "row-sheen-preview-ready" : "row-sheen-preview-loading",
         className,
       )}
@@ -99,8 +102,11 @@ export function HtmlPreview({
         sandbox="allow-scripts allow-forms allow-modals"
         referrerPolicy="no-referrer"
         onLoad={() => setLoaded(true)}
-        style={{ height: autoHeight ? height : undefined, background: theme.background }}
-        className="row-sheen-preview-frame w-full border-0"
+        style={{
+          height: fill ? undefined : autoHeight ? height : undefined,
+          background: theme.background,
+        }}
+        className={cn("row-sheen-preview-frame w-full border-0", fill && "h-full")}
       />
     </div>
   );

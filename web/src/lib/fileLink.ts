@@ -12,8 +12,15 @@ export function executablePath(path: string): boolean {
   return name !== "" && !name.includes(".") && EXECUTABLE_DIR.test(path);
 }
 
-export function viewHref(path: string): string {
-  return addInstanceParam(appPath(`/api/view?path=${encodeURIComponent(path)}`), getInstance());
+export function rawHref(path: string, instance = getInstance()): string {
+  return addInstanceParam(
+    appPath(`/api/view?path=${encodeURIComponent(path)}`),
+    instance,
+  );
+}
+
+export function viewHref(path: string, instance = getInstance()): string {
+  return addInstanceParam(appPath(`/view?path=${encodeURIComponent(path)}`), instance);
 }
 
 const KNOWN_EXT =

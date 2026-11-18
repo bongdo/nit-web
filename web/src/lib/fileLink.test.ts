@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { executablePath, fileTarget, viewHref } from "./fileLink";
+import { executablePath, fileTarget, rawHref, viewHref } from "./fileLink";
 
 describe("fileTarget", () => {
   it("recognises workspace paths", () => {
@@ -48,8 +48,11 @@ describe("executablePath", () => {
 });
 
 describe("viewHref", () => {
-  it("points at the raw viewer", () => {
+  it("points at the preview page and keeps the raw transport separate", () => {
     expect(viewHref("/work/app/docs/decisions.md")).toBe(
+      "/view?path=%2Fwork%2Fapp%2Fdocs%2Fdecisions.md",
+    );
+    expect(rawHref("/work/app/docs/decisions.md")).toBe(
       "/api/view?path=%2Fwork%2Fapp%2Fdocs%2Fdecisions.md",
     );
   });

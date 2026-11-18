@@ -453,6 +453,43 @@ func TestViewDownloadsBinary(t *testing.T) {
 	}
 }
 
+func TestViewHeadHasNoBody(t *testing.T) {
+	upstream := httptest.NewServer(auth(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, "# Notes")
+	}))
+	defer upstream.Close()
+
+	rec := httptest.NewRecorder()
+	newHandler(t, upstream.URL).ServeHTTP(rec, httptest.NewRequest(http.MethodHead,
+		"http://127.0.0.1:7788/api/view?path=%2Fhome%2Fubuntu%2Fwork%2Fnotes.md", nil))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d: %s", rec.Code, rec.Body)
+	}
+	if rec.Body.Len() != 0 {
+		t.Fatalf("head returned a body: %s", rec.Body)
+	}
+	if rec.Header().Get("Content-Type") != "text/plain; charset=utf-8" {
+		t.Fatalf("content type = %q", rec.Header().Get("Content-Type"))
+	}
+}
+
+func TestViewAllowsFrameForPDF(t *testing.T) {
+	upstream := httptest.NewServer(auth(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, "%PDF")
+	}))
+	defer upstream.Close()
+
+	rec := httptest.NewRecorder()
+	newHandler(t, upstream.URL).ServeHTTP(rec, httptest.NewRequest(http.MethodGet,
+		"http://127.0.0.1:7788/api/view?path=%2Fhome%2Fubuntu%2Fwork%2Fdoc.pdf", nil))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d: %s", rec.Code, rec.Body)
+	}
+	if rec.Header().Get("X-Frame-Options") != "SAMEORIGIN" {
+		t.Fatalf("x-frame-options = %q", rec.Header().Get("X-Frame-Options"))
+	}
+}
+
 func TestViewRejectsRelativePath(t *testing.T) {
 	rec := httptest.NewRecorder()
 	newHandler(t, "http://127.0.0.1:1").ServeHTTP(rec, httptest.NewRequest(http.MethodGet,

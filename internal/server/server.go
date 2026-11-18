@@ -1336,8 +1336,17 @@ func (s *Server) view(w http.ResponseWriter, r *http.Request) {
 			"filename": filepath.Base(path),
 		}))
 	}
+	if contentType == "application/pdf" {
+		w.Header().Set("X-Frame-Options", "SAMEORIGIN")
+	}
 	w.Header().Set("Content-Type", contentType)
 	w.Header().Set("Cache-Control", "private, max-age=60")
+	if body.ContentLength > 0 {
+		w.Header().Set("Content-Length", strconv.FormatInt(body.ContentLength, 10))
+	}
+	if r.Method == http.MethodHead {
+		return
+	}
 	if _, err := io.Copy(w, reader); err != nil {
 		s.log.Warn("view stream failed", "path", path, "error", err)
 	}

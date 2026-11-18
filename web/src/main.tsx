@@ -1,10 +1,13 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
+import FilePreview from "./FilePreview";
 import Root from "./Root";
+import { setInstance } from "./lib/api";
 import "./index.css";
 
+const preview = /\/view\/?$/.test(window.location.pathname);
+if (preview) setInstance(new URLSearchParams(window.location.search).get("instance") ?? "");
+
 createRoot(document.getElementById("root")!).render(
-  <StrictMode>
-    <Root />
-  </StrictMode>,
+  <StrictMode>{preview ? <FilePreview /> : <Root />}</StrictMode>,
 );

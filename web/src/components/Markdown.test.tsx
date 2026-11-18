@@ -29,7 +29,7 @@ describe("Markdown values", () => {
       <Markdown text={"Открой `bin/check` и `docs/decisions.md:12`."} directory="/work/app" peroURL="/pero/" />,
     );
     expect(html).toContain("md-file");
-    expect(html).toContain("/api/view?path=%2Fwork%2Fapp%2Fbin%2Fcheck");
+    expect(html).toContain("/view?path=%2Fwork%2Fapp%2Fbin%2Fcheck");
     expect(html).toContain('data-pero-href="/pero/?open=%2Fwork%2Fapp%2Fbin%2Fcheck"');
     expect(html).toContain("data-pero-href=\"/pero/?open=%2Fwork%2Fapp%2Fdocs%2Fdecisions.md&amp;lines=12\"");
   });
@@ -39,7 +39,7 @@ describe("Markdown values", () => {
       <Markdown text={"Открой `bin/check`."} streaming directory="/work/app" peroURL="/pero/" />,
     );
     expect(html).toContain('class="md-file"');
-    expect(html).toContain("/api/view?path=%2Fwork%2Fapp%2Fbin%2Fcheck");
+    expect(html).toContain("/view?path=%2Fwork%2Fapp%2Fbin%2Fcheck");
   });
 
   it("does not link paths without a directory", () => {

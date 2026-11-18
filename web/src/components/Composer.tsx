@@ -94,6 +94,7 @@ export const Composer = memo(function Composer({
   disabled,
   running,
   focusKey,
+  keyboard,
   typingBlocked,
   drawerOpen,
   draftKey,
@@ -119,6 +120,7 @@ export const Composer = memo(function Composer({
   disabled?: boolean;
   running?: boolean;
   focusKey?: string | null;
+  keyboard?: { id: number; show: boolean } | null;
   typingBlocked?: boolean;
   drawerOpen?: boolean;
   draftKey: string;
@@ -319,6 +321,12 @@ export const Composer = memo(function Composer({
     if (coarse) return;
     ref.current?.focus();
   }, [focusKey, coarse]);
+
+  useEffect(() => {
+    if (!keyboard || coarse) return;
+    if (keyboard.show) ref.current?.focus();
+    else if (document.activeElement === ref.current) ref.current?.blur();
+  }, [keyboard, coarse]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {

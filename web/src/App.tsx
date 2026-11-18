@@ -92,6 +92,8 @@ import type { TimeFormat } from "./lib/time";
 import { useAttention } from "./hooks/useAttention";
 import { useTheme, type Theme } from "./hooks/useTheme";
 import { useEventStream } from "./hooks/useEventStream";
+import { useDockDrag } from "./hooks/useDockDrag";
+import { useKeyboardInset } from "./hooks/useKeyboardInset";
 import { useSidebarSwipe } from "./hooks/useSidebarSwipe";
 import { ChatView } from "./components/ChatView";
 import { SpeechPlayer } from "./components/SpeechPlayer";
@@ -243,6 +245,7 @@ export default function App({
     writeStored("nit-gui.collapsed", open ? "0" : "1");
   }, []);
   const swipe = useSidebarSwipe(setExpanded);
+  useKeyboardInset();
   const [spellcheck, setSpellcheck] = useState(() => readStored("nit-gui.spellcheck") !== "0");
   const [autofix, setAutofix] = useState(() => readStored("nit-gui.autofix") !== "0");
   const [timeFormat, setTimeFormat] = useState<TimeFormat>(() =>
@@ -351,6 +354,18 @@ export default function App({
   const searchQueryRef = useRef(search);
   searchQueryRef.current = search;
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [keyboard, setKeyboard] = useState<{ id: number; show: boolean } | null>(null);
+  const dock = useDockDrag({
+    open: sidebarOpen,
+    height: () => swipe.ref.current?.offsetHeight ?? 0,
+    onOpen: () => setSidebarOpen(true),
+    onClose: () => setSidebarOpen(false),
+  });
+  const dockDragging = dock.progress !== null;
+  const followKeyboard = useCallback((atBottom: boolean) => {
+    if (!window.matchMedia("(max-width: 767px)").matches) return;
+    setKeyboard({ id: Date.now(), show: atBottom });
+  }, []);
   const [preferredModel, setPreferredModel] = useState<ModelRef | null>(null);
   const [preferredAgent, setPreferredAgent] = useState<string | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
@@ -2665,14 +2680,25 @@ export default function App({
   const questionForm = forms[0] && questionFields(forms[0]) ? forms[0] : null;
 
   return (
-    <div className="flex h-full min-h-0 overflow-hidden">
+    <div
+      className="flex h-full min-h-0 overflow-hidden"
+      style={{ paddingBottom: "var(--keyboard, 0px)" }}
+    >
       <div aria-hidden className="fixed inset-y-0 left-0 z-20 hidden w-2 touch-none md:block" />
       <aside
         ref={swipe.ref}
         aria-label="Chats"
+        style={
+          dockDragging
+            ? {
+                translate: `0 ${Math.round((1 - (dock.progress ?? 0)) * 1000) / 10}%`,
+                transition: "none",
+              }
+            : undefined
+        }
         className={cn(
           "border-border bg-background fixed z-30 border-r",
-          "max-md:inset-x-0 max-md:top-auto max-md:bottom-0 max-md:z-50 max-md:h-[min(82dvh,42rem)] max-md:w-full max-md:overscroll-contain max-md:rounded-t-2xl max-md:border-t max-md:border-r-0 max-md:pb-[env(safe-area-inset-bottom)] max-md:shadow-2xl",
+          "max-md:inset-x-0 max-md:top-auto max-md:bottom-[var(--keyboard,0px)] max-md:z-50 max-md:h-[min(82dvh,42rem)] max-md:w-full max-md:overscroll-contain max-md:rounded-t-2xl max-md:border-t max-md:border-r-0 max-md:pb-[env(safe-area-inset-bottom)] max-md:shadow-2xl",
           "md:inset-y-0 md:left-0 md:w-[280px] md:touch-pan-y",
           "ease-[cubic-bezier(0.32,0.72,0,1)] transition-[translate,width] duration-300 motion-reduce:transition-none",
           sidebarOpen ? "max-md:translate-y-0" : "max-md:translate-y-full",
@@ -2683,8 +2709,11 @@ export default function App({
         )}
       >
         <div className="flex h-full min-h-0 flex-col">
-          <div className="flex shrink-0 justify-center pt-2 md:hidden">
-            <span aria-hidden className="bg-border h-1 w-10 rounded-full" />
+          <div
+            className="flex shrink-0 touch-none justify-center py-2 md:hidden"
+            {...dock.handlers}
+          >
+            <span aria-hidden className="bg-border h-1 w-10 self-center rounded-full" />
           </div>
           <div className="min-h-0 flex-1">
             <Sidebar
@@ -2815,6 +2844,7 @@ export default function App({
           loadingEarlier={loadingEarlier}
           earlierFailed={earlierFailed}
           onLoadEarlier={loadEarlier}
+          onBottomChange={followKeyboard}
         />
 
         <BottomDock>
@@ -2843,6 +2873,14 @@ export default function App({
           )}
 
           <div className="pointer-events-auto pb-[env(safe-area-inset-bottom)]">
+            <div
+              className="mx-auto flex w-full max-w-3xl touch-none justify-center px-4 md:hidden"
+              {...dock.handlers}
+            >
+              <span className="flex h-6 w-16 items-center justify-center">
+                <span aria-hidden className="bg-border h-1 w-10 rounded-full" />
+              </span>
+            </div>
             <Composer
               key={composerKey}
               session={selectedSession}
@@ -2853,6 +2891,7 @@ export default function App({
               disabled={health?.ok === false}
               running={running}
               focusKey={selectedId}
+              keyboard={keyboard}
               typingBlocked={
                 settingsOpen || pickerOpen || themeOpen || backgroundOpen || reviewOpen
               }

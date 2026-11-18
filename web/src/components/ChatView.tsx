@@ -156,6 +156,7 @@ export function ChatView({
   loadingEarlier,
   earlierFailed,
   onLoadEarlier,
+  onBottomChange,
 }: {
   session: Session | null;
   messages: Message[];
@@ -189,6 +190,7 @@ export function ChatView({
   loadingEarlier: boolean;
   earlierFailed: boolean;
   onLoadEarlier: () => void | Promise<void>;
+  onBottomChange?: (atBottom: boolean) => void;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
@@ -214,6 +216,9 @@ export function ChatView({
   } | null>(null);
   const [showJump, setShowJump] = useState(false);
   const [quote, setQuote] = useState<SelectionQuote | null>(null);
+  const bottom = useRef(true);
+  const gestureAt = useRef(0);
+  const resizeAt = useRef(0);
   const [freshRow, setFreshRow] = useState<{ id: string; session: string } | null>(null);
   const jumping = useRef(false);
   const seenSession = useRef<string | null>(null);
@@ -243,9 +248,27 @@ export function ChatView({
     setShowJump(false);
   }, [stopScroll]);
 
+  useEffect(() => {
+    const viewport = window.visualViewport;
+    const onResize = () => {
+      resizeAt.current = Date.now();
+      if (!stick.current) return;
+      requestAnimationFrame(() => {
+        if (stick.current) scrollToBottom();
+      });
+    };
+    window.addEventListener("resize", onResize);
+    viewport?.addEventListener("resize", onResize);
+    return () => {
+      window.removeEventListener("resize", onResize);
+      viewport?.removeEventListener("resize", onResize);
+    };
+  }, [scrollToBottom]);
+
   const jumpToLatest = useCallback(() => {
     const element = scrollRef.current;
     if (!element) return;
+    gestureAt.current = Date.now();
     stopScroll();
     const smooth =
       motion === "animated" &&
@@ -728,18 +751,22 @@ export function ChatView({
         className="scrollbar-thin relative min-h-0 flex-1 overflow-y-auto overflow-x-hidden [overflow-anchor:none] [scrollbar-gutter:stable]"
         onWheel={(event) => {
           jumping.current = false;
+          gestureAt.current = Date.now();
           stopScroll();
           if (event.deltaY < 0) pullEarlier();
         }}
         onPointerDown={(event) => {
           jumping.current = false;
+          gestureAt.current = Date.now();
           if (event.target === event.currentTarget) stopScroll();
         }}
         onTouchStart={(event) => {
           jumping.current = false;
+          gestureAt.current = Date.now();
           touchY.current = event.touches[0]?.clientY ?? null;
         }}
         onTouchMove={(event) => {
+          gestureAt.current = Date.now();
           stopScroll();
           const y = event.touches[0]?.clientY;
           if (y !== undefined && touchY.current !== null && y > touchY.current) {
@@ -752,6 +779,7 @@ export function ChatView({
         }}
         onKeyDown={(event) => {
           jumping.current = false;
+          gestureAt.current = Date.now();
           stopScroll();
           if (event.key === "ArrowUp" || event.key === "PageUp" || event.key === "Home") {
             pullEarlier();
@@ -768,6 +796,13 @@ export function ChatView({
               return;
             }
             jumping.current = false;
+          }
+          if (nearBottom !== bottom.current) {
+            bottom.current = nearBottom;
+            const now = Date.now();
+            if (now - resizeAt.current > 250 && now - gestureAt.current < 600) {
+              onBottomChange?.(nearBottom);
+            }
           }
           stick.current = nearBottom;
           setShowJump(!nearBottom);

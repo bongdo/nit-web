@@ -14,7 +14,7 @@ import {
   FileVideo,
   Presentation,
 } from "lucide-react";
-import { fileType } from "../lib/attachments";
+import { fileType, previewHref } from "../lib/attachments";
 import { formatBytes } from "../lib/format";
 import { cn } from "../lib/utils";
 
@@ -101,7 +101,7 @@ export function AttachmentPreview({
     return (
       <a href={href} target="_blank" rel="noreferrer noopener" className="block">
         <img
-          src={href}
+          src={previewHref(href)}
           alt={name}
           loading="lazy"
           className="border-border max-h-56 w-full rounded-md border object-cover"

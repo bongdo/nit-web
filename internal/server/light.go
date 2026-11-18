@@ -1,6 +1,7 @@
 package server
 
 import (
+	"bytes"
 	"encoding/json"
 	"regexp"
 	"sort"
@@ -183,7 +184,7 @@ func lightenTranscript(data []byte) ([]byte, error) {
 	}
 	light := make([]json.RawMessage, len(messages))
 	for index, message := range messages {
-		trimmed, err := lightenMessage(message)
+		trimmed, err := lightenMessage(stripAttachmentData(message))
 		if err != nil {
 			light[index] = message
 			continue
@@ -191,6 +192,55 @@ func lightenTranscript(data []byte) ([]byte, error) {
 		light[index] = trimmed
 	}
 	return json.Marshal(light)
+}
+
+func stripAttachmentData(raw []byte) []byte {
+	if !bytes.Contains(raw, []byte(`"files"`)) {
+		return raw
+	}
+	var message map[string]json.RawMessage
+	if json.Unmarshal(raw, &message) != nil {
+		return raw
+	}
+	filesRaw, ok := message["files"]
+	if !ok {
+		return raw
+	}
+	var files []map[string]json.RawMessage
+	if json.Unmarshal(filesRaw, &files) != nil {
+		return raw
+	}
+	uploaded := "file://" + uploadPrefix()
+	changed := false
+	for _, file := range files {
+		var source struct {
+			URI string `json:"uri"`
+		}
+		if json.Unmarshal(file["source"], &source) != nil {
+			continue
+		}
+		if !strings.HasPrefix(source.URI, uploaded) {
+			continue
+		}
+		if _, ok := file["data"]; !ok {
+			continue
+		}
+		delete(file, "data")
+		changed = true
+	}
+	if !changed {
+		return raw
+	}
+	encoded, err := json.Marshal(files)
+	if err != nil {
+		return raw
+	}
+	message["files"] = encoded
+	out, err := json.Marshal(message)
+	if err != nil {
+		return raw
+	}
+	return out
 }
 
 func lightenMessage(raw []byte) (json.RawMessage, error) {

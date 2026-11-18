@@ -1256,6 +1256,14 @@ func (s *Server) file(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", contentType)
 	w.Header().Set("Cache-Control", "private, max-age=3600")
+	if width := thumbWidth(r.URL.Query().Get("w")); width > 0 && resizableImage(contentType) {
+		if thumb, err := resizeImage(body.Body, contentType, width); err == nil {
+			if _, err := w.Write(thumb); err != nil {
+				s.log.Warn("file write failed", "path", path, "error", err)
+			}
+			return
+		}
+	}
 	if _, err := io.Copy(w, body.Body); err != nil {
 		s.log.Warn("file stream failed", "path", path, "error", err)
 	}

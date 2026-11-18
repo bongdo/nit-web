@@ -124,7 +124,7 @@ export function useEventStream(
   useEffect(() => {
     const check = () => {
       const current = streams.current;
-      if (current.closed || document.hidden) return;
+      if (current.closed) return;
       const now = Date.now();
       for (const [id, source] of current.sources) {
         if (now - (current.seen.get(id) ?? 0) <= STALE_MS) continue;

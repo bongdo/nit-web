@@ -111,3 +111,36 @@ func TestLightenTranscriptKeepsMalformedMessage(t *testing.T) {
 		t.Fatalf("second message content = %s", messages[1]["content"])
 	}
 }
+
+func TestLightenTranscriptDropsUploadedAttachmentData(t *testing.T) {
+	uploaded := "file://" + uploadPrefix() + "1-shot.jpg"
+	data := []byte(`[{"id":"m1","type":"user","files":[
+		{"name":"shot.jpg","mime":"image/jpeg","data":"QUJD","source":{"type":"uri","uri":"` + uploaded + `"}},
+		{"name":"other.jpg","mime":"image/jpeg","data":"QUJD","source":{"type":"uri","uri":"file:///home/ubuntu/other.jpg"}}
+	]}]`)
+	out, err := lightenTranscript(data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var messages []struct {
+		Files []struct {
+			Name string `json:"name"`
+			Data string `json:"data"`
+		} `json:"files"`
+	}
+	if err := json.Unmarshal(out, &messages); err != nil {
+		t.Fatal(err)
+	}
+	if len(messages) != 1 || len(messages[0].Files) != 2 {
+		t.Fatalf("files = %s", out)
+	}
+	if messages[0].Files[0].Data != "" {
+		t.Fatalf("uploaded attachment data kept: %s", out)
+	}
+	if messages[0].Files[0].Name != "shot.jpg" {
+		t.Fatalf("attachment name lost: %s", out)
+	}
+	if messages[0].Files[1].Data != "QUJD" {
+		t.Fatalf("attachment outside the upload dir lost its data: %s", out)
+	}
+}

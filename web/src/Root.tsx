@@ -124,8 +124,12 @@ export default function Root() {
     current.instances[0];
 
   useEffect(() => {
-    if (info) api.setInstance(info.id);
-  }, [info?.id]);
+    if (data && info) api.setInstance(info.id);
+  }, [info?.id, data]);
+
+  if (!data && !error) {
+    return <div className="bg-background min-h-dvh" aria-busy="true" />;
+  }
 
   return (
     <>

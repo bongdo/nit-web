@@ -5,6 +5,7 @@ import {
   attachmentNameFromHref,
   attachmentWarning,
   fileType,
+  previewHref,
 } from "./attachments";
 
 const model = (input: string[]) => ({ name: "Model", capabilities: { input } });
@@ -69,6 +70,14 @@ describe("attachments", () => {
   it("derives the attachment name from a local file link", () => {
     const href = "/api/file?path=file%3A%2F%2F%2Ftmp%2Fnit-gui-1-track.mp3";
     expect(attachmentNameFromHref(href)).toBe("nit-gui-1-track.mp3");
+  });
+
+  it("asks the server for a smaller preview of local images only", () => {
+    expect(previewHref("/api/file?path=file%3A%2F%2F%2Ftmp%2Fnit-gui-1-a.png")).toBe(
+      "/api/file?path=file%3A%2F%2F%2Ftmp%2Fnit-gui-1-a.png&w=768",
+    );
+    expect(previewHref("https://example.com/a.png")).toBe("https://example.com/a.png");
+    expect(previewHref("data:image/png;base64,AAAA")).toBe("data:image/png;base64,AAAA");
   });
 
   it("warns when the model cannot read the attachment", () => {

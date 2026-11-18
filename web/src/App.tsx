@@ -415,6 +415,7 @@ export default function App({
   const earlierRequest = useRef(0);
   const loadedIdRef = useRef<string | null>(null);
   const lastEpochRef = useRef(0);
+  const sessionsLoaded = useRef(false);
 
   const applyHidden = useCallback((owner: string, ids: ReadonlySet<string>) => {
     setHiddenByInstance((current) =>
@@ -851,6 +852,7 @@ export default function App({
         }
       }
       setSessions(data);
+      sessionsLoaded.current = true;
       if (!query && currentScope !== "everywhere") writeBoot(instance, { sessions: data });
       if (!query) {
         if (currentScope === "mine") poolCache.current = data;
@@ -1232,6 +1234,7 @@ export default function App({
       loadedIdRef.current = selectedId;
       return;
     }
+    streamEventAt.current[selectedId] = Date.now();
     const force = lastEpochRef.current !== messageEpoch;
     lastEpochRef.current = messageEpoch;
     const cached = transcriptCache.get(selectedId);
@@ -1295,7 +1298,8 @@ export default function App({
   }, [freshCompaction]);
 
   useEffect(() => {
-    if (!selectedId || sessionsLoading) return;
+    if (!selectedId || sessionsLoading || !sessionsLoaded.current) return;
+    if (searchQueryRef.current.trim()) return;
     if (!sessions.some((session) => session.id === selectedId)) {
       transcriptCache.delete(selectedId);
       setSelectedIdState(null);
@@ -1746,7 +1750,7 @@ export default function App({
   useEffect(() => {
     const timer = window.setInterval(() => {
       const id = selectedIdRef.current;
-      if (!id || document.hidden) return;
+      if (!id) return;
       if (!needsResync(runningIdsRef.current[id], streamEventAt.current[id], Date.now())) return;
       streamEventAt.current[id] = Date.now();
       reloadSelected();

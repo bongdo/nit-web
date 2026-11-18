@@ -89,6 +89,14 @@ export function localFileHref(href?: string): string | undefined {
   return undefined;
 }
 
+export const PREVIEW_WIDTH = 768;
+
+export function previewHref(href: string): string {
+  if (!localFileHref(href)) return href;
+  const glue = href.includes("?") ? "&" : "?";
+  return `${href}${glue}w=${PREVIEW_WIDTH}`;
+}
+
 export function attachmentHref(file: UserFile): string | undefined {
   const uri = fileUri(file);
   const inline = file.data && file.mime ? `data:${file.mime};base64,${file.data}` : undefined;

@@ -479,6 +479,11 @@
     background: color-mix(in oklab, var(--spark) 6%, transparent);
   }
 
+  ::highlight(speech) {
+    background-color: color-mix(in oklab, var(--spark) 18%, transparent);
+    color: inherit;
+  }
+
   .md-block[data-speaking]::before {
     content: "";
     position: absolute;

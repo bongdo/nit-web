@@ -66,24 +66,62 @@ function blockGap(block: string): number {
   return 0.3;
 }
 
-function splitChunks(block: string, max: number): string[] {
-  const trimmed = block.trim();
-  if (!trimmed) return [];
-  if (trimmed.length <= max || trimmed.includes("```") || trimmed.includes("~~~")) {
-    return [trimmed];
+function pushPiece(pieces: string[], value: string, max: number): void {
+  const trimmed = value.trim();
+  if (!trimmed) return;
+  if (trimmed.length <= max) {
+    pieces.push(trimmed);
+    return;
   }
-  const sentences = trimmed.match(/[^.!?…]+[.!?…]+(?:\s+|$)/g) ?? [trimmed];
-  const chunks: string[] = [];
   let chunk = "";
-  for (const sentence of sentences) {
-    if (chunk && chunk.length + sentence.length > max) {
-      chunks.push(chunk.trim());
+  for (const word of trimmed.split(/\s+/)) {
+    if (chunk && chunk.length + word.length + 1 > max) {
+      pieces.push(chunk);
       chunk = "";
     }
-    chunk += sentence;
+    chunk = chunk ? `${chunk} ${word}` : word;
   }
-  if (chunk.trim()) chunks.push(chunk.trim());
-  return chunks;
+  if (chunk) pieces.push(chunk);
+}
+
+function splitSentences(line: string, max: number): string[] {
+  const pieces: string[] = [];
+  let start = 0;
+  let inCode = false;
+  for (let index = 0; index < line.length; index += 1) {
+    const char = line[index];
+    if (char === "`") inCode = !inCode;
+    if (inCode || (char !== "." && char !== "!" && char !== "?" && char !== "…")) continue;
+    const next = line[index + 1];
+    if (next !== undefined && !/\s/.test(next)) continue;
+    if (char === "." && /^\s*\d+$/.test(line.slice(0, index))) continue;
+    if (char === "." && abbreviation(line.slice(start, index))) continue;
+    pushPiece(pieces, line.slice(start, index + 1), max);
+    start = index + 1;
+  }
+  pushPiece(pieces, line.slice(start), max);
+  return pieces;
+}
+
+const ABBREVIATIONS = new Set(["т", "е", "к", "д", "п", "см", "напр", "др", "г", "ул", "рис", "стр"]);
+
+function abbreviation(prefix: string): boolean {
+  const word = /([A-Za-zА-Яа-яЁё]+)$/.exec(prefix)?.[1]?.toLowerCase();
+  return Boolean(word && (word.length === 1 || ABBREVIATIONS.has(word)));
+}
+
+function splitBlock(block: string, max: number): string[] {
+  const trimmed = block.trim();
+  if (!trimmed) return [];
+  if (trimmed.includes("```") || trimmed.includes("~~~") || trimmed.startsWith("|")) {
+    return [trimmed];
+  }
+  const pieces: string[] = [];
+  for (const line of trimmed.split("\n")) {
+    if (!line.trim()) continue;
+    pieces.push(...splitSentences(line, max));
+  }
+  return pieces;
 }
 
 export function speechSegments(markdown: string, max = 320): SpeechSegment[] {
@@ -91,12 +129,12 @@ export function speechSegments(markdown: string, max = 320): SpeechSegment[] {
   const segments: SpeechSegment[] = [];
   blocks.forEach((block, index) => {
     const gap = blockGap(block);
-    const chunks = splitChunks(block, max);
-    chunks.forEach((text, chunk) => {
+    const pieces = splitBlock(block, max);
+    pieces.forEach((text, piece) => {
       segments.push({
         text,
         block: index,
-        gap: chunk === chunks.length - 1 ? gap : 0.12,
+        gap: piece === pieces.length - 1 ? gap : 0.15,
       });
     });
   });
@@ -242,18 +280,98 @@ let gate: Promise<void> | null = null;
 let openGate: (() => void) | null = null;
 let listenersAttached = false;
 
+const SENTENCE_HIGHLIGHT = "speech";
+
 function highlight(block: number): void {
   clearHighlight();
   if (!anchored || !activeMessage || block < 0 || typeof document === "undefined") return;
-  const root = document.querySelector(`[data-message-id="${escapeValue(activeMessage)}"]`);
-  const element = root?.querySelector(`[data-speech-block="${block}"]`);
+  const element = blockElement(block);
   element?.setAttribute("data-speaking", "");
+}
+
+function blockElement(block: number): Element | null {
+  if (!activeMessage || typeof document === "undefined") return null;
+  const root = document.querySelector(`[data-message-id="${escapeValue(activeMessage)}"]`);
+  return root?.querySelector(`[data-speech-block="${block}"]`) ?? null;
 }
 
 function clearHighlight(): void {
   if (typeof document === "undefined") return;
   for (const element of document.querySelectorAll("[data-speaking]")) {
     element.removeAttribute("data-speaking");
+  }
+  clearSentenceHighlight();
+}
+
+function highlightSentence(block: number, text: string): void {
+  clearSentenceHighlight();
+  if (!anchored || typeof document === "undefined") return;
+  if (typeof CSS === "undefined" || typeof Highlight === "undefined") return;
+  const root = blockElement(block);
+  if (!root) return;
+  const range = rangeFor(root, plainSpeech(text));
+  if (range) CSS.highlights.set(SENTENCE_HIGHLIGHT, new Highlight(range));
+}
+
+function clearSentenceHighlight(): void {
+  if (typeof CSS === "undefined" || typeof Highlight === "undefined") return;
+  CSS.highlights.delete(SENTENCE_HIGHLIGHT);
+}
+
+function plainSpeech(text: string): string {
+  return text
+    .replace(/!\[[^\]]*\]\([^)]*\)/g, " ")
+    .replace(/\[([^\]]+)\]\([^)]*\)/g, "$1")
+    .replace(/`([^`]*)`/g, "$1")
+    .replace(/^\s*(?:[-*+]|\d+[.)])\s+/, "")
+    .replace(/^\s*#{1,6}\s+/, "")
+    .replace(/^\s*>\s?/, "")
+    .replace(/\*\*|__|~~|`/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function rangeFor(root: Element, needle: string): Range | null {
+  if (!needle || typeof document === "undefined") return null;
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  const nodes: { node: Text; start: number; end: number }[] = [];
+  let flat = "";
+  for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+    const value = node.nodeValue ?? "";
+    if (!value) continue;
+    nodes.push({ node: node as Text, start: flat.length, end: flat.length + value.length });
+    flat += value;
+  }
+  if (!flat) return null;
+  const norm: string[] = [];
+  const map: number[] = [];
+  for (let index = 0; index < flat.length; index += 1) {
+    const char = flat[index];
+    if (/\s/.test(char) && (index === 0 || /\s/.test(flat[index - 1]))) continue;
+    norm.push(char === " " || /\s/.test(char) ? " " : char);
+    map.push(index);
+  }
+  const haystack = norm.join("").toLowerCase();
+  const start = haystack.indexOf(needle.toLowerCase());
+  if (start < 0) return null;
+  const end = start + needle.length;
+  if (end > map.length) return null;
+  const at = (offset: number): { node: Text; offset: number } | null => {
+    for (const item of nodes) {
+      if (offset <= item.end) return { node: item.node, offset: offset - item.start };
+    }
+    return null;
+  };
+  const first = at(map[start]);
+  const last = at(map[end - 1] + 1);
+  if (!first || !last) return null;
+  try {
+    const range = document.createRange();
+    range.setStart(first.node, first.offset);
+    range.setEnd(last.node, last.offset);
+    return range;
+  } catch {
+    return null;
   }
 }
 
@@ -383,6 +501,7 @@ async function run(gen: number, from: number): Promise<void> {
       cursor = index;
       setState({ block: segments[index].block });
       highlight(segments[index].block);
+      highlightSentence(segments[index].block, segments[index].text);
       const response = await prefetched!;
       if (gen !== generation) return;
       prefetched =
@@ -516,6 +635,7 @@ function restart(index: number): void {
   void audioContext()?.resume().catch(() => {});
   setState({ phase: "loading", block: segments[index].block });
   highlight(segments[index].block);
+  highlightSentence(segments[index].block, segments[index].text);
   void run(gen, index);
 }
 

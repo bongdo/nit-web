@@ -38,12 +38,27 @@ describe("speechSegments", () => {
     expect(segments[3].gap).toBe(0.3);
   });
 
-  it("marks sentence chunks inside one block with a short gap", () => {
-    const segments = speechSegments("Первое. Второе. Третье.", 12);
-    expect(segments.length).toBeGreaterThan(1);
+  it("splits a paragraph into one segment per sentence", () => {
+    const segments = speechSegments("Первое. Второе! Третье?");
+    expect(segments.map((segment) => segment.text)).toEqual(["Первое.", "Второе!", "Третье?"]);
     expect(new Set(segments.map((segment) => segment.block))).toEqual(new Set([0]));
-    expect(segments.slice(0, -1).every((segment) => segment.gap === 0.12)).toBe(true);
+    expect(segments.slice(0, -1).every((segment) => segment.gap === 0.15)).toBe(true);
     expect(segments.at(-1)?.gap).toBe(0.3);
+  });
+
+  it("does not split abbreviations or initials", () => {
+    expect(splitSpeech("Замени т.е. вот это. Готово.")).toEqual([
+      "Замени т.е. вот это.",
+      "Готово.",
+    ]);
+  });
+
+  it("keeps ordered list markers whole", () => {
+    const segments = speechSegments("1. Первый пункт\n2. Второй пункт");
+    expect(segments.map((segment) => segment.text)).toEqual([
+      "1. Первый пункт",
+      "2. Второй пункт",
+    ]);
   });
 });
 

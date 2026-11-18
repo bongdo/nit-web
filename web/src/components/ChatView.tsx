@@ -15,6 +15,7 @@ import {
   MessageSquare,
   Quote,
   Sparkles,
+  Volume2,
 } from "lucide-react";
 import type { Agent, Instance, LineRange, Message, Model, Project, Session } from "../lib/types";
 import {
@@ -23,6 +24,7 @@ import {
   shouldLoadEarlier,
   type ScrollAnchor,
 } from "../lib/scroll";
+import { readSelection } from "../lib/speech";
 import { cn } from "../lib/utils";
 import type { TimeFormat } from "../lib/time";
 import { openInApp } from "../lib/appLink";
@@ -38,6 +40,7 @@ type SelectionQuote = {
   text: string;
   x: number;
   y: number;
+  messageID: string;
   file?: { path: string; href: string; lines?: LineRange[] };
 };
 
@@ -371,10 +374,19 @@ export function ChatView({
       const x = rect.left + rect.width / 2;
       const y = rect.top;
       const file = selectedFile(selection.anchorNode);
+      const node =
+        selection.anchorNode instanceof Element
+          ? selection.anchorNode
+          : selection.anchorNode?.parentElement;
+      const messageID = node?.closest("[data-message-id]")?.getAttribute("data-message-id") ?? "";
       setQuote((current) =>
-        current?.text === text && current.x === x && current.y === y && current.file?.href === file?.href
+        current?.text === text &&
+        current.x === x &&
+        current.y === y &&
+        current.messageID === messageID &&
+        current.file?.href === file?.href
           ? current
-          : { text, x, y, file },
+          : { text, x, y, messageID, file },
       );
     };
     document.addEventListener("selectionchange", update);
@@ -850,6 +862,21 @@ export function ChatView({
           >
             <Quote />
             Quote
+          </Button>
+          <Button
+            variant="secondary"
+            size="xs"
+            className="shadow-md"
+            onClick={() => {
+              readSelection(quote.messageID, quote.text);
+              window.getSelection()?.removeAllRanges();
+              setQuote(null);
+            }}
+            aria-label="Read selection aloud"
+            title="Read the selection aloud"
+          >
+            <Volume2 />
+            Read
           </Button>
           {quote.file && (
             <Button

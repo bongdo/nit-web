@@ -14,6 +14,8 @@ import { buttonVariants } from "./components/ui/button";
 
 const MARKDOWN = /^(md|markdown|mdown)$/;
 const HTML = /^(html?|xhtml)$/;
+const EXTERNAL_ASSET =
+  /<(?:script|link|img|source|video|audio)\b[^>]*\b(?:src|href)\s*=\s*["'](?:\/|https?:|\.{1,2}\/)/i;
 
 type Preview =
   | { kind: "loading" }
@@ -151,6 +153,13 @@ export default function FilePreview() {
           </a>
         )}
       </header>
+      {preview.kind === "html" && EXTERNAL_ASSET.test(preview.text) && (
+        <div className="border-border bg-muted/40 text-muted-foreground flex shrink-0 items-center gap-2 border-b px-3 py-1.5 text-[11px]">
+          <TriangleAlert className="size-3.5 shrink-0" />
+          External files are blocked in the sandboxed page. Edit in pero or publish it with
+          drop.
+        </div>
+      )}
       <main className="min-h-0 flex-1 overflow-auto">
         {preview.kind === "loading" && (
           <div className="text-muted-foreground flex h-full items-center justify-center gap-2 text-sm">

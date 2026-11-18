@@ -1,5 +1,30 @@
 # Decisions
 
+## 2026-11-18 — A file link opens a preview page, not raw text
+
+Context: the first `/api/view` returned every text file as `plain text`, so a
+click on `docs/decisions.md` or `web/dist/index.html` showed raw source. Reading
+is the common case, and a raw page is not a read. This replaces the 2026-11-17
+"A file link opens the plain viewer" entry.
+
+Decision: the transcript links to `/view?path=`, a page that renders markdown
+with the chat renderer, HTML in a sandboxed iframe, code with the chat
+highlighter, and images, PDF, audio and video inline; a binary gets a download
+card. `Edit in pero` is in the header, and Shift-click still goes straight to
+pero. `/api/view` stays as the raw transport. Drop and pero are unchanged:
+drop publishes, pero edits.
+
+Why: nit-gui already owns the read-only renderers for chat; a second service or
+a copy of the renderer in drop would be more code for the same picture.
+
+Rejected: serving HTML as `text/html` from `/api/view` (scripts would run on the
+gate origin), and publishing a local file into drop for every preview (a read
+would become a publication with a copy and a TTL).
+
+Cost: HTML that references external files renders only its inline part, because
+the sandbox has an opaque origin; the page says so and points at pero or drop.
+Files above 2 MiB are not read into the text preview and offer a download.
+
 ## 2026-11-17 — Chat search reads message text from the local OpenCode database
 
 Context: the sidebar searched session titles only, and a title is a generated

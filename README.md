@@ -581,7 +581,8 @@ All `/api` endpoints except `/api/instances*` accept `X-Nit-Instance: <id>` or
 | `POST /api/sessions/{id}/compact` | Compact the context. |
 | `POST /api/upload?dir=&name=` | Raw file body up to 20 MiB, written through OpenCode `/api/experimental/fs/write`. |
 | `GET /api/artifact?session=&path=` | Read a `.html` page from the session directory for inline rendering. `path` is relative, may not escape the directory, must look like HTML (a full document or a fragment), and is capped at 2 MiB. |
-| `GET /api/view?path=` | Read an absolute file for the plain viewer. Images, PDF, audio and video stream inline; text is served as `text/plain` so HTML and SVG never run scripts on the gate origin; other files download. |
+| `GET /api/view?path=` | Raw transport for the preview page. Images, PDF, audio and video stream inline; text is served as `text/plain` so HTML and SVG never run scripts on the gate origin; other files download. `HEAD` returns the headers and size without the body. |
+| `GET /view?path=` | Frontend preview page: markdown rendered, HTML in a sandboxed page, code highlighted, media inline, binary as a download, with `Edit in pero` in the header. |
 | `POST /api/grammar` | `{text}`; optional LanguageTool grammar/punctuation check on the nit-gui host. |
 | `POST /api/sessions/{id}/model` | Switch model `{model: {id, providerID, variant?}}`. |
 | `POST /api/sessions/{id}/agent` | Switch agent `{agent}`. |
@@ -720,11 +721,17 @@ nspell worker. It is not implemented yet.
   never touched. A table column made only of values is right-aligned; a mixed
   column (a duration next to "недели") stays left-aligned.
 - Inline code uses the same copper as a tint instead of a grey plate. A path or
-  a file with a known extension (`bin/check`, `docs/decisions.md:12`) opens in the
-  plain viewer in a new tab, resolved against the chat directory; Shift-click
+  a file with a known extension (`bin/check`, `docs/decisions.md:12`) opens the
+  preview page in a new tab, resolved against the chat directory; Shift-click
   opens it in pero at the same lines. Commands with spaces, URLs, Cyrillic prose
   and bare words stay plain, so no accidental links. Extensionless files under
   `bin/`, `sbin/` or `scripts/` get a terminal icon instead of a plain file.
+- The preview page at `/view?path=` renders markdown with the chat renderer,
+  HTML in a sandboxed page, code with the chat highlighter, and images, PDF,
+  audio and video inline; other files show a download card. `Edit in pero` sits
+  in the header. HTML that references external files renders only its inline
+  part: the sandbox has an opaque origin, so it cannot pull the app's assets.
+  The raw bytes stay at `/api/view`.
 - Cross-app links reuse a running page: a Shift-click on a file link posts on the
   same-origin `BroadcastChannel` `nit-pero`, and the term/pero workspace icons post on
   `nit-term`/`nit-pero`. The receiver opens the path or switches the terminal

@@ -1,10 +1,10 @@
 apply plugin: 'com.android.application'
 
 android {
-    namespace = "space.bongdo.nit"
+    namespace = "space.bongdo.nit.shell"
     compileSdk = rootProject.ext.compileSdkVersion
     defaultConfig {
-        applicationId "space.bongdo.nit"
+        applicationId "space.bongdo.nit.shell"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1

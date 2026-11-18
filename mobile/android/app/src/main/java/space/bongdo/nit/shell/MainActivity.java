@@ -1,4 +1,4 @@
-package space.bongdo.nit;
+package space.bongdo.nit.shell;
 
 import com.getcapacitor.BridgeActivity;
 

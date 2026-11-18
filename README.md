@@ -722,19 +722,33 @@ nspell worker. It is not implemented yet.
   column (a duration next to "недели") stays left-aligned.
 - Inline code uses the same copper as a tint instead of a grey plate. A path or
   a file with a known extension opens in a new tab, resolved against the chat
-  directory: markdown, HTML, images, PDF, audio and video open the bare preview
-  page; code, plain text, JSON and executables such as `bin/check` open in pero
-  directly, because there is nothing to preview. Shift-click on a previewable
-  file opens pero at the same lines; the context menu also has Agent edit.
+  directory: documents, pages, media, tables, data and WASM open the bare
+  preview page; source code, plain text, archives and executables such as
+  `bin/check` open in pero directly. Shift-click on a previewable file opens
+  pero at the same lines; hovering it raises `Open in pero` and `Agent edit`
+  above the link, so the menu is one click away. The same menu is on right-click.
   Commands with spaces, URLs, Cyrillic prose and bare words stay plain, so no
   accidental links. Extensionless files under `bin/`, `sbin/` or `scripts/` get
   a terminal icon instead of a plain file.
-- The preview page at `/view?path=` is bare: markdown rendered with the chat
-  renderer, HTML in a sandboxed page, code with the chat highlighter, and images,
-  PDF, audio and video inline; other files show a download card. No header or
-  toolbar. Code and plain text are not linked here at all. `mode=agent&session=`
-  adds the Agent edit overlay: clicking a text block, a table cell or an HTML
-  element outlines it and opens a comment box; Send posts
+- The preview page at `/view?path=` is bare: no header or toolbar. It renders:
+
+  | Files | Preview |
+  | --- | --- |
+  | `.md`, `.markdown`, `.mdown` | Chat markdown renderer. |
+  | `.html`, `.htm`, `.xhtml` | Sandboxed page. |
+  | `.png`, `.jpg`, `.jpeg`, `.gif`, `.webp`, `.avif`, `.bmp`, `.svg` | Image; SVG through a data URL, so scripts do not run. |
+  | `.pdf` | Browser PDF viewer. |
+  | `.mp3`, `.wav`, `.ogg`, `.oga`, `.flac`, `.m4a`, `.aac`, `.opus`, `.wma` | Native audio player when the browser has the codec. |
+  | `.mp4`, `.webm`, `.mov`, `.m4v`, `.avi`, `.mkv`, `.ogv` | Native video player when the browser has the codec. |
+  | `.csv`, `.tsv` | Table, first 1000 rows and 50 columns. |
+  | `.json`, `.jsonl` | Pretty-printed and highlighted. |
+  | `.sql`, `.yaml`, `.yml`, `.toml`, `.ini`, `.conf`, `.xml`, `.wat` | Highlighted text. |
+  | `.wasm` | Version, section table and download. |
+
+  Source code, `.txt`, `.log`, archives, office files and executables such as
+  `bin/check` are not linked here; they open in pero. `mode=agent&session=`
+  adds the Agent edit overlay to the selectable previews: clicking a text block,
+  a table cell or an HTML element outlines it and opens a comment box; Send posts
   ``In `path`, <location> «text»: comment`` to that chat with `delivery: steer`,
   so comments pile into the running turn without waiting. The small Agent edit
   pill counts what was sent and links back to the bare view. HTML that

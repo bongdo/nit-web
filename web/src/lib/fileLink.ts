@@ -7,7 +7,9 @@ export type FileTarget = { path: string; lines?: LineRange[] };
 
 const EXECUTABLE_DIR = /(^|\/)(bin|sbin|scripts)\//;
 const PREVIEW_EXT =
-  /\.(md|markdown|mdown|html?|xhtml|png|jpe?g|gif|webp|avif|bmp|pdf|mp3|wav|ogg|oga|flac|m4a|aac|opus|wma|mp4|webm|mov|m4v|avi|mkv|ogv)$/i;
+  /\.(md|markdown|mdown|html?|xhtml|svg|csv|tsv|json|jsonl|sql|ya?ml|toml|ini|conf|xml|wasm|wat|png|jpe?g|gif|webp|avif|bmp|pdf|mp3|wav|ogg|oga|flac|m4a|aac|opus|wma|mp4|webm|mov|m4v|avi|mkv|ogv)$/i;
+const ANNOTATABLE_EXT =
+  /\.(md|markdown|mdown|html?|xhtml|csv|tsv|json|jsonl|sql|ya?ml|toml|ini|conf|xml|wat)$/i;
 
 export function executablePath(path: string): boolean {
   const name = path.split("/").pop() ?? "";
@@ -16,6 +18,10 @@ export function executablePath(path: string): boolean {
 
 export function previewable(path: string): boolean {
   return PREVIEW_EXT.test(path);
+}
+
+export function annotatable(path: string): boolean {
+  return ANNOTATABLE_EXT.test(path);
 }
 
 export function rawHref(path: string, instance = getInstance()): string {

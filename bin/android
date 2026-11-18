@@ -1,0 +1,62 @@
+#!/usr/bin/env bash
+set -euo pipefail
+cd "$(dirname "$0")/.."
+root="$PWD"
+mobile="$root/mobile"
+
+install=""
+publish=""
+for arg in "$@"; do
+  case "$arg" in
+    --install) install=1 ;;
+    --drop) publish=1 ;;
+    -h|--help)
+      echo "usage: bin/android [--install] [--drop]"
+      echo "  builds mobile/android debug apk; --install pushes it with adb, --drop publishes it"
+      exit 0
+      ;;
+    *) echo "android: unknown argument $arg" >&2; exit 1 ;;
+  esac
+done
+
+java_bin="${JAVA_HOME:+$JAVA_HOME/bin/}java"
+command -v "$java_bin" >/dev/null || {
+  echo "android: java not found; JDK 21+ is required (set JAVA_HOME)" >&2
+  exit 1
+}
+version="$("$java_bin" -version 2>&1 | sed -n 's/.*version "\([0-9]*\).*/\1/p' | head -1)"
+if [ "${version:-0}" -lt 21 ]; then
+  echo "android: JDK ${version:-?} is too old; Capacitor 8 needs 21+" >&2
+  exit 1
+fi
+
+sdk="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-$HOME/Android/Sdk}}"
+if [ ! -d "$sdk/platforms/android-36" ]; then
+  echo "android: SDK platform 36 missing in $sdk (Capacitor 8 compiles against 36)" >&2
+  exit 1
+fi
+export ANDROID_HOME="$sdk"
+export ANDROID_SDK_ROOT="$sdk"
+printf 'sdk.dir=%s\n' "$sdk" > "$mobile/android/local.properties"
+
+if [ ! -d "$mobile/node_modules" ]; then
+  npm --prefix "$mobile" install --no-audit --no-fund
+fi
+(cd "$mobile" && npx cap sync android)
+
+(cd "$mobile/android" && ./gradlew --no-daemon assembleDebug)
+
+apk="$mobile/android/app/build/outputs/apk/debug/app-debug.apk"
+[ -f "$apk" ] || {
+  echo "android: no apk at $apk" >&2
+  exit 1
+}
+echo "$apk"
+
+if [ -n "$install" ]; then
+  "$sdk/platform-tools/adb" install -r "$apk"
+fi
+
+if [ -n "$publish" ]; then
+  "$root/bin/drop" "$apk" --slug nit-shell-apk --public
+fi

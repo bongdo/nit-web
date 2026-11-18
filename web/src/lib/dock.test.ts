@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { dockComposerFade, dockOpens, dockPanelFade, dockProgress } from "./dock";
+import {
+  dockComposerFade,
+  dockFling,
+  dockOpens,
+  dockPanelFade,
+  dockProgress,
+  dockSettlesOpen,
+} from "./dock";
 
 describe("dockProgress", () => {
   it("follows a drag up from closed and clamps at open", () => {

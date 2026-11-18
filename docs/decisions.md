@@ -1,5 +1,30 @@
 # Decisions
 
+## 2026-11-18 — Hover opens the file actions; more files get a viewer
+
+Context: the actions menu was on right-click, two clicks from a hover, and only
+markdown, HTML, media and PDF had a preview. SQL, JSON, CSV, SVG and WASM were
+sent to pero even though a read-only view is useful.
+
+Decision: hovering a previewable file link for 220 ms raises `Open in pero` and
+`Agent edit` above it; right-click still works. The preview matrix grows: SVG as
+an image through a data URL, CSV/TSV as a table, JSON/JSONL pretty-printed,
+SQL/YAML/TOML/INI/conf/XML/WAT with the code highlighter, and WASM as version,
+section table and download. Agent edit is limited to previews with a selectable
+text block, table cell or element; images, PDF, audio, video and WASM get only
+pero in the menu.
+
+Why: a preview is a rendering, and these formats have one; the hover menu turns
+the pointer into the affordance without a permanent toolbar.
+
+Rejected: a persistent action button on every link (noise in prose); a WASM
+disassembler or a ZIP browser now (a dependency or a server listing for a rare
+read); generic code preview for every source file (the editor is the viewer for
+code).
+
+Cost: the browser decides whether a codec plays; CSV shows the first 1000 rows
+and 50 columns; WASM shows sections, not instructions.
+
 ## 2026-11-18 — Preview only files that can show something
 
 Context: the bare viewer opened every text file, so `bin/check`, `App.tsx` or a

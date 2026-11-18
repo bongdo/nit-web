@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { executablePath, fileTarget, previewable, rawHref, viewHref } from "./fileLink";
+import {
+  annotatable,
+  executablePath,
+  fileTarget,
+  previewable,
+  rawHref,
+  viewHref,
+} from "./fileLink";
 
 describe("fileTarget", () => {
   it("recognises workspace paths", () => {
@@ -54,11 +61,28 @@ describe("previewable", () => {
     expect(previewable("shot.PNG")).toBe(true);
     expect(previewable("doc.pdf")).toBe(true);
     expect(previewable("clip.mp4")).toBe(true);
+    expect(previewable("icon.svg")).toBe(true);
+    expect(previewable("report.csv")).toBe(true);
+    expect(previewable("query.sql")).toBe(true);
+    expect(previewable("app.wasm")).toBe(true);
     expect(previewable("bin/check")).toBe(false);
     expect(previewable("src/App.tsx")).toBe(false);
     expect(previewable("notes.txt")).toBe(false);
-    expect(previewable("data.json")).toBe(false);
     expect(previewable("styles.css")).toBe(false);
+  });
+});
+
+describe("annotatable", () => {
+  it("overlays only files with a selectable text or element", () => {
+    expect(annotatable("docs/decisions.md")).toBe(true);
+    expect(annotatable("page.html")).toBe(true);
+    expect(annotatable("report.csv")).toBe(true);
+    expect(annotatable("query.sql")).toBe(true);
+    expect(annotatable("app.json")).toBe(true);
+    expect(annotatable("shot.png")).toBe(false);
+    expect(annotatable("doc.pdf")).toBe(false);
+    expect(annotatable("app.wasm")).toBe(false);
+    expect(annotatable("clip.mp4")).toBe(false);
   });
 });
 

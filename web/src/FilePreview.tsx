@@ -1,9 +1,11 @@
 import { useEffect, useState } from "react";
 import { Download, Loader2, Sparkles, TriangleAlert } from "lucide-react";
 import { api } from "./lib/api";
+import { parseDelimited } from "./lib/csv";
 import { messageOf } from "./lib/errors";
-import { executablePath, rawHref, viewHref } from "./lib/fileLink";
-import { basename } from "./lib/format";
+import { annotatable, executablePath, rawHref, viewHref } from "./lib/fileLink";
+import { basename, formatBytes } from "./lib/format";
+import { wasmInfo, type WasmInfo } from "./lib/wasm";
 import { FileTypeIcon } from "./components/Attachment";
 import { AnnotationComposer, AnnotationSurface, placeAnnotation, type AnnotationPick } from "./components/Annotations";
 import { CodeBlock } from "./components/CodeBlock";
@@ -13,7 +15,13 @@ import { buttonVariants } from "./components/ui/button";
 
 const MARKDOWN = /^(md|markdown|mdown)$/;
 const HTML = /^(html?|xhtml)$/;
+const TABLE = /^(csv|tsv)$/;
+const JSON_TEXT = /^(json|jsonl)$/;
+const STRUCTURED = /^(sql|ya?ml|toml|ini|conf|xml|wat)$/;
 const PREVIEW_LIMIT = 2 << 20;
+const WASM_LIMIT = 20 << 20;
+const MAX_ROWS = 1000;
+const MAX_COLUMNS = 50;
 
 type Preview =
   | { kind: "loading" }
@@ -21,6 +29,8 @@ type Preview =
   | { kind: "markdown"; text: string }
   | { kind: "html"; text: string }
   | { kind: "code"; text: string; language?: string }
+  | { kind: "table"; rows: string[][]; truncated: boolean }
+  | { kind: "wasm"; info: WasmInfo; url: string }
   | { kind: "image" | "pdf" | "audio" | "video"; url: string }
   | { kind: "binary"; url: string; note?: string };
 
@@ -41,16 +51,136 @@ async function readText(url: string, signal: AbortSignal): Promise<string> {
   return response.text();
 }
 
+function prettyJson(text: string, lines: boolean): string {
+  if (!lines) {
+    try {
+      return JSON.stringify(JSON.parse(text), null, 2);
+    } catch {
+      return text;
+    }
+  }
+  return text
+    .split("\n")
+    .filter((line) => line.trim() !== "")
+    .map((line) => {
+      try {
+        return JSON.stringify(JSON.parse(line), null, 2);
+      } catch {
+        return line;
+      }
+    })
+    .join("\n");
+}
+
+function limitTable(rows: string[][]): { rows: string[][]; truncated: boolean } {
+  let truncated = rows.length > MAX_ROWS;
+  const next = rows.slice(0, MAX_ROWS).map((row) => {
+    if (row.length > MAX_COLUMNS) {
+      truncated = true;
+      return row.slice(0, MAX_COLUMNS);
+    }
+    return row;
+  });
+  return { rows: next, truncated };
+}
+
 function annotationText(path: string, pick: AnnotationPick, comment: string): string {
   const quote = pick.text ? ` «${pick.text}»` : "";
   return `In \`${path}\`, ${pick.locator}${quote}: ${comment}`;
+}
+
+function TableView({ rows, truncated }: { rows: string[][]; truncated: boolean }) {
+  const [head, ...body] = rows;
+  if (!head) {
+    return <div className="text-muted-foreground p-6 text-sm">Empty table.</div>;
+  }
+  const columns = Math.max(head.length, ...body.map((row) => row.length));
+  return (
+    <div className="mx-auto w-full max-w-6xl p-4">
+      <div className="border-border scrollbar-thin max-h-[calc(100dvh-2rem)] overflow-auto rounded-lg border">
+        <table className="w-full border-collapse text-left text-xs">
+          <thead className="bg-card sticky top-0 z-10">
+            <tr>
+              {Array.from({ length: columns }, (_, column) => (
+                <th
+                  key={column}
+                  className="border-border border-b px-2 py-1.5 font-medium whitespace-nowrap"
+                >
+                  {head[column] ?? ""}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {body.map((row, index) => (
+              <tr key={index} className="hover:bg-muted/40">
+                {Array.from({ length: columns }, (_, column) => (
+                  <td key={column} className="border-border border-b px-2 py-1 align-top">
+                    {row[column] ?? ""}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {truncated && (
+        <div className="text-muted-foreground mt-2 text-[11px]">
+          Showing the first {MAX_ROWS} rows and {MAX_COLUMNS} columns.
+        </div>
+      )}
+    </div>
+  );
+}
+
+function WasmView({ info, url }: { info: WasmInfo; url: string }) {
+  return (
+    <div className="mx-auto w-full max-w-3xl p-6">
+      <div className="border-border bg-card rounded-lg border p-4">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <div className="text-sm font-medium">WebAssembly module</div>
+            <div className="text-muted-foreground text-xs">
+              version {info.version} · {formatBytes(info.size)} · {info.sections.length} sections
+            </div>
+          </div>
+          <a href={url} download className={buttonVariants({ variant: "secondary", size: "sm" })}>
+            <Download />
+            Download
+          </a>
+        </div>
+        <table className="mt-4 w-full border-collapse text-left text-xs">
+          <thead>
+            <tr className="text-muted-foreground">
+              <th className="border-border border-b px-2 py-1.5 font-medium">Section</th>
+              <th className="border-border border-b px-2 py-1.5 font-medium">Size</th>
+              <th className="border-border border-b px-2 py-1.5 font-medium">Offset</th>
+            </tr>
+          </thead>
+          <tbody>
+            {info.sections.map((section, index) => (
+              <tr key={`${section.id}-${section.offset}-${index}`}>
+                <td className="border-border border-b px-2 py-1 font-mono">{section.name}</td>
+                <td className="border-border border-b px-2 py-1 tabular-nums">
+                  {formatBytes(section.size)}
+                </td>
+                <td className="border-border border-b px-2 py-1 font-mono tabular-nums">
+                  {section.offset}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
 }
 
 export default function FilePreview() {
   const params = new URLSearchParams(window.location.search);
   const path = params.get("path") ?? "";
   const session = params.get("session") ?? "";
-  const agentMode = params.get("mode") === "agent" && session !== "";
+  const agentMode = params.get("mode") === "agent" && session !== "" && annotatable(path);
   const [peroURL, setPeroURL] = useState("");
   const [preview, setPreview] = useState<Preview>({ kind: "loading" });
   const [pick, setPick] = useState<AnnotationPick | null>(null);
@@ -100,6 +230,49 @@ export default function FilePreview() {
       }
       if (HTML.test(ext)) {
         setPreview({ kind: "html", text: await readText(url, controller.signal) });
+        return;
+      }
+      if (ext === "svg") {
+        const text = await readText(url, controller.signal);
+        setPreview({ kind: "image", url: `data:image/svg+xml;charset=utf-8,${encodeURIComponent(text)}` });
+        return;
+      }
+      if (TABLE.test(ext)) {
+        const text = await readText(url, controller.signal);
+        const rows = parseDelimited(text, ext === "tsv" ? "\t" : ",");
+        setPreview({ kind: "table", ...limitTable(rows) });
+        return;
+      }
+      if (JSON_TEXT.test(ext)) {
+        const text = await readText(url, controller.signal);
+        setPreview({
+          kind: "code",
+          text: prettyJson(text, ext === "jsonl"),
+          language: ext,
+        });
+        return;
+      }
+      if (STRUCTURED.test(ext)) {
+        setPreview({
+          kind: "code",
+          text: await readText(url, controller.signal),
+          language: ext,
+        });
+        return;
+      }
+      if (ext === "wasm") {
+        if (size > WASM_LIMIT) {
+          setPreview({ kind: "binary", url, note: "File is too large to inspect." });
+          return;
+        }
+        const response = await fetch(url, { signal: controller.signal });
+        if (!response.ok) throw new Error(`Could not read the file (${response.status})`);
+        const info = wasmInfo(await response.arrayBuffer());
+        setPreview(
+          info
+            ? { kind: "wasm", info, url }
+            : { kind: "binary", url, note: "Not a WebAssembly module." },
+        );
         return;
       }
       if (type.startsWith("image/")) {
@@ -198,6 +371,12 @@ export default function FilePreview() {
       <AnnotationSurface enabled={agentMode} onPick={setPick} className="mx-auto max-w-5xl px-4 py-6">
         <CodeBlock code={preview.text} language={preview.language} className="my-0" />
       </AnnotationSurface>
+    ) : preview.kind === "table" ? (
+      <AnnotationSurface enabled={agentMode} onPick={setPick} className="min-h-dvh">
+        <TableView rows={preview.rows} truncated={preview.truncated} />
+      </AnnotationSurface>
+    ) : preview.kind === "wasm" ? (
+      <WasmView info={preview.info} url={preview.url} />
     ) : preview.kind === "image" ? (
       <div className="flex h-dvh items-center justify-center p-4">
         <img

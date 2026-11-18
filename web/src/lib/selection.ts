@@ -84,7 +84,7 @@ export function comparePoints(a: Point, b: Point): number {
 }
 
 export function rangeBetween(a: Point, b: Point): Range | null {
-  const [from, to] = comparePoints(a, b) <= 0 ? [a, b] : [b, a];
+  const [from, to] = comparePoints(a, b) >= 0 ? [a, b] : [b, a];
   const range = document.createRange();
   try {
     range.setStart(from.node, from.offset);

@@ -1,7 +1,7 @@
 import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
-  appId: 'space.bongdo.nit',
+  appId: 'space.bongdo.nit.shell',
   appName: 'nit',
   webDir: 'www',
   server: {

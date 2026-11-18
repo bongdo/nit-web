@@ -552,28 +552,28 @@ export function stopSpeech(): void {
 
 export function pauseSpeech(): void {
   if (state.phase !== "playing") return;
-  if (kind === "stream") {
-    void audioContext()?.suspend().catch(() => {});
+  if (kind === "browser" && typeof window !== "undefined") {
+    window.speechSynthesis.pause();
   } else if (kind === "audio") {
     audio?.pause();
-  } else if (kind === "browser" && typeof window !== "undefined") {
-    window.speechSynthesis.pause();
+  } else {
+    void audioContext()?.suspend().catch(() => {});
   }
   setState({ phase: "paused" });
 }
 
 export function resumeSpeech(): void {
   if (state.phase !== "paused") return;
-  if (kind === "stream") {
-    void audioContext()?.resume().catch(() => {});
-    openGate?.();
-    openGate = null;
-    gate = null;
+  if (kind === "browser" && typeof window !== "undefined") {
+    window.speechSynthesis.resume();
   } else if (kind === "audio") {
     void audio?.play().catch(() => {});
-  } else if (kind === "browser" && typeof window !== "undefined") {
-    window.speechSynthesis.resume();
+  } else {
+    void audioContext()?.resume().catch(() => {});
   }
+  openGate?.();
+  openGate = null;
+  gate = null;
   setState({ phase: "playing" });
 }
 
@@ -617,6 +617,7 @@ async function run(gen: number, from: number): Promise<void> {
   void context.resume().catch(() => {});
   const current = new PcmPlayer(context);
   player = current;
+  kind = "stream";
   controller = new AbortController();
   const signal = controller.signal;
   let prefetched: Promise<Response> | null = requestStream(segments[from].text, signal);

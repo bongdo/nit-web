@@ -41,6 +41,7 @@ import {
 import {
   mergeSnapshot,
   mergeTail,
+  preferLocal,
   prependMessages,
   ScopedTranscriptCache,
   sharedTranscripts,
@@ -1035,7 +1036,7 @@ export default function App({
     let polling = false;
 
     const poll = async () => {
-      if (cancelled || polling || !healthRef.current?.ok) return;
+      if (cancelled || polling || document.hidden || !healthRef.current?.ok) return;
       const ids = pollSessionIds(
         sessionsRef.current.filter(
           (session) => !session.instance || session.instance === instance,
@@ -1252,7 +1253,10 @@ export default function App({
         const previous = page.previous ?? null;
         const current = messagesRef.current;
         const cursor = previous;
-        const changed = current.filter((message) => before.get(message.id) !== message);
+        const changed = preferLocal(
+          tail,
+          current.filter((message) => before.get(message.id) !== message),
+        );
         const base = force ? mergeTail(current, tail) : tail;
         const next = lightMessages(changed.length > 0 ? mergeTail(base, changed) : base);
         transcriptCache.set(selectedId, {

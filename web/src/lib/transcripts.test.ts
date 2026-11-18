@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { mergeSnapshot, mergeTail, prependMessages, ScopedTranscriptCache, TranscriptCache } from "./transcripts";
+import { mergeSnapshot, mergeTail, preferLocal, prependMessages, ScopedTranscriptCache, TranscriptCache } from "./transcripts";
 import type { Message } from "./types";
 
 const messages = (id: string): Message[] => [
@@ -113,6 +113,18 @@ describe("transcript merging", () => {
       first,
       second,
       third,
+    ]);
+  });
+
+  it("lets the server win when the local copy lost stream text", () => {
+    const text = (value: string) => [{ type: "text", text: value }] as Message["content"];
+    const local = { id: "m1", type: "assistant", time: { created: 1 }, content: text("half") } as Message;
+    const server = { id: "m1", type: "assistant", time: { created: 1 }, content: text("half a reply") } as Message;
+    const ahead = { id: "m2", type: "assistant", time: { created: 2 }, content: text("one more") } as Message;
+    const snapshot = { id: "m2", type: "assistant", time: { created: 2 }, content: text("one") } as Message;
+
+    expect(preferLocal([server, snapshot], [local, ahead]).map((message) => message.id)).toEqual([
+      "m2",
     ]);
   });
 

@@ -155,6 +155,23 @@ export function mergeSnapshot(snapshot: Message[], current: Message[]): Message[
   return extra.length > 0 ? [...snapshot, ...extra] : snapshot;
 }
 
+function assistantText(message: Message): number {
+  if (message.type !== "assistant") return 0;
+  const parts = message.content ?? [];
+  let length = 0;
+  for (const part of parts) {
+    if (part.type === "text") length += part.text.length;
+  }
+  return length;
+}
+
+export function preferLocal(snapshot: Message[], local: Message[]): Message[] {
+  const serverText = new Map(snapshot.map((message) => [message.id, assistantText(message)]));
+  return local.filter(
+    (message) => assistantText(message) >= (serverText.get(message.id) ?? 0),
+  );
+}
+
 export function prependMessages(existing: Message[], older: Message[]): Message[] {
   const ids = new Set(existing.map((message) => message.id));
   return [...older.filter((message) => !ids.has(message.id)), ...existing];

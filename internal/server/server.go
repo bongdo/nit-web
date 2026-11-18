@@ -1255,7 +1255,7 @@ func (s *Server) file(w http.ResponseWriter, r *http.Request) {
 		}))
 	}
 	w.Header().Set("Content-Type", contentType)
-	w.Header().Set("Cache-Control", "private, max-age=60")
+	w.Header().Set("Cache-Control", "private, max-age=3600")
 	if _, err := io.Copy(w, body.Body); err != nil {
 		s.log.Warn("file stream failed", "path", path, "error", err)
 	}

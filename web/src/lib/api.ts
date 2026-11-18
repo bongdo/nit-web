@@ -118,14 +118,14 @@ export const api = {
       signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(30_000)]) : undefined,
     }),
   ttsStop: () => request<void>("/api/tts/stop", { method: "POST" }),
-  ttsAudio: async (text: string, signal?: AbortSignal) => {
+  ttsAudio: async (text: string, rate = 0, signal?: AbortSignal) => {
     const response = await fetch(appPath("/api/tts/audio"), {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         ...(instance ? { "X-Nit-Instance": instance } : {}),
       },
-      body: JSON.stringify({ text }),
+      body: JSON.stringify({ text, rate }),
       signal: signal
         ? AbortSignal.any([signal, AbortSignal.timeout(120_000)])
         : AbortSignal.timeout(120_000),

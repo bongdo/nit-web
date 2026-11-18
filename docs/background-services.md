@@ -165,7 +165,8 @@ and is not measured here.
 | `NIT_GUI_TTS` | `off` disables host TTS |
 | `NIT_GUI_TTS_ENGINE` | host voice: `auto`, `piper`, `off` |
 | `NIT_GUI_TTS_PIPER` / `_PIPER_MODEL` | piper binary and voice model |
-| `NIT_GUI_TTS_RATE` | speech rate, default `1.0` |
+| `NIT_GUI_TTS_RATE` | default speech rate, default `1.0`; the reader sends its own per request |
+| `NIT_GUI_TTS_DICT` | pronunciation dictionary, default `$XDG_CONFIG_HOME/nit-gui/speech.json` |
 | `NIT_GUI_WARM` | `0` disables startup warmup |
 | `NIT_GUI_PUBLIC_HOST` | Label and allowed host, default `frankfurt.tailf358cb.ts.net` |
 | `NIT_GUI_DOMAIN` | Domain served on 443, default `bongdo.space`; empty aborts the deploy |

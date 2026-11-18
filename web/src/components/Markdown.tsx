@@ -12,7 +12,7 @@ import { fileLinkClick } from "../lib/appLink";
 import { attachmentNameFromHref, localFileHref } from "../lib/attachments";
 import { peroHref, resolveFilePath } from "../lib/diff";
 import { executablePath, fileTarget, viewHref } from "../lib/fileLink";
-import { splitMarkdownBlocks } from "../lib/markdown";
+import { markdownBlocks } from "../lib/markdown";
 import { splitValues } from "../lib/values";
 import { AttachmentPreview, FileTypeIcon } from "./Attachment";
 import { CodeBlock } from "./CodeBlock";
@@ -272,27 +272,19 @@ export const Markdown = memo(function Markdown({
   directory,
   peroURL,
 }: MarkdownProps) {
-  const blocks = streaming ? splitMarkdownBlocks(text) : null;
+  const blocks = markdownBlocks(text);
   return (
     <div className={cn("markdown", className)}>
-      {blocks ? (
-        blocks.map((block, index) => (
+      {blocks.map((block, index) => (
+        <div key={index} className="md-block" data-speech-block={index}>
           <MarkdownBlock
-            key={index}
             text={block}
-            streaming={index === blocks.length - 1}
+            streaming={streaming && index === blocks.length - 1}
             directory={directory}
             peroURL={peroURL}
           />
-        ))
-      ) : (
-        <MarkdownBlock
-        text={text}
-        streaming={streaming}
-        directory={directory}
-        peroURL={peroURL}
-      />
-      )}
+        </div>
+      ))}
     </div>
   );
 });

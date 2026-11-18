@@ -327,9 +327,7 @@ func fakePiperVoice(t *testing.T) *hostVoice {
 	t.Setenv("NIT_GUI_TTS_PIPER", fakeVoiceScript(t, piperScript))
 	t.Setenv("NIT_GUI_TTS_PIPER_MODEL", model)
 	voice := newHostVoice()
-	if voice.worker != nil {
-		t.Cleanup(voice.worker.stop)
-	}
+	t.Cleanup(voice.shutdown)
 	return voice
 }
 
@@ -375,7 +373,7 @@ func TestHostVoiceSynthesizePiper(t *testing.T) {
 	voice := fakePiperVoice(t)
 	t.Setenv("NIT_GUI_TTS_RATE", "2")
 	voice = newHostVoice()
-	data, contentType, err := voice.synthesize(context.Background(), "  привет  ")
+	data, contentType, err := voice.synthesize(context.Background(), "  привет  ", 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -396,7 +394,7 @@ func TestPiperWorkerStaysWarm(t *testing.T) {
 	voice := fakePiperVoice(t)
 	t.Setenv("FAKE_VOICE_STARTS", starts)
 	for _, text := range []string{"первый", "второй"} {
-		if _, _, err := voice.synthesize(context.Background(), text); err != nil {
+		if _, _, err := voice.synthesize(context.Background(), text, 0); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -409,13 +407,31 @@ func TestPiperWorkerStaysWarm(t *testing.T) {
 	}
 }
 
+func TestHostVoiceRateSwapsWorker(t *testing.T) {
+	starts := filepath.Join(t.TempDir(), "starts")
+	voice := fakePiperVoice(t)
+	t.Setenv("FAKE_VOICE_STARTS", starts)
+	for _, rate := range []float64{1, 1, 1.5} {
+		if _, _, err := voice.synthesize(context.Background(), "привет", rate); err != nil {
+			t.Fatal(err)
+		}
+	}
+	raw, err := os.ReadFile(starts)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Count(string(raw), "start") != 2 {
+		t.Fatalf("piper started %d times, want 2", strings.Count(string(raw), "start"))
+	}
+}
+
 func TestPiperWorkerRemovesTempDir(t *testing.T) {
 	t.Setenv("FAKE_VOICE_STARTS", filepath.Join(t.TempDir(), "starts"))
 	voice := fakePiperVoice(t)
-	worker := voice.worker
-	if _, _, err := voice.synthesize(context.Background(), "привет"); err != nil {
+	if _, _, err := voice.synthesize(context.Background(), "привет", 0); err != nil {
 		t.Fatal(err)
 	}
+	worker := voice.workerAt(0)
 	worker.mu.Lock()
 	dir := worker.dir
 	worker.mu.Unlock()
@@ -437,7 +453,7 @@ func TestPiperWorkerHonoursCancelledContext(t *testing.T) {
 	voice := fakePiperVoice(t)
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	if _, _, err := voice.synthesize(ctx, "привет"); err == nil {
+	if _, _, err := voice.synthesize(ctx, "привет", 0); err == nil {
 		t.Fatal("cancelled context produced audio")
 	}
 	if _, err := os.Stat(starts); !os.IsNotExist(err) {
@@ -455,7 +471,7 @@ func TestHostVoiceErrors(t *testing.T) {
 	t.Setenv("NIT_GUI_TTS_PIPER", fakeVoiceScript(t, "exit 1\n"))
 	t.Setenv("NIT_GUI_TTS_PIPER_MODEL", model)
 	voice := newHostVoice()
-	_, _, err := voice.synthesize(context.Background(), "secret zz top")
+	_, _, err := voice.synthesize(context.Background(), "secret zz top", 0)
 	if err == nil || strings.Contains(err.Error(), "secret") {
 		t.Fatalf("error = %v", err)
 	}
@@ -465,17 +481,17 @@ func TestHostVoiceErrors(t *testing.T) {
 	if missing.available() {
 		t.Fatal("piper available without a model")
 	}
-	if _, _, err := missing.synthesize(context.Background(), "hello"); err == nil ||
+	if _, _, err := missing.synthesize(context.Background(), "hello", 0); err == nil ||
 		err.Error() != "host voice is not available" {
 		t.Fatalf("missing model error = %v", err)
 	}
 
 	empty := newHostVoice()
-	if _, _, err := empty.synthesize(context.Background(), "  "); err == nil ||
+	if _, _, err := empty.synthesize(context.Background(), "  ", 0); err == nil ||
 		err.Error() != "text is empty" {
 		t.Fatalf("empty error = %v", err)
 	}
-	if _, _, err := empty.synthesize(context.Background(), strings.Repeat("ж", maxTTSText+1)); !errors.Is(err, errTTSTextLong) {
+	if _, _, err := empty.synthesize(context.Background(), strings.Repeat("ж", maxTTSText+1), 0); !errors.Is(err, errTTSTextLong) {
 		t.Fatalf("long error = %v", err)
 	}
 }
@@ -550,6 +566,27 @@ func TestTTSStreamHandler(t *testing.T) {
 	silent.ttsStream(recorder, request)
 	if recorder.Code != http.StatusServiceUnavailable {
 		t.Fatalf("silent status = %d", recorder.Code)
+	}
+}
+
+func TestVoiceTextAppliesDictionary(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "speech.json")
+	if err := os.WriteFile(path, []byte(`{"vault": "волт"}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	s := &Server{speech: newSpeechDictionary(path)}
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/api/tts/stream",
+		strings.NewReader(`{"text":"Открой vault.","rate":1.25}`))
+	text, rate, ok := s.voiceText(recorder, request)
+	if !ok {
+		t.Fatalf("status = %d", recorder.Code)
+	}
+	if text != "Открой волт." {
+		t.Fatalf("text = %q", text)
+	}
+	if rate != 1.25 {
+		t.Fatalf("rate = %v", rate)
 	}
 }
 

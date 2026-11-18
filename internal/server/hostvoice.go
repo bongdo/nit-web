@@ -12,14 +12,16 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
 const (
-	defaultPiperModel = "ru_RU-irina-medium.onnx"
-	defaultPiperRate  = 22050
-	maxHostVoiceBytes = 32 << 20
-	hostVoiceTimeout  = 60 * time.Second
+	defaultPiperModel  = "ru_RU-irina-medium.onnx"
+	defaultPiperRate   = 22050
+	maxHostVoiceBytes  = 32 << 20
+	hostVoiceTimeout   = 60 * time.Second
+	piperSentencePause = "0.3"
 )
 
 type hostVoice struct {
@@ -30,7 +32,10 @@ type hostVoice struct {
 	model       string
 	rate        float64
 	sampleRate  int
-	worker      *piperWorker
+
+	mu         sync.Mutex
+	worker     *piperWorker
+	workerRate float64
 }
 
 func newHostVoice() *hostVoice {
@@ -49,7 +54,6 @@ func newHostVoice() *hostVoice {
 		voice.binary = ttsPiperBinary()
 		voice.model = ttsPiperModel()
 		voice.sampleRate = piperSampleRate(voice.model)
-		voice.worker = newPiperWorker(voice.binary, voice.model, voice.rate)
 	}
 	return voice
 }
@@ -117,7 +121,7 @@ func (v *hostVoice) available() bool {
 	return v.engine != "piper" || fileExists(v.model)
 }
 
-func (v *hostVoice) synthesize(ctx context.Context, text string) ([]byte, string, error) {
+func (v *hostVoice) synthesize(ctx context.Context, text string, rate float64) ([]byte, string, error) {
 	if v == nil || v.engine == "" {
 		return nil, "", errors.New("host voice is not configured")
 	}
@@ -130,38 +134,40 @@ func (v *hostVoice) synthesize(ctx context.Context, text string) ([]byte, string
 	}
 	runCtx, cancel := context.WithTimeout(ctx, hostVoiceTimeout)
 	defer cancel()
-	if v.worker != nil {
-		if data, err := v.worker.synthesize(runCtx, text); err == nil {
+	rate = v.rateFor(rate)
+	if worker := v.workerAt(rate); worker != nil {
+		if data, err := worker.synthesize(runCtx, text); err == nil {
 			return data, v.contentType, nil
 		} else if runCtx.Err() != nil {
 			return nil, "", voiceRunError(runCtx, "piper")
 		}
 	}
 	if v.engine == "piper" {
-		return v.piper(runCtx, text)
+		return v.piper(runCtx, text, rate)
 	}
 	return nil, "", errors.New("host voice is not configured")
 }
 
 func (v *hostVoice) warm() error {
-	if v == nil || v.worker == nil || !v.available() {
+	if v == nil || !v.available() || v.engine != "piper" {
 		return errors.New("host voice is not available")
 	}
-	return v.worker.start()
+	return v.workerAt(0).start()
 }
 
 func (v *hostVoice) streamAvailable() bool {
 	return v != nil && v.engine == "piper" && v.available()
 }
 
-func (v *hostVoice) stream(ctx context.Context, text string, out io.Writer) error {
+func (v *hostVoice) stream(ctx context.Context, text string, rate float64, out io.Writer) error {
 	if !v.streamAvailable() {
 		return errors.New("host voice streaming is not available")
 	}
 	runCtx, cancel := context.WithTimeout(ctx, hostVoiceTimeout)
 	defer cancel()
-	if v.worker != nil {
-		if wav, err := v.worker.synthesize(runCtx, text); err == nil {
+	rate = v.rateFor(rate)
+	if worker := v.workerAt(rate); worker != nil {
+		if wav, err := worker.synthesize(runCtx, text); err == nil {
 			if pcm, _, ok := wavPCM(wav); ok {
 				_, err := out.Write(pcm)
 				return err
@@ -170,8 +176,8 @@ func (v *hostVoice) stream(ctx context.Context, text string, out io.Writer) erro
 			return voiceRunError(runCtx, "piper")
 		}
 	}
-	lengthScale := strconv.FormatFloat(1/v.rate, 'f', -1, 64)
-	cmd := exec.CommandContext(runCtx, v.binary, "-m", v.model, "-f", "-", "--output_raw", "-q", "--length_scale", lengthScale)
+	lengthScale := strconv.FormatFloat(1/rate, 'f', -1, 64)
+	cmd := exec.CommandContext(runCtx, v.binary, "-m", v.model, "-f", "-", "--output_raw", "-q", "--length_scale", lengthScale, "--sentence_silence", piperSentencePause)
 	cmd.Stdin = strings.NewReader(text + "\n")
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
@@ -188,6 +194,49 @@ func (v *hostVoice) stream(ctx context.Context, text string, out io.Writer) erro
 		return voiceRunError(runCtx, "piper")
 	}
 	return nil
+}
+
+func (v *hostVoice) rateFor(rate float64) float64 {
+	if math.IsNaN(rate) || math.IsInf(rate, 0) || rate <= 0 {
+		rate = v.rate
+	}
+	if rate < 0.5 {
+		return 0.5
+	}
+	if rate > 2 {
+		return 2
+	}
+	return rate
+}
+
+func (v *hostVoice) workerAt(rate float64) *piperWorker {
+	if v == nil || v.engine != "piper" {
+		return nil
+	}
+	rate = v.rateFor(rate)
+	v.mu.Lock()
+	defer v.mu.Unlock()
+	if v.worker != nil && v.workerRate == rate {
+		return v.worker
+	}
+	if v.worker != nil {
+		v.worker.shutdown()
+	}
+	v.worker = newPiperWorker(v.binary, v.model, rate)
+	v.workerRate = rate
+	return v.worker
+}
+
+func (v *hostVoice) shutdown() {
+	if v == nil {
+		return
+	}
+	v.mu.Lock()
+	defer v.mu.Unlock()
+	if v.worker != nil {
+		v.worker.shutdown()
+		v.worker = nil
+	}
 }
 
 func (v *hostVoice) rateHz() int {
@@ -213,14 +262,14 @@ func piperSampleRate(model string) int {
 	return config.Audio.SampleRate
 }
 
-func (v *hostVoice) piper(ctx context.Context, text string) ([]byte, string, error) {
+func (v *hostVoice) piper(ctx context.Context, text string, rate float64) ([]byte, string, error) {
 	path, cleanup, err := voiceTempFile("*.wav")
 	if err != nil {
 		return nil, "", err
 	}
 	defer cleanup()
-	lengthScale := strconv.FormatFloat(1/v.rate, 'f', -1, 64)
-	cmd := exec.CommandContext(ctx, v.binary, "-m", v.model, "-f", path, "-q", "--length_scale", lengthScale)
+	lengthScale := strconv.FormatFloat(1/rate, 'f', -1, 64)
+	cmd := exec.CommandContext(ctx, v.binary, "-m", v.model, "-f", path, "-q", "--length_scale", lengthScale, "--sentence_silence", piperSentencePause)
 	cmd.Stdin = strings.NewReader(text + "\n")
 	if err := cmd.Run(); err != nil {
 		return nil, "", voiceRunError(ctx, "piper")

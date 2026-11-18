@@ -94,6 +94,7 @@ import { useTheme, type Theme } from "./hooks/useTheme";
 import { useEventStream } from "./hooks/useEventStream";
 import { useSidebarSwipe } from "./hooks/useSidebarSwipe";
 import { ChatView } from "./components/ChatView";
+import { SpeechPlayer } from "./components/SpeechPlayer";
 import { SCENE_IDS, type SceneSetting } from "./components/Scene";
 import { Composer, type Attachment, type ComposerCommand } from "./components/Composer";
 import { Header } from "./components/Header";
@@ -2817,6 +2818,8 @@ export default function App({
         />
 
         <BottomDock>
+          <SpeechPlayer />
+
           {activePermissions[0] && selectedSession && (
             <div className="pointer-events-auto">
               <PermissionCard

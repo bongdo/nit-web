@@ -31,7 +31,7 @@ func TestSpeechText(t *testing.T) {
 		{
 			name: "markdown link keeps its text",
 			in:   "См. [документацию](https://example.com/x).",
-			want: "См. документацию.",
+			want: "Смотри документацию.",
 		},
 		{
 			name: "fenced code",
@@ -46,7 +46,27 @@ func TestSpeechText(t *testing.T) {
 		{
 			name: "table",
 			in:   "| a | b |\n| - | - |\n| 1 | 2 |\n\nПосле таблицы.",
-			want: "Таблица. После таблицы.",
+			want: "Таблица: 2 колонки, 1 строка. После таблицы.",
+		},
+		{
+			name: "percent and units",
+			in:   "Готово на 50% за 2 файл и 5 коммит.",
+			want: "Готово на 50 процентов за 2 файла и 5 коммитов.",
+		},
+		{
+			name: "date and time",
+			in:   "Релиз 18.11.2026 в 10:30.",
+			want: "Релиз 18 ноября 2026 года в 10 30.",
+		},
+		{
+			name: "abbreviations and number sign",
+			in:   "См. задачу № 5, т.е. README.",
+			want: "Смотри задачу номер 5, то есть README.",
+		},
+		{
+			name: "version in code",
+			in:   "Обнови до `v1.2.3`.",
+			want: "Обнови до версия 1 точка 2 точка 3.",
 		},
 		{
 			name: "flags and env",

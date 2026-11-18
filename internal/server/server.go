@@ -61,6 +61,7 @@ type Server struct {
 	grammar      *grammarChecker
 	tts          *ttsHub
 	voice        *hostVoice
+	speech       *speechDictionary
 	auth         *authGate
 	ui           *uistate.Store
 	basePath     string
@@ -84,8 +85,8 @@ type Handler struct {
 func (h *Handler) StopStreams() {
 	h.server.stopOnce.Do(func() {
 		close(h.server.done)
-		if voice := h.server.voice; voice != nil && voice.worker != nil {
-			go voice.worker.shutdown()
+		if voice := h.server.voice; voice != nil {
+			go voice.shutdown()
 		}
 	})
 }
@@ -106,6 +107,7 @@ func New(multi MultiProvider, static fs.FS, log *slog.Logger) *Handler {
 		grammar:      newGrammarChecker(log),
 		tts:          newTTSHub(),
 		voice:        newHostVoice(),
+		speech:       newSpeechDictionary(speechDictionaryPath()),
 		auth:         newAuthGate(),
 		ui:           ui,
 		basePath:     strings.TrimRight(os.Getenv("NIT_GUI_BASE_PATH"), "/"),
@@ -153,7 +155,7 @@ func (s *Server) warm() {
 	if os.Getenv("NIT_GUI_WARM") == "0" {
 		return
 	}
-	if s.voice == nil || s.voice.worker == nil {
+	if s.voice == nil {
 		return
 	}
 	if err := s.voice.warm(); err != nil {
@@ -1632,26 +1634,30 @@ func (s *Server) ttsSay(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "clients": clients})
 }
 
-func (s *Server) voiceText(w http.ResponseWriter, r *http.Request) (string, bool) {
+func (s *Server) voiceText(w http.ResponseWriter, r *http.Request) (string, float64, bool) {
 	var body struct {
-		Text string `json:"text"`
+		Text string  `json:"text"`
+		Rate float64 `json:"rate"`
 	}
 	decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, 64<<10))
 	if err := decoder.Decode(&body); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid request")
-		return "", false
+		return "", 0, false
 	}
 	text, err := ttsText(body.Text)
 	if err != nil {
 		writeTTSInputError(w, err)
-		return "", false
+		return "", 0, false
 	}
 	text = speechText(text)
+	if s.speech != nil {
+		text = s.speech.rewrite(text)
+	}
 	if text == "" {
 		writeTTSInputError(w, errTTSTextEmpty)
-		return "", false
+		return "", 0, false
 	}
-	return text, true
+	return text, body.Rate, true
 }
 
 func (s *Server) ttsAudio(w http.ResponseWriter, r *http.Request) {
@@ -1659,12 +1665,12 @@ func (s *Server) ttsAudio(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusServiceUnavailable, "host voice not configured")
 		return
 	}
-	text, ok := s.voiceText(w, r)
+	text, rate, ok := s.voiceText(w, r)
 	if !ok {
 		return
 	}
 	_ = http.NewResponseController(w).SetWriteDeadline(time.Now().Add(hostVoiceTimeout + 5*time.Second))
-	audio, contentType, err := s.voice.synthesize(r.Context(), text)
+	audio, contentType, err := s.voice.synthesize(r.Context(), text, rate)
 	if err != nil {
 		if errors.Is(err, errTTSTextLong) || errors.Is(err, errTTSTextEmpty) {
 			writeTTSInputError(w, err)
@@ -1685,7 +1691,7 @@ func (s *Server) ttsStream(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusServiceUnavailable, "host voice streaming not available")
 		return
 	}
-	text, ok := s.voiceText(w, r)
+	text, rate, ok := s.voiceText(w, r)
 	if !ok {
 		return
 	}
@@ -1696,7 +1702,7 @@ func (s *Server) ttsStream(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
 	w.WriteHeader(http.StatusOK)
 	_ = controller.Flush()
-	if err := s.voice.stream(r.Context(), text, flushWriter{w: w, flush: controller.Flush}); err != nil && r.Context().Err() == nil {
+	if err := s.voice.stream(r.Context(), text, rate, flushWriter{w: w, flush: controller.Flush}); err != nil && r.Context().Err() == nil {
 		s.log.Warn("tts stream failed", "error", err)
 	}
 }

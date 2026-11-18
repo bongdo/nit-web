@@ -2,6 +2,10 @@ const DOCUMENT_WIDE = /^ {0,3}(?:\[[^\]\n]+\]:|\[\^|<[A-Za-z!/])/m;
 const CONTINUATION = /^(?:[ \t]|(?:[-*+]|\d{1,9}[.)])(?:[ \t]|$))/;
 const FENCE = /^ {0,3}(`{3,}|~{3,})/;
 
+export function markdownBlocks(text: string): string[] {
+  return splitMarkdownBlocks(text) ?? [text];
+}
+
 export function splitMarkdownBlocks(text: string): string[] | null {
   if (!text.includes("\n\n") || DOCUMENT_WIDE.test(text)) return null;
   const blocks: string[] = [];

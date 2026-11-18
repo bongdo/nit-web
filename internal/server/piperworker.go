@@ -95,7 +95,8 @@ func (w *piperWorker) ensure() error {
 		w.dir = dir
 	}
 	lengthScale := strconv.FormatFloat(1/w.rate, 'f', -1, 64)
-	cmd := exec.Command(w.binary, "-m", w.model, "--json-input", "-q", "--length_scale", lengthScale)
+	cmd := exec.Command(w.binary, "-m", w.model, "--json-input", "-q",
+		"--length_scale", lengthScale, "--sentence_silence", piperSentencePause)
 	cmd.SysProcAttr = &syscall.SysProcAttr{Pdeathsig: syscall.SIGTERM}
 	stdin, err := cmd.StdinPipe()
 	if err != nil {

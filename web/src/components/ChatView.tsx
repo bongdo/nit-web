@@ -19,7 +19,7 @@ import {
 } from "lucide-react";
 import type { Agent, Instance, LineRange, Message, Model, Project, Session } from "../lib/types";
 import {
-  BOTTOM_GAP,
+  isAtBottom,
   isAtTop,
   shouldLoadEarlier,
   type ScrollAnchor,
@@ -290,7 +290,7 @@ export function ChatView({
       }
       const target = element.scrollHeight - element.clientHeight;
       const gap = target - element.scrollTop;
-      if (gap <= 1) {
+      if (isAtBottom(element)) {
         chasing.current = false;
         return;
       }
@@ -790,8 +790,7 @@ export function ChatView({
         onScroll={(event) => {
           if (chasing.current) return;
           const element = event.currentTarget;
-          const nearBottom =
-            element.scrollHeight - element.scrollTop - element.clientHeight < BOTTOM_GAP;
+          const nearBottom = isAtBottom(element);
           if (jumping.current) {
             if (!nearBottom) {
               setQuote(null);

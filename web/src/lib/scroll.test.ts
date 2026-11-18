@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   EARLIER_THRESHOLD,
+  isAtBottom,
   isAtTop,
   shouldLoadEarlier,
   TOP_EPSILON,
@@ -78,5 +79,23 @@ describe("isAtTop", () => {
     expect(isAtTop(-4)).toBe(true);
     expect(isAtTop(TOP_EPSILON)).toBe(true);
     expect(isAtTop(TOP_EPSILON + 1)).toBe(false);
+  });
+});
+
+describe("isAtBottom", () => {
+  const at = (scrollTop: number) => isAtBottom({ scrollTop, scrollHeight: 5000, clientHeight: 800 });
+
+  it("13. holds the last pixel and sub-pixel residue", () => {
+    expect(at(4200)).toBe(true);
+    expect(at(4199.5)).toBe(true);
+    expect(at(4199)).toBe(true);
+  });
+
+  it("14. releases just above the last pixel", () => {
+    expect(at(4198.5)).toBe(false);
+  });
+
+  it("15. handles overscroll as the bottom", () => {
+    expect(at(4300)).toBe(true);
   });
 });

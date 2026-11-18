@@ -1,6 +1,6 @@
 export const TOP_EPSILON = 1;
 export const EARLIER_THRESHOLD = 400;
-export const BOTTOM_GAP = 140;
+export const BOTTOM_EPSILON = 1;
 
 export type ScrollAnchor = {
   messageID: string;
@@ -19,6 +19,18 @@ export type EarlierInput = {
 
 export function isAtTop(scrollTop: number): boolean {
   return scrollTop <= TOP_EPSILON;
+}
+
+export function isAtBottom({
+  scrollTop,
+  scrollHeight,
+  clientHeight,
+}: {
+  scrollTop: number;
+  scrollHeight: number;
+  clientHeight: number;
+}): boolean {
+  return scrollHeight - scrollTop - clientHeight <= BOTTOM_EPSILON;
 }
 
 export function shouldLoadEarlier({

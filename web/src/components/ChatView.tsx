@@ -153,7 +153,6 @@ export function ChatView({
   loadingEarlier,
   earlierFailed,
   onLoadEarlier,
-  onLoadMessage,
 }: {
   session: Session | null;
   messages: Message[];
@@ -187,7 +186,6 @@ export function ChatView({
   loadingEarlier: boolean;
   earlierFailed: boolean;
   onLoadEarlier: () => void | Promise<void>;
-  onLoadMessage: (messageID: string) => void | Promise<void>;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
@@ -582,7 +580,6 @@ export function ChatView({
               timeFormat={timeFormat}
               showTime={showTime}
               showSteps={showSteps}
-              onLoadMessage={onLoadMessage}
             />
           </div>,
         );
@@ -618,7 +615,6 @@ export function ChatView({
     messages,
     models,
     onFork,
-    onLoadMessage,
     onRevert,
     peroURL,
     running,

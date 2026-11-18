@@ -2,6 +2,7 @@ import { memo, useEffect, useRef, useState } from "react";
 import { Bot, ChevronDown, ChevronRight, CircleAlert, ListTree, Loader2 } from "lucide-react";
 import type { Agent, Message, Model, ReasoningPart, ToolPart } from "../lib/types";
 import { activityLine, toolBreakdown } from "../lib/activity";
+import { api } from "../lib/api";
 import { turnEditedFiles } from "../lib/diff";
 import { stepMessageIDs } from "../lib/stream";
 import { htmlArtifactSegments, isPureHtml } from "../lib/html";
@@ -41,7 +42,6 @@ type AssistantTurnProps = {
   timeFormat: TimeFormat;
   showTime: boolean;
   showSteps: boolean;
-  onLoadMessage?: (messageID: string) => void | Promise<void>;
 };
 
 export const AssistantTurn = memo(function AssistantTurn({
@@ -56,22 +56,21 @@ export const AssistantTurn = memo(function AssistantTurn({
   timeFormat,
   showTime,
   showSteps,
-  onLoadMessage,
 }: AssistantTurnProps) {
   const [open, setOpen] = useState(false);
   const [showFiles, setShowFiles] = useState(false);
+  const [details, setDetails] = useState<Record<string, Message>>({});
   const filesRef = useRef<HTMLDivElement | null>(null);
   const wasStreaming = useRef(streaming);
   const wasLive = useRef(streaming);
   const [loadingSteps, setLoadingSteps] = useState(false);
+  const [stepsError, setStepsError] = useState<string | null>(null);
   const last = messages[messages.length - 1];
-  const owners = new Map<ReasoningPart | ToolPart, Message>();
-  for (const message of messages) {
-    for (const part of message.content ?? []) {
-      if (part.type === "tool" || part.type === "reasoning") owners.set(part, message);
-    }
-  }
-  const content = messages.flatMap((message) => message.content ?? []);
+  const view =
+    Object.keys(details).length === 0
+      ? messages
+      : messages.map((message) => details[message.id] ?? message);
+  const content = view.flatMap((message) => message.content ?? []);
   const activity = content.filter(
     (part): part is ReasoningPart | ToolPart =>
       part.type === "reasoning" || (part.type === "tool" && part.name !== "question"),
@@ -82,22 +81,19 @@ export const AssistantTurn = memo(function AssistantTurn({
   const errorCount = activity.filter(
     (part) => part.type === "tool" && part.state.status === "error",
   ).length;
-  const loadedSteps = (message: Message) =>
-    (message.content ?? []).some(
-      (part) =>
-        part.type === "reasoning" ||
-        (part.type === "tool" && part.name !== "question"),
-    );
+  const loadedIDs = new Set(Object.keys(details));
+  const markerOr = (count: number | undefined, message: Message) =>
+    loadedIDs.has(message.id) ? 0 : (count ?? 0);
   const markerSteps = messages.reduce(
-    (total, message) => total + (loadedSteps(message) ? 0 : (message.steps ?? 0)),
+    (total, message) => total + markerOr(message.steps, message),
     0,
   );
   const markerTools = messages.reduce(
-    (total, message) => total + (loadedSteps(message) ? 0 : (message.tools ?? 0)),
+    (total, message) => total + markerOr(message.tools, message),
     0,
   );
   const markerErrors = messages.reduce(
-    (total, message) => total + (loadedSteps(message) ? 0 : (message.errors ?? 0)),
+    (total, message) => total + markerOr(message.errors, message),
     0,
   );
   const shownSteps = activity.length + markerSteps;
@@ -137,7 +133,10 @@ export const AssistantTurn = memo(function AssistantTurn({
     }
     if (wasStreaming.current) {
       wasStreaming.current = false;
-      if (showSteps) setOpen(false);
+      if (showSteps) {
+        setOpen(false);
+        setDetails({});
+      }
     }
   }, [showSteps, streaming]);
 
@@ -157,16 +156,43 @@ export const AssistantTurn = memo(function AssistantTurn({
     };
   }, [showFiles]);
 
-  const loadSteps = () => {
-    if (!onLoadMessage) return;
+  const loadSteps = async () => {
+    if (loadingSteps) return;
     const ids = stepMessageIDs(messages).filter(
-      (id) => !(streaming && id === last?.id),
+      (id) => !details[id] && !(streaming && id === last?.id),
     );
     if (ids.length === 0) return;
     setLoadingSteps(true);
-    Promise.allSettled(
-      ids.map((id) => Promise.resolve().then(() => onLoadMessage(id))),
-    ).finally(() => setLoadingSteps(false));
+    setStepsError(null);
+    try {
+      const results = await Promise.allSettled(
+        ids.map((id) => api.message(sessionID, id)),
+      );
+      const next: Record<string, Message> = {};
+      let failed = false;
+      for (const [index, id] of ids.entries()) {
+        const result = results[index];
+        if (result?.status === "fulfilled") next[id] = result.value;
+        else failed = true;
+      }
+      if (Object.keys(next).length > 0) {
+        setDetails((current) => ({ ...current, ...next }));
+      }
+      if (failed) setStepsError("Some steps could not be loaded.");
+    } finally {
+      setLoadingSteps(false);
+    }
+  };
+
+  const openSteps = async () => {
+    await loadSteps();
+    setOpen(true);
+  };
+
+  const closeSteps = () => {
+    setOpen(false);
+    setDetails({});
+    setStepsError(null);
   };
 
   return (
@@ -201,8 +227,12 @@ export const AssistantTurn = memo(function AssistantTurn({
                     aria-expanded={open}
                     onClick={() => {
                       const next = !open;
-                      setOpen(next);
-                      if (next) loadSteps();
+                      if (!next) {
+                        closeSteps();
+                        return;
+                      }
+                      setOpen(true);
+                      void loadSteps();
                     }}
                     className="flex min-w-0 flex-1 items-center gap-2 text-left"
                   >
@@ -232,13 +262,10 @@ export const AssistantTurn = memo(function AssistantTurn({
                     )}
                     <ActivityLog
                       activity={activity}
-                      owners={owners}
                       workspace={workspace}
                       peroURL={peroURL}
                       agent={agentName}
                       streaming={streaming}
-                      lastID={last?.id}
-                      onLoadMessage={onLoadMessage}
                     />
                   </div>
                 )}
@@ -356,13 +383,14 @@ export const AssistantTurn = memo(function AssistantTurn({
                 className={cn("text-muted-foreground", open && "text-foreground")}
                 aria-expanded={open}
                 aria-haspopup="dialog"
+                aria-busy={loadingSteps}
                 onClick={() => {
-                  const next = !open;
-                  setOpen(next);
-                  if (next) loadSteps();
+                  if (loadingSteps) return;
+                  if (open) closeSteps();
+                  else void openSteps();
                 }}
               >
-                <ListTree />
+                {loadingSteps && !open ? <Loader2 className="animate-spin" /> : <ListTree />}
                 <span>Steps{shownSteps > 0 ? ` · ${shownSteps}` : ""}</span>
                 {shownErrors > 0 && <CircleAlert className="text-destructive" />}
               </Button>
@@ -381,26 +409,24 @@ export const AssistantTurn = memo(function AssistantTurn({
                   </>
                 }
                 panelClassName="max-w-2xl"
-                onClose={() => setOpen(false)}
+                onClose={closeSteps}
               >
                 <div className="scrollbar-thin min-h-0 flex-1 overflow-y-auto px-2 py-2">
-                  {loadingSteps && activity.length === 0 ? (
-                    <p className="text-muted-foreground px-2 py-1 text-xs">Loading steps…</p>
-                  ) : activity.length === 0 ? (
+                  {activity.length === 0 ? (
                     <p className="text-muted-foreground px-2 py-1 text-xs">
-                      Nothing recorded for this turn.
+                      {stepsError ?? "Nothing recorded for this turn."}
                     </p>
                   ) : (
                     <ActivityLog
                       activity={activity}
-                      owners={owners}
                       workspace={workspace}
                       peroURL={peroURL}
                       agent={agentName}
                       streaming={streaming}
-                      lastID={last?.id}
-                      onLoadMessage={onLoadMessage}
                     />
+                  )}
+                  {stepsError && activity.length > 0 && (
+                    <p className="text-destructive px-2 py-1 text-xs">{stepsError}</p>
                   )}
                 </div>
                 {breakdown.length > 0 && (
@@ -465,7 +491,6 @@ function sameTurn(left: AssistantTurnProps, right: AssistantTurnProps): boolean 
     left.timeFormat === right.timeFormat &&
     left.showTime === right.showTime &&
     left.showSteps === right.showSteps &&
-    left.onLoadMessage === right.onLoadMessage &&
     sameMessages(left.messages, right.messages)
   );
 }

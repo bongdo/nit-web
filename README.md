@@ -704,12 +704,15 @@ nspell worker. It is not implemented yet.
   stay. Settings → Chat → Agent steps hides them completely: the transcript
   shows answers only, a one-line spinner names the current action while a reply
   is still on its way, and each finished turn keeps a `Steps` button with an
-  error mark when a tool failed. That button opens an activity window: a
-  timeline of thinking and tool rows with status dots, expandable inputs and
-  outputs, a header with steps, tools, failures and the turn duration, and a
-  per-verb footer (`Run 25 · Read 4`). It is centered over the chat with a
+  error mark when a tool failed. That button loads the turn's step details first
+  and only then opens the activity window, so the timeline never grows row by
+  row: a header with steps, tools, failures and the turn duration, a timeline of
+  thinking and tool rows with status dots and expandable inputs and outputs, and
+  a per-verb footer (`Run 25 · Read 4`). It is centered over the chat with a
   dimmed backdrop, so opening it never shifts the transcript; close on the X,
-  outside click or `Escape`.
+  outside click or `Escape`. Step details live only while the window is open:
+  closing it or leaving the chat drops them, and the transcript keeps just the
+  step count.
 - Prose highlights values without a background: a number with a unit or a
   currency amount, and session/task ids, get one copper tint and tabular digits.
   Units are matched in English and Russian (`260px`, `8 МБ`, `0.5-1 день`,

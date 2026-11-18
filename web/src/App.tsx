@@ -378,7 +378,6 @@ export default function App({
     }
   }, [messages]);
   const [transcriptCache] = useState(() => new ScopedTranscriptCache(instance, sharedTranscripts));
-  const [messageLoads] = useState(() => new Set<string>());
   const questionIDs = useRef(new Set<string>());
   const retryTimers = useRef<Record<string, number>>({});
   const retryAttempts = useRef<Record<string, number>>({});
@@ -1526,26 +1525,6 @@ export default function App({
     }
   }, []);
 
-  const loadMessage = useCallback(async (messageID: string) => {
-    const id = selectedIdRef.current;
-    if (!id) return;
-    const key = `${id}|${messageID}`;
-    if (messageLoads.has(key)) return;
-    messageLoads.add(key);
-    const before = messagesRef.current.find((message) => message.id === messageID);
-    try {
-      const full = await api.message(id, messageID);
-      if (selectedIdRef.current !== id) return;
-      if (messagesRef.current.find((message) => message.id === messageID) !== before) return;
-      setMessages((current) =>
-        current.map((message) => (message.id === messageID ? full : message)),
-      );
-    } catch (error) {
-      setBanner(messageOf(error));
-    } finally {
-      messageLoads.delete(key);
-    }
-  }, [messageLoads]);
 
   const changeScope = useCallback((next: Scope) => {
     if (next === scopeRef.current || !scopesRef.current.includes(next)) return;
@@ -2835,7 +2814,6 @@ export default function App({
           loadingEarlier={loadingEarlier}
           earlierFailed={earlierFailed}
           onLoadEarlier={loadEarlier}
-          onLoadMessage={loadMessage}
         />
 
         <BottomDock>

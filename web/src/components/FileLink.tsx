@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { FileCode2, Sparkles } from "lucide-react";
-import { fileLinkClick, openInApp } from "../lib/appLink";
-import { viewHref } from "../lib/fileLink";
+import { appLinkClick, fileLinkClick, openInApp } from "../lib/appLink";
+import { previewable, viewHref } from "../lib/fileLink";
 import type { LineRange } from "../lib/types";
 
 type FileLinkProps = {
@@ -30,8 +30,9 @@ export function FileLink({
 }: FileLinkProps) {
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
-  const href = viewHref(path, instance, sessionID);
-  const agentHref = sessionID ? `${href}&mode=agent` : "";
+  const canPreview = previewable(path);
+  const href = canPreview ? viewHref(path, instance, sessionID) : pero;
+  const agentHref = canPreview && sessionID ? `${href}&mode=agent` : "";
   const target = { app: "pero" as const, path, lines, agent };
 
   useEffect(() => {
@@ -68,24 +69,34 @@ export function FileLink({
         href={href}
         target="_blank"
         rel="noreferrer noopener"
-        title={`${title} · Shift-click for pero · Right-click for more`}
+        title={
+          canPreview
+            ? `${title} · Shift-click for pero · Right-click for more`
+            : `Open ${path} in pero`
+        }
         className={className}
         data-file-path={path}
         data-file-lines={lines ? JSON.stringify(lines) : undefined}
         data-pero-href={pero}
         onClick={(event) => {
           event.stopPropagation();
-          fileLinkClick(target, pero)(event);
+          if (canPreview) fileLinkClick(target, pero)(event);
+          else appLinkClick(target, pero)(event);
         }}
-        onContextMenu={(event) => {
-          event.preventDefault();
-          event.stopPropagation();
-          setMenu({ x: event.clientX, y: event.clientY });
-        }}
+        onContextMenu={
+          canPreview
+            ? (event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                setMenu({ x: event.clientX, y: event.clientY });
+              }
+            : undefined
+        }
       >
         {children}
       </a>
       {menu &&
+        canPreview &&
         createPortal(
           <div
             ref={menuRef}

@@ -721,23 +721,26 @@ nspell worker. It is not implemented yet.
   never touched. A table column made only of values is right-aligned; a mixed
   column (a duration next to "недели") stays left-aligned.
 - Inline code uses the same copper as a tint instead of a grey plate. A path or
-  a file with a known extension (`bin/check`, `docs/decisions.md:12`) opens the
-  bare preview page in a new tab, resolved against the chat directory; Shift-click
-  or the context menu opens it in pero at the same lines, and the context menu
-  also has Agent edit. Commands with spaces, URLs, Cyrillic prose and bare words
-  stay plain, so no accidental links. Extensionless files under `bin/`, `sbin/`
-  or `scripts/` get a terminal icon instead of a plain file.
+  a file with a known extension opens in a new tab, resolved against the chat
+  directory: markdown, HTML, images, PDF, audio and video open the bare preview
+  page; code, plain text, JSON and executables such as `bin/check` open in pero
+  directly, because there is nothing to preview. Shift-click on a previewable
+  file opens pero at the same lines; the context menu also has Agent edit.
+  Commands with spaces, URLs, Cyrillic prose and bare words stay plain, so no
+  accidental links. Extensionless files under `bin/`, `sbin/` or `scripts/` get
+  a terminal icon instead of a plain file.
 - The preview page at `/view?path=` is bare: markdown rendered with the chat
   renderer, HTML in a sandboxed page, code with the chat highlighter, and images,
   PDF, audio and video inline; other files show a download card. No header or
-  toolbar. `mode=agent&session=` adds the Agent edit overlay: clicking a text
-  block, a table cell or an HTML element outlines it and opens a comment box;
-  Send posts ``In `path`, <location> «text»: comment`` to that chat with
-  `delivery: steer`, so comments pile into the running turn without waiting.
-  The small Agent edit pill counts what was sent and links back to the bare
-  view. HTML that references external files renders only its inline part: the
-  sandbox has an opaque origin, so it cannot pull the app's assets. The raw
-  bytes stay at `/api/view`.
+  toolbar. Code and plain text are not linked here at all. `mode=agent&session=`
+  adds the Agent edit overlay: clicking a text block, a table cell or an HTML
+  element outlines it and opens a comment box; Send posts
+  ``In `path`, <location> «text»: comment`` to that chat with `delivery: steer`,
+  so comments pile into the running turn without waiting. The small Agent edit
+  pill counts what was sent and links back to the bare view. HTML that
+  references external files renders only its inline part: the sandbox has an
+  opaque origin, so it cannot pull the app's assets. The raw bytes stay at
+  `/api/view`.
 - Cross-app links reuse a running page: a Shift-click on a file link posts on the
   same-origin `BroadcastChannel` `nit-pero`, and the term/pero workspace icons post on
   `nit-term`/`nit-pero`. The receiver opens the path or switches the terminal

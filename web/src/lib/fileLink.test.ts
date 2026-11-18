@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { executablePath, fileTarget, rawHref, viewHref } from "./fileLink";
+import { executablePath, fileTarget, previewable, rawHref, viewHref } from "./fileLink";
 
 describe("fileTarget", () => {
   it("recognises workspace paths", () => {
@@ -44,6 +44,21 @@ describe("executablePath", () => {
     expect(executablePath("/work/app/bin/deploy.sh")).toBe(false);
     expect(executablePath("docs/decisions.md")).toBe(false);
     expect(executablePath("README")).toBe(false);
+  });
+});
+
+describe("previewable", () => {
+  it("previews documents, pages and media, and leaves code to pero", () => {
+    expect(previewable("docs/decisions.md")).toBe(true);
+    expect(previewable("web/dist/index.html")).toBe(true);
+    expect(previewable("shot.PNG")).toBe(true);
+    expect(previewable("doc.pdf")).toBe(true);
+    expect(previewable("clip.mp4")).toBe(true);
+    expect(previewable("bin/check")).toBe(false);
+    expect(previewable("src/App.tsx")).toBe(false);
+    expect(previewable("notes.txt")).toBe(false);
+    expect(previewable("data.json")).toBe(false);
+    expect(previewable("styles.css")).toBe(false);
   });
 });
 

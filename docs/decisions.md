@@ -1,5 +1,26 @@
 # Decisions
 
+## 2026-11-18 — Preview only files that can show something
+
+Context: the bare viewer opened every text file, so `bin/check`, `App.tsx` or a
+`.txt` note landed on a highlighted source page even though the useful action is
+editing, not reading a rendered artefact. This refines the 2026-11-18 "Three
+ways to open a file" entry.
+
+Decision: only markdown, HTML, images, PDF, audio and video link to `/view`.
+Code, plain text, JSON and executables open in pero on a plain click; Shift-click
+is still pero. The context menu and Agent edit exist only on previewable files.
+
+Why: a preview is a rendering of something that has one; a source file has an
+editor. This removes a dead end without taking away the editor or the overlay.
+
+Rejected: keeping the code/text viewer for manual links (it stays reachable by
+URL, but chat does not send you there); guessing by content type from the server
+(an extra HEAD for every link for the same rule the extension already gives).
+
+Cost: a file with an unusual extension that would render in a browser is sent to
+pero until its extension is added to the preview list.
+
 ## 2026-11-18 — Three ways to open a file: bare view, pero, agent edit
 
 Context: the preview page grew a header and an "Edit in pero" button, so the

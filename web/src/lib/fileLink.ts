@@ -6,10 +6,16 @@ import type { LineRange } from "./types";
 export type FileTarget = { path: string; lines?: LineRange[] };
 
 const EXECUTABLE_DIR = /(^|\/)(bin|sbin|scripts)\//;
+const PREVIEW_EXT =
+  /\.(md|markdown|mdown|html?|xhtml|png|jpe?g|gif|webp|avif|bmp|pdf|mp3|wav|ogg|oga|flac|m4a|aac|opus|wma|mp4|webm|mov|m4v|avi|mkv|ogv)$/i;
 
 export function executablePath(path: string): boolean {
   const name = path.split("/").pop() ?? "";
   return name !== "" && !name.includes(".") && EXECUTABLE_DIR.test(path);
+}
+
+export function previewable(path: string): boolean {
+  return PREVIEW_EXT.test(path);
 }
 
 export function rawHref(path: string, instance = getInstance()): string {

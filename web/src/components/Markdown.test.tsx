@@ -24,28 +24,28 @@ describe("Markdown values", () => {
     expect(html.match(/md-num/g) ?? []).toHaveLength(3);
   });
 
-  it("opens a path in inline code in the viewer, with pero behind shift", () => {
+  it("opens a previewable path in the viewer, with pero behind shift", () => {
     const html = renderToStaticMarkup(
-      <Markdown text={"Открой `bin/check` и `docs/decisions.md:12`."} directory="/work/app" peroURL="/pero/" />,
+      <Markdown text={"Открой `web/dist/index.html` и `docs/decisions.md:12`."} directory="/work/app" peroURL="/pero/" />,
     );
     expect(html).toContain("md-file");
-    expect(html).toContain("/view?path=%2Fwork%2Fapp%2Fbin%2Fcheck");
-    expect(html).toContain('data-pero-href="/pero/?open=%2Fwork%2Fapp%2Fbin%2Fcheck"');
+    expect(html).toContain("/view?path=%2Fwork%2Fapp%2Fweb%2Fdist%2Findex.html");
+    expect(html).toContain('data-pero-href="/pero/?open=%2Fwork%2Fapp%2Fweb%2Fdist%2Findex.html"');
     expect(html).toContain("data-pero-href=\"/pero/?open=%2Fwork%2Fapp%2Fdocs%2Fdecisions.md&amp;lines=12\"");
   });
 
-  it("links a path in inline code while streaming", () => {
+  it("links a previewable path in inline code while streaming", () => {
     const html = renderToStaticMarkup(
-      <Markdown text={"Открой `bin/check`."} streaming directory="/work/app" peroURL="/pero/" />,
+      <Markdown text={"Открой `docs/decisions.md`."} streaming directory="/work/app" peroURL="/pero/" />,
     );
     expect(html).toContain('class="md-file"');
-    expect(html).toContain("/view?path=%2Fwork%2Fapp%2Fbin%2Fcheck");
+    expect(html).toContain("/view?path=%2Fwork%2Fapp%2Fdocs%2Fdecisions.md");
   });
 
-  it("carries the chat session into a file link", () => {
+  it("carries the chat session into a preview link", () => {
     const html = renderToStaticMarkup(
       <Markdown
-        text={"Открой `bin/check`."}
+        text={"Открой `docs/decisions.md`."}
         directory="/work/app"
         peroURL="/pero/"
         sessionID="ses_1"
@@ -53,8 +53,22 @@ describe("Markdown values", () => {
       />,
     );
     expect(html).toContain(
-      "/view?path=%2Fwork%2Fapp%2Fbin%2Fcheck&amp;instance=laptop&amp;session=ses_1",
+      "/view?path=%2Fwork%2Fapp%2Fdocs%2Fdecisions.md&amp;instance=laptop&amp;session=ses_1",
     );
+  });
+
+  it("opens code and executables straight in pero", () => {
+    const html = renderToStaticMarkup(
+      <Markdown
+        text={"Открой `bin/check` и `src/App.tsx`."}
+        directory="/work/app"
+        peroURL="/pero/"
+        sessionID="ses_1"
+      />,
+    );
+    expect(html).not.toContain("/view?path=%2Fwork%2Fapp%2Fbin%2Fcheck");
+    expect(html).toContain('href="/pero/?open=%2Fwork%2Fapp%2Fbin%2Fcheck"');
+    expect(html).toContain('href="/pero/?open=%2Fwork%2Fapp%2Fsrc%2FApp.tsx"');
   });
 
   it("does not link paths without a directory", () => {

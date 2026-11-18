@@ -124,25 +124,11 @@ describe("format", () => {
       { type: "tool", id: "q1", name: "question", state: { status: "completed" } },
       { type: "text", text: "After the answer." },
     ];
-    expect(turnBlocks(content, true).map((block) => block.kind)).toEqual([
-      "steps",
+    expect(turnBlocks(content).map((block) => block.kind)).toEqual([
       "text",
       "question",
       "text",
     ]);
-    expect(turnBlocks(content, false).map((block) => block.kind)).toEqual([
-      "text",
-      "question",
-      "text",
-    ]);
-  });
-
-  it("puts the steps block where the steps happened", () => {
-    const text: Part = { type: "text", text: "Answer." };
-    const tool: Part = { type: "tool", id: "t1", name: "bash", state: { status: "completed" } };
-    expect(turnBlocks([tool, text], true).map((block) => block.kind)).toEqual(["steps", "text"]);
-    expect(turnBlocks([text, tool], true).map((block) => block.kind)).toEqual(["text", "steps"]);
-    expect(turnBlocks([text], true).map((block) => block.kind)).toEqual(["steps", "text"]);
   });
 
   it("refreshes running sessions unless a newer local event arrived", () => {

@@ -39,14 +39,12 @@ import {
   retryDelay,
 } from "./lib/stream";
 import {
-  estimateTranscriptSize,
   mergeSnapshot,
   mergeTail,
   preferLocal,
   prependMessages,
   ScopedTranscriptCache,
   sharedTranscripts,
-  tailNeedsMore,
 } from "./lib/transcripts";
 import {
   contextPercent,
@@ -120,6 +118,7 @@ import { modalOpen } from "./components/ui/Modal";
 const DOUBLE_ESCAPE_MS = 500;
 const TAIL_LIMIT = 50;
 const TAIL_PAGE = 200;
+const MAX_TAIL_PAGES = 25;
 const PREFETCH_LIMIT = 6;
 
 const LEGACY_HIDDEN_KEY = "nit-gui.hidden";
@@ -260,9 +259,6 @@ export default function App({
   );
   const [showTime, setShowTime] = useState(
     () => readStored("nit-gui.show-time") !== "0",
-  );
-  const [showSteps, setShowSteps] = useState(
-    () => readStored("nit-gui.show-steps") !== "0",
   );
   const [motion, setMotion] = useState<"animated" | "static">(() => {
     const stored = readStored("nit-gui.motion");
@@ -1256,11 +1252,7 @@ export default function App({
     const force = lastEpochRef.current !== messageEpoch;
     lastEpochRef.current = messageEpoch;
     const cached = transcriptCache.get(selectedId);
-    if (
-      cached &&
-      !force &&
-      !tailNeedsMore(cached.messages, estimateTranscriptSize(cached.messages), cached.previous)
-    ) {
+    if (cached && !force && cached.previous === null) {
       setMessages(cached.messages);
       setHistoryCursor(cached.previous);
       setMessagesLoading(false);
@@ -1276,8 +1268,7 @@ export default function App({
         let page = await api.messages(selectedId, { light: true, limit: TAIL_PAGE });
         let tail = normalizeMessages(page.data);
         let previous = page.previous ?? null;
-        let bytes = estimateTranscriptSize(tail);
-        while (!cancelled && previous && tailNeedsMore(tail, bytes, previous)) {
+        for (let page = 1; !cancelled && previous && page < MAX_TAIL_PAGES; page += 1) {
           const older = await api.messages(selectedId, {
             light: true,
             limit: TAIL_PAGE,
@@ -1286,7 +1277,6 @@ export default function App({
           if (cancelled) return;
           if (older.data.length === 0 || older.previous === previous) break;
           tail = prependMessages(tail, normalizeMessages(older.data));
-          bytes += estimateTranscriptSize(older.data);
           previous = older.previous ?? null;
         }
         if (cancelled) return;
@@ -2925,7 +2915,6 @@ export default function App({
           sceneKey={sceneEpoch}
           timeFormat={timeFormat}
           showTime={showTime}
-          showSteps={showSteps}
           onRetry={reloadSelected}
           onRevert={revertMessage}
           onFork={forkMessage}
@@ -3051,7 +3040,6 @@ export default function App({
           autofix={autofix}
           timeFormat={timeFormat}
           showTime={showTime}
-          showSteps={showSteps}
           motion={motion}
           background={background}
           scopes={scopes}
@@ -3075,10 +3063,6 @@ export default function App({
           onShowTime={(value) => {
             setShowTime(value);
             writeStored("nit-gui.show-time", value ? "1" : "0");
-          }}
-          onShowSteps={(value) => {
-            setShowSteps(value);
-            writeStored("nit-gui.show-steps", value ? "1" : "0");
           }}
           onMotion={(value) => {
             setMotion(value);

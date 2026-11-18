@@ -150,7 +150,6 @@ export function SettingsPanel({
   autofix,
   timeFormat,
   showTime,
-  showSteps,
   motion,
   background,
   notify,
@@ -162,7 +161,6 @@ export function SettingsPanel({
   onAutofix,
   onTimeFormat,
   onShowTime,
-  onShowSteps,
   onMotion,
   onNotify,
   onScopes,
@@ -181,7 +179,6 @@ export function SettingsPanel({
   autofix: boolean;
   timeFormat: TimeFormat;
   showTime: boolean;
-  showSteps: boolean;
   motion: "animated" | "static";
   background: SceneSetting;
   notify: boolean;
@@ -193,7 +190,6 @@ export function SettingsPanel({
   onAutofix: (value: boolean) => void;
   onTimeFormat: (value: TimeFormat) => void;
   onShowTime: (value: boolean) => void;
-  onShowSteps: (value: boolean) => void;
   onMotion: (mode: "animated" | "static") => void;
   onNotify: () => void;
   onScopes: (id: Scope) => void;
@@ -387,9 +383,6 @@ export function SettingsPanel({
           </Section>
 
           <Section icon={MessageSquare} title="Chat">
-            <Field label="Agent steps" hint="Reasoning and tool calls">
-              <Toggle on={showSteps} onChange={onShowSteps} label="Show agent steps" />
-            </Field>
             <Field label="Message time" hint="Show the clock on messages">
               <Toggle on={showTime} onChange={onShowTime} label="Show message time" />
             </Field>

@@ -77,28 +77,17 @@ export function formatTokens(n?: number): string {
 }
 
 export type TurnBlock =
-  | { kind: "steps" }
   | { kind: "text"; part: TextPart }
   | { kind: "question"; part: ToolPart };
 
-export function turnBlocks(content: Part[], hasSteps: boolean): TurnBlock[] {
+export function turnBlocks(content: Part[]): TurnBlock[] {
   const blocks: TurnBlock[] = [];
-  const firstStep = content.findIndex(
-    (part) => part.type === "reasoning" || (part.type === "tool" && part.name !== "question"),
-  );
-  const stepsAt = firstStep === -1 ? 0 : firstStep;
-  let inserted = !hasSteps;
-  content.forEach((part, index) => {
-    if (part.type !== "text" && !(part.type === "tool" && part.name === "question")) return;
-    if (!inserted && (stepsAt === 0 || index > stepsAt)) {
-      blocks.push({ kind: "steps" });
-      inserted = true;
+  for (const part of content) {
+    if (part.type === "text") blocks.push({ kind: "text", part });
+    else if (part.type === "tool" && part.name === "question") {
+      blocks.push({ kind: "question", part });
     }
-    blocks.push(
-      part.type === "text" ? { kind: "text", part } : { kind: "question", part },
-    );
-  });
-  if (!inserted) blocks.push({ kind: "steps" });
+  }
   return blocks;
 }
 

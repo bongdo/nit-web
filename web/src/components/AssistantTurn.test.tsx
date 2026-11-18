@@ -1,12 +1,12 @@
-import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import type { Message } from "../lib/types";
+import { renderToStaticMarkup } from "react-dom/server";
 import { AssistantTurn } from "./AssistantTurn";
+import type { Message } from "../lib/types";
 
-const turn: Message = {
+const turn = {
   id: "msg_1",
   type: "assistant",
-  time: { created: 1, completed: 2 },
+  time: { created: 1 },
   agent: "build",
   content: [
     { type: "reasoning", text: "Checking the failing test first." },
@@ -18,9 +18,9 @@ const turn: Message = {
     },
     { type: "text", text: "Fixed the flaky test." },
   ],
-};
+} as Message;
 
-const render = (showSteps: boolean) =>
+const render = () =>
   renderToStaticMarkup(
     <AssistantTurn
       messages={[turn]}
@@ -33,24 +33,16 @@ const render = (showSteps: boolean) =>
       streaming={false}
       timeFormat="24h"
       showTime={false}
-      showSteps={showSteps}
     />,
   );
 
 describe("AssistantTurn steps", () => {
-  it("renders the steps summary and the answer by default", () => {
-    const html = render(true);
-    expect(html).toContain("2 steps · 1 tools");
+  it("shows the answer with a single steps chip", () => {
+    const html = render();
     expect(html).toContain("Fixed the flaky test.");
-    expect(html).not.toContain(">Steps · 2<");
-  });
-
-  it("keeps only the answer when agent steps are hidden", () => {
-    const html = render(false);
-    expect(html).toContain("Fixed the flaky test.");
+    expect(html).toContain(`Steps · 2`);
     expect(html).not.toContain("Checking the failing test first.");
     expect(html).not.toContain("bin/check");
-    expect(html).toContain(`Steps · 2`);
     expect(html).not.toContain("Activity</span>");
   });
 });

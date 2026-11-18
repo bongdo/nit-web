@@ -6,7 +6,6 @@ import type {
   Health,
   InstanceInput,
   InstancesResponse,
-  Message,
   MessagesResponse,
   Model,
   ModelRef,
@@ -205,12 +204,6 @@ export const api = {
       { instance },
     );
   },
-  message: async (id: string, messageID: string) =>
-    (
-      await request<{ data: Message }>(
-        `/api/sessions/${encodeURIComponent(id)}/messages/${encodeURIComponent(messageID)}`,
-      )
-    ).data,
   artifact: (sessionID: string, path: string, instance?: string) => {
     const query = new URLSearchParams({ session: sessionID, path });
     return request<{ html: string; path: string }>(`/api/artifact?${query}`, { instance });

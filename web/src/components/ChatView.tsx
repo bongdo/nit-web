@@ -145,7 +145,6 @@ export function ChatView({
   sceneKey,
   timeFormat,
   showTime,
-  showSteps,
   onRetry,
   onRevert,
   onFork,
@@ -179,7 +178,6 @@ export function ChatView({
   sceneKey: number;
   timeFormat: TimeFormat;
   showTime: boolean;
-  showSteps: boolean;
   onRetry: () => void;
   onRevert: (message: Message) => Promise<void>;
   onFork: (message: Message) => Promise<void>;
@@ -614,7 +612,6 @@ export function ChatView({
               streaming={Boolean(running && index === messages.length - 1)}
               timeFormat={timeFormat}
               showTime={showTime}
-              showSteps={showSteps}
             />
           </div>,
         );
@@ -656,7 +653,6 @@ export function ChatView({
     session?.id,
     timeFormat,
     showTime,
-    showSteps,
     workspace,
   ]);
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { mergeSnapshot, mergeTail, preferLocal, prependMessages, ScopedTranscriptCache, tailNeedsMore, TranscriptCache } from "./transcripts";
+import { mergeSnapshot, mergeTail, preferLocal, prependMessages, ScopedTranscriptCache, TranscriptCache } from "./transcripts";
 import type { Message } from "./types";
 
 const messages = (id: string): Message[] => [
@@ -162,19 +162,3 @@ describe("ScopedTranscriptCache", () => {
   });
 });
 
-describe("tail window", () => {
-  const user = { id: "u", type: "user", time: { created: 1 } } as Message;
-  const step = { id: "s", type: "assistant", time: { created: 2 }, steps: 2 } as Message;
-
-  it("keeps paging while the tail holds too few user turns", () => {
-    const messages = [user, step, step, step];
-    expect(tailNeedsMore(messages, 1024, "cursor")).toBe(true);
-    expect(tailNeedsMore(messages, 1024, null)).toBe(false);
-    expect(tailNeedsMore(messages, 900 * 1024, "cursor")).toBe(false);
-  });
-
-  it("stops once the tail has enough turns", () => {
-    const turns = Array.from({ length: 8 }, () => [user, step]).flat();
-    expect(tailNeedsMore(turns, 1024, "cursor")).toBe(false);
-  });
-});

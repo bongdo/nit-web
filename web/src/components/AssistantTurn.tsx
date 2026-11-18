@@ -1,5 +1,5 @@
 import { memo, useEffect, useRef, useState } from "react";
-import { Bot, ChevronDown, ChevronRight, CircleAlert, ListTree, Loader2 } from "lucide-react";
+import { Bot, CircleAlert, ListTree, Loader2 } from "lucide-react";
 import type { Agent, Message, Model, ReasoningPart, ToolPart } from "../lib/types";
 import { activityLine, toolBreakdown } from "../lib/activity";
 import { api } from "../lib/api";
@@ -19,6 +19,9 @@ import { QuestionCard } from "./QuestionCard";
 import { ReplyActions } from "./ReplyActions";
 import { Button } from "./ui/button";
 import { Modal } from "./ui/Modal";
+
+const STEP_PAGE = 50;
+const STEP_PAGES = 12;
 
 function durationLabel(messages: Message[]): string {
   const first = messages[0]?.time.created;
@@ -41,7 +44,6 @@ type AssistantTurnProps = {
   streaming: boolean;
   timeFormat: TimeFormat;
   showTime: boolean;
-  showSteps: boolean;
 };
 
 export const AssistantTurn = memo(function AssistantTurn({
@@ -55,7 +57,6 @@ export const AssistantTurn = memo(function AssistantTurn({
   streaming,
   timeFormat,
   showTime,
-  showSteps,
 }: AssistantTurnProps) {
   const [open, setOpen] = useState(false);
   const [showFiles, setShowFiles] = useState(false);
@@ -100,7 +101,7 @@ export const AssistantTurn = memo(function AssistantTurn({
   const shownTools = toolCount + markerTools;
   const shownErrors = errorCount + markerErrors;
   const hasSteps = shownSteps > 0;
-  const blocks = turnBlocks(content, hasSteps);
+  const blocks = turnBlocks(content);
   const lastText = textParts[textParts.length - 1];
   const liveText = streaming ? lastText : undefined;
   const revealed = useSmoothText(liveText?.text ?? "", Boolean(liveText));
@@ -118,11 +119,6 @@ export const AssistantTurn = memo(function AssistantTurn({
     .filter(Boolean)
     .join(" · ");
   const summary = streaming && current ? activityLine(current, workspace) : stats;
-  const liveStats = streaming
-    ? [shownSteps > 0 ? `${shownSteps} steps` : "", durationLabel(messages)]
-        .filter(Boolean)
-        .join(" · ")
-    : "";
   const breakdown = toolBreakdown(activity, workspace).slice(0, 6);
 
   useEffect(() => {
@@ -133,12 +129,10 @@ export const AssistantTurn = memo(function AssistantTurn({
     }
     if (wasStreaming.current) {
       wasStreaming.current = false;
-      if (showSteps) {
-        setOpen(false);
-        setDetails({});
-      }
+      setOpen(false);
+      setDetails({});
     }
-  }, [showSteps, streaming]);
+  }, [streaming]);
 
   useEffect(() => {
     if (!showFiles) return;
@@ -158,27 +152,36 @@ export const AssistantTurn = memo(function AssistantTurn({
 
   const loadSteps = async () => {
     if (loadingSteps) return;
-    const ids = stepMessageIDs(messages).filter(
-      (id) => !details[id] && !(streaming && id === last?.id),
+    const wanted = new Set(
+      stepMessageIDs(messages).filter(
+        (id) => !details[id] && !(streaming && id === last?.id),
+      ),
     );
-    if (ids.length === 0) return;
+    if (wanted.size === 0) return;
     setLoadingSteps(true);
     setStepsError(null);
     try {
-      const results = await Promise.allSettled(
-        ids.map((id) => api.message(sessionID, id)),
-      );
       const next: Record<string, Message> = {};
-      let failed = false;
-      for (const [index, id] of ids.entries()) {
-        const result = results[index];
-        if (result?.status === "fulfilled") next[id] = result.value;
-        else failed = true;
+      let cursor: string | undefined;
+      for (let page = 0; page < STEP_PAGES && wanted.size > Object.keys(next).length; page += 1) {
+        const result = await api.messages(sessionID, {
+          limit: STEP_PAGE,
+          ...(cursor ? { before: cursor } : {}),
+        });
+        for (const message of result.data) {
+          if (wanted.has(message.id)) next[message.id] = message;
+        }
+        cursor = result.previous ?? undefined;
+        if (!cursor) break;
       }
       if (Object.keys(next).length > 0) {
         setDetails((current) => ({ ...current, ...next }));
       }
-      if (failed) setStepsError("Some steps could not be loaded.");
+      if (Object.keys(next).length < wanted.size) {
+        setStepsError("Some steps could not be loaded.");
+      }
+    } catch {
+      setStepsError("Steps could not be loaded.");
     } finally {
       setLoadingSteps(false);
     }
@@ -214,64 +217,6 @@ export const AssistantTurn = memo(function AssistantTurn({
 
       <div className="min-w-0 pl-8">
         {blocks.map((block, index) => {
-          if (block.kind === "steps") {
-            if (!showSteps) return null;
-            return (
-              <div
-                key="steps"
-                className="border-border bg-card/40 my-2 overflow-hidden rounded-lg border"
-              >
-                <div className="hover:bg-accent/40 flex w-full items-center gap-2 px-2.5 py-1.5">
-                  <button
-                    type="button"
-                    aria-expanded={open}
-                    onClick={() => {
-                      const next = !open;
-                      if (!next) {
-                        closeSteps();
-                        return;
-                      }
-                      setOpen(true);
-                      void loadSteps();
-                    }}
-                    className="flex min-w-0 flex-1 items-center gap-2 text-left"
-                  >
-                    {open ? <ChevronDown className="size-3.5 shrink-0" /> : <ChevronRight className="size-3.5 shrink-0" />}
-                    {streaming ? (
-                      <Loader2 className="size-3.5 shrink-0 animate-spin text-success" />
-                    ) : null}
-                    {loadingSteps ? (
-                      <Loader2 className="text-muted-foreground size-3.5 shrink-0 animate-spin" />
-                    ) : null}
-                    <span
-                      className={`min-w-0 flex-1 truncate text-left text-[11px] ${
-                        streaming ? "text-foreground" : "text-muted-foreground"
-                      }`}
-                    >
-                      {summary}
-                    </span>
-                    {liveStats && (
-                      <span className="text-muted-foreground shrink-0 text-[10px]">{liveStats}</span>
-                    )}
-                  </button>
-                </div>
-                {open && (
-                  <div className="border-border border-t px-1.5 py-1">
-                    {loadingSteps && activity.length === 0 && (
-                      <div className="text-muted-foreground px-2 py-1 text-xs">Loading steps…</div>
-                    )}
-                    <ActivityLog
-                      activity={activity}
-                      workspace={workspace}
-                      peroURL={peroURL}
-                      agent={agentName}
-                      streaming={streaming}
-                    />
-                  </div>
-                )}
-              </div>
-            );
-          }
           if (block.kind === "question") {
             return (
               <QuestionCard
@@ -353,16 +298,10 @@ export const AssistantTurn = memo(function AssistantTurn({
         })}
 
         {textParts.length === 0 && streaming && (
-          showSteps ? (
-            !hasSteps && (
-              <div className="text-muted-foreground py-2 text-xs">Waiting for the first token…</div>
-            )
-          ) : (
-            <div className="text-muted-foreground flex items-center gap-2 py-2 text-xs">
-              <Loader2 className="size-3.5 animate-spin" />
-              <span className="min-w-0 truncate">{summary || "Waiting for the first token…"}</span>
-            </div>
-          )
+          <div className="text-muted-foreground flex items-center gap-2 py-2 text-xs">
+            <Loader2 className="size-3.5 animate-spin" />
+            <span className="min-w-0 truncate">{summary || "Waiting for the first token…"}</span>
+          </div>
         )}
         {last?.error && (
           <div className="text-destructive border-destructive/30 bg-destructive/5 mt-2 flex items-start gap-2 rounded-md border px-3 py-2 text-xs">
@@ -371,12 +310,12 @@ export const AssistantTurn = memo(function AssistantTurn({
             </span>
           </div>
         )}
-        {((!streaming && reply.trim() !== "") || changedFiles.length > 0 || (!showSteps && hasSteps)) && (
+        {((!streaming && reply.trim() !== "") || changedFiles.length > 0 || hasSteps) && (
           <div
             ref={filesRef}
             className="relative mt-2 flex flex-wrap items-center gap-2"
           >
-            {!showSteps && hasSteps && (
+            {hasSteps && (
               <Button
                 variant="ghost"
                 size="xs"
@@ -395,7 +334,7 @@ export const AssistantTurn = memo(function AssistantTurn({
                 {shownErrors > 0 && <CircleAlert className="text-destructive" />}
               </Button>
             )}
-            {!showSteps && open && (
+            {open && (
               <Modal
                 label="Agent steps"
                 title={
@@ -490,7 +429,6 @@ function sameTurn(left: AssistantTurnProps, right: AssistantTurnProps): boolean 
     left.agents === right.agents &&
     left.timeFormat === right.timeFormat &&
     left.showTime === right.showTime &&
-    left.showSteps === right.showSteps &&
     sameMessages(left.messages, right.messages)
   );
 }

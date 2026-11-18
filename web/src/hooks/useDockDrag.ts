@@ -85,7 +85,6 @@ export function useDockDrag({
       velocity = (-(last.y - first.y) / (last.t - first.t)) * (1000 / Math.max(1, state.height));
     }
     const travel = state.y - event.clientY;
-    console.log("dock fling", { velocity, travel, progress: state.last, recent: recent.length });
     if (dockSettlesOpen(state.last, velocity, travel)) onOpen();
     else onClose();
   };

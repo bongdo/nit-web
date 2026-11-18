@@ -251,6 +251,8 @@ export const AssistantTurn = memo(function AssistantTurn({
                         streaming={live}
                         directory={workspace}
                         peroURL={peroURL}
+                        sessionID={sessionID}
+                        instance={instance}
                       />
                     )}
                     {segment.artifacts.map((artifact) => {
@@ -361,6 +363,8 @@ export const AssistantTurn = memo(function AssistantTurn({
                       workspace={workspace}
                       peroURL={peroURL}
                       agent={agentName}
+                      instance={instance}
+                      sessionID={sessionID}
                       streaming={streaming}
                     />
                   )}
@@ -408,6 +412,8 @@ export const AssistantTurn = memo(function AssistantTurn({
                   base={peroURL}
                   cwd={workspace}
                   agent={agentName}
+                  instance={instance}
+                  sessionID={sessionID}
                 />
               </div>
             )}

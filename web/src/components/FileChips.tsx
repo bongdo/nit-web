@@ -1,11 +1,10 @@
 import { memo } from "react";
 import { ChevronDown, ChevronUp, FileDiff } from "lucide-react";
-import { fileLinkClick } from "../lib/appLink";
 import { basename } from "../lib/format";
 import { peroHref, resolveFilePath } from "../lib/diff";
-import { viewHref } from "../lib/fileLink";
 import type { EditedFile } from "../lib/types";
 import { cn } from "../lib/utils";
+import { FileLink } from "./FileLink";
 import { Button } from "./ui/button";
 
 function FileChip({
@@ -13,31 +12,33 @@ function FileChip({
   base,
   cwd,
   agent,
+  instance,
+  sessionID,
 }: {
   file: EditedFile;
   base: string;
   cwd?: string | null;
   agent?: string;
+  instance?: string;
+  sessionID?: string;
 }) {
   const path = resolveFilePath(file.path, cwd);
-  const href = viewHref(path);
   const pero = peroHref(base, path, file.lines, agent);
   return (
-    <a
-      href={href}
-      target="_blank"
-      rel="noreferrer"
-      title={`View ${path} · Shift-click for pero`}
-      onClick={(event) => {
-        event.stopPropagation();
-        fileLinkClick({ app: "pero", path, lines: file.lines, agent }, pero)(event);
-      }}
+    <FileLink
+      path={path}
+      lines={file.lines}
+      pero={pero}
+      agent={agent}
+      instance={instance}
+      sessionID={sessionID}
+      title={`View ${path}`}
       className="bg-muted text-muted-foreground hover:bg-accent hover:text-foreground inline-flex max-w-44 shrink-0 items-center gap-1 rounded px-1.5 py-0.5 font-mono text-[10px]"
     >
       <span className="truncate">{basename(path)}</span>
       {file.additions ? <span className="text-success">+{file.additions}</span> : null}
       {file.deletions ? <span className="text-destructive">−{file.deletions}</span> : null}
-    </a>
+    </FileLink>
   );
 }
 
@@ -47,6 +48,8 @@ export const FileChips = memo(function FileChips({
   max = 3,
   cwd,
   agent,
+  instance,
+  sessionID,
   className,
 }: {
   files: EditedFile[];
@@ -54,6 +57,8 @@ export const FileChips = memo(function FileChips({
   max?: number;
   cwd?: string | null;
   agent?: string;
+  instance?: string;
+  sessionID?: string;
   className?: string;
 }) {
   if (files.length === 0) return null;
@@ -62,7 +67,15 @@ export const FileChips = memo(function FileChips({
   return (
     <span className={cn("flex min-w-0 shrink-0 items-center gap-1 overflow-hidden", className)}>
       {shown.map((file) => (
-        <FileChip key={file.path} file={file} base={base} cwd={cwd} agent={agent} />
+        <FileChip
+          key={file.path}
+          file={file}
+          base={base}
+          cwd={cwd}
+          agent={agent}
+          instance={instance}
+          sessionID={sessionID}
+        />
       ))}
       {hidden.length > 0 && (
         <span
@@ -81,12 +94,16 @@ export function FileList({
   base,
   cwd,
   agent,
+  instance,
+  sessionID,
   className,
 }: {
   files: EditedFile[];
   base: string;
   cwd?: string | null;
   agent?: string;
+  instance?: string;
+  sessionID?: string;
   className?: string;
 }) {
   return (
@@ -97,7 +114,15 @@ export function FileList({
       )}
     >
       {files.map((file) => (
-        <FileChip key={file.path} file={file} base={base} cwd={cwd} agent={agent} />
+        <FileChip
+          key={file.path}
+          file={file}
+          base={base}
+          cwd={cwd}
+          agent={agent}
+          instance={instance}
+          sessionID={sessionID}
+        />
       ))}
     </div>
   );

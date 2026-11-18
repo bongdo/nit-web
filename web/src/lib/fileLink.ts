@@ -19,8 +19,13 @@ export function rawHref(path: string, instance = getInstance()): string {
   );
 }
 
-export function viewHref(path: string, instance = getInstance()): string {
-  return addInstanceParam(appPath(`/view?path=${encodeURIComponent(path)}`), instance);
+export function viewHref(
+  path: string,
+  instance = getInstance(),
+  session?: string | null,
+): string {
+  const href = addInstanceParam(appPath(`/view?path=${encodeURIComponent(path)}`), instance);
+  return session ? `${href}&session=${encodeURIComponent(session)}` : href;
 }
 
 const KNOWN_EXT =

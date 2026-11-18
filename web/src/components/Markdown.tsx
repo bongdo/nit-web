@@ -8,14 +8,14 @@ import {
 } from "react";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { fileLinkClick } from "../lib/appLink";
 import { attachmentNameFromHref, localFileHref } from "../lib/attachments";
 import { peroHref, resolveFilePath } from "../lib/diff";
-import { executablePath, fileTarget, viewHref } from "../lib/fileLink";
+import { executablePath, fileTarget } from "../lib/fileLink";
 import { markdownBlocks } from "../lib/markdown";
 import { splitValues } from "../lib/values";
 import { AttachmentPreview, FileTypeIcon } from "./Attachment";
 import { CodeBlock } from "./CodeBlock";
+import { FileLink } from "./FileLink";
 import { cn } from "../lib/utils";
 
 const BRACKET = /([()[\]{}])/;
@@ -150,6 +150,8 @@ function codeFor(
   streaming: boolean,
   directory?: string | null,
   peroURL?: string | null,
+  sessionID?: string,
+  instance?: string,
 ): Components["code"] {
   return function MarkdownCode({ node, className, children }: CodeProps) {
     const text = String(children).replace(/\n$/, "");
@@ -162,19 +164,16 @@ function codeFor(
     const target = fileTarget(text);
     if (target && directory && peroURL) {
       const path = resolveFilePath(target.path, directory);
-      const href = viewHref(path);
       const pero = peroHref(peroURL, path, target.lines);
       return (
-        <a
-          href={href}
-          target="_blank"
-          rel="noreferrer noopener"
-          title={`View ${target.path} · Shift-click for pero`}
+        <FileLink
+          path={path}
+          lines={target.lines}
+          pero={pero}
+          instance={instance}
+          sessionID={sessionID}
+          title={`View ${target.path}`}
           className="md-file"
-          data-file-path={path}
-          data-file-lines={target.lines ? JSON.stringify(target.lines) : undefined}
-          data-pero-href={pero}
-          onClick={fileLinkClick({ app: "pero", path, lines: target.lines }, pero)}
         >
           <FileTypeIcon
             name={target.path}
@@ -182,7 +181,7 @@ function codeFor(
             className="mr-1 inline size-[0.95em] align-[-0.12em] opacity-60"
           />
           <code className={className}>{children}</code>
-        </a>
+        </FileLink>
       );
     }
     return <code className={className}>{dimBrackets(text)}</code>;
@@ -193,10 +192,12 @@ function componentsFor(
   streaming: boolean,
   directory?: string | null,
   peroURL?: string | null,
+  sessionID?: string,
+  instance?: string,
 ): Components {
   const components: Components = {
     pre: ({ children }) => <>{children}</>,
-    code: codeFor(streaming, directory, peroURL),
+    code: codeFor(streaming, directory, peroURL, sessionID, instance),
     a({ href, children, ...props }) {
       const localHref = localFileHref(href);
       if (localHref) {
@@ -241,16 +242,20 @@ const MarkdownBlock = memo(function MarkdownBlock({
   streaming,
   directory,
   peroURL,
+  sessionID,
+  instance,
 }: {
   text: string;
   streaming: boolean;
   directory?: string | null;
   peroURL?: string | null;
+  sessionID?: string;
+  instance?: string;
 }) {
   return (
     <ReactMarkdown
       remarkPlugins={[remarkGfm]}
-      components={componentsFor(streaming, directory, peroURL)}
+      components={componentsFor(streaming, directory, peroURL, sessionID, instance)}
     >
       {text}
     </ReactMarkdown>
@@ -263,6 +268,8 @@ export type MarkdownProps = {
   streaming?: boolean;
   directory?: string | null;
   peroURL?: string | null;
+  sessionID?: string;
+  instance?: string;
 };
 
 export const Markdown = memo(function Markdown({
@@ -271,6 +278,8 @@ export const Markdown = memo(function Markdown({
   streaming = false,
   directory,
   peroURL,
+  sessionID,
+  instance,
 }: MarkdownProps) {
   const blocks = markdownBlocks(text);
   return (
@@ -282,6 +291,8 @@ export const Markdown = memo(function Markdown({
             streaming={streaming && index === blocks.length - 1}
             directory={directory}
             peroURL={peroURL}
+            sessionID={sessionID}
+            instance={instance}
           />
         </div>
       ))}

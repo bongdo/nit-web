@@ -26,12 +26,16 @@ export const ActivityLog = memo(function ActivityLog({
   workspace,
   peroURL,
   agent,
+  instance,
+  sessionID,
   streaming,
 }: {
   activity: ActivityPart[];
   workspace?: string | null;
   peroURL: string;
   agent?: string;
+  instance?: string;
+  sessionID?: string;
   streaming: boolean;
 }) {
   return (

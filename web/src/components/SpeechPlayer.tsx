@@ -2,7 +2,7 @@ import { Loader2, Pause, Play, SkipBack, X } from "lucide-react";
 import {
   SPEECH_RATES,
   pauseSpeech,
-  previousBlock,
+  previousSentence,
   resumeSpeech,
   setSpeechRate,
   stopSpeech,
@@ -45,10 +45,10 @@ export function SpeechPlayer() {
         <Button
           variant="ghost"
           size="icon-xs"
-          onClick={previousBlock}
+          onClick={previousSentence}
           disabled={!state.anchored}
-          aria-label="Previous paragraph"
-          title="Previous paragraph"
+          aria-label="Previous sentence"
+          title="Previous sentence"
         >
           <SkipBack />
         </Button>

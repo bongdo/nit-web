@@ -166,6 +166,8 @@ class PcmPlayer {
   private active = new Set<AudioBufferSourceNode>();
   private pending = new Uint8Array(0);
   private settled = false;
+  private marking: number | null = null;
+  private spans: { index: number; start: number; end: number }[] = [];
   private settleDone: (value: "done" | "stopped") => void = () => {};
   readonly done = new Promise<"done" | "stopped">((resolve) => {
     this.settleDone = resolve;
@@ -198,6 +200,31 @@ class PcmPlayer {
 
   gap(seconds: number): void {
     if (seconds > 0) this.nextAt += seconds;
+  }
+
+  mark(index: number): void {
+    this.marking = index;
+  }
+
+  clearMark(): void {
+    this.marking = null;
+  }
+
+  time(): number {
+    return this.context.currentTime;
+  }
+
+  segmentAt(time: number): number | null {
+    for (const span of this.spans) {
+      if (time >= span.start && time < span.end) return span.index;
+    }
+    return null;
+  }
+
+  async waitWithin(seconds: number): Promise<void> {
+    while (!this.ended && this.nextAt - this.context.currentTime > seconds) {
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
   }
 
   stop(): void {
@@ -247,6 +274,12 @@ class PcmPlayer {
     const at = Math.max(this.context.currentTime + 0.05, this.nextAt);
     source.start(at);
     this.nextAt = at + buffer.duration;
+    if (this.marking !== null) {
+      this.spans.push({ index: this.marking, start: at, end: this.nextAt });
+      this.marking = null;
+    } else if (this.spans.length) {
+      this.spans[this.spans.length - 1].end = this.nextAt;
+    }
     this.active.add(source);
     source.onended = () => {
       this.active.delete(source);
@@ -266,7 +299,8 @@ class PcmPlayer {
 }
 
 let segments: SpeechSegment[] = [];
-let cursor = 0;
+let shownSegment = -1;
+let ticker: ReturnType<typeof setInterval> | null = null;
 let activeMessage = "";
 let anchored = false;
 let fullText = "";
@@ -318,6 +352,33 @@ function clearSentenceHighlight(): void {
   CSS.highlights.delete(SENTENCE_HIGHLIGHT);
 }
 
+function showSegment(index: number): void {
+  if (index < 0 || index >= segments.length) return;
+  shownSegment = index;
+  const segment = segments[index];
+  setState({ block: segment.block });
+  highlight(segment.block);
+  highlightSentence(segment.block, segment.text);
+}
+
+function pumpCursor(): void {
+  if (!player) return;
+  const index = player.segmentAt(player.time());
+  if (index === null || index === shownSegment) return;
+  showSegment(index);
+}
+
+function startTicker(): void {
+  if (ticker !== null) return;
+  ticker = setInterval(pumpCursor, 120);
+}
+
+function stopTicker(): void {
+  if (ticker === null) return;
+  clearInterval(ticker);
+  ticker = null;
+}
+
 function plainSpeech(text: string): string {
   return text
     .replace(/!\[[^\]]*\]\([^)]*\)/g, " ")
@@ -331,39 +392,56 @@ function plainSpeech(text: string): string {
     .trim();
 }
 
-function rangeFor(root: Element, needle: string): Range | null {
-  if (!needle || typeof document === "undefined") return null;
+type FlatText = {
+  nodes: { node: Text; start: number; end: number }[];
+  text: string;
+  normToRaw: number[];
+  rawToNorm: number[];
+};
+
+function flatText(root: Element): FlatText {
   const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
   const nodes: { node: Text; start: number; end: number }[] = [];
-  let flat = "";
+  let raw = "";
   for (let node = walker.nextNode(); node; node = walker.nextNode()) {
     const value = node.nodeValue ?? "";
     if (!value) continue;
-    nodes.push({ node: node as Text, start: flat.length, end: flat.length + value.length });
-    flat += value;
+    nodes.push({ node: node as Text, start: raw.length, end: raw.length + value.length });
+    raw += value;
   }
-  if (!flat) return null;
-  const norm: string[] = [];
-  const map: number[] = [];
-  for (let index = 0; index < flat.length; index += 1) {
-    const char = flat[index];
-    if (/\s/.test(char) && (index === 0 || /\s/.test(flat[index - 1]))) continue;
-    norm.push(char === " " || /\s/.test(char) ? " " : char);
-    map.push(index);
+  const chars: string[] = [];
+  const normToRaw: number[] = [];
+  const rawToNorm = new Array<number>(raw.length + 1).fill(0);
+  let space = false;
+  for (let index = 0; index < raw.length; index += 1) {
+    rawToNorm[index] = chars.length;
+    const char = raw[index];
+    const isSpace = /\s/.test(char);
+    if (isSpace && (space || chars.length === 0)) continue;
+    chars.push(isSpace ? " " : char);
+    normToRaw.push(index);
+    space = isSpace;
   }
-  const haystack = norm.join("").toLowerCase();
-  const start = haystack.indexOf(needle.toLowerCase());
+  rawToNorm[raw.length] = chars.length;
+  return { nodes, text: chars.join(""), normToRaw, rawToNorm };
+}
+
+function rangeFor(root: Element, needle: string): Range | null {
+  if (!needle || typeof document === "undefined") return null;
+  const info = flatText(root);
+  if (!info.text) return null;
+  const start = info.text.toLowerCase().indexOf(needle.toLowerCase());
   if (start < 0) return null;
   const end = start + needle.length;
-  if (end > map.length) return null;
+  if (end > info.normToRaw.length) return null;
   const at = (offset: number): { node: Text; offset: number } | null => {
-    for (const item of nodes) {
+    for (const item of info.nodes) {
       if (offset <= item.end) return { node: item.node, offset: offset - item.start };
     }
     return null;
   };
-  const first = at(map[start]);
-  const last = at(map[end - 1] + 1);
+  const first = at(info.normToRaw[start]);
+  const last = at(info.normToRaw[end - 1] + 1);
   if (!first || !last) return null;
   try {
     const range = document.createRange();
@@ -373,6 +451,51 @@ function rangeFor(root: Element, needle: string): Range | null {
   } catch {
     return null;
   }
+}
+
+function caretPoint(x: number, y: number): { node: Node; offset: number } | null {
+  if (typeof document === "undefined") return null;
+  const doc = document as Document & {
+    caretRangeFromPoint?: (x: number, y: number) => Range | null;
+    caretPositionFromPoint?: (x: number, y: number) => { offsetNode: Node; offset: number } | null;
+  };
+  if (typeof doc.caretRangeFromPoint === "function") {
+    const range = doc.caretRangeFromPoint(x, y);
+    return range ? { node: range.startContainer, offset: range.startOffset } : null;
+  }
+  if (typeof doc.caretPositionFromPoint === "function") {
+    const position = doc.caretPositionFromPoint(x, y);
+    return position ? { node: position.offsetNode, offset: position.offset } : null;
+  }
+  return null;
+}
+
+function segmentAtPoint(
+  root: Element,
+  block: number,
+  point: { node: Node; offset: number },
+): number | null {
+  if (!root.contains(point.node) || point.node.nodeType !== Node.TEXT_NODE) return null;
+  const info = flatText(root);
+  const node = info.nodes.find((item) => item.node === point.node);
+  if (!node) return null;
+  const offset = info.rawToNorm[node.start + point.offset] ?? info.text.length;
+  const haystack = info.text.toLowerCase();
+  let from = 0;
+  let target: number | null = null;
+  let next: number | null = null;
+  segments.forEach((segment, index) => {
+    if (segment.block !== block) return;
+    const needle = plainSpeech(segment.text).toLowerCase();
+    if (!needle) return;
+    const start = haystack.indexOf(needle, from);
+    if (start < 0) return;
+    const end = start + needle.length;
+    from = end;
+    if (offset >= start && offset <= end) target = target ?? index;
+    if (next === null && start > offset) next = index;
+  });
+  return target ?? next;
 }
 
 function escapeValue(value: string): string {
@@ -405,6 +528,8 @@ function release(): void {
   gate = null;
   kind = null;
   segments = [];
+  shownSegment = -1;
+  stopTicker();
 }
 
 function finish(): void {
@@ -498,21 +623,21 @@ async function run(gen: number, from: number): Promise<void> {
   try {
     for (let index = from; index < segments.length; index += 1) {
       if (gen !== generation) return;
-      cursor = index;
-      setState({ block: segments[index].block });
-      highlight(segments[index].block);
-      highlightSentence(segments[index].block, segments[index].text);
+      await waitGate(gen);
+      if (gen !== generation) return;
       const response = await prefetched!;
       if (gen !== generation) return;
       prefetched =
         index + 1 < segments.length ? requestStream(segments[index + 1].text, signal) : null;
       if (response.status === 400) continue;
       if (!response.ok) throw new Error("speech failed");
+      current.mark(index);
       await current.consume(response, () => {
         if (gen === generation) setState({ phase: "playing" });
       });
+      current.clearMark();
       current.gap(segments[index].gap);
-      await waitGate(gen);
+      await current.waitWithin(6);
     }
     current.finish();
     await current.done;
@@ -590,17 +715,12 @@ function begin(
   anchored = isAnchored;
   fullText = text;
   segments = items;
-  cursor = 0;
   attach();
-  setState({
-    phase: "loading",
-    message: messageId,
-    block: items[0].block,
-    anchored: isAnchored,
-  });
+  setState({ phase: "loading", message: messageId, anchored: isAnchored });
+  showSegment(0);
+  startTicker();
   const gen = generation + 1;
   generation = gen;
-  if (isAnchored) highlight(items[0].block);
   void run(gen, 0);
 }
 
@@ -631,33 +751,23 @@ function restart(index: number): void {
   openGate?.();
   openGate = null;
   gate = null;
-  cursor = index;
   void audioContext()?.resume().catch(() => {});
-  setState({ phase: "loading", block: segments[index].block });
-  highlight(segments[index].block);
-  highlightSentence(segments[index].block, segments[index].text);
+  setState({ phase: "loading" });
+  showSegment(index);
+  startTicker();
   void run(gen, index);
+
 }
 
 export function jumpToBlock(block: number): void {
   if (!anchored || !segments.length) return;
   const index = segments.findIndex((segment) => segment.block >= block);
-  if (index < 0 || index === cursor) return;
-  restart(index);
+  if (index >= 0) restart(index);
 }
 
-export function previousBlock(): void {
+export function previousSentence(): void {
   if (!anchored || !segments.length) return;
-  const starts: number[] = [];
-  for (let index = 0; index < segments.length; index += 1) {
-    if (index === 0 || segments[index].block !== segments[index - 1].block) starts.push(index);
-  }
-  const position = starts.findIndex((start) => segments[start].block === state.block);
-  if (position <= 0) {
-    restart(0);
-    return;
-  }
-  restart(starts[position - 1]);
+  restart(Math.max(0, shownSegment - 1));
 }
 
 function onDocumentClick(event: MouseEvent): void {
@@ -670,8 +780,12 @@ function onDocumentClick(event: MouseEvent): void {
   const root = target.closest("[data-message-id]");
   if (!block || !root || root.getAttribute("data-message-id") !== activeMessage) return;
   if (typeof window !== "undefined" && window.getSelection()?.toString()) return;
-  const index = Number(block.getAttribute("data-speech-block"));
-  if (Number.isFinite(index)) jumpToBlock(index);
+  const blockIndex = Number(block.getAttribute("data-speech-block"));
+  if (!Number.isFinite(blockIndex)) return;
+  const point = caretPoint(event.clientX, event.clientY);
+  const index = point ? segmentAtPoint(block, blockIndex, point) : null;
+  if (index !== null) restart(index);
+  else jumpToBlock(blockIndex);
 }
 
 function onDocumentKey(event: KeyboardEvent): void {

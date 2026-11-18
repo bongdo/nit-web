@@ -313,11 +313,6 @@ let kind: "stream" | "audio" | "browser" | null = null;
 let gate: Promise<void> | null = null;
 let openGate: (() => void) | null = null;
 let listenersAttached = false;
-let pressStarted = 0;
-let pressX = 0;
-let pressY = 0;
-let suppressClickUntil = 0;
-let pendingClick: ReturnType<typeof setTimeout> | null = null;
 
 const SENTENCE_HIGHLIGHT = "speech";
 
@@ -401,7 +396,6 @@ type FlatText = {
   nodes: { node: Text; start: number; end: number }[];
   text: string;
   normToRaw: number[];
-  rawToNorm: number[];
 };
 
 function flatText(root: Element): FlatText {
@@ -416,10 +410,8 @@ function flatText(root: Element): FlatText {
   }
   const chars: string[] = [];
   const normToRaw: number[] = [];
-  const rawToNorm = new Array<number>(raw.length + 1).fill(0);
   let space = false;
   for (let index = 0; index < raw.length; index += 1) {
-    rawToNorm[index] = chars.length;
     const char = raw[index];
     const isSpace = /\s/.test(char);
     if (isSpace && (space || chars.length === 0)) continue;
@@ -427,8 +419,7 @@ function flatText(root: Element): FlatText {
     normToRaw.push(index);
     space = isSpace;
   }
-  rawToNorm[raw.length] = chars.length;
-  return { nodes, text: chars.join(""), normToRaw, rawToNorm };
+  return { nodes, text: chars.join(""), normToRaw };
 }
 
 function rangeFor(root: Element, needle: string): Range | null {
@@ -458,58 +449,12 @@ function rangeFor(root: Element, needle: string): Range | null {
   }
 }
 
-function caretPoint(x: number, y: number): { node: Node; offset: number } | null {
-  if (typeof document === "undefined") return null;
-  const doc = document as Document & {
-    caretRangeFromPoint?: (x: number, y: number) => Range | null;
-    caretPositionFromPoint?: (x: number, y: number) => { offsetNode: Node; offset: number } | null;
-  };
-  if (typeof doc.caretRangeFromPoint === "function") {
-    const range = doc.caretRangeFromPoint(x, y);
-    return range ? { node: range.startContainer, offset: range.startOffset } : null;
-  }
-  if (typeof doc.caretPositionFromPoint === "function") {
-    const position = doc.caretPositionFromPoint(x, y);
-    return position ? { node: position.offsetNode, offset: position.offset } : null;
-  }
-  return null;
-}
-
-function segmentAtPoint(
-  root: Element,
-  block: number,
-  point: { node: Node; offset: number },
-): number | null {
-  if (!root.contains(point.node) || point.node.nodeType !== Node.TEXT_NODE) return null;
-  const info = flatText(root);
-  const node = info.nodes.find((item) => item.node === point.node);
-  if (!node) return null;
-  const offset = info.rawToNorm[node.start + point.offset] ?? info.text.length;
-  const haystack = info.text.toLowerCase();
-  let from = 0;
-  let target: number | null = null;
-  let next: number | null = null;
-  segments.forEach((segment, index) => {
-    if (segment.block !== block) return;
-    const needle = plainSpeech(segment.text).toLowerCase();
-    if (!needle) return;
-    const start = haystack.indexOf(needle, from);
-    if (start < 0) return;
-    const end = start + needle.length;
-    from = end;
-    if (offset >= start && offset <= end) target = target ?? index;
-    if (next === null && start > offset) next = index;
-  });
-  return target ?? next;
-}
-
 function escapeValue(value: string): string {
   if (typeof CSS !== "undefined" && typeof CSS.escape === "function") return CSS.escape(value);
   return value.replace(/["\\]/g, "\\$&");
 }
 
 function release(): void {
-  cancelPendingClick();
   generation += 1;
   controller?.abort();
   controller = null;
@@ -763,72 +708,11 @@ function restart(index: number): void {
   showSegment(index);
   startTicker();
   void run(gen, index);
-
-}
-
-export function jumpToBlock(block: number): void {
-  if (!anchored || !segments.length) return;
-  const index = segments.findIndex((segment) => segment.block >= block);
-  if (index >= 0) restart(index);
 }
 
 export function previousSentence(): void {
   if (!anchored || !segments.length) return;
   restart(Math.max(0, shownSegment - 1));
-}
-
-function cancelPendingClick(): void {
-  if (pendingClick === null) return;
-  clearTimeout(pendingClick);
-  pendingClick = null;
-}
-
-function onDocumentPointerDown(event: PointerEvent): void {
-  pressStarted = Date.now();
-  pressX = event.clientX;
-  pressY = event.clientY;
-}
-
-function onDocumentPointerMove(event: PointerEvent): void {
-  if (event.buttons === 0) return;
-  if (Math.hypot(event.clientX - pressX, event.clientY - pressY) > 8) {
-    suppressClickUntil = Date.now() + 600;
-  }
-}
-
-function onDocumentPointerUp(): void {
-  if (Date.now() - pressStarted > 450) suppressClickUntil = Date.now() + 600;
-}
-
-function onDocumentClick(event: MouseEvent): void {
-  if (event.button !== 0 || Date.now() < suppressClickUntil) return;
-  if (!anchored || !activeMessage) return;
-  if (state.phase !== "playing" && state.phase !== "paused") return;
-  const target = event.target as Element | null;
-  if (!target || typeof target.closest !== "function") return;
-  if (target.closest("a,button,input,textarea,select,[contenteditable='true']")) return;
-  const block = target.closest("[data-speech-block]");
-  const root = target.closest("[data-message-id]");
-  if (!block || !root || root.getAttribute("data-message-id") !== activeMessage) return;
-  if (typeof window !== "undefined" && window.getSelection()?.toString()) return;
-  const blockIndex = Number(block.getAttribute("data-speech-block"));
-  if (!Number.isFinite(blockIndex)) return;
-  const message = activeMessage;
-  const x = event.clientX;
-  const y = event.clientY;
-  if (pendingClick !== null) {
-    cancelPendingClick();
-    return;
-  }
-  pendingClick = setTimeout(() => {
-    pendingClick = null;
-    if (!anchored || message !== activeMessage || !block.isConnected) return;
-    if (state.phase !== "playing" && state.phase !== "paused") return;
-    const point = caretPoint(x, y);
-    const index = point ? segmentAtPoint(block, blockIndex, point) : null;
-    if (index !== null) restart(index);
-    else jumpToBlock(blockIndex);
-  }, 260);
 }
 
 function onDocumentKey(event: KeyboardEvent): void {
@@ -839,21 +723,12 @@ function onDocumentKey(event: KeyboardEvent): void {
 
 function attach(): void {
   if (listenersAttached || typeof document === "undefined") return;
-  document.addEventListener("click", onDocumentClick);
   document.addEventListener("keydown", onDocumentKey);
-  document.addEventListener("pointerdown", onDocumentPointerDown);
-  document.addEventListener("pointermove", onDocumentPointerMove);
-  document.addEventListener("pointerup", onDocumentPointerUp);
   listenersAttached = true;
 }
 
 function detach(): void {
-  cancelPendingClick();
   if (!listenersAttached || typeof document === "undefined") return;
-  document.removeEventListener("click", onDocumentClick);
   document.removeEventListener("keydown", onDocumentKey);
-  document.removeEventListener("pointerdown", onDocumentPointerDown);
-  document.removeEventListener("pointermove", onDocumentPointerMove);
-  document.removeEventListener("pointerup", onDocumentPointerUp);
   listenersAttached = false;
 }

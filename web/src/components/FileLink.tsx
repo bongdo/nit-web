@@ -4,6 +4,7 @@ import { FileCode2, Sparkles } from "lucide-react";
 import { appLinkClick, fileLinkClick, openInApp } from "../lib/appLink";
 import { annotatable, previewable, viewHref } from "../lib/fileLink";
 import type { LineRange } from "../lib/types";
+import { Button } from "./ui/button";
 
 type FileLinkProps = {
   path: string;
@@ -37,6 +38,8 @@ export function FileLink({
   const href = canPreview ? viewHref(path, instance, sessionID) : pero;
   const agentHref = canPreview && annotatable(path) && sessionID ? `${href}&mode=agent` : "";
   const target = { app: "pero" as const, path, lines, agent };
+  const menuWidth = agentHref ? 142 : 72;
+  const menuHeight = 36;
 
   const cancelTimers = () => {
     if (openTimer.current !== null) window.clearTimeout(openTimer.current);
@@ -52,18 +55,19 @@ export function FileLink({
     }
     const rect = anchorRef.current?.getBoundingClientRect();
     if (!rect) return;
-    const width = 208;
-    const height = agentHref ? 76 : 40;
     const left = Math.max(
       8,
-      Math.min(rect.left + rect.width / 2 - width / 2, window.innerWidth - width - 8),
+      Math.min(
+        rect.left + rect.width / 2 - menuWidth / 2,
+        window.innerWidth - menuWidth - 8,
+      ),
     );
-    const above = rect.top - height - 6;
+    const above = rect.top - menuHeight - 6;
     const top = Math.max(
       8,
       Math.min(
         above >= 8 ? above : rect.bottom + 6,
-        window.innerHeight - height - 8,
+        window.innerHeight - menuHeight - 8,
       ),
     );
     setMenu({ x: left, y: top });
@@ -175,39 +179,44 @@ export function FileLink({
         createPortal(
           <div
             ref={menuRef}
-            role="menu"
+            role="group"
+            aria-label="File actions"
             onPointerEnter={() => {
               if (closeTimer.current !== null) window.clearTimeout(closeTimer.current);
             }}
             onPointerLeave={scheduleClose}
-            className="overlay-popover border-border bg-popover text-popover-foreground fixed z-[100] min-w-52 rounded-lg border p-1 shadow-lg"
+            className="fixed z-[100] flex items-center gap-1"
             style={{
-              left: Math.max(8, Math.min(menu.x, window.innerWidth - 216)),
-              top: Math.max(8, Math.min(menu.y, window.innerHeight - (agentHref ? 84 : 44))),
+              left: Math.max(8, Math.min(menu.x, window.innerWidth - menuWidth - 8)),
+              top: Math.max(8, Math.min(menu.y, window.innerHeight - menuHeight - 8)),
             }}
           >
-            <button
-              type="button"
-              role="menuitem"
+            <Button
+              variant="secondary"
+              size="xs"
+              className="shadow-md"
+              aria-label={`Open ${path} in pero`}
+              title={`Open ${path} in pero`}
               onClick={() => {
                 close();
                 openInApp(target, pero);
               }}
-              className="hover:bg-accent/60 flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-[12px]"
             >
-              <FileCode2 className="text-muted-foreground size-3.5 shrink-0" />
-              Open in pero
-            </button>
+              <FileCode2 />
+              pero
+            </Button>
             {agentHref && (
-              <button
-                type="button"
-                role="menuitem"
+              <Button
+                variant="secondary"
+                size="xs"
+                className="shadow-md"
+                aria-label={`Edit ${path} with the agent`}
+                title={`Edit ${path} with the agent`}
                 onClick={openAgent}
-                className="hover:bg-accent/60 flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-[12px]"
               >
-                <Sparkles className="text-muted-foreground size-3.5 shrink-0" />
-                Agent edit
-              </button>
+                <Sparkles />
+                agent
+              </Button>
             )}
           </div>,
           document.body,

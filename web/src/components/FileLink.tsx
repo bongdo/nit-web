@@ -93,11 +93,6 @@ export function FileLink({
   useEffect(() => cancelTimers, []);
 
   useEffect(() => {
-    document.addEventListener("scroll", cancelTimers, true);
-    return () => document.removeEventListener("scroll", cancelTimers, true);
-  }, []);
-
-  useEffect(() => {
     if (!menu) return;
     const onDown = (event: PointerEvent) => {
       if (menuRef.current?.contains(event.target as Node)) return;

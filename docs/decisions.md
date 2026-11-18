@@ -6,8 +6,8 @@ Context: the actions menu was on right-click, two clicks from a hover, and only
 markdown, HTML, media and PDF had a preview. SQL, JSON, CSV, SVG and WASM were
 sent to pero even though a read-only view is useful.
 
-Decision: hovering a previewable file link for 220 ms raises `Open in pero` and
-`Agent edit` above it; right-click still works. The preview matrix grows: SVG as
+Decision: hovering a previewable file link for 220 ms raises `pero` and `agent`
+chips above it; right-click still works. The preview matrix grows: SVG as
 an image through a data URL, CSV/TSV as a table, JSON/JSONL pretty-printed,
 SQL/YAML/TOML/INI/conf/XML/WAT with the code highlighter, and WASM as version,
 section table and download. Agent edit is limited to previews with a selectable

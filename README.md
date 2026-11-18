@@ -725,8 +725,8 @@ nspell worker. It is not implemented yet.
   directory: documents, pages, media, tables, data and WASM open the bare
   preview page; source code, plain text, archives and executables such as
   `bin/check` open in pero directly. Shift-click on a previewable file opens
-  pero at the same lines; hovering it raises `Open in pero` and `Agent edit`
-  above the link, so the menu is one click away. The same menu is on right-click.
+  pero at the same lines; hovering it raises `pero` and `agent` chips above the
+  link, so the action is one click away. The same chips are on right-click.
   Commands with spaces, URLs, Cyrillic prose and bare words stay plain, so no
   accidental links. Extensionless files under `bin/`, `sbin/` or `scripts/` get
   a terminal icon instead of a plain file.

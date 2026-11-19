@@ -35,6 +35,7 @@ import { useSpellcheck } from "../hooks/useSpellcheck";
 import { useCompletion } from "../hooks/useCompletion";
 import { ignoreWords, loadIgnoredWords, SPELL_CHANGED } from "../lib/chatWords";
 import { checkSpelling } from "../lib/spell-client";
+import type { DockPull } from "../hooks/useDockDrag";
 import { cn } from "../lib/utils";
 import { FileTypeIcon } from "./Attachment";
 import { ImageCrop } from "./ImageCrop";
@@ -97,6 +98,7 @@ export const Composer = memo(function Composer({
   focusKey,
   keyboard,
   dockHandle,
+  dockPull,
   onComposerMetrics,
   typingBlocked,
   drawerOpen,
@@ -125,6 +127,7 @@ export const Composer = memo(function Composer({
   focusKey?: string | null;
   keyboard?: { id: number; show: boolean } | null;
   dockHandle?: ReactNode;
+  dockPull?: DockPull;
   onComposerMetrics?: (height: number) => void;
   typingBlocked?: boolean;
   drawerOpen?: boolean;
@@ -357,6 +360,86 @@ export const Composer = memo(function Composer({
       document.documentElement.style.removeProperty("--composer-height");
     };
   }, [onComposerMetrics]);
+
+  useEffect(() => {
+    const card = cardRef.current;
+    if (!card || !dockPull) return;
+    let eligible = false;
+    let active = false;
+    let startX = 0;
+    let startY = 0;
+    let beginY = 0;
+    let lastY = 0;
+
+    const canScrollDown = () => {
+      const area = ref.current;
+      if (!area) return false;
+      return area.scrollHeight - area.scrollTop - area.clientHeight > 1;
+    };
+
+    const onStart = (event: TouchEvent) => {
+      eligible = false;
+      active = false;
+      const touch = event.touches[0];
+      if (!touch || event.touches.length !== 1) return;
+      if (!window.matchMedia("(max-width: 767px)").matches) return;
+      const target = event.target instanceof Element ? event.target : null;
+      if (target?.closest("button, a, input, [role='button'], [data-dock-handle]")) return;
+      eligible = true;
+      startX = touch.clientX;
+      startY = lastY = touch.clientY;
+    };
+
+    const onMove = (event: TouchEvent) => {
+      if (!eligible) return;
+      const touch = event.touches[0];
+      if (!touch) return;
+      const y = touch.clientY;
+      if (!active) {
+        const move = y - lastY;
+        const dx = touch.clientX - startX;
+        const dy = y - startY;
+        lastY = y;
+        if (dy < -8 && Math.abs(dy) > Math.abs(dx) && !canScrollDown()) {
+          active = true;
+          beginY = y - move;
+          dockPull.begin(beginY, event.timeStamp);
+          if (event.cancelable) event.preventDefault();
+          dockPull.move(y, event.timeStamp);
+        }
+        return;
+      }
+      if (event.cancelable) event.preventDefault();
+      dockPull.move(y, event.timeStamp);
+      lastY = y;
+    };
+
+    const onEnd = (event: TouchEvent) => {
+      eligible = false;
+      if (!active) return;
+      active = false;
+      if (beginY - lastY < 10) dockPull.cancel();
+      else dockPull.end(lastY, event.timeStamp);
+    };
+
+    const onCancel = () => {
+      eligible = false;
+      if (!active) return;
+      active = false;
+      dockPull.cancel();
+    };
+
+    card.addEventListener("touchstart", onStart, { passive: true });
+    card.addEventListener("touchmove", onMove, { passive: false });
+    card.addEventListener("touchend", onEnd);
+    card.addEventListener("touchcancel", onCancel);
+    return () => {
+      card.removeEventListener("touchstart", onStart);
+      card.removeEventListener("touchmove", onMove);
+      card.removeEventListener("touchend", onEnd);
+      card.removeEventListener("touchcancel", onCancel);
+    };
+  }, [dockPull]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {

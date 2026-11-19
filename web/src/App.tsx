@@ -3016,11 +3016,13 @@ export default function App({
                 <div
                   className="flex h-6 w-full touch-none items-center justify-center"
                   aria-hidden
+                  data-dock-handle
                   {...dock.handlers}
                 >
                   <span className="bg-border h-1 w-10 rounded-full" />
                 </div>
               }
+              dockPull={dock.pull}
               onComposerMetrics={onComposerMetrics}
               typingBlocked={
                 settingsOpen || pickerOpen || themeOpen || backgroundOpen || reviewOpen

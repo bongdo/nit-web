@@ -5,6 +5,7 @@ export const DOCK_FADE_IN = 0.05;
 export const DOCK_FADE_SPAN = 0.1;
 export const DOCK_FLING = 0.45;
 export const DOCK_FLING_PX = 10;
+export const DOCK_PULL_SETTLE = 0.8;
 
 export function dockProgress(from: number, dy: number, height: number): number {
   if (height <= 0) return from;
@@ -22,10 +23,15 @@ export function dockFling(velocity: number, travel: number): "open" | "close" | 
   return null;
 }
 
-export function dockSettlesOpen(progress: number, velocity = 0, travel = 0): boolean {
+export function dockSettlesOpen(
+  progress: number,
+  velocity = 0,
+  travel = 0,
+  settle = DOCK_SETTLE,
+): boolean {
   const fling = dockFling(velocity, travel);
   if (fling) return fling === "open";
-  return dockOpens(progress);
+  return progress >= settle;
 }
 
 export function dockComposerFade(progress: number): number {

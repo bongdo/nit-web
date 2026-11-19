@@ -31,6 +31,8 @@ import {
 } from "lucide-react";
 import type { Health, Session } from "../lib/types";
 import type { StreamStatus } from "../hooks/useEventStream";
+import type { DockPull } from "../hooks/useDockDrag";
+import { DOCK_PULL_SETTLE } from "../lib/dock";
 import { themeLabel, type Theme } from "../lib/themes";
 import { filterSessions, formatRelative, workspaceLabel } from "../lib/format";
 import { BASE_PATH } from "../lib/base";
@@ -290,6 +292,7 @@ export const Sidebar = memo(function Sidebar({
   reviewCount,
   onReview,
   onClose,
+  pull,
 }: {
   sessions: Session[];
   subagents: Session[];
@@ -330,6 +333,7 @@ export const Sidebar = memo(function Sidebar({
   reviewCount: number;
   onReview: () => void;
   onClose?: () => void;
+  pull?: DockPull;
 }) {
   const [now, setNow] = useState(Date.now());
   const [fading, setFading] = useState(false);
@@ -390,6 +394,72 @@ export const Sidebar = memo(function Sidebar({
     })
     .join("|");
   const listRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    const element = listRef.current;
+    if (!element || !pull) return;
+    let active = false;
+    let startY = 0;
+    let beginY = 0;
+    let lastY = 0;
+
+    const onStart = (event: TouchEvent) => {
+      active = false;
+      const touch = event.touches[0];
+      if (!touch || event.touches.length !== 1) return;
+      startY = lastY = touch.clientY;
+    };
+
+    const onMove = (event: TouchEvent) => {
+      const touch = event.touches[0];
+      if (!touch) return;
+      const y = touch.clientY;
+      if (!active) {
+        const dy = y - lastY;
+        lastY = y;
+        if (
+          dy > 0 &&
+          element.scrollTop <= 0 &&
+          y - startY > 8 &&
+          window.matchMedia("(max-width: 767px)").matches
+        ) {
+          active = true;
+          beginY = y - dy;
+          pull.begin(beginY, event.timeStamp);
+          event.preventDefault();
+          pull.move(y, event.timeStamp);
+        }
+        return;
+      }
+      event.preventDefault();
+      pull.move(y, event.timeStamp);
+      lastY = y;
+    };
+
+    const onEnd = (event: TouchEvent) => {
+      if (!active) return;
+      active = false;
+      if (lastY - beginY < 10) pull.cancel();
+      else pull.end(lastY, event.timeStamp, DOCK_PULL_SETTLE);
+    };
+
+    const onCancel = () => {
+      if (!active) return;
+      active = false;
+      pull.cancel();
+    };
+
+    element.addEventListener("touchstart", onStart, { passive: true });
+    element.addEventListener("touchmove", onMove, { passive: false });
+    element.addEventListener("touchend", onEnd);
+    element.addEventListener("touchcancel", onCancel);
+    return () => {
+      element.removeEventListener("touchstart", onStart);
+      element.removeEventListener("touchmove", onMove);
+      element.removeEventListener("touchend", onEnd);
+      element.removeEventListener("touchcancel", onCancel);
+    };
+  }, [pull]);
   const positions = useRef(new Map<string, number>());
   const lastOrder = useRef("");
   const lastScope = useRef(scope);
@@ -756,7 +826,7 @@ export const Sidebar = memo(function Sidebar({
         <div
           ref={listRef}
           className={cn(
-            "scrollbar-thin relative min-h-0 touch-pan-y overflow-y-auto px-2 pb-2",
+            "scrollbar-thin relative min-h-0 touch-pan-y overflow-y-auto overscroll-contain px-2 pb-2",
             fading &&
               "[mask-image:linear-gradient(to_bottom,black_calc(100%_-_4rem),transparent)]",
           )}

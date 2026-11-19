@@ -2874,6 +2874,7 @@ export default function App({
             reviewCount={reviewCount}
             onReview={() => setReviewOpen(true)}
             onClose={() => setSidebarOpen(false)}
+            pull={dock.pull}
           />
           </div>
         </div>

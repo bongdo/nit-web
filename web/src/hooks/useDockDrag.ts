@@ -1,5 +1,11 @@
-import { useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
-import { DOCK_MOVE_PX, dockProgress, dockSettlesOpen } from "../lib/dock";
+import {
+  useCallback,
+  useMemo,
+  useRef,
+  useState,
+  type PointerEvent as ReactPointerEvent,
+} from "react";
+import { DOCK_MOVE_PX, DOCK_SETTLE, dockProgress, dockSettlesOpen } from "../lib/dock";
 
 const FLING_WINDOW_MS = 120;
 
@@ -11,6 +17,13 @@ function swallowClick() {
   window.addEventListener("click", stop, true);
   window.setTimeout(() => window.removeEventListener("click", stop, true), 350);
 }
+
+export type DockPull = {
+  begin: (y: number, time: number) => void;
+  move: (y: number, time: number) => void;
+  end: (y: number, time: number, settle?: number) => void;
+  cancel: () => void;
+};
 
 export function useDockDrag({
   open,
@@ -33,75 +46,98 @@ export function useDockDrag({
     last: number;
     samples: { t: number; y: number }[];
   } | null>(null);
+  const live = useRef({ open, height, onOpen, onClose });
+  live.current = { open, height, onOpen, onClose };
 
-  const onPointerDown = (event: ReactPointerEvent<HTMLElement>) => {
-    if (event.button !== 0) return;
+  const begin = useCallback((y: number, time: number, id = -1) => {
+    const now = live.current;
     if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
-    const from = open ? 1 : 0;
+    const from = now.open ? 1 : 0;
     drag.current = {
-      id: event.pointerId,
-      y: event.clientY,
+      id,
+      y,
       from,
-      height: height(),
+      height: now.height(),
       moved: false,
       last: from,
-      samples: [{ t: event.timeStamp, y: event.clientY }],
+      samples: [{ t: time, y }],
     };
-    event.currentTarget.setPointerCapture(event.pointerId);
     setProgress(from);
-  };
+  }, []);
 
-  const onPointerMove = (event: ReactPointerEvent<HTMLElement>) => {
+  const move = useCallback((y: number, time: number) => {
     const state = drag.current;
-    if (!state || state.id !== event.pointerId) return;
-    state.samples.push({ t: event.timeStamp, y: event.clientY });
+    if (!state) return;
+    state.samples.push({ t: time, y });
     if (state.samples.length > 16) state.samples.shift();
     if (!state.moved) {
-      if (Math.abs(event.clientY - state.y) < DOCK_MOVE_PX) return;
+      if (Math.abs(y - state.y) < DOCK_MOVE_PX) return;
       state.moved = true;
     }
-    state.last = dockProgress(state.from, event.clientY - state.y, state.height);
+    state.last = dockProgress(state.from, y - state.y, state.height);
     setProgress(state.last);
-  };
+  }, []);
 
-  const finish = (event: ReactPointerEvent<HTMLElement>) => {
+  const end = useCallback((y: number, time: number, settle = DOCK_SETTLE) => {
     const state = drag.current;
-    if (!state || state.id !== event.pointerId) return;
+    if (!state) return;
     drag.current = null;
     setProgress(null);
     swallowClick();
     if (!state.moved) {
-      if (open) onClose();
-      else onOpen();
+      if (state.from === 1) live.current.onClose();
+      else live.current.onOpen();
       return;
     }
-    const recent = state.samples.filter(
-      (sample) => event.timeStamp - sample.t <= FLING_WINDOW_MS,
-    );
+    const recent = state.samples.filter((sample) => time - sample.t <= FLING_WINDOW_MS);
     const first = recent[0];
     const last = recent[recent.length - 1];
     let velocity = 0;
     if (first && last && last.t > first.t) {
       velocity = (-(last.y - first.y) / (last.t - first.t)) * (1000 / Math.max(1, state.height));
     }
-    const travel = state.y - event.clientY;
-    if (dockSettlesOpen(state.last, velocity, travel)) onOpen();
-    else onClose();
-  };
+    const travel = state.y - y;
+    if (dockSettlesOpen(state.last, velocity, travel, settle)) live.current.onOpen();
+    else live.current.onClose();
+  }, []);
 
-  const cancel = (event: ReactPointerEvent<HTMLElement>) => {
-    if (!drag.current || drag.current.id !== event.pointerId) return;
+  const cancel = useCallback(() => {
     drag.current = null;
     setProgress(null);
-  };
+  }, []);
 
-  return {
-    progress,
-    handlers: {
-      onPointerDown,
-      onPointerMove,
-      onPointerUp: finish,
-      onPointerCancel: cancel,
-    },
-  };
+  const handlers = useMemo(
+    () => ({
+      onPointerDown: (event: ReactPointerEvent<HTMLElement>) => {
+        if (event.button !== 0) return;
+        begin(event.clientY, event.timeStamp, event.pointerId);
+        event.currentTarget.setPointerCapture(event.pointerId);
+      },
+      onPointerMove: (event: ReactPointerEvent<HTMLElement>) => {
+        if (drag.current?.id !== event.pointerId) return;
+        move(event.clientY, event.timeStamp);
+      },
+      onPointerUp: (event: ReactPointerEvent<HTMLElement>) => {
+        if (drag.current?.id !== event.pointerId) return;
+        end(event.clientY, event.timeStamp);
+      },
+      onPointerCancel: (event: ReactPointerEvent<HTMLElement>) => {
+        if (drag.current?.id !== event.pointerId) return;
+        cancel();
+      },
+    }),
+    [begin, move, end, cancel],
+  );
+
+  const pull = useMemo<DockPull>(
+    () => ({
+      begin: (y, time) => begin(y, time),
+      move,
+      end,
+      cancel,
+    }),
+    [begin, move, end, cancel],
+  );
+
+  return { progress, handlers, pull };
 }

@@ -576,6 +576,12 @@
     @apply my-4 w-full border-collapse text-sm;
   }
 
+  @media (max-width: 48rem) {
+    .markdown table {
+      @apply w-max min-w-full;
+    }
+  }
+
   .markdown th,
   .markdown td {
     @apply border-border border px-3 py-1.5 text-left align-top;

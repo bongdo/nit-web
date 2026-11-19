@@ -1139,16 +1139,6 @@
     animation: chrome-sheen-context-reset 900ms cubic-bezier(0.22, 0.7, 0.2, 1) 120ms both;
   }
 
-  .chrome-sheen-latest::after {
-    content: "";
-    position: absolute;
-    inset: -1px;
-    border-radius: inherit;
-    pointer-events: none;
-    opacity: 0;
-    animation: chrome-sheen-latest 640ms cubic-bezier(0.22, 0.7, 0.2, 1) both;
-  }
-
   .chrome-sheen-error {
     --sweep: var(--destructive);
     position: relative;
@@ -1253,7 +1243,6 @@
 
     .chrome-sheen-context-hot::after,
     .chrome-sheen-context-sweep,
-    .chrome-sheen-latest::after,
     .chrome-sheen-error::after,
     .chrome-sheen-error-progress,
     .chrome-sheen-health-offline::before,
@@ -1263,7 +1252,6 @@
     }
 
     .chrome-sheen-context-sweep,
-    .chrome-sheen-latest::after,
     .chrome-sheen-error::after,
     .chrome-sheen-health-sweep {
       opacity: 0;
@@ -2011,20 +1999,6 @@
     100% {
       opacity: 0;
       transform: translateX(120%);
-    }
-  }
-
-  @keyframes chrome-sheen-latest {
-    0% {
-      box-shadow: 0 0 0 0 color-mix(in oklab, var(--spark) 45%, transparent);
-      opacity: 0;
-    }
-    30% {
-      opacity: 1;
-    }
-    100% {
-      box-shadow: 0 0 0 7px transparent;
-      opacity: 0;
     }
   }
 

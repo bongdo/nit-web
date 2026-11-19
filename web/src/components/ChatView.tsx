@@ -867,10 +867,7 @@ export function ChatView({
           <Button
             variant="secondary"
             size="sm"
-            className={cn(
-              "pointer-events-auto relative shadow-md",
-              motion === "animated" && "chrome-sheen-latest",
-            )}
+            className="pointer-events-auto relative shadow-md"
             onClick={jumpToLatest}
             aria-label="Jump to latest"
           >

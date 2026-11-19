@@ -100,6 +100,12 @@ function findRow(rows: HTMLDivElement | null, messageID: string): HTMLElement | 
   return null;
 }
 
+function lastRowBelow(rows: HTMLDivElement | null, viewport: HTMLElement): boolean {
+  const last = rows?.lastElementChild as HTMLElement | null;
+  if (!last) return false;
+  return last.getBoundingClientRect().top >= viewport.getBoundingClientRect().bottom;
+}
+
 function rowAtTop(rows: HTMLDivElement, top: number): { row: HTMLElement; offset: number } | null {
   let low = 0;
   let high = rows.children.length - 1;
@@ -422,6 +428,12 @@ export function ChatView({
     pendingRestore.current = id;
     if (id && loading) anchors.current.delete(id);
   }, [session?.id]);
+
+  useLayoutEffect(() => {
+    const element = scrollRef.current;
+    if (!element) return;
+    setShowJump(!stick.current && lastRowBelow(rowsRef.current, element));
+  }, [messages, session?.id]);
 
   useLayoutEffect(() => {
     const id = session?.id ?? null;
@@ -806,7 +818,7 @@ export function ChatView({
             }
           }
           stick.current = nearBottom;
-          setShowJump(!nearBottom);
+          setShowJump(lastRowBelow(rowsRef.current, element));
           setQuote(null);
           if (earlierAnchor.current) earlierAnchor.current.top = element.scrollTop;
           const programmatic =
@@ -863,16 +875,19 @@ export function ChatView({
       <TextSelectionMenu container={scrollRef} onQuote={onQuote} />
 
       {showJump && (
-        <div className="pointer-events-none absolute inset-x-0 bottom-[calc(var(--dock,0px)+0.75rem)] flex justify-center">
+        <div className="pointer-events-none absolute right-3 bottom-[calc(var(--dock,0px)+0.75rem)] flex justify-end">
           <Button
             variant="secondary"
-            size="sm"
-            className="pointer-events-auto relative shadow-md"
+            size="icon"
+            className={cn(
+              "pointer-events-auto relative rounded-full shadow-md",
+              motion === "animated" && "chrome-sheen-latest",
+            )}
             onClick={jumpToLatest}
             aria-label="Jump to latest"
+            title="Jump to latest"
           >
             <ArrowDown />
-            Latest
           </Button>
         </div>
       )}

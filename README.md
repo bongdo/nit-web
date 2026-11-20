@@ -1,14 +1,25 @@
 # opencode-web
 
+![chat](docs/screenshots/chat.png)
+
+Запрос, шаги агента и ответ со стримингом. Слева — только чаты текущей папки.
+
+![HTML прямо в сообщении](docs/screenshots/html.png)
+
+HTML из ответа рендерится прямо в чате: страница-поздравление с конфетти собрана
+агентом и показана в песочнице.
+
+| Новый чат | Ответ | Анимация фона |
+| --- | --- | --- |
+| ![new chat](docs/screenshots/new-chat.png) | ![answer](docs/screenshots/answer.png) | ![background](docs/screenshots/new-chat.gif) |
+
 
 > The binary, env vars and log lines still use the old internal name `nit-gui`.
 Web GUI for the OpenCode v2 service. Sessions on the left, transcript in the
 middle, composer at the bottom. It is a client only: OpenCode remains the source
 of truth for sessions, messages, models and agents.
 
-![opencode-web](docs/screenshots/chat.png)
 
-<sub>One chat: prompt, agent steps, streaming markdown answer. The same UI works from a phone browser.</sub>
 
 Production has one **nit-gui** service, **Frankfurt**. It can front several
 OpenCode servers, called instances, and the browser switches between them

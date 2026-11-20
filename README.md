@@ -1,4 +1,8 @@
-# opencode-web
+# nit-web
+
+Веб-интерфейс к AI-агенту OpenCode: чат из любого браузера. Сессии слева,
+транскрипт в центре, композер снизу. Клиент, а не второй бэкенд — OpenCode
+остаётся источником правды.
 
 ![chat](docs/screenshots/chat.png)
 
@@ -6,13 +10,12 @@
 
 ![HTML прямо в сообщении](docs/screenshots/html.png)
 
-HTML из ответа рендерится прямо в чате: страница-поздравление с конфетти собрана
-агентом и показана в песочнице.
+HTML из ответа рендерится прямо в чате: страница-поздравление с конфетти
+собрана агентом и показана в песочнице.
 
 | Новый чат | Ответ | Анимация фона |
 | --- | --- | --- |
 | ![new chat](docs/screenshots/new-chat.png) | ![answer](docs/screenshots/answer.png) | ![background](docs/screenshots/new-chat.gif) |
-
 
 > The binary, env vars and log lines still use the old internal name `nit-gui`.
 Web GUI for the OpenCode v2 service. Sessions on the left, transcript in the

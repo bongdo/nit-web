@@ -840,6 +840,7 @@ export const Composer = memo(function Composer({
     const text = value.trim();
     if ((!text && readyFiles.length === 0) || !workspace || disabled || submitting) return;
     const dir = workspace;
+    const sentKey = draftKey;
     const misspelled = issues
       .filter((issue) => issue.source !== "grammar")
       .map((issue) => issue.word.toLowerCase());
@@ -879,6 +880,10 @@ export const Composer = memo(function Composer({
       });
       setRemoving((current) => current.filter((id) => !sent.has(id)));
       for (const id of sent) addedDelay.current.delete(id);
+      const unsent = attachmentsRef.current.flatMap((item) =>
+        !sent.has(item.id) && !removing.includes(item.id) && item.file ? [item.file] : [],
+      );
+      void saveDraftFiles(sentKey, unsent).catch(() => {});
     } catch {
       updateValue(restoreDraft(text, valueRef.current));
       return;

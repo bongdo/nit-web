@@ -4,6 +4,10 @@ Web GUI for the OpenCode v2 service. Sessions on the left, transcript in the
 middle, composer at the bottom. It is a client only: OpenCode remains the source
 of truth for sessions, messages, models and agents.
 
+![opencode-web](docs/screenshots/chat.png)
+
+<sub>One chat: prompt, agent steps, streaming markdown answer. The same UI works from a phone browser.</sub>
+
 Production has one **nit-gui** service, **Frankfurt**. It can front several
 OpenCode servers, called instances, and the browser switches between them
 without a second login. Everything that needs a model, dictionary, voice, JVM or

@@ -1,5 +1,7 @@
-# nit-gui
+# opencode-web
 
+
+> The binary, env vars and log lines still use the old internal name `nit-gui`.
 Web GUI for the OpenCode v2 service. Sessions on the left, transcript in the
 middle, composer at the bottom. It is a client only: OpenCode remains the source
 of truth for sessions, messages, models and agents.
